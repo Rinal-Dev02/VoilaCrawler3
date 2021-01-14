@@ -15,148 +15,6 @@ import (
 // is compatible with the grpc package it is being compiled against.
 const _ = grpc.SupportPackageIsVersion7
 
-// CrawlerRunnerClient is the client API for CrawlerRunner service.
-//
-// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type CrawlerRunnerClient interface {
-	// 抓取 @desc 提交URL地址，支持列表/详情
-	// 对于不同情况下，抓取的数据响应处理方式不同;
-	// 对于定时抓取任务，或者全库抓取任务，抓取数据通过MQ提交给处理逻辑
-	// 对于及时抓取，比如获取商品的价格，直接返回结果
-	//
-	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
-	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
-	//
-	// 爬虫里面不处理分类数据信息，需要在数据处理逻辑里面处理
-	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
-	// 获取爬虫关联的站点信息
-	GetSiteInfo(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSiteInfoResponse, error)
-}
-
-type crawlerRunnerClient struct {
-	cc grpc.ClientConnInterface
-}
-
-func NewCrawlerRunnerClient(cc grpc.ClientConnInterface) CrawlerRunnerClient {
-	return &crawlerRunnerClient{cc}
-}
-
-func (c *crawlerRunnerClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error) {
-	out := new(FetchResponse)
-	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawler.CrawlerRunner/Fetch", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *crawlerRunnerClient) GetSiteInfo(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*GetSiteInfoResponse, error) {
-	out := new(GetSiteInfoResponse)
-	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawler.CrawlerRunner/GetSiteInfo", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// CrawlerRunnerServer is the server API for CrawlerRunner service.
-// All implementations must embed UnimplementedCrawlerRunnerServer
-// for forward compatibility
-type CrawlerRunnerServer interface {
-	// 抓取 @desc 提交URL地址，支持列表/详情
-	// 对于不同情况下，抓取的数据响应处理方式不同;
-	// 对于定时抓取任务，或者全库抓取任务，抓取数据通过MQ提交给处理逻辑
-	// 对于及时抓取，比如获取商品的价格，直接返回结果
-	//
-	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
-	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
-	//
-	// 爬虫里面不处理分类数据信息，需要在数据处理逻辑里面处理
-	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
-	// 获取爬虫关联的站点信息
-	GetSiteInfo(context.Context, *emptypb.Empty) (*GetSiteInfoResponse, error)
-	mustEmbedUnimplementedCrawlerRunnerServer()
-}
-
-// UnimplementedCrawlerRunnerServer must be embedded to have forward compatible implementations.
-type UnimplementedCrawlerRunnerServer struct {
-}
-
-func (UnimplementedCrawlerRunnerServer) Fetch(context.Context, *FetchRequest) (*FetchResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Fetch not implemented")
-}
-func (UnimplementedCrawlerRunnerServer) GetSiteInfo(context.Context, *emptypb.Empty) (*GetSiteInfoResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetSiteInfo not implemented")
-}
-func (UnimplementedCrawlerRunnerServer) mustEmbedUnimplementedCrawlerRunnerServer() {}
-
-// UnsafeCrawlerRunnerServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to CrawlerRunnerServer will
-// result in compilation errors.
-type UnsafeCrawlerRunnerServer interface {
-	mustEmbedUnimplementedCrawlerRunnerServer()
-}
-
-func RegisterCrawlerRunnerServer(s grpc.ServiceRegistrar, srv CrawlerRunnerServer) {
-	s.RegisterService(&CrawlerRunner_ServiceDesc, srv)
-}
-
-func _CrawlerRunner_Fetch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(FetchRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CrawlerRunnerServer).Fetch(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/chameleon.smelter.v1.crawler.CrawlerRunner/Fetch",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CrawlerRunnerServer).Fetch(ctx, req.(*FetchRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _CrawlerRunner_GetSiteInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(CrawlerRunnerServer).GetSiteInfo(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/chameleon.smelter.v1.crawler.CrawlerRunner/GetSiteInfo",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CrawlerRunnerServer).GetSiteInfo(ctx, req.(*emptypb.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-// CrawlerRunner_ServiceDesc is the grpc.ServiceDesc for CrawlerRunner service.
-// It's only intended for direct use with grpc.RegisterService,
-// and not to be introspected or modified (even as a copy)
-var CrawlerRunner_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "chameleon.smelter.v1.crawler.CrawlerRunner",
-	HandlerType: (*CrawlerRunnerServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "Fetch",
-			Handler:    _CrawlerRunner_Fetch_Handler,
-		},
-		{
-			MethodName: "GetSiteInfo",
-			Handler:    _CrawlerRunner_GetSiteInfo_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "chameleon/smelter/v1/crawler/service.proto",
-}
-
 // CrawlerManagerClient is the client API for CrawlerManager service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
@@ -359,14 +217,148 @@ var CrawlerManager_ServiceDesc = grpc.ServiceDesc{
 	Metadata: "chameleon/smelter/v1/crawler/service.proto",
 }
 
+// NodeManagerClient is the client API for NodeManager service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type NodeManagerClient interface {
+	// GetNodes
+	GetNodes(ctx context.Context, in *GetNodesRequest, opts ...grpc.CallOption) (*GetNodesResponse, error)
+	// GetNode
+	GetNode(ctx context.Context, in *GetNodeRequest, opts ...grpc.CallOption) (*GetNodeResponse, error)
+}
+
+type nodeManagerClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewNodeManagerClient(cc grpc.ClientConnInterface) NodeManagerClient {
+	return &nodeManagerClient{cc}
+}
+
+func (c *nodeManagerClient) GetNodes(ctx context.Context, in *GetNodesRequest, opts ...grpc.CallOption) (*GetNodesResponse, error) {
+	out := new(GetNodesResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawler.NodeManager/GetNodes", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeManagerClient) GetNode(ctx context.Context, in *GetNodeRequest, opts ...grpc.CallOption) (*GetNodeResponse, error) {
+	out := new(GetNodeResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawler.NodeManager/GetNode", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// NodeManagerServer is the server API for NodeManager service.
+// All implementations must embed UnimplementedNodeManagerServer
+// for forward compatibility
+type NodeManagerServer interface {
+	// GetNodes
+	GetNodes(context.Context, *GetNodesRequest) (*GetNodesResponse, error)
+	// GetNode
+	GetNode(context.Context, *GetNodeRequest) (*GetNodeResponse, error)
+	mustEmbedUnimplementedNodeManagerServer()
+}
+
+// UnimplementedNodeManagerServer must be embedded to have forward compatible implementations.
+type UnimplementedNodeManagerServer struct {
+}
+
+func (UnimplementedNodeManagerServer) GetNodes(context.Context, *GetNodesRequest) (*GetNodesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNodes not implemented")
+}
+func (UnimplementedNodeManagerServer) GetNode(context.Context, *GetNodeRequest) (*GetNodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNode not implemented")
+}
+func (UnimplementedNodeManagerServer) mustEmbedUnimplementedNodeManagerServer() {}
+
+// UnsafeNodeManagerServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to NodeManagerServer will
+// result in compilation errors.
+type UnsafeNodeManagerServer interface {
+	mustEmbedUnimplementedNodeManagerServer()
+}
+
+func RegisterNodeManagerServer(s grpc.ServiceRegistrar, srv NodeManagerServer) {
+	s.RegisterService(&NodeManager_ServiceDesc, srv)
+}
+
+func _NodeManager_GetNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeManagerServer).GetNodes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawler.NodeManager/GetNodes",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeManagerServer).GetNodes(ctx, req.(*GetNodesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeManager_GetNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeManagerServer).GetNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawler.NodeManager/GetNode",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeManagerServer).GetNode(ctx, req.(*GetNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// NodeManager_ServiceDesc is the grpc.ServiceDesc for NodeManager service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var NodeManager_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "chameleon.smelter.v1.crawler.NodeManager",
+	HandlerType: (*NodeManagerServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetNodes",
+			Handler:    _NodeManager_GetNodes_Handler,
+		},
+		{
+			MethodName: "GetNode",
+			Handler:    _NodeManager_GetNode_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "chameleon/smelter/v1/crawler/service.proto",
+}
+
 // CrawlerControllerClient is the client API for CrawlerController service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CrawlerControllerClient interface {
-	// 心跳 @desc 用于提交心跳信息
-	// 第一个心跳包必须为爬虫基本信息
-	// 后续心跳包为爬虫状态心跳包，以便流控
-	Heartbeat(ctx context.Context, opts ...grpc.CallOption) (CrawlerController_HeartbeatClient, error)
+	// 通道 @desc 用于双方发送指令
+	// 从节点向控制节点发送心跳包，包括：节点信息，爬虫信息，可处理的任务信息，当前正在处理的任务信息
+	// 主节点通过该节点下发任务数据
+	Channel(ctx context.Context, opts ...grpc.CallOption) (CrawlerController_ChannelClient, error)
+	// 抓取 @desc 提交URL地址
+	// 对于不同情况下，抓取的数据响应处理方式不同;
+	// 对于定时抓取任务，或者全库抓取任务，抓取数据通过MQ提交给处理逻辑
+	// 对于及时抓取，比如获取商品的价格，直接返回结果
+	//
+	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
+	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
+	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
 }
 
 type crawlerControllerClient struct {
@@ -377,48 +369,62 @@ func NewCrawlerControllerClient(cc grpc.ClientConnInterface) CrawlerControllerCl
 	return &crawlerControllerClient{cc}
 }
 
-func (c *crawlerControllerClient) Heartbeat(ctx context.Context, opts ...grpc.CallOption) (CrawlerController_HeartbeatClient, error) {
-	stream, err := c.cc.NewStream(ctx, &CrawlerController_ServiceDesc.Streams[0], "/chameleon.smelter.v1.crawler.CrawlerController/Heartbeat", opts...)
+func (c *crawlerControllerClient) Channel(ctx context.Context, opts ...grpc.CallOption) (CrawlerController_ChannelClient, error) {
+	stream, err := c.cc.NewStream(ctx, &CrawlerController_ServiceDesc.Streams[0], "/chameleon.smelter.v1.crawler.CrawlerController/Channel", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &crawlerControllerHeartbeatClient{stream}
+	x := &crawlerControllerChannelClient{stream}
 	return x, nil
 }
 
-type CrawlerController_HeartbeatClient interface {
+type CrawlerController_ChannelClient interface {
 	Send(*anypb.Any) error
-	CloseAndRecv() (*emptypb.Empty, error)
+	Recv() (*anypb.Any, error)
 	grpc.ClientStream
 }
 
-type crawlerControllerHeartbeatClient struct {
+type crawlerControllerChannelClient struct {
 	grpc.ClientStream
 }
 
-func (x *crawlerControllerHeartbeatClient) Send(m *anypb.Any) error {
+func (x *crawlerControllerChannelClient) Send(m *anypb.Any) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *crawlerControllerHeartbeatClient) CloseAndRecv() (*emptypb.Empty, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(emptypb.Empty)
+func (x *crawlerControllerChannelClient) Recv() (*anypb.Any, error) {
+	m := new(anypb.Any)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
+func (c *crawlerControllerClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error) {
+	out := new(FetchResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawler.CrawlerController/Fetch", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CrawlerControllerServer is the server API for CrawlerController service.
 // All implementations must embed UnimplementedCrawlerControllerServer
 // for forward compatibility
 type CrawlerControllerServer interface {
-	// 心跳 @desc 用于提交心跳信息
-	// 第一个心跳包必须为爬虫基本信息
-	// 后续心跳包为爬虫状态心跳包，以便流控
-	Heartbeat(CrawlerController_HeartbeatServer) error
+	// 通道 @desc 用于双方发送指令
+	// 从节点向控制节点发送心跳包，包括：节点信息，爬虫信息，可处理的任务信息，当前正在处理的任务信息
+	// 主节点通过该节点下发任务数据
+	Channel(CrawlerController_ChannelServer) error
+	// 抓取 @desc 提交URL地址
+	// 对于不同情况下，抓取的数据响应处理方式不同;
+	// 对于定时抓取任务，或者全库抓取任务，抓取数据通过MQ提交给处理逻辑
+	// 对于及时抓取，比如获取商品的价格，直接返回结果
+	//
+	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
+	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
+	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
 	mustEmbedUnimplementedCrawlerControllerServer()
 }
 
@@ -426,8 +432,11 @@ type CrawlerControllerServer interface {
 type UnimplementedCrawlerControllerServer struct {
 }
 
-func (UnimplementedCrawlerControllerServer) Heartbeat(CrawlerController_HeartbeatServer) error {
-	return status.Errorf(codes.Unimplemented, "method Heartbeat not implemented")
+func (UnimplementedCrawlerControllerServer) Channel(CrawlerController_ChannelServer) error {
+	return status.Errorf(codes.Unimplemented, "method Channel not implemented")
+}
+func (UnimplementedCrawlerControllerServer) Fetch(context.Context, *FetchRequest) (*FetchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Fetch not implemented")
 }
 func (UnimplementedCrawlerControllerServer) mustEmbedUnimplementedCrawlerControllerServer() {}
 
@@ -442,30 +451,48 @@ func RegisterCrawlerControllerServer(s grpc.ServiceRegistrar, srv CrawlerControl
 	s.RegisterService(&CrawlerController_ServiceDesc, srv)
 }
 
-func _CrawlerController_Heartbeat_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(CrawlerControllerServer).Heartbeat(&crawlerControllerHeartbeatServer{stream})
+func _CrawlerController_Channel_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(CrawlerControllerServer).Channel(&crawlerControllerChannelServer{stream})
 }
 
-type CrawlerController_HeartbeatServer interface {
-	SendAndClose(*emptypb.Empty) error
+type CrawlerController_ChannelServer interface {
+	Send(*anypb.Any) error
 	Recv() (*anypb.Any, error)
 	grpc.ServerStream
 }
 
-type crawlerControllerHeartbeatServer struct {
+type crawlerControllerChannelServer struct {
 	grpc.ServerStream
 }
 
-func (x *crawlerControllerHeartbeatServer) SendAndClose(m *emptypb.Empty) error {
+func (x *crawlerControllerChannelServer) Send(m *anypb.Any) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *crawlerControllerHeartbeatServer) Recv() (*anypb.Any, error) {
+func (x *crawlerControllerChannelServer) Recv() (*anypb.Any, error) {
 	m := new(anypb.Any)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
+}
+
+func _CrawlerController_Fetch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CrawlerControllerServer).Fetch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawler.CrawlerController/Fetch",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CrawlerControllerServer).Fetch(ctx, req.(*FetchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 // CrawlerController_ServiceDesc is the grpc.ServiceDesc for CrawlerController service.
@@ -474,11 +501,17 @@ func (x *crawlerControllerHeartbeatServer) Recv() (*anypb.Any, error) {
 var CrawlerController_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "chameleon.smelter.v1.crawler.CrawlerController",
 	HandlerType: (*CrawlerControllerServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Fetch",
+			Handler:    _CrawlerController_Fetch_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "Heartbeat",
-			Handler:       _CrawlerController_Heartbeat_Handler,
+			StreamName:    "Channel",
+			Handler:       _CrawlerController_Channel_Handler,
+			ServerStreams: true,
 			ClientStreams: true,
 		},
 	},

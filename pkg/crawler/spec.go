@@ -19,25 +19,14 @@ type CrawlOptions struct {
 	LoginRequired bool `json:"loginRequired"`
 
 	// MustHeader specify the musted http headers
-	MustHeader http.Header
+	MustHeader http.Header `json:"mustHeader"`
 
 	// MustCookies specify the musted cookies
-	MustCookies []*http.Cookie
+	MustCookies []*http.Cookie `json:"mustCookies"`
 }
 
 func NewCrawlOptions() *CrawlOptions {
-	return &CrawlOptions{
-		MustHeader: http.Header{},
-	}
-}
-
-type CrawlerInfo struct {
-	// Id
-	Id string `json:"id,omitempty"`
-	// Version
-	Version int32 `json:"version,omitempty"`
-	// Options
-	Options *CrawlOptions `protobuf:"bytes,15,opt,name=options,proto3" json:"options,omitempty"`
+	return &CrawlOptions{MustHeader: http.Header{}}
 }
 
 // HealthChecker used to test if website struct changed

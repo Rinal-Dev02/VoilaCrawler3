@@ -20,6 +20,59 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// NodeStatus
+type NodeStatus int32
+
+const (
+	// NodeStatusUnknown
+	NodeStatus_NodeStatusUnknown NodeStatus = 0
+	// Online
+	NodeStatus_Online NodeStatus = 1
+	// Offline
+	NodeStatus_Offline NodeStatus = 2
+)
+
+// Enum value maps for NodeStatus.
+var (
+	NodeStatus_name = map[int32]string{
+		0: "NodeStatusUnknown",
+		1: "Online",
+		2: "Offline",
+	}
+	NodeStatus_value = map[string]int32{
+		"NodeStatusUnknown": 0,
+		"Online":            1,
+		"Offline":           2,
+	}
+)
+
+func (x NodeStatus) Enum() *NodeStatus {
+	p := new(NodeStatus)
+	*p = x
+	return p
+}
+
+func (x NodeStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NodeStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_chameleon_smelter_v1_crawler_data_proto_enumTypes[0].Descriptor()
+}
+
+func (NodeStatus) Type() protoreflect.EnumType {
+	return &file_chameleon_smelter_v1_crawler_data_proto_enumTypes[0]
+}
+
+func (x NodeStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NodeStatus.Descriptor instead.
+func (NodeStatus) EnumDescriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{0}
+}
+
 // Metadata
 type Metadata struct {
 	state         protoimpl.MessageState
@@ -96,6 +149,769 @@ func (x *Metadata) GetDeletedTime() string {
 	return ""
 }
 
+// Crawler
+type Crawler struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Uuid  全局唯一ID
+	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	// Id
+	Id string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	// Version
+	Version int32 `protobuf:"varint,3,opt,name=version,proto3" json:"version,omitempty"`
+	// Node
+	Node *Crawler_Node `protobuf:"bytes,6,opt,name=node,proto3" json:"node,omitempty"`
+	// Crawler
+	AllowedDomains []string `protobuf:"bytes,11,rep,name=allowedDomains,proto3" json:"allowedDomains,omitempty"`
+	// Options
+	Options *Crawler_Options `protobuf:"bytes,14,opt,name=options,proto3" json:"options,omitempty"`
+	// Metadata
+	Metadata *Crawler_Metadata `protobuf:"bytes,15,opt,name=metadata,proto3" json:"metadata,omitempty"`
+}
+
+func (x *Crawler) Reset() {
+	*x = Crawler{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[1]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Crawler) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Crawler) ProtoMessage() {}
+
+func (x *Crawler) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[1]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Crawler.ProtoReflect.Descriptor instead.
+func (*Crawler) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Crawler) GetUuid() string {
+	if x != nil {
+		return x.Uuid
+	}
+	return ""
+}
+
+func (x *Crawler) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Crawler) GetVersion() int32 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *Crawler) GetNode() *Crawler_Node {
+	if x != nil {
+		return x.Node
+	}
+	return nil
+}
+
+func (x *Crawler) GetAllowedDomains() []string {
+	if x != nil {
+		return x.AllowedDomains
+	}
+	return nil
+}
+
+func (x *Crawler) GetOptions() *Crawler_Options {
+	if x != nil {
+		return x.Options
+	}
+	return nil
+}
+
+func (x *Crawler) GetMetadata() *Crawler_Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// SortedCrawler
+type SortedCrawler struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Id
+	Id string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	// Crawlers crawlers sort by version in desc
+	Crawlers []*Crawler `protobuf:"bytes,3,rep,name=crawlers,proto3" json:"crawlers,omitempty"`
+}
+
+func (x *SortedCrawler) Reset() {
+	*x = SortedCrawler{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SortedCrawler) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SortedCrawler) ProtoMessage() {}
+
+func (x *SortedCrawler) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SortedCrawler.ProtoReflect.Descriptor instead.
+func (*SortedCrawler) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SortedCrawler) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SortedCrawler) GetCrawlers() []*Crawler {
+	if x != nil {
+		return x.Crawlers
+	}
+	return nil
+}
+
+// Node
+type Node struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Uuid
+	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	// Host
+	Host string `protobuf:"bytes,2,opt,name=host,proto3" json:"host,omitempty"`
+	// Crawlers
+	Crawlers []*SortedCrawler `protobuf:"bytes,11,rep,name=crawlers,proto3" json:"crawlers,omitempty"`
+	// Metadata
+	Metadata *Node_Metadata `protobuf:"bytes,15,opt,name=metadata,proto3" json:"metadata,omitempty"`
+}
+
+func (x *Node) Reset() {
+	*x = Node{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Node) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Node) ProtoMessage() {}
+
+func (x *Node) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Node.ProtoReflect.Descriptor instead.
+func (*Node) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Node) GetUuid() string {
+	if x != nil {
+		return x.Uuid
+	}
+	return ""
+}
+
+func (x *Node) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *Node) GetCrawlers() []*SortedCrawler {
+	if x != nil {
+		return x.Crawlers
+	}
+	return nil
+}
+
+func (x *Node) GetMetadata() *Node_Metadata {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// Command
+type Command struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *Command) Reset() {
+	*x = Command{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Command) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Command) ProtoMessage() {}
+
+func (x *Command) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Command.ProtoReflect.Descriptor instead.
+func (*Command) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{4}
+}
+
+// CrawlerOptions
+type Crawler_Options struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// DisableProxy
+	DisableProxy bool `protobuf:"varint,1,opt,name=disableProxy,proto3" json:"disableProxy,omitempty"`
+	// EnableHeadless
+	EnableHeadless bool `protobuf:"varint,2,opt,name=enableHeadless,proto3" json:"enableHeadless,omitempty"`
+	// LoginRequired
+	LoginRequired bool `protobuf:"varint,3,opt,name=loginRequired,proto3" json:"loginRequired,omitempty"`
+	// Headers
+	Headers map[string]string `protobuf:"bytes,11,rep,name=headers,proto3" json:"headers,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	// Cookies
+	Cookies []*Crawler_Options_Cookie `protobuf:"bytes,12,rep,name=cookies,proto3" json:"cookies,omitempty"`
+}
+
+func (x *Crawler_Options) Reset() {
+	*x = Crawler_Options{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Crawler_Options) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Crawler_Options) ProtoMessage() {}
+
+func (x *Crawler_Options) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Crawler_Options.ProtoReflect.Descriptor instead.
+func (*Crawler_Options) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *Crawler_Options) GetDisableProxy() bool {
+	if x != nil {
+		return x.DisableProxy
+	}
+	return false
+}
+
+func (x *Crawler_Options) GetEnableHeadless() bool {
+	if x != nil {
+		return x.EnableHeadless
+	}
+	return false
+}
+
+func (x *Crawler_Options) GetLoginRequired() bool {
+	if x != nil {
+		return x.LoginRequired
+	}
+	return false
+}
+
+func (x *Crawler_Options) GetHeaders() map[string]string {
+	if x != nil {
+		return x.Headers
+	}
+	return nil
+}
+
+func (x *Crawler_Options) GetCookies() []*Crawler_Options_Cookie {
+	if x != nil {
+		return x.Cookies
+	}
+	return nil
+}
+
+// Metadata
+type Crawler_Metadata struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// OnlineUtc
+	OnlineUtc int64 `protobuf:"varint,1,opt,name=onlineUtc,proto3" json:"onlineUtc,omitempty"`
+	// ParseCount
+	ParseCount int32 `protobuf:"varint,6,opt,name=parseCount,proto3" json:"parseCount,omitempty"`
+	// filepath
+	Filepath string `protobuf:"bytes,11,opt,name=filepath,proto3" json:"filepath,omitempty"`
+}
+
+func (x *Crawler_Metadata) Reset() {
+	*x = Crawler_Metadata{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Crawler_Metadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Crawler_Metadata) ProtoMessage() {}
+
+func (x *Crawler_Metadata) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Crawler_Metadata.ProtoReflect.Descriptor instead.
+func (*Crawler_Metadata) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{1, 1}
+}
+
+func (x *Crawler_Metadata) GetOnlineUtc() int64 {
+	if x != nil {
+		return x.OnlineUtc
+	}
+	return 0
+}
+
+func (x *Crawler_Metadata) GetParseCount() int32 {
+	if x != nil {
+		return x.ParseCount
+	}
+	return 0
+}
+
+func (x *Crawler_Metadata) GetFilepath() string {
+	if x != nil {
+		return x.Filepath
+	}
+	return ""
+}
+
+// Node
+type Crawler_Node struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Uuid
+	Uuid string `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	// Host
+	Host string `protobuf:"bytes,2,opt,name=host,proto3" json:"host,omitempty"`
+}
+
+func (x *Crawler_Node) Reset() {
+	*x = Crawler_Node{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Crawler_Node) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Crawler_Node) ProtoMessage() {}
+
+func (x *Crawler_Node) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Crawler_Node.ProtoReflect.Descriptor instead.
+func (*Crawler_Node) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{1, 2}
+}
+
+func (x *Crawler_Node) GetUuid() string {
+	if x != nil {
+		return x.Uuid
+	}
+	return ""
+}
+
+func (x *Crawler_Node) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+// Cookie
+type Crawler_Options_Cookie struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Name
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Value
+	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	// Path
+	Path string `protobuf:"bytes,3,opt,name=path,proto3" json:"path,omitempty"`
+}
+
+func (x *Crawler_Options_Cookie) Reset() {
+	*x = Crawler_Options_Cookie{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Crawler_Options_Cookie) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Crawler_Options_Cookie) ProtoMessage() {}
+
+func (x *Crawler_Options_Cookie) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Crawler_Options_Cookie.ProtoReflect.Descriptor instead.
+func (*Crawler_Options_Cookie) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{1, 0, 0}
+}
+
+func (x *Crawler_Options_Cookie) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Crawler_Options_Cookie) GetValue() string {
+	if x != nil {
+		return x.Value
+	}
+	return ""
+}
+
+func (x *Crawler_Options_Cookie) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+// Metadata
+type Node_Metadata struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// OnlineUtc
+	OnlineUtc int64 `protobuf:"varint,1,opt,name=onlineUtc,proto3" json:"onlineUtc,omitempty"`
+	// OfflineUtc
+	OfflineUtc int64 `protobuf:"varint,2,opt,name=offlineUtc,proto3" json:"offlineUtc,omitempty"`
+	// Status
+	Status NodeStatus `protobuf:"varint,11,opt,name=status,proto3,enum=chameleon.smelter.v1.crawler.NodeStatus" json:"status,omitempty"`
+}
+
+func (x *Node_Metadata) Reset() {
+	*x = Node_Metadata{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Node_Metadata) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Node_Metadata) ProtoMessage() {}
+
+func (x *Node_Metadata) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Node_Metadata.ProtoReflect.Descriptor instead.
+func (*Node_Metadata) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{3, 0}
+}
+
+func (x *Node_Metadata) GetOnlineUtc() int64 {
+	if x != nil {
+		return x.OnlineUtc
+	}
+	return 0
+}
+
+func (x *Node_Metadata) GetOfflineUtc() int64 {
+	if x != nil {
+		return x.OfflineUtc
+	}
+	return 0
+}
+
+func (x *Node_Metadata) GetStatus() NodeStatus {
+	if x != nil {
+		return x.Status
+	}
+	return NodeStatus_NodeStatusUnknown
+}
+
+// Register
+type Command_Register struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// ID @desc 每一个爬虫都必须自己生成一个唯一的固定ID, 长度满足32位字符
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// Version @desc 每一次部署，版本号都应该更新
+	Version int32 `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
+	// 支持的域名 @required
+	SupportedDomains []string `protobuf:"bytes,6,rep,name=supportedDomains,proto3" json:"supportedDomains,omitempty"`
+	// MaxWorkerSize @desc 默认1000 @required
+	MaxWorkerSize int32 `protobuf:"varint,11,opt,name=maxWorkerSize,proto3" json:"maxWorkerSize,omitempty"`
+}
+
+func (x *Command_Register) Reset() {
+	*x = Command_Register{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Command_Register) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Command_Register) ProtoMessage() {}
+
+func (x *Command_Register) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Command_Register.ProtoReflect.Descriptor instead.
+func (*Command_Register) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{4, 0}
+}
+
+func (x *Command_Register) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *Command_Register) GetVersion() int32 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+func (x *Command_Register) GetSupportedDomains() []string {
+	if x != nil {
+		return x.SupportedDomains
+	}
+	return nil
+}
+
+func (x *Command_Register) GetMaxWorkerSize() int32 {
+	if x != nil {
+		return x.MaxWorkerSize
+	}
+	return 0
+}
+
+// StatsPacket
+type Command_StatsPacket struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// ProcessedJobCount
+	ProcessedJobCount int32 `protobuf:"varint,2,opt,name=processedJobCount,proto3" json:"processedJobCount,omitempty"`
+	// maxWorkerCount
+	MaxWorkerCount int32 `protobuf:"varint,3,opt,name=maxWorkerCount,proto3" json:"maxWorkerCount,omitempty"`
+	// IdleWorkCount
+	IdleWorkCount int32 `protobuf:"varint,4,opt,name=idleWorkCount,proto3" json:"idleWorkCount,omitempty"`
+}
+
+func (x *Command_StatsPacket) Reset() {
+	*x = Command_StatsPacket{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Command_StatsPacket) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Command_StatsPacket) ProtoMessage() {}
+
+func (x *Command_StatsPacket) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawler_data_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Command_StatsPacket.ProtoReflect.Descriptor instead.
+func (*Command_StatsPacket) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP(), []int{4, 1}
+}
+
+func (x *Command_StatsPacket) GetProcessedJobCount() int32 {
+	if x != nil {
+		return x.ProcessedJobCount
+	}
+	return 0
+}
+
+func (x *Command_StatsPacket) GetMaxWorkerCount() int32 {
+	if x != nil {
+		return x.MaxWorkerCount
+	}
+	return 0
+}
+
+func (x *Command_StatsPacket) GetIdleWorkCount() int32 {
+	if x != nil {
+		return x.IdleWorkCount
+	}
+	return 0
+}
+
 var File_chameleon_smelter_v1_crawler_data_proto protoreflect.FileDescriptor
 
 var file_chameleon_smelter_v1_crawler_data_proto_rawDesc = []byte{
@@ -112,10 +928,115 @@ var file_chameleon_smelter_v1_crawler_data_proto_rawDesc = []byte{
 	0x6c, 0x65, 0x74, 0x65, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x69, 0x73, 0x44,
 	0x65, 0x6c, 0x65, 0x74, 0x65, 0x64, 0x12, 0x20, 0x0a, 0x0b, 0x64, 0x65, 0x6c, 0x65, 0x74, 0x65,
 	0x64, 0x54, 0x69, 0x6d, 0x65, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x52, 0x0b, 0x64, 0x65, 0x6c,
-	0x65, 0x74, 0x65, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x42, 0x26, 0x5a, 0x24, 0x63, 0x68, 0x61, 0x6d,
-	0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2f, 0x76, 0x31,
-	0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x3b, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72,
-	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x65, 0x74, 0x65, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x22, 0x82, 0x07, 0x0a, 0x07, 0x43, 0x72, 0x61,
+	0x77, 0x6c, 0x65, 0x72, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x75, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x04, 0x75, 0x75, 0x69, 0x64, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73,
+	0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69,
+	0x6f, 0x6e, 0x12, 0x3e, 0x0a, 0x04, 0x6e, 0x6f, 0x64, 0x65, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x2a, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65,
+	0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x2e,
+	0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x2e, 0x4e, 0x6f, 0x64, 0x65, 0x52, 0x04, 0x6e, 0x6f,
+	0x64, 0x65, 0x12, 0x26, 0x0a, 0x0e, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x44, 0x6f, 0x6d,
+	0x61, 0x69, 0x6e, 0x73, 0x18, 0x0b, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0e, 0x61, 0x6c, 0x6c, 0x6f,
+	0x77, 0x65, 0x64, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x12, 0x47, 0x0a, 0x07, 0x6f, 0x70,
+	0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x0e, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2d, 0x2e, 0x63, 0x68,
+	0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e,
+	0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x2e, 0x43, 0x72, 0x61, 0x77, 0x6c,
+	0x65, 0x72, 0x2e, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x07, 0x6f, 0x70, 0x74, 0x69,
+	0x6f, 0x6e, 0x73, 0x12, 0x4a, 0x0a, 0x08, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x18,
+	0x0f, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2e, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f,
+	0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61,
+	0x77, 0x6c, 0x65, 0x72, 0x2e, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x2e, 0x4d, 0x65, 0x74,
+	0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x08, 0x6d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x1a,
+	0xa5, 0x03, 0x0a, 0x07, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x22, 0x0a, 0x0c, 0x64,
+	0x69, 0x73, 0x61, 0x62, 0x6c, 0x65, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x08, 0x52, 0x0c, 0x64, 0x69, 0x73, 0x61, 0x62, 0x6c, 0x65, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x12,
+	0x26, 0x0a, 0x0e, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x48, 0x65, 0x61, 0x64, 0x6c, 0x65, 0x73,
+	0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0e, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x48,
+	0x65, 0x61, 0x64, 0x6c, 0x65, 0x73, 0x73, 0x12, 0x24, 0x0a, 0x0d, 0x6c, 0x6f, 0x67, 0x69, 0x6e,
+	0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0d,
+	0x6c, 0x6f, 0x67, 0x69, 0x6e, 0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x64, 0x12, 0x54, 0x0a,
+	0x07, 0x68, 0x65, 0x61, 0x64, 0x65, 0x72, 0x73, 0x18, 0x0b, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x3a,
+	0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74,
+	0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x2e, 0x43, 0x72,
+	0x61, 0x77, 0x6c, 0x65, 0x72, 0x2e, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x2e, 0x48, 0x65,
+	0x61, 0x64, 0x65, 0x72, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x52, 0x07, 0x68, 0x65, 0x61, 0x64,
+	0x65, 0x72, 0x73, 0x12, 0x4e, 0x0a, 0x07, 0x63, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x73, 0x18, 0x0c,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x34, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e,
+	0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77,
+	0x6c, 0x65, 0x72, 0x2e, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x2e, 0x4f, 0x70, 0x74, 0x69,
+	0x6f, 0x6e, 0x73, 0x2e, 0x43, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x52, 0x07, 0x63, 0x6f, 0x6f, 0x6b,
+	0x69, 0x65, 0x73, 0x1a, 0x46, 0x0a, 0x06, 0x43, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x12, 0x12, 0x0a,
+	0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d,
+	0x65, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x70, 0x61, 0x74, 0x68, 0x18,
+	0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x70, 0x61, 0x74, 0x68, 0x1a, 0x3a, 0x0a, 0x0c, 0x48,
+	0x65, 0x61, 0x64, 0x65, 0x72, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b,
+	0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a,
+	0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61,
+	0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x1a, 0x64, 0x0a, 0x08, 0x4d, 0x65, 0x74, 0x61, 0x64,
+	0x61, 0x74, 0x61, 0x12, 0x1c, 0x0a, 0x09, 0x6f, 0x6e, 0x6c, 0x69, 0x6e, 0x65, 0x55, 0x74, 0x63,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x6f, 0x6e, 0x6c, 0x69, 0x6e, 0x65, 0x55, 0x74,
+	0x63, 0x12, 0x1e, 0x0a, 0x0a, 0x70, 0x61, 0x72, 0x73, 0x65, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18,
+	0x06, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0a, 0x70, 0x61, 0x72, 0x73, 0x65, 0x43, 0x6f, 0x75, 0x6e,
+	0x74, 0x12, 0x1a, 0x0a, 0x08, 0x66, 0x69, 0x6c, 0x65, 0x70, 0x61, 0x74, 0x68, 0x18, 0x0b, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x08, 0x66, 0x69, 0x6c, 0x65, 0x70, 0x61, 0x74, 0x68, 0x1a, 0x2e, 0x0a,
+	0x04, 0x4e, 0x6f, 0x64, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x75, 0x69, 0x64, 0x18, 0x01, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x04, 0x75, 0x75, 0x69, 0x64, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x6f, 0x73,
+	0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x22, 0x62, 0x0a,
+	0x0d, 0x53, 0x6f, 0x72, 0x74, 0x65, 0x64, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x12, 0x0e,
+	0x0a, 0x02, 0x69, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x41,
+	0x0a, 0x08, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b,
+	0x32, 0x25, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65,
+	0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x2e,
+	0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x52, 0x08, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72,
+	0x73, 0x22, 0xcd, 0x02, 0x0a, 0x04, 0x4e, 0x6f, 0x64, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x75,
+	0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x75, 0x75, 0x69, 0x64, 0x12, 0x12,
+	0x0a, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x6f,
+	0x73, 0x74, 0x12, 0x47, 0x0a, 0x08, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x73, 0x18, 0x0b,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x2b, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e,
+	0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77,
+	0x6c, 0x65, 0x72, 0x2e, 0x53, 0x6f, 0x72, 0x74, 0x65, 0x64, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65,
+	0x72, 0x52, 0x08, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x73, 0x12, 0x47, 0x0a, 0x08, 0x6d,
+	0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x18, 0x0f, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2b, 0x2e,
+	0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65,
+	0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x2e, 0x4e, 0x6f, 0x64,
+	0x65, 0x2e, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74, 0x61, 0x52, 0x08, 0x6d, 0x65, 0x74, 0x61,
+	0x64, 0x61, 0x74, 0x61, 0x1a, 0x8a, 0x01, 0x0a, 0x08, 0x4d, 0x65, 0x74, 0x61, 0x64, 0x61, 0x74,
+	0x61, 0x12, 0x1c, 0x0a, 0x09, 0x6f, 0x6e, 0x6c, 0x69, 0x6e, 0x65, 0x55, 0x74, 0x63, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x6f, 0x6e, 0x6c, 0x69, 0x6e, 0x65, 0x55, 0x74, 0x63, 0x12,
+	0x1e, 0x0a, 0x0a, 0x6f, 0x66, 0x66, 0x6c, 0x69, 0x6e, 0x65, 0x55, 0x74, 0x63, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x03, 0x52, 0x0a, 0x6f, 0x66, 0x66, 0x6c, 0x69, 0x6e, 0x65, 0x55, 0x74, 0x63, 0x12,
+	0x40, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x0e, 0x32,
+	0x28, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c,
+	0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x2e, 0x4e,
+	0x6f, 0x64, 0x65, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75,
+	0x73, 0x22, 0x9e, 0x02, 0x0a, 0x07, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x1a, 0x86, 0x01,
+	0x0a, 0x08, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x65,
+	0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52, 0x07, 0x76, 0x65, 0x72,
+	0x73, 0x69, 0x6f, 0x6e, 0x12, 0x2a, 0x0a, 0x10, 0x73, 0x75, 0x70, 0x70, 0x6f, 0x72, 0x74, 0x65,
+	0x64, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x18, 0x06, 0x20, 0x03, 0x28, 0x09, 0x52, 0x10,
+	0x73, 0x75, 0x70, 0x70, 0x6f, 0x72, 0x74, 0x65, 0x64, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73,
+	0x12, 0x24, 0x0a, 0x0d, 0x6d, 0x61, 0x78, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x53, 0x69, 0x7a,
+	0x65, 0x18, 0x0b, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0d, 0x6d, 0x61, 0x78, 0x57, 0x6f, 0x72, 0x6b,
+	0x65, 0x72, 0x53, 0x69, 0x7a, 0x65, 0x1a, 0x89, 0x01, 0x0a, 0x0b, 0x53, 0x74, 0x61, 0x74, 0x73,
+	0x50, 0x61, 0x63, 0x6b, 0x65, 0x74, 0x12, 0x2c, 0x0a, 0x11, 0x70, 0x72, 0x6f, 0x63, 0x65, 0x73,
+	0x73, 0x65, 0x64, 0x4a, 0x6f, 0x62, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x05, 0x52, 0x11, 0x70, 0x72, 0x6f, 0x63, 0x65, 0x73, 0x73, 0x65, 0x64, 0x4a, 0x6f, 0x62, 0x43,
+	0x6f, 0x75, 0x6e, 0x74, 0x12, 0x26, 0x0a, 0x0e, 0x6d, 0x61, 0x78, 0x57, 0x6f, 0x72, 0x6b, 0x65,
+	0x72, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0e, 0x6d, 0x61,
+	0x78, 0x57, 0x6f, 0x72, 0x6b, 0x65, 0x72, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x24, 0x0a, 0x0d,
+	0x69, 0x64, 0x6c, 0x65, 0x57, 0x6f, 0x72, 0x6b, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x04, 0x20,
+	0x01, 0x28, 0x05, 0x52, 0x0d, 0x69, 0x64, 0x6c, 0x65, 0x57, 0x6f, 0x72, 0x6b, 0x43, 0x6f, 0x75,
+	0x6e, 0x74, 0x2a, 0x3c, 0x0a, 0x0a, 0x4e, 0x6f, 0x64, 0x65, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73,
+	0x12, 0x15, 0x0a, 0x11, 0x4e, 0x6f, 0x64, 0x65, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x55, 0x6e,
+	0x6b, 0x6e, 0x6f, 0x77, 0x6e, 0x10, 0x00, 0x12, 0x0a, 0x0a, 0x06, 0x4f, 0x6e, 0x6c, 0x69, 0x6e,
+	0x65, 0x10, 0x01, 0x12, 0x0b, 0x0a, 0x07, 0x4f, 0x66, 0x66, 0x6c, 0x69, 0x6e, 0x65, 0x10, 0x02,
+	0x42, 0x26, 0x5a, 0x24, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d,
+	0x65, 0x6c, 0x74, 0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72,
+	0x3b, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -130,16 +1051,39 @@ func file_chameleon_smelter_v1_crawler_data_proto_rawDescGZIP() []byte {
 	return file_chameleon_smelter_v1_crawler_data_proto_rawDescData
 }
 
-var file_chameleon_smelter_v1_crawler_data_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_chameleon_smelter_v1_crawler_data_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_chameleon_smelter_v1_crawler_data_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_chameleon_smelter_v1_crawler_data_proto_goTypes = []interface{}{
-	(*Metadata)(nil), // 0: chameleon.smelter.v1.crawler.Metadata
+	(NodeStatus)(0),                // 0: chameleon.smelter.v1.crawler.NodeStatus
+	(*Metadata)(nil),               // 1: chameleon.smelter.v1.crawler.Metadata
+	(*Crawler)(nil),                // 2: chameleon.smelter.v1.crawler.Crawler
+	(*SortedCrawler)(nil),          // 3: chameleon.smelter.v1.crawler.SortedCrawler
+	(*Node)(nil),                   // 4: chameleon.smelter.v1.crawler.Node
+	(*Command)(nil),                // 5: chameleon.smelter.v1.crawler.Command
+	(*Crawler_Options)(nil),        // 6: chameleon.smelter.v1.crawler.Crawler.Options
+	(*Crawler_Metadata)(nil),       // 7: chameleon.smelter.v1.crawler.Crawler.Metadata
+	(*Crawler_Node)(nil),           // 8: chameleon.smelter.v1.crawler.Crawler.Node
+	(*Crawler_Options_Cookie)(nil), // 9: chameleon.smelter.v1.crawler.Crawler.Options.Cookie
+	nil,                            // 10: chameleon.smelter.v1.crawler.Crawler.Options.HeadersEntry
+	(*Node_Metadata)(nil),          // 11: chameleon.smelter.v1.crawler.Node.Metadata
+	(*Command_Register)(nil),       // 12: chameleon.smelter.v1.crawler.Command.Register
+	(*Command_StatsPacket)(nil),    // 13: chameleon.smelter.v1.crawler.Command.StatsPacket
 }
 var file_chameleon_smelter_v1_crawler_data_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	8,  // 0: chameleon.smelter.v1.crawler.Crawler.node:type_name -> chameleon.smelter.v1.crawler.Crawler.Node
+	6,  // 1: chameleon.smelter.v1.crawler.Crawler.options:type_name -> chameleon.smelter.v1.crawler.Crawler.Options
+	7,  // 2: chameleon.smelter.v1.crawler.Crawler.metadata:type_name -> chameleon.smelter.v1.crawler.Crawler.Metadata
+	2,  // 3: chameleon.smelter.v1.crawler.SortedCrawler.crawlers:type_name -> chameleon.smelter.v1.crawler.Crawler
+	3,  // 4: chameleon.smelter.v1.crawler.Node.crawlers:type_name -> chameleon.smelter.v1.crawler.SortedCrawler
+	11, // 5: chameleon.smelter.v1.crawler.Node.metadata:type_name -> chameleon.smelter.v1.crawler.Node.Metadata
+	10, // 6: chameleon.smelter.v1.crawler.Crawler.Options.headers:type_name -> chameleon.smelter.v1.crawler.Crawler.Options.HeadersEntry
+	9,  // 7: chameleon.smelter.v1.crawler.Crawler.Options.cookies:type_name -> chameleon.smelter.v1.crawler.Crawler.Options.Cookie
+	0,  // 8: chameleon.smelter.v1.crawler.Node.Metadata.status:type_name -> chameleon.smelter.v1.crawler.NodeStatus
+	9,  // [9:9] is the sub-list for method output_type
+	9,  // [9:9] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_chameleon_smelter_v1_crawler_data_proto_init() }
@@ -160,19 +1104,152 @@ func file_chameleon_smelter_v1_crawler_data_proto_init() {
 				return nil
 			}
 		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Crawler); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SortedCrawler); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Node); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Command); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Crawler_Options); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Crawler_Metadata); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Crawler_Node); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Crawler_Options_Cookie); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Node_Metadata); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Command_Register); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawler_data_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Command_StatsPacket); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_chameleon_smelter_v1_crawler_data_proto_rawDesc,
-			NumEnums:      0,
-			NumMessages:   1,
+			NumEnums:      1,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_chameleon_smelter_v1_crawler_data_proto_goTypes,
 		DependencyIndexes: file_chameleon_smelter_v1_crawler_data_proto_depIdxs,
+		EnumInfos:         file_chameleon_smelter_v1_crawler_data_proto_enumTypes,
 		MessageInfos:      file_chameleon_smelter_v1_crawler_data_proto_msgTypes,
 	}.Build()
 	File_chameleon_smelter_v1_crawler_data_proto = out.File

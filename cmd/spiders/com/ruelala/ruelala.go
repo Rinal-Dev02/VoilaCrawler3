@@ -34,7 +34,7 @@ type _Crawler struct {
 	logger                 glog.Log
 }
 
-func New(client *http.Client, logger glog.Log) (*_Crawler, error) {
+func New(logger glog.Log) (*_Crawler, error) {
 	c := _Crawler{
 		categoryPathMatcher:    regexp.MustCompile(`^/nav/([^/]+){2,5}$`),
 		productPathMatcher:     regexp.MustCompile(`^/boutique/product/[0-9]+/[0-9]+/?$`),
@@ -343,7 +343,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	spider, err := New(http.DefaultClient, glog.New(glog.LogLevelDebug))
+	spider, err := New(glog.New(glog.LogLevelDebug))
 	if err != nil {
 		panic(err)
 	}
