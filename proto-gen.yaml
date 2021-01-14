@@ -1,0 +1,23 @@
+version: v1
+spec:
+  project:
+    name: VoilaCrawler
+    version: "1.0"
+    packages:
+    - path: ""
+      name: chameleon.smelter.v1.crawler
+      version: "1.0"
+      files:
+      - '*.proto'
+      targets:
+      - type: go
+        output_path: protoc-gen-go/
+        with_grpc: true
+    - path: ""
+      name: chameleon.smelter.v1.crawler.item
+      version: "1.0"
+      files:
+      - '*.proto'
+      targets:
+      - type: go
+        output_path: protoc-gen-go/
