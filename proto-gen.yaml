@@ -5,7 +5,7 @@ spec:
     version: "1.0"
     packages:
     - path: ""
-      name: chameleon.smelter.v1.crawler
+      name: chameleon.smelter.v1.crawl
       version: "1.0"
       files:
       - '*.proto'
@@ -14,7 +14,7 @@ spec:
         output_path: protoc-gen-go/
         with_grpc: true
     - path: ""
-      name: chameleon.smelter.v1.crawler.item
+      name: chameleon.smelter.v1.crawl.item
       version: "1.0"
       files:
       - '*.proto'

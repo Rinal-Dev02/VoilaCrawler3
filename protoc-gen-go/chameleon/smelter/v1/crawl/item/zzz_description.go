@@ -14,7 +14,7 @@ var (
 func init() {
     fileDescs := []protoreflect.FileDescriptor{
 		
-		File_chameleon_smelter_v1_crawler_item_data_proto,
+		File_chameleon_smelter_v1_crawl_item_data_proto,
 		
     }
     for _, desc := range fileDescs {

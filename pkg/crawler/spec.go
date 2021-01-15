@@ -2,8 +2,11 @@ package crawler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
+
+	"github.com/voiladev/go-framework/glog"
 )
 
 // CrawlOptions
@@ -40,6 +43,8 @@ type HealthChecker interface {
 
 // Crawler
 type Crawler interface {
+	HealthChecker
+
 	// ID returns crawler unique id, which must be the same for all the version.
 	ID() string
 
@@ -66,3 +71,7 @@ type Crawler interface {
 	//   param yield use to yield data with can be final data or an other http request
 	Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error
 }
+
+type New func(logger glog.Log) (Crawler, error)
+
+var ErrNotImplementNewType = errors.New("not implements func New(logger glog.Log) (*crawler.Crawler, error)")

@@ -3,8 +3,8 @@ package crawler
 import (
 	"context"
 
-	crawlerManager "github.com/voiladev/VoilaCrawler/internal/model/crawler/manager"
-	nodeManager "github.com/voiladev/VoilaCrawler/internal/model/node/manager"
+	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
+	nodeManager "github.com/voiladev/VoilaCrawl/internal/model/node/manager"
 	"github.com/voiladev/go-framework/glog"
 )
 

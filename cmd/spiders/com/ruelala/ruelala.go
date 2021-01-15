@@ -12,19 +12,14 @@ import (
 	"time"
 
 	// "github.com/PuerkitoBio/goquery"
-	"github.com/voiladev/VoilaCrawler/pkg/crawler"
-	urlutil "github.com/voiladev/VoilaCrawler/pkg/net/url"
-	"github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/media"
-	"github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/regulation"
-	pbItem "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawler/item"
+	"github.com/voiladev/VoilaCrawl/pkg/crawler"
+	urlutil "github.com/voiladev/VoilaCrawl/pkg/net/url"
+	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
+	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
+	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/types/known/anypb"
-)
-
-var (
-	_ crawler.Crawler       = (*_Crawler)(nil)
-	_ crawler.HealthChecker = (*_Crawler)(nil)
 )
 
 type _Crawler struct {
@@ -34,7 +29,7 @@ type _Crawler struct {
 	logger                 glog.Log
 }
 
-func New(logger glog.Log) (*_Crawler, error) {
+func New(logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		categoryPathMatcher:    regexp.MustCompile(`^/nav/([^/]+){2,5}$`),
 		productPathMatcher:     regexp.MustCompile(`^/boutique/product/[0-9]+/[0-9]+/?$`),
