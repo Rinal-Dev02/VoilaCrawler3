@@ -1,0 +1,81 @@
+syntax="proto3";
+
+package voiladev.voilacrawl.pkg.types;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.populate_all) = true;
+option go_package = "types";
+
+// RequestOptions
+message RequestOptions {
+    // DisableProxy
+    bool disableProxy      = 1 [(gogoproto.moretags) = "xorm:\"option_disable_proxy default(0)\""];
+    // EnableHeadless
+    bool enableHeadless    = 2 [(gogoproto.moretags) = "xorm:\"option_enable_headless default(0)\""];
+
+    // 最大TTL (in seconds) 
+    int32 maxTtlPerRequest = 11 [(gogoproto.moretags) = "xorm:\"option_max_ttl_per_request default(0)\""];
+
+    // EnableRetryWhenFailed
+    bool  enableRetryWhenFailed = 21 [(gogoproto.moretags) = "xorm:\"option_enable_retry_when_failed default(0)\""];
+    // MaxRetryCount
+    int32 maxRetryCount         = 22 [(gogoproto.moretags) = "xorm:\"option_max_retry_count default(0)\""];
+    // MaxRequestDepth
+    int32 maxRequestDepth       = 23 [(gogoproto.moretags) = "xorm:\"option_max_request_depth default(0)\""];
+}
+
+// Request
+message Request {
+    // Metadata
+    message Metadata {
+        // 创建时间
+        int64 createdUtc = 2 [(gogoproto.moretags) = "xorm:\"created\""];
+        // 更新时间
+        int64 updatedUtc = 4 [(gogoproto.moretags) = "xorm:\"updated\""];
+        // 是否删除了
+        bool  isDeleted  = 6 [(gogoproto.moretags) = "xorm:\"default(false)\""];
+        // 删除时间
+        int64 deletedUtc = 7;
+    }
+    // ID
+    string id         = 1 [(gogoproto.moretags) = "xorm:\"varchar(64) pk\""];
+    // TracingId
+    string tracingId  = 2 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
+    // JobId
+    string jobId      = 3 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
+    // ParentId
+    string parentId   = 4 [(gogoproto.moretags) = "xorm:\"varchar(64)\""];
+
+    // Method
+    string method        = 12 [(gogoproto.moretags) = "xorm:\"varchar(16)\""];
+    // URL
+    string url           = 13 [(gogoproto.moretags) = "xorm:\"text\""];
+    // CustomHeaders
+    string customHeaders = 14 [(gogoproto.moretags) = "xorm:\"json\""];
+    // CustomCookies
+    string customCookies = 15 [(gogoproto.moretags) = "xorm:\"json\""];
+    // Body
+    bytes  body          = 16;
+
+    // SharingData 共享数据
+    string sharingData   = 21 [(gogoproto.moretags) = "xorm:\"json\""];
+
+    // 配置参数
+    RequestOptions options = 50 [(gogoproto.moretags) = "xorm:\"extends\""];
+    // RetryCount
+    int32  retryCount    = 51 [(gogoproto.moretags) = "xorm:\"status_retry_count\""];
+    // RequestDepth
+    int32  requestDepth  = 52 [(gogoproto.moretags) = "xorm:\"status_request_depth\""];
+    // StartUtc
+    int64  startUtc      = 53 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
+    // EndUtc
+    int64  endUtc        = 54 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
+    // IsSucceed
+    bool   isSucceed     = 61 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
+    // ErrMsg
+    string errMsg        = 62 [(gogoproto.moretags) = "xorm:\"varchar(255)\""];
+
+    // Metadata
+    Metadata metadata    = 101 [(gogoproto.moretags) = "xorm:\"extends\""];
+}

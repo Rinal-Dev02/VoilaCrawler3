@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -13,6 +12,8 @@ import (
 
 	// "github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
+	chttp "github.com/voiladev/VoilaCrawl/pkg/net/http"
+	"github.com/voiladev/VoilaCrawl/pkg/net/http/proxycrawl"
 	urlutil "github.com/voiladev/VoilaCrawl/pkg/net/url"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
@@ -319,7 +320,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	} else if c.productJsonPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProductJson(ctx, resp, yield)
 	}
-	return errors.New("unsupported")
+	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
@@ -335,6 +336,14 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // local test
 func main() {
+	client, err := proxycrawl.NewProxyCrawlClient(
+		proxycrawl.WithAPITokenOption("C1hwEn7zzYhHptBUoZFisQ"),
+		proxycrawl.WithJSTokenOption("YOhYOQ6Ppd17eK9ACA54cw"),
+	)
+	if err != nil {
+		panic(err)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
@@ -359,9 +368,8 @@ func main() {
 				}
 			}
 		}
-		req = req.WithContext(ctx)
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.DoWithOptions(ctx, req, chttp.Options{EnableProxy: true})
 		if err != nil {
 			panic(err)
 		}
@@ -372,7 +380,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			glog.Infof("product: %s", data)
+			fmt.Printf("%s\n", data)
 
 			return nil
 		}); err != nil {

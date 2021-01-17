@@ -3,6 +3,7 @@
 package item
 
 import (
+    pb "github.com/voiladev/protobuf/protoc-gen-go/protobuf"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -12,17 +13,17 @@ var (
 )
 
 func init() {
-    fileDescs := []protoreflect.FileDescriptor{
+    pb.LoadFileDescriptors(
 		
-		File_chameleon_smelter_v1_crawl_item_data_proto,
+		// file_chameleon_smelter_v1_crawl_item_data_proto_rawDescGZIP(),
 		
-    }
-    for _, desc := range fileDescs {
-        for i := 0; i < desc.Services().Len(); i++ {
-            ServiceDescs = append(ServiceDescs, desc.Services().Get(i))
-        }
-        for i := 0; i < desc.Enums().Len(); i++ {
-            EnumDescs = append(EnumDescs, desc.Enums().Get(i))
-        }
-    }
+    )
+    // for _, desc := range fileDescs {
+    //     for i := 0; i < desc.Services().Len(); i++ {
+    //         ServiceDescs = append(ServiceDescs, desc.Services().Get(i))
+    //     }
+    //     for i := 0; i < desc.Enums().Len(); i++ {
+    //         EnumDescs = append(EnumDescs, desc.Enums().Get(i))
+    //     }
+    // }
 }

@@ -5,6 +5,7 @@ import (
 
 	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
 	nodeManager "github.com/voiladev/VoilaCrawl/internal/model/node/manager"
+	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/types/sortedmap"
@@ -19,6 +20,7 @@ type NodeController struct {
 	ctx            context.Context
 	nodeManager    *nodeManager.NodeManager
 	crawlerManager *crawlerManager.CrawlerManager
+	requestManager *reqManager.RequestManager
 	nodeHandlers   *sortedmap.SortedMap
 	options        NodeControllerOptions
 	logger         glog.Log
@@ -27,13 +29,15 @@ type NodeController struct {
 func NewNodeController(ctx context.Context,
 	nodeManager *nodeManager.NodeManager,
 	crawlerManager *crawlerManager.CrawlerManager,
+	requestManager *reqManager.RequestManager,
 	logger glog.Log,
 ) (*NodeController, error) {
 	c := NodeController{
-		ctx:          ctx,
-		nodeManager:  nodeManager,
-		nodeHandlers: &sortedmap.SortedMap{},
-		logger:       logger.New("NodeController"),
+		ctx:            ctx,
+		nodeManager:    nodeManager,
+		requestManager: requestManager,
+		nodeHandlers:   &sortedmap.SortedMap{},
+		logger:         logger.New("NodeController"),
 	}
 
 	return &c, nil

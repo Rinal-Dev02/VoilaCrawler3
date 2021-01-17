@@ -10,8 +10,6 @@ import (
 	"github.com/voiladev/go-framework/glog"
 )
 
-var _ pbCrawl.GatewayServer = (*GatewayServer)(nil)
-
 type GatewayServer struct {
 	pbCrawl.UnimplementedGatewayServer
 
@@ -28,7 +26,7 @@ func NewGatewayServer(
 	crawlerCtrl *crawlerCtrl.CrawlerController,
 	crawlerManager *crawlerManager.CrawlerManager,
 	logger glog.Log,
-) (*GatewayServer, error) {
+) (pbCrawl.GatewayServer, error) {
 	s := GatewayServer{
 		ctx:         ctx,
 		nodeCtrl:    nodeCtrl,

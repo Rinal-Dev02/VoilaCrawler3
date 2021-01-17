@@ -7,6 +7,7 @@ import (
 
 	uuid "github.com/satori/go.uuid"
 	"github.com/voiladev/VoilaCrawl/internal/model/node"
+	"github.com/voiladev/VoilaCrawl/internal/model/request"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/protoutil"
@@ -123,8 +124,12 @@ func isConnectionClosed(ctx context.Context) bool {
 }
 
 var (
-	joinPingTypeUrl      = protoutil.GetTypeUrl(&pbCrawl.Join_Ping{})
-	heartbetaPingTypeUrl = protoutil.GetTypeUrl(&pbCrawl.Heartbeat_Ping{})
+	joinPingTypeUrl       = protoutil.GetTypeUrl(&pbCrawl.Join_Ping{})
+	heartbetaPingTypeUrl  = protoutil.GetTypeUrl(&pbCrawl.Heartbeat_Ping{})
+	commandTypeUrl        = protoutil.GetTypeUrl(&pbCrawl.Command{})
+	commandErrorTypeUrl   = protoutil.GetTypeUrl(&pbCrawl.Command_Error{})
+	commandItemTypeUrl    = protoutil.GetTypeUrl(&pbCrawl.Command_Item{})
+	commandRequestTypeUrl = protoutil.GetTypeUrl(&pbCrawl.Command_Request{})
 )
 
 func (handler *nodeHanadler) Run() error {
@@ -198,6 +203,71 @@ func (handler *nodeHanadler) Run() error {
 			}); err != nil {
 				logger.Errorf("send command failed, error=%s", err)
 				return pbError.ErrInternal.New(err)
+			}
+		case commandTypeUrl:
+			var (
+				err    error
+				packet pbCrawl.Command
+			)
+			if err = anypb.UnmarshalTo(anyData, &packet, proto.UnmarshalOptions{}); err != nil {
+				logger.Errorf("unmarshal command failed, error=%s", err)
+				return pbError.ErrInternal.New(err)
+			}
+
+			switch packet.GetData().GetTypeUrl() {
+			case commandErrorTypeUrl:
+				var data pbCrawl.Command_Error
+				if err := anypb.UnmarshalTo(anyData, &data, proto.UnmarshalOptions{}); err != nil {
+					logger.Errorf("unmarshal error message failed, error=%s", err)
+					return pbError.ErrInternal.New(err)
+				}
+				if data.GetReqId() == "" {
+					return pbError.ErrInvalidArgument.New("missing reqId for error")
+				}
+
+				if err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, nil,
+					data.GetReqId(), data.GetIsSucceed(), data.GetErrMsg()); err != nil {
+					logger.Errorf("update status failed, error=%s", err)
+					return err
+				}
+			case commandRequestTypeUrl:
+				var data pbCrawl.Command_Request
+				if err := anypb.UnmarshalTo(anyData, &data, proto.UnmarshalOptions{}); err != nil {
+					logger.Errorf("unmarshal error message failed, error=%s", err)
+					return pbError.ErrInternal.New(err)
+				}
+				if data.GetParent() != nil {
+					data.TracingId = data.GetParent().GetTracingId()
+					data.JobId = data.GetParent().GetJobId()
+				}
+
+				req, err := request.NewRequest(&data)
+				if err != nil {
+					logger.Errorf("load request failed, error=%s", err)
+					return pbError.ErrInvalidArgument.New(err)
+				}
+				if req, err = handler.ctrl.requestManager.Create(handler.ctx, nil, req); err != nil {
+					logger.Errorf("save request failed, error=%s", err)
+					return err
+				}
+				// TODO: publish to mq
+			case commandItemTypeUrl:
+				var data pbCrawl.Command_Item
+				if err := anypb.UnmarshalTo(anyData, &data, proto.UnmarshalOptions{}); err != nil {
+					logger.Errorf("unmarshal error message failed, error=%s", err)
+					return pbError.ErrInternal.New(err)
+				}
+				if data.GetReqId() == "" {
+					return pbError.ErrInvalidArgument.New("missing reqId for item command")
+				}
+
+				if err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, nil, data.GetReqId(), true, ""); err != nil {
+					logger.Errorf("update status failed, error=%s", err)
+					return err
+				}
+				// TODO: publish to mq
+			default:
+				return pbError.ErrUnimplemented.New("unsupported command")
 			}
 		default:
 			return pbError.ErrUnavailable.New(
