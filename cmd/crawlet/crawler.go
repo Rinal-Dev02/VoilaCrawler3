@@ -29,7 +29,7 @@ func NewCrawler(path string, logger glog.Log) (*Crawler, error) {
 		return nil, err
 	}
 
-	newFunc, ok := funcVal.(crawler.New)
+	newFunc, ok := funcVal.(func(logger glog.Log) (crawler.Crawler, error))
 	if !ok {
 		return nil, fmt.Errorf("plugin %s %s", path, crawler.ErrNotImplementNewType)
 	}

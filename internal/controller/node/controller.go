@@ -36,7 +36,7 @@ func NewNodeController(ctx context.Context,
 		ctx:            ctx,
 		nodeManager:    nodeManager,
 		requestManager: requestManager,
-		nodeHandlers:   &sortedmap.SortedMap{},
+		nodeHandlers:   sortedmap.New(),
 		logger:         logger.New("NodeController"),
 	}
 

@@ -10,8 +10,8 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/tideland/golib v4.24.2+incompatible
 	github.com/urfave/cli/v2 v2.3.0
-	github.com/voiladev/go-framework v0.0.0-20210115102204-2b55c193ab17
-	github.com/voiladev/protobuf v0.0.0-20201218014802-0eebbb757eca
+	github.com/voiladev/go-framework v0.0.0-20210118022446-39b5e1711ae7
+	github.com/voiladev/protobuf v0.0.0-20210118020030-24eac5fdaed4
 	go.uber.org/fx v1.13.1
 	google.golang.org/grpc v1.34.0
 	google.golang.org/protobuf v1.25.0

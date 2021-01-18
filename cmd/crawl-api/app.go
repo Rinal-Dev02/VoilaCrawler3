@@ -33,9 +33,9 @@ import (
 var _ServiceDescs = map[string]*pbDesc.ServiceDesc{}
 
 func init() {
-	// for _, value := range pbCrawl.ServiceDescs {
-	// 	_ServiceDescs[string(value.FullName())] = value
-	// }
+	for _, desc := range pbCrawl.ServiceDescs {
+		_ServiceDescs[desc.GetFullname()] = desc
+	}
 }
 
 // App

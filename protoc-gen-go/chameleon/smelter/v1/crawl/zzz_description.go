@@ -4,30 +4,29 @@ package crawl
 
 import (
     pb "github.com/voiladev/protobuf/protoc-gen-go/protobuf"
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 )
 
 var (
-    ServiceDescs []protoreflect.ServiceDescriptor
-    EnumDescs    []protoreflect.EnumDescriptor
+	ServiceDescs []*pb.ServiceDesc
+	EnumDescs    []*pb.EnumDesc
 )
 
 func init() {
-    pb.LoadFileDescriptors(
+	fileDescs, _ := pb.LoadFileDescriptors(
 		
-		// file_chameleon_smelter_v1_crawl_data_proto_rawDescGZIP(),
+		File_chameleon_smelter_v1_crawl_data_proto,
 		
-		// file_chameleon_smelter_v1_crawl_service_proto_rawDescGZIP(),
+		File_chameleon_smelter_v1_crawl_service_proto,
 		
-		// file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(),
+		File_chameleon_smelter_v1_crawl_service_message_proto,
 		
     )
-    // for _, desc := range fileDescs {
-    //     for i := 0; i < desc.Services().Len(); i++ {
-    //         ServiceDescs = append(ServiceDescs, desc.Services().Get(i))
-    //     }
-    //     for i := 0; i < desc.Enums().Len(); i++ {
-    //         EnumDescs = append(EnumDescs, desc.Enums().Get(i))
-    //     }
-    // }
+
+    var err error
+	if ServiceDescs, err = pb.LoadServiceDescs(fileDescs...); err != nil {
+		panic(err)
+	}
+	if EnumDescs, err = pb.LoadEnumDescs(fileDescs...); err != nil {
+		panic(err)
+	}
 }

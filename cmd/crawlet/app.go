@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"runtime"
 
@@ -85,22 +84,26 @@ func (app *App) Run(args []string) {
 			return cli.NewExitError(err, 1)
 		}
 		// load plugins
+		var loadedPlugintCount int
 		if err := filepath.Walk(c.String("plugins"), func(p string, info os.FileInfo, err error) error {
 			if info == nil || info.IsDir() || filepath.Ext(p) != ".so" {
 				return nil
 			}
 
-			p = path.Join(p, info.Name())
 			if cl, err := NewCrawler(p, logger); err != nil {
 				logger.Errorf("load plugin %s failed, error=%s", p, err)
 				return err
 			} else {
 				crawlerManager.Save(app.ctx, cl)
+				logger.Infof("loaded plugin %s", cl.ID())
+				loadedPlugintCount += 1
 			}
 			return nil
 		}); err != nil {
-			logger.Error(err)
 			return cli.NewExitError(err, 1)
+		}
+		if loadedPlugintCount == 0 {
+			return cli.NewExitError("no usable plugins", 1)
 		}
 
 		conn, err := NewConnection(app.ctx, c.String("crawl-addr"), logger)
