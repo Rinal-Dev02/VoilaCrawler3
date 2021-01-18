@@ -174,6 +174,7 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 		Type: pbEvent.EventType_Created,
 		Headers: map[string]string{
 			"Type-Url": reqData.GetTypeUrl(),
+			"Datetime": time.Now().Format(time.RFC3339Nano),
 		},
 		Data:      reqData.GetValue(),
 		Timestamp: time.Now().UnixNano(),
@@ -193,6 +194,7 @@ func (ctrl *NodeController) PublishItem(ctx context.Context, item *pbCrawl.Comma
 		Type: pbEvent.EventType_Created,
 		Headers: map[string]string{
 			"Type-Url": itemData.GetTypeUrl(),
+			"Datetime": time.Now().Format(time.RFC3339Nano),
 		},
 		Data:      itemData.GetValue(),
 		Timestamp: time.Now().UnixNano(),
