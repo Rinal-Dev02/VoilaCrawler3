@@ -46,9 +46,10 @@ func NewConnection(ctx context.Context, addr string, logger glog.Log) (*Connecti
 
 func (conn *Connection) NewChannelHandler(ctx context.Context, ctrl *CrawlerController) (*ChannelHandler, error) {
 	handler := ChannelHandler{
-		conn:   conn,
-		ctrl:   ctrl,
-		logger: conn.logger.New("ChannelHandler"),
+		conn:            conn,
+		ctrl:            ctrl,
+		heartbeatTicker: time.NewTicker(time.Hour),
+		logger:          conn.logger.New("ChannelHandler"),
 	}
 
 	var err error
@@ -65,6 +66,7 @@ type ChannelHandler struct {
 	ctrl *CrawlerController
 
 	client            pbCrawl.Gateway_ChannelClient
+	heartbeatTicker   *time.Ticker
 	heartbeatInterval int64
 	isRegistered      bool
 	logger            glog.Log
@@ -82,6 +84,7 @@ func (handler *ChannelHandler) Send(ctx context.Context, msg protoreflect.ProtoM
 
 	select {
 	case <-ctx.Done():
+		return ctx.Err()
 	case handler.conn.msgBuffer <- anydata:
 	}
 	return nil
@@ -117,6 +120,7 @@ func (handler *ChannelHandler) Watch(ctx context.Context, callback func(context.
 					if packet.GetHeartbeatInterval() > 0 {
 						atomic.StoreInt64(&handler.heartbeatInterval, packet.GetHeartbeatInterval())
 						handler.isRegistered = true
+						handler.heartbeatTicker.Reset(time.Duration(packet.GetHeartbeatInterval()) * time.Millisecond)
 					}
 					logger.Infof("network delay %v", packet.NetworkDelay)
 				case protoutil.GetTypeUrl(&pbCrawl.Heartbeat_Pong{}):
@@ -158,6 +162,19 @@ func (handler *ChannelHandler) Watch(ctx context.Context, callback func(context.
 		select {
 		case <-nctx.Done():
 			return nctx.Err()
+		case <-handler.heartbeatTicker.C:
+			msg := pbCrawl.Heartbeat_Ping{
+				Timestamp:       time.Now().UnixNano(),
+				NodeId:          NodeId(),
+				MaxConcurrency:  handler.ctrl.gpool.MaxConcurrency(),
+				IdleConcurrency: handler.ctrl.gpool.MaxConcurrency() - handler.ctrl.gpool.CurrentConcurrency(),
+			}
+			anydata, _ := anypb.New(&msg)
+			if err := handler.client.Send(anydata); err != nil {
+				handler.logger.Errorf("send heartbeat failed, error=%s", err)
+				return err
+			}
+			handler.logger.Debugf("send heartbeta max: %d, idle: %d", msg.GetMaxConcurrency(), msg.GetIdleConcurrency())
 		case msg, ok := <-handler.conn.msgBuffer:
 			if !ok {
 				return nil

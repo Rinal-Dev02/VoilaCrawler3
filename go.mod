@@ -7,6 +7,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.4.3
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1
+	github.com/nsqio/go-nsq v1.0.8
 	github.com/satori/go.uuid v1.2.0
 	github.com/tideland/golib v4.24.2+incompatible
 	github.com/urfave/cli/v2 v2.3.0

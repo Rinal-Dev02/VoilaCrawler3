@@ -21,3 +21,11 @@ spec:
       targets:
       - type: go
         output_path: protoc-gen-go/
+    - path: ""
+      name: chameleon.api.event
+      version: "1.0"
+      files:
+      - '*.proto'
+      targets:
+      - type: go
+        output_path: protoc-gen-go/

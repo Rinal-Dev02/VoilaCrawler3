@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/voiladev/VoilaCrawl/pkg/types"
+	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 )
 
@@ -24,6 +25,20 @@ func NewRequest(i *pbCrawl.Command_Request) (*Request, error) {
 	r.Method = i.GetMethod()
 	r.Url = i.GetUrl()
 	r.Body = i.GetBody()
+	i.GetCustomHeaders()
+	if i.GetParent().GetUrl() != "" {
+		found := false
+		for _, header := range i.GetCustomHeaders() {
+			if header.Key == "Referer" {
+				header.Values = append(header.Values[0:0], i.GetParent().GetUrl())
+				found = true
+				break
+			}
+		}
+		if !found {
+			i.CustomHeaders = append(i.CustomHeaders, &pbHttp.Header{Key: "Referer", Values: []string{i.GetParent().GetUrl()}})
+		}
+	}
 	if len(i.GetCustomHeaders()) > 0 {
 		if data, err := json.Marshal(i.GetCustomHeaders()); err != nil {
 			return nil, err
@@ -46,12 +61,11 @@ func NewRequest(i *pbCrawl.Command_Request) (*Request, error) {
 		}
 	}
 	r.Options = &types.RequestOptions{
-		DisableProxy:          i.GetOptions().GetDisableProxy(),
-		EnableHeadless:        i.GetOptions().GetEnableHeadless(),
-		MaxTtlPerRequest:      i.GetOptions().GetMaxTtlPerRequest(),
-		EnableRetryWhenFailed: i.GetOptions().GetEnableRetryWhenFailed(),
-		MaxRetryCount:         i.GetOptions().GetMaxRetryCount(),
-		MaxRequestDepth:       i.GetOptions().GetMaxRequestDepth(),
+		DisableProxy:     i.GetOptions().GetDisableProxy(),
+		EnableHeadless:   i.GetOptions().GetEnableHeadless(),
+		MaxTtlPerRequest: i.GetOptions().GetMaxTtlPerRequest(),
+		MaxRetryCount:    i.GetOptions().GetMaxRetryCount(),
+		MaxRequestDepth:  i.GetOptions().GetMaxRequestDepth(),
 	}
 
 	return &r, nil
@@ -89,12 +103,11 @@ func (r *Request) Unmarshal(ret interface{}) error {
 			}
 		}
 		val.Options = &pbCrawl.Command_Request_Options{
-			DisableProxy:          r.GetOptions().GetDisableProxy(),
-			EnableHeadless:        r.GetOptions().GetEnableHeadless(),
-			MaxTtlPerRequest:      r.GetOptions().GetMaxTtlPerRequest(),
-			EnableRetryWhenFailed: r.GetOptions().GetEnableRetryWhenFailed(),
-			MaxRetryCount:         r.GetOptions().GetMaxRetryCount(),
-			MaxRequestDepth:       r.GetOptions().GetMaxRequestDepth(),
+			DisableProxy:     r.GetOptions().GetDisableProxy(),
+			EnableHeadless:   r.GetOptions().GetEnableHeadless(),
+			MaxTtlPerRequest: r.GetOptions().GetMaxTtlPerRequest(),
+			MaxRetryCount:    r.GetOptions().GetMaxRetryCount(),
+			MaxRequestDepth:  r.GetOptions().GetMaxRequestDepth(),
 		}
 	default:
 		return errors.New("unsupported unmarshal type")

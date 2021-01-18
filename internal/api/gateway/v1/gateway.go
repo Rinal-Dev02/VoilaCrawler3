@@ -33,6 +33,7 @@ func NewGatewayServer(
 		crawlerCtrl: crawlerCtrl,
 		logger:      logger.New("GatewayServer"),
 	}
+
 	return &s, nil
 }
 

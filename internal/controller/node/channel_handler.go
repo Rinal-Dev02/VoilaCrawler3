@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"time"
 
@@ -100,18 +101,25 @@ func (handler *nodeHanadler) IdleConcurrency() int32 {
 	return handler.node.GetIdleConcurrency()
 }
 
-func (handler *nodeHanadler) Send(ctx context.Context, cmd proto.Message) error {
+func (handler *nodeHanadler) Send(ctx context.Context, msg proto.Message) error {
 	if handler == nil {
 		return nil
 	}
-	if cmd == nil {
+	if msg == nil {
 		return pbError.ErrInternal.New("invalid cmd")
 	}
-	if _, ok := cmd.(*anypb.Any); ok {
-		return pbError.ErrInvalidArgument.New("invalid cmd type, cmd should not be Any type")
+
+	anydata, err := anypb.New(msg)
+	if err != nil {
+		return err
 	}
 
-	return nil
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case handler.msgBuffer <- anydata:
+		return nil
+	}
 }
 
 func isConnectionClosed(ctx context.Context) bool {
@@ -225,10 +233,48 @@ func (handler *nodeHanadler) Run() error {
 					return pbError.ErrInvalidArgument.New("missing reqId for error")
 				}
 
-				if err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, nil,
-					data.GetReqId(), data.GetIsSucceed(), data.GetErrMsg()); err != nil {
+				session := handler.ctrl.engine.NewSession()
+				defer session.Close()
+
+				if err := session.Begin(); err != nil {
+					logger.Errorf("begin tx failed, error=%s", err)
+					return pbError.ErrInternal.New(err)
+				}
+
+				req, err := handler.ctrl.requestManager.GetById(handler.ctx, data.GetReqId())
+				if err != nil {
+					logger.Errorf("get request failed, error=%s", err)
+					session.Rollback()
+					return err
+				}
+				if req == nil {
+					return pbError.ErrDataLoss.New(fmt.Errorf("request %s not found", data.GetReqId()))
+				}
+
+				if err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, session,
+					req.GetId(), data.GetIsSucceed(), data.GetErrMsg()); err != nil {
+
+					session.Rollback()
 					logger.Errorf("update status failed, error=%s", err)
 					return err
+				}
+
+				if !data.GetIsSucceed() && req.GetOptions().GetMaxRetryCount() > 1 {
+					// repipe
+					if updated, err := handler.ctrl.requestManager.UpdateRetry(handler.ctx, session, req.GetId()); err != nil {
+						logger.Errorf("update retry info failed, error=%s", err)
+						return err
+					} else if updated {
+						if err = handler.ctrl.PublishRequest(handler.ctx, req); err != nil {
+							session.Rollback()
+							logger.Errorf("publish request failed, error=%s", err)
+							return err
+						}
+					}
+				}
+				if err := session.Commit(); err != nil {
+					logger.Errorf("commit tx failed, error=%s", err)
+					return pbError.ErrInternal.New(err)
 				}
 			case commandRequestTypeUrl:
 				var data pbCrawl.Command_Request
@@ -250,7 +296,7 @@ func (handler *nodeHanadler) Run() error {
 					logger.Errorf("save request failed, error=%s", err)
 					return err
 				}
-				// TODO: publish to mq
+				return handler.ctrl.PublishRequest(handler.ctx, req)
 			case commandItemTypeUrl:
 				var data pbCrawl.Command_Item
 				if err := anypb.UnmarshalTo(anyData, &data, proto.UnmarshalOptions{}); err != nil {
@@ -265,7 +311,7 @@ func (handler *nodeHanadler) Run() error {
 					logger.Errorf("update status failed, error=%s", err)
 					return err
 				}
-				// TODO: publish to mq
+				return handler.ctrl.PublishItem(handler.ctx, &data)
 			default:
 				return pbError.ErrUnimplemented.New("unsupported command")
 			}

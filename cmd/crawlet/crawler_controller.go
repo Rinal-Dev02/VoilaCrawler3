@@ -50,13 +50,14 @@ func NewCrawlerController(
 		options:        *options,
 		logger:         logger.New("CrawlerController"),
 	}
-	ctrl.gpool, _ = NewGPool(ctx, options.MaxConcurrency, logger)
 
+	var err error
+	ctrl.gpool, err = NewGPool(ctx, options.MaxConcurrency, logger)
+	if ctrl.handler, err = ctrl.conn.NewChannelHandler(ctrl.ctx, &ctrl); err != nil {
+		ctrl.logger.Errorf("new channel handler failed, error=%s", err)
+		return nil, err
+	}
 	go func() {
-		var err error
-		if ctrl.handler, err = ctrl.conn.NewChannelHandler(ctrl.ctx, &ctrl); err != nil {
-			ctrl.logger.Errorf("new channel handler failed, error=%s", err)
-		}
 		for {
 			// reconnect after failed
 			time.Sleep(time.Second)

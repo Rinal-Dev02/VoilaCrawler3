@@ -12,10 +12,10 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/urfave/cli/v2"
-
 	svcGateway "github.com/voiladev/VoilaCrawl/internal/api/gateway/v1"
 	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
 	nodeCtrl "github.com/voiladev/VoilaCrawl/internal/controller/node"
+	reqCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request"
 	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
 	nodeManager "github.com/voiladev/VoilaCrawl/internal/model/node/manager"
 	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
@@ -84,6 +84,11 @@ func (app *App) Run(args []string) {
 			Usage: "nsqd tcp address",
 			Value: "voiladev.com:4150",
 		},
+		&cli.StringSliceFlag{
+			Name:  "nsqlookupd-http-addr",
+			Usage: "nsqlookupd http address",
+			Value: cli.NewStringSlice("voiladev.com:4161"),
+		},
 		&cli.BoolFlag{
 			Name:  "disable-access-control",
 			Usage: "Disable access control",
@@ -128,7 +133,19 @@ func (app *App) Run(args []string) {
 
 			// Controller
 			fx.Provide(crawlerCtrl.NewCrawlerController),
+			fx.Provide(func() *nodeCtrl.NodeControllerOptions {
+				return &nodeCtrl.NodeControllerOptions{
+					HeartbeatInternal: 1000,
+					NsqdAddr:          c.String("nsqd-tcp-addr"),
+				}
+			}),
 			fx.Provide(nodeCtrl.NewNodeController),
+			fx.Provide(func() *reqCtrl.RequestControllerOptions {
+				return &reqCtrl.RequestControllerOptions{
+					NsqLookupdAddresses: c.StringSlice("nsqlookupd-http-addr"),
+				}
+			}),
+			fx.Provide(reqCtrl.NewRequestController),
 
 			// Register services
 			fx.Provide(svcGateway.NewGatewayServer),
@@ -172,7 +189,6 @@ func (app *App) loadBackends(c *cli.Context) (opts []fx.Option, err error) {
 	} else {
 		opts = append(opts, fx.Provide(ins.Instance))
 	}
-
 	return
 }
 
