@@ -18,8 +18,8 @@ func NewRequest(r *pbCrawl.Command_Request) (*http.Request, error) {
 	}
 
 	var body io.Reader
-	if r.Method != http.MethodGet && r.GetBody() != nil {
-		body = bytes.NewReader(r.GetBody())
+	if r.Method != http.MethodGet && r.GetBody() != "" {
+		body = bytes.NewReader([]byte(r.GetBody()))
 	}
 
 	req, err := http.NewRequest(r.Method, r.Url, body)

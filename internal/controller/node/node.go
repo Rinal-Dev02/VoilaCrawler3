@@ -162,6 +162,7 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 	if ctrl == nil || req == nil {
 		return nil
 	}
+	logger := ctrl.logger.New("PublishRequest")
 
 	var cmdReq pbCrawl.Command_Request
 	if err := req.Unmarshal(&cmdReq); err != nil {
@@ -180,13 +181,18 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 		Timestamp: time.Now().UnixNano(),
 	}
 	data, _ := proto.Marshal(&event)
-	return ctrl.publisher.Publish(config.CrawlRequestTopic, data)
+	if err := ctrl.publisher.Publish(config.CrawlRequestTopic, data); err != nil {
+		logger.Errorf("publish request failed, error=%s", err)
+		return pbError.ErrInternal.New(err)
+	}
+	return nil
 }
 
 func (ctrl *NodeController) PublishItem(ctx context.Context, item *pbCrawl.Command_Item) error {
 	if ctrl == nil || item == nil || item.GetData() == nil {
 		return nil
 	}
+	logger := ctrl.logger.New("PublishItem")
 
 	itemData, _ := anypb.New(item)
 	event := pbEvent.Event{
@@ -200,5 +206,9 @@ func (ctrl *NodeController) PublishItem(ctx context.Context, item *pbCrawl.Comma
 		Timestamp: time.Now().UnixNano(),
 	}
 	data, _ := proto.Marshal(&event)
-	return ctrl.publisher.Publish(config.CrawledItemTopic, data)
+	if err := ctrl.publisher.Publish(config.CrawledItemTopic, data); err != nil {
+		logger.Errorf("publish item failed, error=%s", err)
+		return pbError.ErrInternal.New(err)
+	}
+	return nil
 }

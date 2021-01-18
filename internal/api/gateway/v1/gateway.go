@@ -2,12 +2,15 @@ package v1
 
 import (
 	"context"
+	"errors"
 
-	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
 	nodeCtrl "github.com/voiladev/VoilaCrawl/internal/controller/node"
-	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
+	"github.com/voiladev/VoilaCrawl/internal/model/request"
+	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
+	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type GatewayServer struct {
@@ -15,25 +18,28 @@ type GatewayServer struct {
 
 	ctx            context.Context
 	nodeCtrl       *nodeCtrl.NodeController
-	crawlerCtrl    *crawlerCtrl.CrawlerController
-	crawlerManager *crawlerManager.CrawlerManager
+	requestManager *reqManager.RequestManager
 	logger         glog.Log
 }
 
 func NewGatewayServer(
 	ctx context.Context,
 	nodeCtrl *nodeCtrl.NodeController,
-	crawlerCtrl *crawlerCtrl.CrawlerController,
-	crawlerManager *crawlerManager.CrawlerManager,
+	requestManager *reqManager.RequestManager,
 	logger glog.Log,
 ) (pbCrawl.GatewayServer, error) {
-	s := GatewayServer{
-		ctx:         ctx,
-		nodeCtrl:    nodeCtrl,
-		crawlerCtrl: crawlerCtrl,
-		logger:      logger.New("GatewayServer"),
+	if nodeCtrl == nil {
+		return nil, errors.New("invalid node controller")
 	}
-
+	if requestManager == nil {
+		return nil, errors.New("invalid request manager")
+	}
+	s := GatewayServer{
+		ctx:            ctx,
+		nodeCtrl:       nodeCtrl,
+		requestManager: requestManager,
+		logger:         logger.New("GatewayServer"),
+	}
 	return &s, nil
 }
 
@@ -60,12 +66,24 @@ func (s *GatewayServer) Channel(cs pbCrawl.Gateway_ChannelServer) error {
 	return nil
 }
 
-func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*pbCrawl.FetchResponse, error) {
+func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*emptypb.Empty, error) {
 	if s == nil {
 		return nil, nil
 	}
+	logger := s.logger.New("Fetch")
 
-	// TODO
-
-	return nil, nil
+	r, err := request.NewRequest(req)
+	if err != nil {
+		logger.Errorf("load request failed, error=%s", err)
+		return nil, pbError.ErrInvalidArgument.New(err)
+	}
+	if r, err = s.requestManager.Create(ctx, nil, r); err != nil {
+		logger.Errorf("save request failed, error=%s", err)
+		return nil, err
+	}
+	if err = s.nodeCtrl.PublishRequest(ctx, r); err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
 }

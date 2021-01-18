@@ -10,19 +10,14 @@ option go_package = "types";
 // RequestOptions
 message RequestOptions {
     // DisableProxy
-    bool disableProxy      = 1 [(gogoproto.moretags) = "xorm:\"option_disable_proxy default(0)\""];
-    // EnableHeadless
-    bool enableHeadless    = 2 [(gogoproto.moretags) = "xorm:\"option_enable_headless default(0)\""];
-
+    bool  disableProxy      = 1 [(gogoproto.moretags) = "xorm:\"option_disable_proxy default(0)\""];
     // 最大TTL (in seconds) 
     int32 maxTtlPerRequest = 11 [(gogoproto.moretags) = "xorm:\"option_max_ttl_per_request default(0)\""];
 
-    // EnableRetryWhenFailed
-    bool  enableRetryWhenFailed = 21 [(gogoproto.moretags) = "xorm:\"option_enable_retry_when_failed default(0)\""];
     // MaxRetryCount
-    int32 maxRetryCount         = 22 [(gogoproto.moretags) = "xorm:\"option_max_retry_count default(0)\""];
+    int32 maxRetryCount    = 22 [(gogoproto.moretags) = "xorm:\"option_max_retry_count default(0)\""];
     // MaxRequestDepth
-    int32 maxRequestDepth       = 23 [(gogoproto.moretags) = "xorm:\"option_max_request_depth default(0)\""];
+    int32 maxRequestDepth  = 23 [(gogoproto.moretags) = "xorm:\"option_max_request_depth default(0)\""];
 }
 
 // Request
@@ -56,7 +51,7 @@ message Request {
     // CustomCookies
     string customCookies = 15 [(gogoproto.moretags) = "xorm:\"json\""];
     // Body
-    bytes  body          = 16;
+    string body          = 16;
 
     // SharingData 共享数据
     string sharingData   = 21 [(gogoproto.moretags) = "xorm:\"json\""];

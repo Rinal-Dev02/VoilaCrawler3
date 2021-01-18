@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"time"
@@ -197,7 +198,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 								if data, err := ioutil.ReadAll(val.Body); err != nil {
 									return err
 								} else {
-									subreq.Body = data
+									subreq.Body = fmt.Sprintf("%s", data)
 								}
 							}
 							for k, v := range ctxUtil.RetrieveAllValues(c) {
