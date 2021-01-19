@@ -58,6 +58,7 @@ func (conn *Connection) NewChannelHandler(ctx context.Context, ctrl *CrawlerCont
 		conn.logger.Error("connect channel failed, error=%s", err)
 		return nil, err
 	}
+
 	return &handler, nil
 }
 

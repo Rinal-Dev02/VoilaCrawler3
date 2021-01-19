@@ -36,8 +36,9 @@ type NodeController struct {
 	requestManager *reqManager.RequestManager
 	nodeHandlers   *sortedmap.SortedMap
 	publisher      *nsq.Producer
-	options        NodeControllerOptions
-	logger         glog.Log
+
+	options NodeControllerOptions
+	logger  glog.Log
 }
 
 func NewNodeController(
@@ -123,6 +124,13 @@ func (ctrl *NodeController) Unregister(ctx context.Context, id string) error {
 	return nil
 }
 
+// func (ctrl *NodeController) IsOkToSend() bool {
+// 	if ctrl == nil {
+// 		return false
+// 	}
+// 	return ctrl.nodeHandlers.Size() > 0
+// }
+
 func (ctrl *NodeController) Send(ctx context.Context, msg protoreflect.ProtoMessage) error {
 	if ctrl == nil {
 		return nil
@@ -132,7 +140,8 @@ func (ctrl *NodeController) Send(ctx context.Context, msg protoreflect.ProtoMess
 		handler *nodeHanadler
 		maxIdle int32
 	)
-	for {
+
+	for i := 0; i < 3; i++ {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -143,19 +152,22 @@ func (ctrl *NodeController) Send(ctx context.Context, msg protoreflect.ProtoMess
 					return false
 				default:
 					h := val.(*nodeHanadler)
-					if h.IdleConcurrency() >= maxIdle {
+
+					ctrl.logger.Infof("node %s %d %d", key, h.IdleConcurrency(), h.MaxConcurrency())
+					if h.IsInited() && h.IdleConcurrency() > maxIdle {
 						handler = h
 						maxIdle = h.IdleConcurrency()
 					}
 					return true
 				}
 			})
+			if handler != nil {
+				return handler.Send(ctx, msg)
+			}
 		}
-		if handler != nil {
-			break
-		}
+		time.Sleep(time.Second)
 	}
-	return handler.Send(ctx, msg)
+	return pbError.ErrUnavailable
 }
 
 func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Request) error {

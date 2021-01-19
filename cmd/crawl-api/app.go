@@ -145,7 +145,9 @@ func (app *App) Run(args []string) {
 					NsqLookupdAddresses: c.StringSlice("nsqlookupd-http-addr"),
 				}
 			}),
-			fx.Provide(reqCtrl.NewRequestController),
+			fx.Provide(func(ctrl *nodeCtrl.NodeController) reqCtrl.Sender {
+				return ctrl
+			}),
 
 			// Register services
 			fx.Provide(svcGateway.NewGatewayServer),
@@ -156,7 +158,8 @@ func (app *App) Run(args []string) {
 			// fx.Invoke(pbCrawl.RegisterNodeManagerServer),
 
 			// Register http handler
-			// fx.Invoke(pbCrawl.RegisterGatewayHandler),
+			fx.Invoke(pbCrawl.RegisterGatewayHandler),
+			fx.Invoke(reqCtrl.NewRequestController),
 		)
 
 		depInj := fx.New(options...)

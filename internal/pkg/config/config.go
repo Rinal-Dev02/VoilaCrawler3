@@ -1,6 +1,6 @@
 package config
 
 var (
-	CrawlRequestTopic = "chameleon_smelter_v1_crawl_Command_Request"
-	CrawledItemTopic  = "chameleon_smelter_v1_crawl_Command_Item"
+	CrawlRequestTopic = "chameleon.smelter.v1.crawl.Command_Request"
+	CrawledItemTopic  = "chameleon.smelter.v1.crawl.Command_Item"
 )

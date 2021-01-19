@@ -3,7 +3,6 @@ package node
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 
 type Node struct {
 	pbCrawl.Node
-	mutex sync.RWMutex
 }
 
 // New
@@ -34,9 +32,6 @@ func (n *Node) GetId() string {
 	if n == nil {
 		return ""
 	}
-	n.mutex.Lock()
-	defer n.mutex.RUnlock()
-
 	return n.Node.GetId()
 }
 
@@ -44,9 +39,6 @@ func (n *Node) GetHost() string {
 	if n == nil {
 		return ""
 	}
-	n.mutex.Lock()
-	defer n.mutex.RUnlock()
-
 	return n.Node.GetHost()
 }
 
@@ -57,11 +49,7 @@ func (n *Node) SetStatus(status pbCrawl.NodeStatus) error {
 	if _, ok := pbCrawl.NodeStatus_name[int32(status)]; !ok || status == pbCrawl.NodeStatus_NodeStatusUnknown {
 		return pbError.ErrInvalidArgument.New("invalid status")
 	}
-	n.mutex.Lock()
-	defer n.mutex.Unlock()
-
-	n.Status = status
-
+	atomic.StoreInt32((*int32)(&n.Status), int32(status))
 	return nil
 }
 
@@ -69,9 +57,6 @@ func (n *Node) SetMaxConcurrency(val int32) error {
 	if n == nil {
 		return errors.New("nil node")
 	}
-
-	n.mutex.Lock()
-	defer n.mutex.Unlock()
 
 	if val < 0 {
 		return pbError.ErrInvalidArgument.New(fmt.Sprintf("invalid val"))
@@ -85,9 +70,6 @@ func (n *Node) SetIdleConcurrency(val int32) error {
 		return errors.New("nil node")
 	}
 
-	n.mutex.Lock()
-	defer n.mutex.Unlock()
-
 	if val < 0 {
 		return pbError.ErrInvalidArgument.New(fmt.Sprintf("invalid val"))
 	}
@@ -100,9 +82,6 @@ func (n *Node) IncrIdleConcurrency(delta int32) (int32, error) {
 		return 0, errors.New("nil node")
 	}
 
-	n.mutex.Lock()
-	defer n.mutex.Unlock()
-
 	if n.Node.GetIdleConcurrency()+delta < 0 {
 		return 0, pbError.ErrInvalidArgument.New(fmt.Sprintf("invalid delta %v", delta))
 	}
@@ -114,10 +93,7 @@ func (n *Node) SetHeartbetaUtc(t int64) error {
 		return errors.New("nil node")
 	}
 
-	n.mutex.Lock()
-	n.mutex.Unlock()
-
-	n.Metadata.LastHeartbeatUtc = time.Now().UnixNano()
+	atomic.StoreInt64(&n.Metadata.LastHeartbeatUtc, time.Now().UnixNano())
 
 	return nil
 }
@@ -126,9 +102,6 @@ func (n *Node) Validate() error {
 	if n == nil {
 		return errors.New("nil node")
 	}
-
-	n.mutex.RLock()
-	defer n.mutex.RUnlock()
 
 	if n.Id == "" {
 		return errors.New("invalid node uuid")

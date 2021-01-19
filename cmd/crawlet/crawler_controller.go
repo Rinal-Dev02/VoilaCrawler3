@@ -87,6 +87,20 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 	}
 	logger := ctrl.logger.New("Run")
 
+	if err := ctrl.handler.Send(ctx, &pbCrawl.Join_Ping{
+		Timestamp: time.Now().UnixNano(),
+		Node: &pbCrawl.Join_Ping_Node{
+			Id:              NodeId(),
+			Host:            Hostname(),
+			MaxConcurrency:  ctrl.gpool.MaxConcurrency(),
+			IdleConcurrency: ctrl.gpool.MaxConcurrency() - ctrl.gpool.CurrentConcurrency(),
+		},
+		Crawlers: []*pbCrawl.Crawler{},
+	}); err != nil {
+		ctrl.logger.Errorf("register node failed, error=%s", err)
+		return err
+	}
+
 	for {
 		select {
 		case <-ctx.Done():

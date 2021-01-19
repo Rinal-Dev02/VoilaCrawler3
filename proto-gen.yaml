@@ -13,6 +13,7 @@ spec:
       - type: go
         output_path: protoc-gen-go/
         with_grpc: true
+        with_grpc_gateway: true
     - path: ""
       name: chameleon.smelter.v1.crawl.item
       version: "1.0"

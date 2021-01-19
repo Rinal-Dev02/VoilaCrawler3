@@ -27,8 +27,8 @@ type nodeHanadler struct {
 	conn      pbCrawl.Gateway_ChannelServer
 	node      *node.Node
 	msgBuffer chan protoreflect.ProtoMessage
-
-	logger glog.Log
+	isInited  bool
+	logger    glog.Log
 }
 
 // Node
@@ -85,6 +85,13 @@ func (handler *nodeHanadler) ID() string {
 		return ""
 	}
 	return handler.id
+}
+
+func (handler *nodeHanadler) IsInited() bool {
+	if handler == nil {
+		return false
+	}
+	return handler.isInited
 }
 
 func (handler *nodeHanadler) MaxConcurrency() int32 {
@@ -159,6 +166,8 @@ func (handler *nodeHanadler) Run() error {
 			return err
 		}
 
+		handler.logger.Debugf("message %s", anyData.GetTypeUrl())
+
 		now := time.Now()
 		switch anyData.GetTypeUrl() {
 		case joinPingTypeUrl:
@@ -191,6 +200,7 @@ func (handler *nodeHanadler) Run() error {
 				logger.Errorf("send command failed, error=%s", err)
 				return pbError.ErrInternal.New(err)
 			}
+			handler.isInited = true
 		case heartbetaPingTypeUrl:
 			var (
 				err    error
