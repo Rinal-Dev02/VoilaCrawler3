@@ -52,7 +52,7 @@ func NewNodeHandler(ctx context.Context, ctrl *NodeController, conn pbCrawl.Gate
 			case <-ctx.Done():
 				return
 			case msg, ok := <-handler.msgBuffer:
-				if ok {
+				if !ok {
 					return
 				}
 
@@ -116,15 +116,10 @@ func (handler *nodeHanadler) Send(ctx context.Context, msg proto.Message) error 
 		return pbError.ErrInternal.New("invalid cmd")
 	}
 
-	anydata, err := anypb.New(msg)
-	if err != nil {
-		return err
-	}
-
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case handler.msgBuffer <- anydata:
+	case handler.msgBuffer <- msg:
 		return nil
 	}
 }
@@ -235,7 +230,7 @@ func (handler *nodeHanadler) Run() error {
 			switch packet.GetData().GetTypeUrl() {
 			case commandErrorTypeUrl:
 				var data pbCrawl.Command_Error
-				if err := anypb.UnmarshalTo(anyData, &data, proto.UnmarshalOptions{}); err != nil {
+				if err := anypb.UnmarshalTo(packet.GetData(), &data, proto.UnmarshalOptions{}); err != nil {
 					logger.Errorf("unmarshal error message failed, error=%s", err)
 					return pbError.ErrInternal.New(err)
 				}
@@ -288,7 +283,7 @@ func (handler *nodeHanadler) Run() error {
 				}
 			case commandRequestTypeUrl:
 				var data pbCrawl.Command_Request
-				if err := anypb.UnmarshalTo(anyData, &data, proto.UnmarshalOptions{}); err != nil {
+				if err := anypb.UnmarshalTo(packet.GetData(), &data, proto.UnmarshalOptions{}); err != nil {
 					logger.Errorf("unmarshal error message failed, error=%s", err)
 					return pbError.ErrInternal.New(err)
 				}
@@ -306,10 +301,13 @@ func (handler *nodeHanadler) Run() error {
 					logger.Errorf("save request failed, error=%s", err)
 					return err
 				}
-				return handler.ctrl.PublishRequest(handler.ctx, req)
+				if err = handler.ctrl.PublishRequest(handler.ctx, req); err != nil {
+					logger.Errorf("publish request failed, error=%s", err)
+					return err
+				}
 			case commandItemTypeUrl:
 				var data pbCrawl.Command_Item
-				if err := anypb.UnmarshalTo(anyData, &data, proto.UnmarshalOptions{}); err != nil {
+				if err := anypb.UnmarshalTo(packet.GetData(), &data, proto.UnmarshalOptions{}); err != nil {
 					logger.Errorf("unmarshal error message failed, error=%s", err)
 					return pbError.ErrInternal.New(err)
 				}
@@ -321,7 +319,10 @@ func (handler *nodeHanadler) Run() error {
 					logger.Errorf("update status failed, error=%s", err)
 					return err
 				}
-				return handler.ctrl.PublishItem(handler.ctx, &data)
+				if err := handler.ctrl.PublishItem(handler.ctx, &data); err != nil {
+					logger.Errorf("publish item failed, error=%s", err)
+					return err
+				}
 			default:
 				return pbError.ErrUnimplemented.New("unsupported command")
 			}

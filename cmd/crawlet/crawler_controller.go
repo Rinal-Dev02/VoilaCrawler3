@@ -144,11 +144,12 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 			}
 			if crawler == nil {
 				logger.Errorf("no crawler found for %s", r.Url)
+				count, _ := ctrl.crawlerManager.Count(ctx)
 				ctrl.handler.Send(ctx, &pbCrawl.Command_Error{
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
-					ErrMsg:    "no crawler found",
+					ErrMsg:    fmt.Sprintf("0/%d crawler found", count),
 				})
 				continue
 			}

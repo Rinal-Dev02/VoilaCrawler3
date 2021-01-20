@@ -11,7 +11,7 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/tideland/golib v4.24.2+incompatible
 	github.com/urfave/cli/v2 v2.3.0
-	github.com/voiladev/go-framework v0.0.0-20210119023133-6b7cfc8db9c8
+	github.com/voiladev/go-framework v0.0.0-20210120064518-69959cdf169a
 	github.com/voiladev/protobuf v0.0.0-20210118020030-24eac5fdaed4
 	go.uber.org/fx v1.13.1
 	google.golang.org/grpc v1.34.0

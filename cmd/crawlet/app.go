@@ -121,7 +121,7 @@ func (app *App) Run(args []string) {
 			return cli.NewExitError(err, 1)
 		}
 
-		NewCrawlerController(
+		crawlerCtrl, err := NewCrawlerController(
 			app.ctx,
 			crawlerManager,
 			httpClient,
@@ -129,6 +129,11 @@ func (app *App) Run(args []string) {
 			&CrawlerControllerOptions{MaxConcurrency: int32(c.Int("max-currency"))},
 			logger,
 		)
+		if err != nil {
+			logger.Error(err)
+			return cli.NewExitError(err, 1)
+		}
+		go crawlerCtrl.Run(app.ctx)
 
 		<-app.exitChan
 		return nil

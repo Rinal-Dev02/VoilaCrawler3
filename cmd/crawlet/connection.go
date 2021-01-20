@@ -78,6 +78,20 @@ func (handler *ChannelHandler) Send(ctx context.Context, msg protoreflect.ProtoM
 		return nil
 	}
 
+	switch v := msg.(type) {
+	case *pbCrawl.Command_Error:
+		cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
+		cmd.Data, _ = anypb.New(v)
+		msg = &cmd
+	case *pbCrawl.Command_Item:
+		cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
+		cmd.Data, _ = anypb.New(v)
+		msg = &cmd
+	case *pbCrawl.Command_Request:
+		cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
+		cmd.Data, _ = anypb.New(v)
+		msg = &cmd
+	}
 	anydata, err := anypb.New(msg)
 	if err != nil {
 		return err

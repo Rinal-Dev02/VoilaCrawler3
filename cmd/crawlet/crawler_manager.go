@@ -66,9 +66,11 @@ func (m *CrawlerManager) GetByHost(ctx context.Context, host string) ([]*Crawler
 
 	var ret []*Crawler
 	m.crawlers.Range(func(key string, vals []interface{}) bool {
+		m.logger.Debugf("%s count=%d", key, len(vals))
 		for _, val := range vals {
 			crawler := val.(*Crawler)
 			for _, d := range crawler.AllowedDomains() {
+				m.logger.Debugf("%s=%s", host, d)
 				if d == host {
 					ret = append(ret, crawler)
 				}
@@ -77,6 +79,20 @@ func (m *CrawlerManager) GetByHost(ctx context.Context, host string) ([]*Crawler
 		return true
 	})
 	return ret, nil
+}
+
+// Count
+func (m *CrawlerManager) Count(ctx context.Context) (int32, error) {
+	if m == nil {
+		return 0, nil
+	}
+
+	var count int32
+	m.crawlers.Range(func(key string, vals []interface{}) bool {
+		count += 1
+		return true
+	})
+	return count, nil
 }
 
 // List

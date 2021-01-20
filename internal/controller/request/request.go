@@ -27,12 +27,11 @@ type RequestControllerOptions struct {
 }
 
 type RequestController struct {
-	ctx      context.Context
-	sender   Sender
-	producer *nsq.Producer
-	consumer *nsq.Consumer
-	options  RequestControllerOptions
-	logger   glog.Log
+	ctx             context.Context
+	producer        *nsq.Producer
+	requestConsumer *nsq.Consumer
+	options         RequestControllerOptions
+	logger          glog.Log
 }
 
 func NewRequestController(
@@ -51,7 +50,6 @@ func NewRequestController(
 	}
 	ctrl := RequestController{
 		ctx:     ctx,
-		sender:  sender,
 		options: *options,
 		logger:  logger.New("RequestController"),
 	}
@@ -62,37 +60,15 @@ func NewRequestController(
 	)
 	conf.MaxAttempts = 20
 	conf.MaxBackoffDuration = time.Hour
-	if ctrl.consumer, err = nsq.NewConsumer(config.CrawlRequestTopic, "publisher", conf); err != nil {
+	if ctrl.requestConsumer, err = nsq.NewConsumer(config.CrawlRequestTopic, "crawl-api", conf); err != nil {
 		ctrl.logger.Errorf("create consumer failed, error=%s", err)
 		return nil, err
 	}
-	ctrl.consumer.AddHandler(&RequestHandler{ctx: ctx, sender: sender, logger: logger})
-	if err = ctrl.consumer.ConnectToNSQLookupds(ctrl.options.NsqLookupdAddresses); err != nil {
+	ctrl.requestConsumer.AddHandler(&RequestHandler{ctx: ctx, sender: sender, logger: logger})
+	if err = ctrl.requestConsumer.ConnectToNSQLookupds(ctrl.options.NsqLookupdAddresses); err != nil {
 		ctrl.logger.Errorf("connect to nsq fialed, error=%s", err)
 		panic(err)
 	}
-
-	// go func() {
-	// 	var isConnected bool
-	// 	for {
-	// 		if isConnected {
-	// 			if !ctrl.sender.IsOkToSend() {
-	// 				ctrl.consumer.Stop()
-	// 				<-ctrl.consumer.StopChan
-	// 			}
-	// 			isConnected = false
-	// 		} else if ctrl.sender.IsOkToSend() {
-	// 			if err = ctrl.consumer.ConnectToNSQLookupds(ctrl.options.NsqLookupdAddresses); err != nil {
-	// 				ctrl.logger.Errorf("connect to nsq fialed, error=%s", err)
-	// 				panic(err)
-	// 			}
-	// 			isConnected = true
-	// 		} else {
-	// 			ctrl.logger.Debugf("no usable crawlet, waiting...")
-	// 		}
-	// 		time.Sleep(time.Second)
-	// 	}
-	// }()
 	return &ctrl, nil
 }
 

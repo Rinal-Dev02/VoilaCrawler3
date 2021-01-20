@@ -162,6 +162,12 @@ func (ctrl *NodeController) Send(ctx context.Context, msg protoreflect.ProtoMess
 				}
 			})
 			if handler != nil {
+				switch v := msg.(type) {
+				case *pbCrawl.Command_Request:
+					cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano()}
+					cmd.Data, _ = anypb.New(v)
+					msg = &cmd
+				}
 				return handler.Send(ctx, msg)
 			}
 		}

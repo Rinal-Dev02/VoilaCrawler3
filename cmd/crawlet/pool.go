@@ -48,9 +48,9 @@ func NewGPool(ctx context.Context, cap int32, logger glog.Log) (*GPool, error) {
 							p.logger.Error(r)
 						}
 						atomic.AddInt32(&p.currentConcurrency, -1)
-
-						jobFunc()
 					}()
+
+					jobFunc()
 				}()
 			}
 		}
