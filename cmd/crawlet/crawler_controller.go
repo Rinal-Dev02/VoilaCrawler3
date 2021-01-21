@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	ctxUtil "github.com/voiladev/VoilaCrawl/pkg/context"
@@ -274,6 +276,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					defer resp.Body.Close()
 
 					return duration, crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
+						sharingData := ctxUtil.RetrieveAllValues(c)
 						switch val := i.(type) {
 						case *http.Request:
 							// convert http.Request to pbCrawl.Command_Request and forward
@@ -295,16 +298,18 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 									subreq.Body = fmt.Sprintf("%s", data)
 								}
 							}
-							for k, v := range ctxUtil.RetrieveAllValues(c) {
+							for k, v := range sharingData {
 								key, ok1 := k.(string)
 								val, ok2 := v.(string)
 								if !ok1 || !ok2 {
 									continue
 								}
-								if key == "tracing_id" || key == "job_id" || key == "req_id" {
+
+								if strings.HasSuffix(key, "tracing_id") ||
+									strings.HasSuffix(key, "job_id") ||
+									strings.HasSuffix(key, "req_id") {
 									continue
 								}
-
 								found := false
 								for _, item := range subreq.SharingData {
 									if item.Key == key {
@@ -324,10 +329,20 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 							cmd.Data, _ = anypb.New(&subreq)
 							ctrl.Send(shareCtx, &cmd)
 						case *pbItem.Product:
+							var index int32
+							if interVal, ok := sharingData["item.index"]; ok {
+								if v, ok := interVal.(string); ok {
+									vv, _ := strconv.ParseInt(v, 10, 32)
+									index = int32(vv)
+								}
+							}
 							item := pbCrawl.Item{
+								Timestamp: time.Now().UnixNano(),
+								NodeId:    NodeId(),
 								TracingId: r.GetTracingId(),
 								JobId:     r.GetJobId(),
 								ReqId:     r.GetReqId(),
+								Index:     index,
 							}
 							ctrl.Send(shareCtx, &item)
 						default:
