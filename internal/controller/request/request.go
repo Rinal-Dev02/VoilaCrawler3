@@ -72,6 +72,15 @@ func NewRequestController(
 	return &ctrl, nil
 }
 
+func (ctrl *RequestController) Exit() error {
+	if ctrl == nil || ctrl.requestConsumer == nil {
+		return nil
+	}
+	ctrl.requestConsumer.Stop()
+	<-ctrl.requestConsumer.StopChan
+	return nil
+}
+
 type RequestHandler struct {
 	ctx    context.Context
 	ctrl   *RequestController
@@ -102,7 +111,6 @@ func (h *RequestHandler) HandleMessage(msg *nsq.Message) error {
 		return nil
 	}
 
-	h.logger.Debugf("########## send msg")
 	if err := h.sender.Send(h.ctx, &req); err == pbError.ErrUnavailable {
 		// NOTE: for service unavailable, backoff for 5mins
 		// there exists case that if the crawlet always offline, some message may dropped
@@ -119,7 +127,7 @@ func (h *RequestHandler) HandleMessage(msg *nsq.Message) error {
 }
 
 func (h *RequestHandler) LogFailedMessage(msg *nsq.Message) {
-	if h == nil {
+	if h == nil || h.ctrl == nil {
 		return
 	}
 
@@ -142,5 +150,4 @@ func (h *RequestHandler) LogFailedMessage(msg *nsq.Message) {
 	if err := h.ctrl.producer.Publish(config.CrawlRequestTopic, msg.Body); err != nil {
 		h.logger.Errorf("republish %s failed, error=%s", data, err)
 	}
-	msg.Finish()
 }

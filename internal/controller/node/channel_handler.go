@@ -138,8 +138,8 @@ var (
 	heartbetaPingTypeUrl  = protoutil.GetTypeUrl(&pbCrawl.Heartbeat_Ping{})
 	commandTypeUrl        = protoutil.GetTypeUrl(&pbCrawl.Command{})
 	commandErrorTypeUrl   = protoutil.GetTypeUrl(&pbCrawl.Command_Error{})
-	commandItemTypeUrl    = protoutil.GetTypeUrl(&pbCrawl.Command_Item{})
 	commandRequestTypeUrl = protoutil.GetTypeUrl(&pbCrawl.Command_Request{})
+	itemTypeUrl           = protoutil.GetTypeUrl(&pbCrawl.Item{})
 )
 
 func (handler *nodeHanadler) Run() error {
@@ -308,21 +308,18 @@ func (handler *nodeHanadler) Run() error {
 					logger.Errorf("publish request failed, error=%s", err)
 					return err
 				}
-			case commandItemTypeUrl:
-				var data pbCrawl.Command_Item
-				if err := anypb.UnmarshalTo(packet.GetData(), &data, proto.UnmarshalOptions{}); err != nil {
-					logger.Errorf("unmarshal error message failed, error=%s", err)
-					return pbError.ErrInternal.New(err)
-				}
-				if data.GetReqId() == "" {
-					return pbError.ErrInvalidArgument.New("missing reqId for item command")
-				}
-				if err := handler.ctrl.PublishItem(handler.ctx, &data); err != nil {
-					logger.Errorf("publish item failed, error=%s", err)
-					return err
-				}
 			default:
 				return pbError.ErrUnimplemented.New("unsupported command")
+			}
+		case itemTypeUrl:
+			var item pbCrawl.Item
+			if err := anypb.UnmarshalTo(anyData, &item, proto.UnmarshalOptions{}); err != nil {
+				logger.Errorf("unmarshal error message failed, error=%s", err)
+				return pbError.ErrInternal.New(err)
+			}
+			if err := handler.ctrl.PublishItem(handler.ctx, &item); err != nil {
+				logger.Errorf("publish item failed, error=%s", err)
+				return err
 			}
 		default:
 			return pbError.ErrUnavailable.New(

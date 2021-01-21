@@ -153,10 +153,6 @@ func (ctrl *CrawlerController) Send(ctx context.Context, msg protoreflect.ProtoM
 		cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
 		cmd.Data, _ = anypb.New(v)
 		msg = &cmd
-	case *pbCrawl.Command_Item:
-		cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
-		cmd.Data, _ = anypb.New(v)
-		msg = &cmd
 	case *pbCrawl.Command_Request:
 		cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
 		cmd.Data, _ = anypb.New(v)
@@ -328,16 +324,12 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 							cmd.Data, _ = anypb.New(&subreq)
 							ctrl.Send(shareCtx, &cmd)
 						case *pbItem.Product:
-							item := pbCrawl.Command_Item{
+							item := pbCrawl.Item{
 								TracingId: r.GetTracingId(),
 								JobId:     r.GetJobId(),
 								ReqId:     r.GetReqId(),
 							}
-							item.Data, _ = anypb.New(val)
-
-							cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
-							cmd.Data, _ = anypb.New(&item)
-							ctrl.Send(shareCtx, &cmd)
+							ctrl.Send(shareCtx, &item)
 						default:
 							return errors.New("unsupported response data type")
 						}

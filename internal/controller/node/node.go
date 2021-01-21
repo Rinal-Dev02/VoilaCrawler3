@@ -207,7 +207,7 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 	return nil
 }
 
-func (ctrl *NodeController) PublishItem(ctx context.Context, item *pbCrawl.Command_Item) error {
+func (ctrl *NodeController) PublishItem(ctx context.Context, item *pbCrawl.Item) error {
 	if ctrl == nil || item == nil || item.GetData() == nil {
 		return nil
 	}
@@ -225,7 +225,7 @@ func (ctrl *NodeController) PublishItem(ctx context.Context, item *pbCrawl.Comma
 		Timestamp: time.Now().UnixNano(),
 	}
 	data, _ := proto.Marshal(&event)
-	if err := ctrl.publisher.Publish(config.CrawledItemTopic, data); err != nil {
+	if err := ctrl.publisher.Publish(config.CrawlItemTopic, data); err != nil {
 		logger.Errorf("publish item failed, error=%s", err)
 		return pbError.ErrInternal.New(err)
 	}
