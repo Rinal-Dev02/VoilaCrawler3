@@ -58,7 +58,7 @@ func NewNodeHandler(ctx context.Context, ctrl *NodeController, conn pbCrawl.Gate
 
 				{
 					turn := 0
-					for handler.node == nil {
+					for handler.node == nil || !handler.isInited {
 						logger.Warnf("node not init yet, waiting...")
 						time.Sleep(time.Millisecond * time.Duration((300 * (1 + turn/2))))
 						turn += 1
@@ -227,6 +227,7 @@ func (handler *nodeHanadler) Run() error {
 				return pbError.ErrInternal.New(err)
 			}
 
+			handler.logger.Debugf("sub message %s", packet.GetData().GetTypeUrl())
 			switch packet.GetData().GetTypeUrl() {
 			case commandErrorTypeUrl:
 				var data pbCrawl.Command_Error
@@ -257,7 +258,7 @@ func (handler *nodeHanadler) Run() error {
 				}
 
 				if err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, session,
-					req.GetId(), data.GetIsSucceed(), data.GetErrMsg()); err != nil {
+					req.GetId(), data.GetDuration(), data.GetIsSucceed(), data.GetErrMsg()); err != nil {
 
 					session.Rollback()
 					logger.Errorf("update status failed, error=%s", err)
@@ -265,6 +266,7 @@ func (handler *nodeHanadler) Run() error {
 				}
 
 				if !data.GetIsSucceed() && req.GetOptions().GetMaxRetryCount() > 1 {
+					logger.Debugf("################################# repipe here")
 					// repipe
 					if updated, err := handler.ctrl.requestManager.UpdateRetry(handler.ctx, session, req.GetId()); err != nil {
 						logger.Errorf("update retry info failed, error=%s", err)
@@ -282,6 +284,7 @@ func (handler *nodeHanadler) Run() error {
 					return pbError.ErrInternal.New(err)
 				}
 			case commandRequestTypeUrl:
+				logger.Debugf("###################### got new request")
 				var data pbCrawl.Command_Request
 				if err := anypb.UnmarshalTo(packet.GetData(), &data, proto.UnmarshalOptions{}); err != nil {
 					logger.Errorf("unmarshal error message failed, error=%s", err)
@@ -313,11 +316,6 @@ func (handler *nodeHanadler) Run() error {
 				}
 				if data.GetReqId() == "" {
 					return pbError.ErrInvalidArgument.New("missing reqId for item command")
-				}
-
-				if err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, nil, data.GetReqId(), true, ""); err != nil {
-					logger.Errorf("update status failed, error=%s", err)
-					return err
 				}
 				if err := handler.ctrl.PublishItem(handler.ctx, &data); err != nil {
 					logger.Errorf("publish item failed, error=%s", err)

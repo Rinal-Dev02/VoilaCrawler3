@@ -68,8 +68,10 @@ message Request {
     int64  endUtc        = 54 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
     // IsSucceed
     bool   isSucceed     = 61 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
+    // Duration
+    int64  duration      = 62 [(gogoproto.moretags) = "xorm:\"default(0)\""];
     // ErrMsg
-    string errMsg        = 62 [(gogoproto.moretags) = "xorm:\"varchar(255)\""];
+    string errMsg        = 63 [(gogoproto.moretags) = "xorm:\"text\""];
 
     // Metadata
     Metadata metadata    = 101 [(gogoproto.moretags) = "xorm:\"extends\""];

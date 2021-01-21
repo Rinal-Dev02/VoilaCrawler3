@@ -13,6 +13,7 @@ import (
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
+	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -25,7 +26,6 @@ type CrawlerController struct {
 	crawlerManager *CrawlerManager
 	httpClient     http.Client
 	conn           *Connection
-	handler        *ChannelHandler
 
 	gpool         *GPool
 	requestBuffer chan *pbCrawl.Command_Request
@@ -52,29 +52,127 @@ func NewCrawlerController(
 		logger:         logger.New("CrawlerController"),
 	}
 
-	var err error
-	ctrl.gpool, err = NewGPool(ctx, options.MaxConcurrency, logger)
-	if ctrl.handler, err = ctrl.conn.NewChannelHandler(ctrl.ctx, &ctrl); err != nil {
-		ctrl.logger.Errorf("new channel handler failed, error=%s", err)
-		return nil, err
-	}
+	ctrl.gpool, _ = NewGPool(ctx, options.MaxConcurrency, logger)
 	go func() {
+		var (
+			err         error
+			handler     *ChannelHandler
+			tryDuration time.Duration = time.Second
+			logger                    = ctrl.logger.New("EventLoop")
+		)
 		for {
 			// reconnect after failed
-			time.Sleep(time.Second)
+			time.Sleep(tryDuration)
 
-			ctrl.handler.Watch(ctrl.ctx, func(ctx context.Context, req *pbCrawl.Command_Request) {
-				select {
-				case <-ctx.Done():
-					ctrl.logger.Error(ctx.Err())
+			func() {
+				ctx, cancel := context.WithCancel(ctrl.ctx)
+				defer cancel()
+
+				if handler, err = ctrl.conn.NewChannelHandler(ctx, &ctrl); err != nil {
+					ctrl.logger.Errorf("new channel handler failed, error=%s", err)
+					tryDuration += time.Second
+					if tryDuration > time.Minute {
+						tryDuration = time.Second * 10
+					}
+					logger.Infof("reconnect after %s", tryDuration)
 					return
-				case ctrl.requestBuffer <- req:
 				}
-				return
-			})
+				tryDuration = time.Second
+
+				if err = ctrl.Send(ctx, &pbCrawl.Join_Ping{
+					Timestamp: time.Now().UnixNano(),
+					Node: &pbCrawl.Join_Ping_Node{
+						Id:              NodeId(),
+						Host:            Hostname(),
+						MaxConcurrency:  ctrl.gpool.MaxConcurrency(),
+						IdleConcurrency: ctrl.gpool.MaxConcurrency() - ctrl.gpool.CurrentConcurrency(),
+					},
+					Crawlers: []*pbCrawl.Crawler{},
+				}); err != nil {
+					logger.Errorf("register node failed, error=%s", err)
+					return
+				}
+
+				go func() {
+					defer cancel()
+
+					for {
+						select {
+						case <-ctx.Done():
+							ctrl.logger.Debugf("done")
+							return
+						case <-handler.heartbeatTicker.C:
+							msg := pbCrawl.Heartbeat_Ping{
+								Timestamp:       time.Now().UnixNano(),
+								NodeId:          NodeId(),
+								MaxConcurrency:  handler.ctrl.gpool.MaxConcurrency(),
+								IdleConcurrency: handler.ctrl.gpool.MaxConcurrency() - handler.ctrl.gpool.CurrentConcurrency(),
+							}
+							anydata, _ := anypb.New(&msg)
+							if err := handler.client.Send(anydata); err != nil {
+								logger.Errorf("send heartbeat failed, error=%s", err)
+								return
+							}
+							logger.Debugf("send heartbeta max: %d, idle: %d", msg.GetMaxConcurrency(), msg.GetIdleConcurrency())
+						case msg, ok := <-handler.conn.msgBuffer:
+							if !ok {
+								return
+							}
+							if err := handler.client.Send(msg); err != nil {
+								logger.Errorf("send msg failed, error=%s", err)
+							}
+						}
+					}
+				}()
+
+				if err = handler.Watch(ctx, func(ctx context.Context, req *pbCrawl.Command_Request) {
+					select {
+					case <-ctx.Done():
+						logger.Error(ctx.Err())
+						return
+					case ctrl.requestBuffer <- req:
+					}
+					return
+				}); err != nil {
+					logger.Errorf("watch failed, error=%s", err)
+				}
+				handler.Close()
+			}()
 		}
 	}()
 	return &ctrl, nil
+}
+
+func (ctrl *CrawlerController) Send(ctx context.Context, msg protoreflect.ProtoMessage) error {
+	if ctrl == nil || msg == nil {
+		return nil
+	}
+
+	switch v := msg.(type) {
+	case *pbCrawl.Command_Error:
+		cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
+		cmd.Data, _ = anypb.New(v)
+		msg = &cmd
+	case *pbCrawl.Command_Item:
+		cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
+		cmd.Data, _ = anypb.New(v)
+		msg = &cmd
+	case *pbCrawl.Command_Request:
+		cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
+		cmd.Data, _ = anypb.New(v)
+		msg = &cmd
+	}
+	anydata, err := anypb.New(msg)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case ctrl.conn.msgBuffer <- anydata:
+	}
+	return nil
 }
 
 const (
@@ -87,20 +185,6 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 	}
 	logger := ctrl.logger.New("Run")
 
-	if err := ctrl.handler.Send(ctx, &pbCrawl.Join_Ping{
-		Timestamp: time.Now().UnixNano(),
-		Node: &pbCrawl.Join_Ping_Node{
-			Id:              NodeId(),
-			Host:            Hostname(),
-			MaxConcurrency:  ctrl.gpool.MaxConcurrency(),
-			IdleConcurrency: ctrl.gpool.MaxConcurrency() - ctrl.gpool.CurrentConcurrency(),
-		},
-		Crawlers: []*pbCrawl.Crawler{},
-	}); err != nil {
-		ctrl.logger.Errorf("register node failed, error=%s", err)
-		return err
-	}
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -110,12 +194,10 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 				return nil
 			}
 
-			// TODO: added tracingId, jobId, reqId check
-
 			u, err := url.Parse(r.Url)
 			if err != nil {
 				logger.Errorf("parse url %s failed, error=%s", err)
-				ctrl.handler.Send(ctx, &pbCrawl.Command_Error{
+				ctrl.Send(ctx, &pbCrawl.Command_Error{
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
@@ -127,7 +209,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 			var crawler *Crawler
 			if crawlers, err := ctrl.crawlerManager.GetByHost(ctx, u.Host); err != nil {
 				logger.Errorf("get crawlers by host failed, error=%s", err)
-				ctrl.handler.Send(ctx, &pbCrawl.Command_Error{
+				ctrl.Send(ctx, &pbCrawl.Command_Error{
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
@@ -145,7 +227,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 			if crawler == nil {
 				logger.Errorf("no crawler found for %s", r.Url)
 				count, _ := ctrl.crawlerManager.Count(ctx)
-				ctrl.handler.Send(ctx, &pbCrawl.Command_Error{
+				ctrl.Send(ctx, &pbCrawl.Command_Error{
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
@@ -170,10 +252,10 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 				// share context is used to share data between crawlers
 				shareCtx = ctxUtil.WithValues(ctx, sharingData...)
 
-				if err := func() error {
+				duration, err := func() (int64, error) {
 					req, err := NewRequest(r)
 					if err != nil {
-						return err
+						return 0, err
 					}
 					req = crawler.SetHeader(req)
 
@@ -184,17 +266,18 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					requestCtx, cancel := context.WithTimeout(shareCtx, time.Duration(maxTtlPerRequest)*time.Second)
 					defer cancel()
 
-					// here do with http request
+					startTime := time.Now()
 					resp, err := ctrl.httpClient.DoWithOptions(requestCtx, req, http.Options{
 						EnableProxy:    !crawler.CrawlOptions().DisableProxy,
 						EnableHeadless: crawler.CrawlOptions().EnableHeadless,
 					})
+					duration := (time.Now().UnixNano() - startTime.UnixNano()) / 1000000 // in millseconds
 					if err != nil {
-						return err
+						return duration, err
 					}
 					defer resp.Body.Close()
 
-					return crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
+					return duration, crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
 						switch val := i.(type) {
 						case *http.Request:
 							// convert http.Request to pbCrawl.Command_Request and forward
@@ -243,7 +326,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 
 							cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
 							cmd.Data, _ = anypb.New(&subreq)
-							ctrl.handler.Send(shareCtx, &cmd)
+							ctrl.Send(shareCtx, &cmd)
 						case *pbItem.Product:
 							item := pbCrawl.Command_Item{
 								TracingId: r.GetTracingId(),
@@ -254,22 +337,32 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 
 							cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
 							cmd.Data, _ = anypb.New(&item)
-							ctrl.handler.Send(shareCtx, &cmd)
+							ctrl.Send(shareCtx, &cmd)
 						default:
 							return errors.New("unsupported response data type")
 						}
 						return nil
 					})
-				}(); err != nil {
-					ctrl.handler.Send(ctx, &pbCrawl.Command_Error{
-						TracingId: r.GetTracingId(),
-						JobId:     r.GetJobId(),
-						ReqId:     r.GetReqId(),
-						ErrMsg:    err.Error(),
-					})
+				}()
+				var (
+					errMsg    string
+					isSucceed bool = true
+				)
+				if err != nil {
+					errMsg = err.Error()
+					isSucceed = false
+				}
+				if err := ctrl.Send(ctx, &pbCrawl.Command_Error{
+					TracingId: r.GetTracingId(),
+					JobId:     r.GetJobId(),
+					ReqId:     r.GetReqId(),
+					Duration:  duration,
+					IsSucceed: isSucceed,
+					ErrMsg:    errMsg,
+				}); err != nil {
+					logger.Error("send feedback failed, error=%s", err)
 				}
 			}
-
 			ctrl.gpool.DoJob(jobFunc)
 		}
 	}

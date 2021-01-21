@@ -64,7 +64,7 @@ func (m *RequestManager) Create(ctx context.Context, session *xorm.Session, req 
 	return req, nil
 }
 
-func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session, id string, isSucceed bool, msg string) error {
+func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session, id string, duration int64, isSucceed bool, msg string) error {
 	if m == nil {
 		return nil
 	}
@@ -75,8 +75,8 @@ func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session
 		defer session.Close()
 	}
 
-	sql := `update request set is_succeed=?,err_msg=? where id=?`
-	if _, err := session.Context(ctx).Exec(sql, isSucceed, msg, id); err != nil {
+	sql := `update request set duration=?,is_succeed=?,err_msg=? where id=?`
+	if _, err := session.Context(ctx).Exec(sql, duration, isSucceed, msg, id); err != nil {
 		logger.Errorf("update request status failed, error=%s", err)
 		return pbError.ErrDatabase.New(err)
 	}

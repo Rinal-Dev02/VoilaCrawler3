@@ -102,12 +102,16 @@ func (h *RequestHandler) HandleMessage(msg *nsq.Message) error {
 		return nil
 	}
 
+	h.logger.Debugf("########## send msg")
 	if err := h.sender.Send(h.ctx, &req); err == pbError.ErrUnavailable {
 		// NOTE: for service unavailable, backoff for 5mins
 		// there exists case that if the crawlet always offline, some message may dropped
+		h.logger.Debugf("message requeued for service unavaliable")
 		msg.Requeue(time.Second * 30 * time.Duration(msg.Attempts+1))
 		return nil
 	} else if err != nil {
+		h.logger.Error(err)
+		msg.RequeueWithoutBackoff(time.Second * 30 * time.Duration(msg.Attempts+1))
 		return err
 	}
 	msg.Finish()

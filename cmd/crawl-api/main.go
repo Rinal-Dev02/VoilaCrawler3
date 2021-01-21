@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -17,11 +16,8 @@ var (
 )
 
 func main() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 
-	NewApp(ctx, c).Run(os.Args)
+	NewApp(c).Run(os.Args)
 }

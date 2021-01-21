@@ -41,12 +41,18 @@ func init() {
 // App
 type App struct {
 	ctx        context.Context
+	cancel     context.CancelFunc
 	exitChan   <-chan os.Signal
 	closeQueue []io.Closer
 }
 
-func NewApp(ctx context.Context, exitChan <-chan os.Signal) *App {
-	return &App{ctx: ctx, exitChan: exitChan}
+func NewApp(exitChan <-chan os.Signal) *App {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &App{
+		ctx:      ctx,
+		cancel:   cancel,
+		exitChan: exitChan,
+	}
 }
 
 func (app *App) Context() context.Context {
@@ -168,6 +174,7 @@ func (app *App) Run(args []string) {
 		}
 
 		<-app.exitChan
+		app.cancel()
 		depInj.Stop(app.ctx)
 		return nil
 	}

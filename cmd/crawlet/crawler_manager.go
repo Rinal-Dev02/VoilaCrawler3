@@ -66,7 +66,6 @@ func (m *CrawlerManager) GetByHost(ctx context.Context, host string) ([]*Crawler
 
 	var ret []*Crawler
 	m.crawlers.Range(func(key string, vals []interface{}) bool {
-		m.logger.Debugf("%s count=%d", key, len(vals))
 		for _, val := range vals {
 			crawler := val.(*Crawler)
 			for _, d := range crawler.AllowedDomains() {

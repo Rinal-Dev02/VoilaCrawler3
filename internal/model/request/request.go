@@ -57,7 +57,6 @@ func NewRequest(req interface{}) (*Request, error) {
 		}
 		r.Options = &types.RequestOptions{
 			DisableProxy:     i.GetOptions().GetDisableProxy(),
-			EnableHeadless:   i.GetOptions().GetEnableHeadless(),
 			MaxTtlPerRequest: i.GetOptions().GetMaxTtlPerRequest(),
 			MaxRetryCount:    i.GetOptions().GetMaxRetryCount(),
 			MaxRequestDepth:  i.GetOptions().GetMaxRequestDepth(),
@@ -140,7 +139,6 @@ func (r *Request) Unmarshal(ret interface{}) error {
 		}
 		val.Options = &pbCrawl.Command_Request_Options{
 			DisableProxy:     r.GetOptions().GetDisableProxy(),
-			EnableHeadless:   r.GetOptions().GetEnableHeadless(),
 			MaxTtlPerRequest: r.GetOptions().GetMaxTtlPerRequest(),
 			MaxRetryCount:    r.GetOptions().GetMaxRetryCount(),
 			MaxRequestDepth:  r.GetOptions().GetMaxRequestDepth(),

@@ -199,6 +199,7 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 		Timestamp: time.Now().UnixNano(),
 	}
 	data, _ := proto.Marshal(&event)
+	logger.Debugf("############# publish request")
 	if err := ctrl.publisher.Publish(config.CrawlRequestTopic, data); err != nil {
 		logger.Errorf("publish request failed, error=%s", err)
 		return pbError.ErrInternal.New(err)
