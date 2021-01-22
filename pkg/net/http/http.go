@@ -6,20 +6,22 @@ import (
 )
 
 const (
-	MethodGet     = "GET"
-	MethodHead    = "HEAD"
-	MethodPost    = "POST"
-	MethodPut     = "PUT"
-	MethodPatch   = "PATCH" // RFC 5789
-	MethodDelete  = "DELETE"
-	MethodConnect = "CONNECT"
+	MethodGet   = "GET"
+	MethodHead  = "HEAD"
+	MethodPost  = "POST"
+	MethodPut   = "PUT"
+	MethodPatch = "PATCH" // RFC 5789
+	//MethodDelete  = "DELETE"
+	//MethodConnect = "CONNECT"
 	MethodOptions = "OPTIONS"
-	MethodTrace   = "TRACE"
+	//MethodTrace   = "TRACE"
 )
 
 type (
-	Request  = http.Request
-	Response = http.Response
+	Request   = http.Request
+	Response  = http.Response
+	Cookie    = http.Cookie
+	CookieJar = http.CookieJar
 )
 
 var (

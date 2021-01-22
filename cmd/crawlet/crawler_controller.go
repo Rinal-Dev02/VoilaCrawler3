@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -266,7 +266,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 
 					startTime := time.Now()
 					resp, err := ctrl.httpClient.DoWithOptions(requestCtx, req, http.Options{
-						EnableProxy:    !crawler.CrawlOptions().DisableProxy,
+						EnableProxy:    !r.Options.DisableProxy,
 						EnableHeadless: crawler.CrawlOptions().EnableHeadless,
 					})
 					duration := (time.Now().UnixNano() - startTime.UnixNano()) / 1000000 // in millseconds
@@ -281,14 +281,16 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 						case *http.Request:
 							// convert http.Request to pbCrawl.Command_Request and forward
 							subreq := pbCrawl.Command_Request{
-								TracingId:   r.GetTracingId(),
-								JobId:       r.GetJobId(),
-								ReqId:       r.GetReqId(),
-								Url:         val.URL.String(),
-								Method:      val.Method,
-								Parent:      r,
-								Options:     r.Options,
-								SharingData: r.SharingData,
+								TracingId:     r.GetTracingId(),
+								JobId:         r.GetJobId(),
+								ReqId:         r.GetReqId(),
+								Url:           val.URL.String(),
+								Method:        val.Method,
+								Parent:        r,
+								CustomHeaders: map[string]string{},
+								CustomCookies: r.CustomCookies,
+								Options:       r.Options,
+								SharingData:   r.SharingData,
 							}
 							if val.Body != nil {
 								defer val.Body.Close()
@@ -298,6 +300,17 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 									subreq.Body = fmt.Sprintf("%s", data)
 								}
 							}
+							// over write header
+							for k := range val.Header {
+								subreq.CustomHeaders[k] = val.Header.Get(k)
+							}
+							for k, v := range r.CustomHeaders {
+								if _, ok := subreq.CustomHeaders[k]; ok {
+									continue
+								}
+								subreq.CustomHeaders[k] = v
+							}
+
 							for k, v := range sharingData {
 								key, ok1 := k.(string)
 								val, ok2 := v.(string)
@@ -329,20 +342,14 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 							cmd.Data, _ = anypb.New(&subreq)
 							ctrl.Send(shareCtx, &cmd)
 						case *pbItem.Product:
-							var index int32
-							if interVal, ok := sharingData["item.index"]; ok {
-								if v, ok := interVal.(string); ok {
-									vv, _ := strconv.ParseInt(v, 10, 32)
-									index = int32(vv)
-								}
-							}
+							index := strconv.MustParseInt(sharingData["item.index"])
 							item := pbCrawl.Item{
 								Timestamp: time.Now().UnixNano(),
 								NodeId:    NodeId(),
 								TracingId: r.GetTracingId(),
 								JobId:     r.GetJobId(),
 								ReqId:     r.GetReqId(),
-								Index:     index,
+								Index:     int32(index),
 							}
 							ctrl.Send(shareCtx, &item)
 						default:
@@ -351,20 +358,19 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 						return nil
 					})
 				}()
+
 				var (
-					errMsg    string
-					isSucceed bool = true
+					errMsg string
 				)
 				if err != nil {
 					errMsg = err.Error()
-					isSucceed = false
 				}
 				if err := ctrl.Send(ctx, &pbCrawl.Command_Error{
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
 					Duration:  duration,
-					IsSucceed: isSucceed,
+					IsSucceed: err == nil,
 					ErrMsg:    errMsg,
 				}); err != nil {
 					logger.Error("send feedback failed, error=%s", err)

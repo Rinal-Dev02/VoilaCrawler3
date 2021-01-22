@@ -11,8 +11,6 @@ import (
 
 // CrawlOptions
 type CrawlOptions struct {
-	// DisableProxy
-	DisableProxy bool `json:"disableProxy"`
 	// EnableHeadless
 	EnableHeadless bool `json:"enableHeadless"`
 

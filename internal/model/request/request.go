@@ -5,7 +5,6 @@ import (
 	"errors"
 
 	"github.com/voiladev/VoilaCrawl/pkg/types"
-	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/randutil"
 )
@@ -28,12 +27,6 @@ func NewRequest(req interface{}) (*Request, error) {
 		r.Method = i.GetMethod()
 		r.Url = i.GetUrl()
 		r.Body = i.GetBody()
-		if i.GetParent().GetUrl() != "" {
-			if i.CustomHeaders == nil {
-				i.CustomHeaders = map[string]*pbHttp.Header{}
-			}
-			i.CustomHeaders["Referer"] = &pbHttp.Header{Key: "Referer", Values: []string{i.GetParent().GetUrl()}}
-		}
 		if len(i.GetCustomHeaders()) > 0 {
 			if data, err := json.Marshal(i.GetCustomHeaders()); err != nil {
 				return nil, err

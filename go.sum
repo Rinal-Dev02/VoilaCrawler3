@@ -231,6 +231,10 @@ github.com/voiladev/go-framework v0.0.0-20210119133006-d7726d24bfdc h1:5yPjX5dbw
 github.com/voiladev/go-framework v0.0.0-20210119133006-d7726d24bfdc/go.mod h1:xUetvL2JmFeIglWCnqRsCLD3/7vXbHMSnHJnvYxO1oI=
 github.com/voiladev/go-framework v0.0.0-20210120064518-69959cdf169a h1:vD+6IYk3cdmJPEFijkHRypZbePrtC83mTIZcoDGxwAQ=
 github.com/voiladev/go-framework v0.0.0-20210120064518-69959cdf169a/go.mod h1:xUetvL2JmFeIglWCnqRsCLD3/7vXbHMSnHJnvYxO1oI=
+github.com/voiladev/go-framework v0.0.0-20210122065046-ba37449ca70c h1:PQ7YNSLRs3UWIrJsyH4ATefmALZLFN1/EdU5VffvNa0=
+github.com/voiladev/go-framework v0.0.0-20210122065046-ba37449ca70c/go.mod h1:xUetvL2JmFeIglWCnqRsCLD3/7vXbHMSnHJnvYxO1oI=
+github.com/voiladev/go-framework v0.0.0-20210122071713-c10e4eb1a4bc h1:Iip1Kcj6eQrTdnLdMYsZ7usO5VARHB2NiQnJciDyCLM=
+github.com/voiladev/go-framework v0.0.0-20210122071713-c10e4eb1a4bc/go.mod h1:xUetvL2JmFeIglWCnqRsCLD3/7vXbHMSnHJnvYxO1oI=
 github.com/voiladev/jwt-go v0.0.0-20170303134508-47b9a396ed4f h1:YP+zHDPRbLYdXMeQJt6F37CBUdIy5FuFY0PqLx/F39g=
 github.com/voiladev/jwt-go v0.0.0-20170303134508-47b9a396ed4f/go.mod h1:UyKQJIGSqJj9/H1IX44modZj+5GDWyZT1d1VnMgyVvc=
 github.com/voiladev/protobuf v0.0.0-20201218014802-0eebbb757eca h1:85iZskAcKWWDMPt/hgoglBOWXImp9mzYxFQlj73YjVE=

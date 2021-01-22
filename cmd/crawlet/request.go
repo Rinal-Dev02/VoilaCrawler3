@@ -26,10 +26,8 @@ func NewRequest(r *pbCrawl.Command_Request) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, header := range r.CustomHeaders {
-		for _, v := range header.Values {
-			req.Header.Add(header.Key, v)
-		}
+	for key, val := range r.CustomHeaders {
+		req.Header.Set(key, val)
 	}
 	for _, cookie := range r.CustomCookies {
 		if cookie.Path != "" && !strings.HasPrefix(req.URL.Path, cookie.Path) {
@@ -42,7 +40,7 @@ func NewRequest(r *pbCrawl.Command_Request) (*http.Request, error) {
 			req.Header.Set("Cookie", v)
 		}
 	}
-	if r.GetParent() != nil {
+	if req.Header.Get("Referer") == "" && r.GetParent().GetUrl() != "" {
 		req.Header.Set("Referer", r.GetParent().GetUrl())
 	}
 
