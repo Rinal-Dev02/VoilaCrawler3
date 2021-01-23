@@ -4,11 +4,11 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"net/http"
 	"plugin"
 	"strings"
 
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
+	http "github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/go-framework/glog"
 )
 
@@ -19,7 +19,7 @@ type Crawler struct {
 	path string
 }
 
-func NewCrawler(path string, logger glog.Log) (*Crawler, error) {
+func NewCrawler(client http.Client, path string, logger glog.Log) (*Crawler, error) {
 	p, err := plugin.Open(path)
 	if err != nil {
 		return nil, err
@@ -29,13 +29,13 @@ func NewCrawler(path string, logger glog.Log) (*Crawler, error) {
 		return nil, err
 	}
 
-	newFunc, ok := funcVal.(func(logger glog.Log) (crawler.Crawler, error))
+	newFunc, ok := funcVal.(func(client http.Client, logger glog.Log) (crawler.Crawler, error))
 	if !ok {
 		return nil, fmt.Errorf("plugin %s %s", path, crawler.ErrNotImplementNewType)
 	}
 
 	crawler := Crawler{path: path}
-	crawler.Crawler, err = newFunc(logger) // TODO: added more args
+	crawler.Crawler, err = newFunc(client, logger) // TODO: added more args
 	if err != nil {
 		return nil, err
 	}

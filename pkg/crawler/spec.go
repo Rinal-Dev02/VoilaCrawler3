@@ -70,6 +70,6 @@ type Crawler interface {
 	Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error
 }
 
-type New func(logger glog.Log) (Crawler, error)
+type New func(client http.Client, logger glog.Log) (Crawler, error)
 
 var ErrNotImplementNewType = errors.New("not implements func New(logger glog.Log) (*crawler.Crawler, error)")

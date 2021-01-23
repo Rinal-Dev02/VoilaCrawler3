@@ -78,6 +78,15 @@ func (app *App) Run(args []string) {
 			os.Setenv("DEBUG", "1")
 		}
 
+		httpClient, err := proxycrawl.NewProxyCrawlClient(
+			proxycrawl.WithAPITokenOption(c.String("proxy-api-token")),
+			proxycrawl.WithJSTokenOption(c.String("proxy-js-token")),
+		)
+		if err != nil {
+			logger.Error(err)
+			return cli.NewExitError(err, 1)
+		}
+
 		crawlerManager, err := NewCrawlerManager(logger)
 		if err != nil {
 			logger.Error(err)
@@ -90,7 +99,7 @@ func (app *App) Run(args []string) {
 				return nil
 			}
 
-			if cl, err := NewCrawler(p, logger); err != nil {
+			if cl, err := NewCrawler(httpClient, p, logger); err != nil {
 				logger.Errorf("load plugin %s failed, error=%s", p, err)
 				return err
 			} else {
@@ -107,15 +116,6 @@ func (app *App) Run(args []string) {
 		}
 
 		conn, err := NewConnection(app.ctx, c.String("crawl-addr"), logger)
-		if err != nil {
-			logger.Error(err)
-			return cli.NewExitError(err, 1)
-		}
-
-		httpClient, err := proxycrawl.NewProxyCrawlClient(
-			proxycrawl.WithAPITokenOption(c.String("proxy-api-token")),
-			proxycrawl.WithJSTokenOption(c.String("proxy-js-token")),
-		)
 		if err != nil {
 			logger.Error(err)
 			return cli.NewExitError(err, 1)
