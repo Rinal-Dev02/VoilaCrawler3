@@ -32,10 +32,10 @@ func NewCrawlOptions() *CrawlOptions {
 
 // HealthChecker used to test if website struct changed
 type HealthChecker interface {
-	// NewRequest generate a test request
+	// NewTestRequest generate a test request
 	NewTestRequest(ctx context.Context) []*http.Request
 
-	// Check used to check whether website struct changed
+	// CheckTestResponse used to check whether website struct changed
 	CheckTestResponse(ctx context.Context, resp *http.Response) error
 }
 
@@ -53,7 +53,7 @@ type Crawler interface {
 	// // if the store is offline, then all crawleres bined to this store will be offline.
 	// StoreID() string
 
-	// CrawlOptions return crawler action action requirement
+	// CrawlOptions return crawler action requirement
 	CrawlOptions() *CrawlOptions
 
 	// AllowedDomains returns the domains this crawler supportes
