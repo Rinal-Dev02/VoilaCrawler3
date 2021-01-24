@@ -2,7 +2,7 @@ name: Go
 
 on:
   push:
-    tags: v*-release
+    tags: v*
     
 jobs:
   release:
