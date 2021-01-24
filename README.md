@@ -127,8 +127,12 @@ Here is a spider demo. [Link](https://github.com/voiladev/VoilaCrawl/blob/main/c
 
 You can write a main func and instance an http Client([eg](https://github.com/voiladev/VoilaCrawl/blob/adbe18d7334c5f7f7bf90e92c80ae6868470cdc5/cmd/spiders/com/ruelala/ruelala.go#L510))
 
+Tips:
 
-### [TODO](TODO)
+1. to parse json data, it's more easy to define a go struct and parse the json data. You can use this [tool](https://mholt.github.io/json-to-go/) to convert json to go struct. (you must check again the generated go struct)
+
+
+### TODO
 
 1. check `ProxyCrawl` request limit
 2. requeue timeout request based on `maxTtlPerRequest`
