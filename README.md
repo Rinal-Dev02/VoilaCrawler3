@@ -144,7 +144,7 @@ All developers must develop with this workflow:
 
 Others jobs will be done by me currently. 
 
-All spiders must under `cmd/spiders` dir. the final dir must match the reverse domain schema. eg. www.ruelala.com's  spiders is under dir com.ruelala dir
+All spiders must under `cmd/spiders` dir. the final dir must match the reverse domain schema. eg. `www.ruelala.com`'s  spiders is under dir `com/ruelala` dir
 
 
 ### TODO
