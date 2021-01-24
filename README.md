@@ -4,7 +4,7 @@ VoilaCrawler is a distributed web crawler. It's more like python scrapy except t
 
 This repo mainly contains three parts: `crawl-api` and `crawlet` and `spiders`. Here is a simple sequence flow chart:
 
-[sequence flow chart](doc/VoilaCrawl 时序流程图.png)
+![sequence flow chart](doc/VoilaCrawl 时序流程图.png)
 
 
 ### crawl-api
