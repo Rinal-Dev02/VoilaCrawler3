@@ -132,6 +132,18 @@ Tips:
 1. to parse json data, it's more easy to define a go struct and parse the json data. You can use this [tool](https://mholt.github.io/json-to-go/) to convert json to go struct. (you must check again the generated go struct)
 
 
+### Development
+
+All developers must develop with this workflow:
+1. fork repo VoilaCrawl and clone the forked to your local
+2. create/update spiders under dir cmd/spiders
+3. commit modification and create a merge request to `main` branch.
+
+Others jobs will be done by me currently. 
+
+All spiders must under `cmd/spiders` dir. the final dir must match the reverse domain schema. eg. www.ruelala.com's  spiders is under dir com.ruelala dir
+
+
 ### TODO
 
 1. check `ProxyCrawl` request limit
