@@ -104,6 +104,16 @@ func TestRetrieveAllValues(t *testing.T) {
 				"345":   "678",
 			},
 		},
+		{
+			name: "Mix values",
+			args: args{
+				ctx: context.WithValue(context.WithValue(context.Background(), "12345", 12345), 12345, 13456.789),
+			},
+			want: map[interface{}]interface{}{
+				"12345": 12345,
+				12345:   13456.789,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

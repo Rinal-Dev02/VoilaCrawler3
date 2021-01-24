@@ -45,7 +45,8 @@ func NewGPool(ctx context.Context, cap int32, logger glog.Log) (*GPool, error) {
 					atomic.AddInt32(&p.currentConcurrency, 1)
 					defer func() {
 						if r := recover(); r != nil {
-							p.logger.Error(r)
+							// p.logger.Error(r)
+							panic(r)
 						}
 						atomic.AddInt32(&p.currentConcurrency, -1)
 					}()

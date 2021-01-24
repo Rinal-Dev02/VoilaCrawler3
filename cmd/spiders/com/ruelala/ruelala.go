@@ -256,7 +256,7 @@ func (c *_Crawler) parseCategoryProductsJson(ctx context.Context, resp *http.Res
 	)
 	for index, item := range i.Data {
 		u := *resp.Request.URL
-		u.Path = path.Join(u.Path, strconv.Format(item.ID))
+		u.Path = path.Join("/api/v3/products", strconv.Format(item.ID))
 		vals.Set("pos", strconv.Format(index+1))
 		u.RawQuery = ""
 

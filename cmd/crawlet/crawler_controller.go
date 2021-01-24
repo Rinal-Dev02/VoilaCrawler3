@@ -162,6 +162,7 @@ func (ctrl *CrawlerController) Send(ctx context.Context, msg protoreflect.ProtoM
 	}
 	anydata, err := anypb.New(msg)
 	if err != nil {
+		ctrl.logger.Errorf("marshal msg type failed, error=%s", err)
 		return err
 	}
 
@@ -342,7 +343,11 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 							cmd.Data, _ = anypb.New(&subreq)
 							ctrl.Send(shareCtx, &cmd)
 						case *pbItem.Product:
-							index := strconv.MustParseInt(sharingData["item.index"])
+							var index int64
+							if indexVal, ok := sharingData["item.index"]; ok && indexVal != nil {
+								ctrl.logger.Errorf("%v", indexVal)
+								index = strconv.MustParseInt(indexVal)
+							}
 							item := pbCrawl.Item{
 								Timestamp: time.Now().UnixNano(),
 								NodeId:    NodeId(),
@@ -351,7 +356,9 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 								ReqId:     r.GetReqId(),
 								Index:     int32(index),
 							}
-							ctrl.Send(shareCtx, &item)
+							item.Data, _ = anypb.New(val)
+
+							ctrl.logger.Infof("#####################", ctrl.Send(shareCtx, &item))
 						default:
 							return errors.New("unsupported response data type")
 						}

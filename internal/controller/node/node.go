@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/nsqio/go-nsq"
@@ -65,7 +66,7 @@ func NewNodeController(
 	if options == nil {
 		return nil, errors.New("invalid options")
 	}
-	if options.HeartbeatInternal <= 100 {
+	if options.HeartbeatInternal < 50 {
 		return nil, errors.New("heartbeat internal too short")
 	}
 	if options.NsqdAddr == "" {
@@ -153,7 +154,6 @@ func (ctrl *NodeController) Send(ctx context.Context, msg protoreflect.ProtoMess
 				default:
 					h := val.(*nodeHanadler)
 
-					ctrl.logger.Infof("node %s %d %d", key, h.IdleConcurrency(), h.MaxConcurrency())
 					if h.IsInited() && h.IdleConcurrency() > maxIdle {
 						handler = h
 						maxIdle = h.IdleConcurrency()
@@ -168,7 +168,12 @@ func (ctrl *NodeController) Send(ctx context.Context, msg protoreflect.ProtoMess
 					cmd.Data, _ = anypb.New(v)
 					msg = &cmd
 				}
-				return handler.Send(ctx, msg)
+				if err := handler.Send(ctx, msg); err != nil {
+					return err
+				} else {
+					atomic.AddInt32(&handler.node.IdleConcurrency, -1)
+				}
+				return nil
 			}
 		}
 		time.Sleep(time.Second)
@@ -208,10 +213,14 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 }
 
 func (ctrl *NodeController) PublishItem(ctx context.Context, item *pbCrawl.Item) error {
-	if ctrl == nil || item == nil || item.GetData() == nil {
+	if ctrl == nil {
 		return nil
 	}
 	logger := ctrl.logger.New("PublishItem")
+
+	if item == nil || item.GetData() == nil {
+		return errors.New("empty item data")
+	}
 
 	itemData, _ := anypb.New(item)
 	event := pbEvent.Event{

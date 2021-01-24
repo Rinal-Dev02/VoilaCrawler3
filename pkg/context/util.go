@@ -3,6 +3,7 @@ package context
 import (
 	"context"
 	"reflect"
+	"unsafe"
 )
 
 func RetrieveAllValues(ctx context.Context) map[interface{}]interface{} {
@@ -23,7 +24,12 @@ func RetrieveAllValues(ctx context.Context) map[interface{}]interface{} {
 
 		switch val.Type().Name() {
 		case "valueCtx":
-			setKV(val.FieldByName("key").Elem().String(), val.FieldByName("val").Elem().String())
+			kVal := val.FieldByName("key")
+			vVal := val.FieldByName("val")
+
+			setKV(
+				reflect.NewAt(kVal.Type(), unsafe.Pointer(kVal.UnsafeAddr())).Elem().Interface(),
+				reflect.NewAt(vVal.Type(), unsafe.Pointer(vVal.UnsafeAddr())).Elem().Interface())
 		case "valuesCtx":
 			rtVals := val.FieldByName("values")
 			for i := 0; i < rtVals.Len(); i += 2 {

@@ -141,7 +141,7 @@ func (app *App) Run(args []string) {
 			fx.Provide(crawlerCtrl.NewCrawlerController),
 			fx.Provide(func() *nodeCtrl.NodeControllerOptions {
 				return &nodeCtrl.NodeControllerOptions{
-					HeartbeatInternal: 1000,
+					HeartbeatInternal: 100,
 					NsqdAddr:          c.String("nsqd-tcp-addr"),
 				}
 			}),

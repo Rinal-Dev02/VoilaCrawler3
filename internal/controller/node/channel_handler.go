@@ -266,7 +266,6 @@ func (handler *nodeHanadler) Run() error {
 				}
 
 				if !data.GetIsSucceed() && req.GetOptions().GetMaxRetryCount() > 1 {
-					logger.Debugf("################################# repipe here")
 					// repipe
 					if updated, err := handler.ctrl.requestManager.UpdateRetry(handler.ctx, session, req.GetId()); err != nil {
 						logger.Errorf("update retry info failed, error=%s", err)
@@ -284,7 +283,6 @@ func (handler *nodeHanadler) Run() error {
 					return pbError.ErrInternal.New(err)
 				}
 			case commandRequestTypeUrl:
-				logger.Debugf("###################### got new request")
 				var data pbCrawl.Command_Request
 				if err := anypb.UnmarshalTo(packet.GetData(), &data, proto.UnmarshalOptions{}); err != nil {
 					logger.Errorf("unmarshal error message failed, error=%s", err)
