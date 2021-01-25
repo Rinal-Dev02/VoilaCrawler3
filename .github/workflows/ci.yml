@@ -23,7 +23,7 @@ jobs:
         go env -w GOPRIVATE=github.com/voiladev GONOPROXY="github.com/voiladev"
         go vet ./cmd/...
     - name: Build
-      run: make
+      run: make all plugins
       
     - name: Build image
       run: docker build . --file Dockerfile --tag image
