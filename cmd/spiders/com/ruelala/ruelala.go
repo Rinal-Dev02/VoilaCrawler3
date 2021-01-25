@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -41,6 +42,7 @@ type _Crawler struct {
 
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
+		httpClient:              client,
 		categoryPathMatcher:     regexp.MustCompile(`^/nav(/[^/]+){2,5}$`),
 		productPathMatcher:      regexp.MustCompile(`^/boutique/product/[0-9]+/[0-9]+/?$`),
 		categoryJsonPathMatcher: regexp.MustCompile(`^/api/v[0-9](.[0-9]+)?/catalog/products/?$`),
@@ -508,9 +510,17 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // local test
 func main() {
+	var (
+		apiToken = os.Getenv("PC_API_TOKEN")
+		jsToken  = os.Getenv("PC_JS_TOKEN")
+	)
+	if apiToken == "" || jsToken == "" {
+		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
+	}
+
 	client, err := proxycrawl.NewProxyCrawlClient(
-		proxycrawl.WithAPITokenOption("C1hwEn7zzYhHptBUoZFisQ"),
-		proxycrawl.WithJSTokenOption("YOhYOQ6Ppd17eK9ACA54cw"),
+		proxycrawl.WithAPITokenOption(apiToken),
+		proxycrawl.WithJSTokenOption(jsToken),
 	)
 	if err != nil {
 		panic(err)

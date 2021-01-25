@@ -137,8 +137,9 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 	resp.Body = http.NewReader(data)
 
 	if opts.EnableProxy {
-		var res http.Response
+		res := http.Response{Header: rhttp.Header{}}
 		for key := range resp.Header {
+			key := strings.ToLower(key)
 			if key == "original_status" {
 				code, _ := strconv.ParseInt(resp.Header.Get("original_status"), 10, 32)
 				res.StatusCode = int(code)
