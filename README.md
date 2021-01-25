@@ -107,7 +107,7 @@ type CrawlOptions struct {
 
 `Parse` is the **entry** of a cralwer. it accepts three params: ctx, resp, yeild. `ctx` is a golang `context.Context`. `ctx` is a very magic param. it can be used to sharing params between request, it can used to monitor timeout. more docs see [Golang officle doc](https://golang.org/pkg/context/). `resp` is the http.Response.
 
-`Parse.yield` param is a callback function used to pass sub http.request([eg](https://github.com/voiladev/VoilaCrawl/blob/adbe18d7334c5f7f7bf90e92c80ae6868470cdc5/cmd/spiders/com/ruelala/ruelala.go#L268)) or result item([eg](https://github.com/voiladev/VoilaCrawl/blob/adbe18d7334c5f7f7bf90e92c80ae6868470cdc5/cmd/spiders/com/ruelala/ruelala.go#L490)) to `crawlet`. it receives an context and an result which is an interface. The result value currently supports `*http.Request` and items defined in [protobuf](https://github.com/voiladev/protobuf/blob/main/proto/chameleon/smelter/v1/crawl/item/data.proto). it'a a good idea to stop parse if `yield` returns an error.
+`Parse.yield` param is a callback function used to pass sub http.request([eg](https://github.com/voiladev/VoilaCrawl/blob/5e2470be39c03ff6395391f4c539f7ccda10b050/spiders/com/ruelala/ruelala.go#L270)) or result item([eg](https://github.com/voiladev/VoilaCrawl/blob/5e2470be39c03ff6395391f4c539f7ccda10b050/spiders/com/ruelala/ruelala.go#L492)) to `crawlet`. it receives an context and an result which is an interface. The result value currently supports `*http.Request` and items defined in [protobuf](https://github.com/voiladev/protobuf/blob/main/proto/chameleon/smelter/v1/crawl/item/data.proto). it'a a good idea to stop parse if `yield` returns an error.
 
 
 #### Sharing Data
@@ -124,11 +124,11 @@ A crawler plugin must have a entry func `New(client http.Client, logger glog.Log
 
 Any website must got multi url path. So in `Parse` func, you must support pathes the website support and tell `IsUrlMatch` that it supports this url path. You can use `regexp.Regexp` to match the url path, or you can use string match for simplicity.
 
-Here is a spider demo. [Link](https://github.com/voiladev/VoilaCrawl/blob/main/cmd/spiders/com/ruelala/ruelala.go)
+Here is a spider demo. [Link](https://github.com/voiladev/VoilaCrawl/blob/main/spiders/com/ruelala/ruelala.go)
 
 #### Crawler test
 
-You can write a main func and instance an http Client([eg](https://github.com/voiladev/VoilaCrawl/blob/adbe18d7334c5f7f7bf90e92c80ae6868470cdc5/cmd/spiders/com/ruelala/ruelala.go#L510))
+You can write a main func and instance an http Client([eg](https://github.com/voiladev/VoilaCrawl/blob/5e2470be39c03ff6395391f4c539f7ccda10b050/spiders/com/ruelala/ruelala.go#L521))
 
 Tips:
 
@@ -139,12 +139,12 @@ Tips:
 
 All developers must develop with this workflow:
 1. fork repo VoilaCrawl and clone the forked to your local
-2. create/update spiders under dir cmd/spiders
+2. create/update spiders under dir spiders
 3. commit modification and create a merge request to `main` branch.
 
 Others jobs will be done by me currently. 
 
-All spiders must under `cmd/spiders` dir. the final dir must match the reverse domain schema. eg. `www.ruelala.com`'s  spiders is under dir `com/ruelala` dir
+All spiders must under `spiders` dir. the final dir must match the reverse domain schema. eg. `www.ruelala.com`'s  spiders is under dir `com/ruelala` dir
 
 
 ### TODO
