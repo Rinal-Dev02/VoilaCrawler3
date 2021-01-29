@@ -410,21 +410,19 @@ func (c *_Crawler) parseProductJson(ctx context.Context, resp *http.Response, yi
 	medias := map[string][]*media.Media{}
 	for i, color := range i.Data.Attributes.Colors {
 		img := media.Media_Image{}
-		if len(color.ImagesAlt) > 0 { // 65x85
-			img.ThumbnailSmallUrl = urlutil.Format(color.ImagesAlt[0])
-		}
-		if len(color.ImagesDetail) > 0 { // 400x500
-			img.ThumbnailUrl = urlutil.Format(color.ImagesDetail[0])
-		}
-		if len(color.ImagesTablet) > 0 { //528x660
-			img.ThumbnailLargeUrl = urlutil.Format(color.ImagesTablet[0])
-		}
 		if len(color.ImagesZoom) > 0 { // 864x1080
 			img.OriginalUrl = urlutil.Format(color.ImagesZoom[0])
 		}
-		if len(color.ImagesTabletHires) > 0 && img.OriginalUrl == "" { // 1056x1320
-			img.OriginalUrl = urlutil.Format(color.ImagesTabletHires[0])
+		if len(color.ImagesDetail) > 0 { // 400x500
+			img.SmallUrl = urlutil.Format(color.ImagesDetail[0])
 		}
+		if len(color.ImagesTablet) > 0 { //528x660
+			img.MediumUrl = urlutil.Format(color.ImagesTablet[0])
+		}
+		if len(color.ImagesTabletHires) > 0 && img.OriginalUrl == "" { // 1056x1320
+			img.LargeUrl = urlutil.Format(color.ImagesTabletHires[0])
+		}
+
 		imgData, _ := anypb.New(&img)
 		m := media.Media{Detail: imgData, IsDefault: i == 0}
 		medias[fmt.Sprintf("%s-%v", pbItem.SkuSpecType_SkuSpecColor, strings.ToLower(color.DisplayValue))] = []*media.Media{&m}

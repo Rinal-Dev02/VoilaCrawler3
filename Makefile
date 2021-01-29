@@ -1,6 +1,6 @@
 .PHONY: all api crawlet
 
-all: api crawlet
+all: api crawlet plugins
 
 api:
 	go vet ./cmd/crawl-api

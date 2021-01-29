@@ -280,6 +280,14 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 						sharingData := ctxUtil.RetrieveAllValues(c)
 						switch val := i.(type) {
 						case *http.Request:
+							if val.URL.Host == "" {
+								val.URL.Scheme = req.URL.Scheme
+								val.URL.Host = req.URL.Host
+							}
+							if val.URL.Scheme == "http" && req.URL.Scheme == "https" {
+								val.URL.Scheme = req.URL.Scheme
+							}
+
 							// convert http.Request to pbCrawl.Command_Request and forward
 							subreq := pbCrawl.Command_Request{
 								TracingId:     r.GetTracingId(),

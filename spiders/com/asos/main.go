@@ -85,6 +85,9 @@ func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
 
 	for _, reg := range []*regexp.Regexp{
 		c.categoryPathMatcher,
+		c.categoryJsonPathMatcher,
+		c.productGroupPathMatcher,
+		c.productPathMatcher,
 	} {
 		if reg.MatchString(u.Path) {
 			return true
@@ -596,10 +599,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 	for _, img := range i.Images {
 		itemImg, _ := anypb.New(&media.Media_Image{
-			OriginalUrl:       img.URL,
-			ThumbnailLargeUrl: img.URL + "?wid=1000&fit=constrain", // $S$, $XXL$
-			ThumbnailUrl:      img.URL + "?wid=650&fit=constrain",
-			ThumbnailSmallUrl: img.URL + "?wid=500&fit=constrain",
+			OriginalUrl: img.URL,
+			LargeUrl:    img.URL + "?wid=1000&fit=constrain", // $S$, $XXL$
+			MediumUrl:   img.URL + "?wid=650&fit=constrain",
+			SmallUrl:    img.URL + "?wid=500&fit=constrain",
 		})
 		item.Medias = append(item.Medias, &media.Media{
 			Detail:    itemImg,
