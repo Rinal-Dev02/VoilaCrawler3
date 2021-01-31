@@ -12,7 +12,7 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/tideland/golib v4.24.2+incompatible
 	github.com/urfave/cli/v2 v2.3.0
-	github.com/voiladev/go-framework v0.0.0-20210124130116-77c796b52ae4
+	github.com/voiladev/go-framework v0.0.0-20210131163501-2bf7fef9cb75
 	github.com/voiladev/protobuf v0.0.0-20210118020030-24eac5fdaed4
 	go.uber.org/fx v1.13.1
 	golang.org/x/net v0.0.0-20201216054612-986b41b23924
