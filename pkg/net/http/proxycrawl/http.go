@@ -5,11 +5,13 @@ import (
 	"errors"
 	"io/ioutil"
 	rhttp "net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"strconv"
 	"strings"
 
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
+	"golang.org/x/net/publicsuffix"
 )
 
 const (
@@ -54,6 +56,11 @@ func NewProxyCrawlClient(opts ...ClientOptionFunc) (http.Client, error) {
 	client := proxyCrawlClient{
 		httpClient: &rhttp.Client{},
 	}
+	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	if err != nil {
+		return nil, err
+	}
+	client.httpClient.Jar = jar
 
 	for _, optFunc := range opts {
 		if optFunc == nil {
@@ -64,7 +71,6 @@ func NewProxyCrawlClient(opts ...ClientOptionFunc) (http.Client, error) {
 	if client.options.APIToken == "" && client.options.JSToken == "" {
 		return nil, errors.New("missing proxy api access token")
 	}
-
 	return &client, nil
 }
 
@@ -152,6 +158,10 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 		res.Body = resp.Body
 		res.Request = r
 		resp = &res
+
+		if len(res.Cookies()) > 0 {
+			c.httpClient.Jar.SetCookies(res.Request.URL, res.Cookies())
+		}
 	}
 	return resp, nil
 }
