@@ -79,8 +79,11 @@ func (app *App) Run(args []string) {
 		}
 
 		httpClient, err := proxycrawl.NewProxyCrawlClient(
-			proxycrawl.WithAPITokenOption(c.String("proxy-api-token")),
-			proxycrawl.WithJSTokenOption(c.String("proxy-js-token")),
+			logger,
+			proxycrawl.Options{
+				APIToken: c.String("proxy-api-token"),
+				JSToken:  c.String("proxy-js-token"),
+			},
 		)
 		if err != nil {
 			logger.Error(err)

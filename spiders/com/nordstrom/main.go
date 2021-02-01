@@ -707,9 +707,8 @@ func main() {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
 	}
 
-	client, err := proxycrawl.NewProxyCrawlClient(
-		proxycrawl.WithAPITokenOption(apiToken),
-		proxycrawl.WithJSTokenOption(jsToken),
+	client, err := proxycrawl.NewProxyCrawlClient(glog.New(glog.LogLevelDebug),
+		proxycrawl.Options{APIToken: apiToken, JSToken: jsToken},
 	)
 	if err != nil {
 		panic(err)

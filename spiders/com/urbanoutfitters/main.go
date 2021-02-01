@@ -638,9 +638,8 @@ func main() {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
 	}
 
-	client, err := proxycrawl.NewProxyCrawlClient(
-		proxycrawl.WithAPITokenOption(apiToken),
-		proxycrawl.WithJSTokenOption(jsToken),
+	client, err := proxycrawl.NewProxyCrawlClient(glog.New(glog.LogLevelDebug),
+		proxycrawl.Options{APIToken: apiToken, JSToken: jsToken},
 	)
 	if err != nil {
 		panic(err)
@@ -661,7 +660,6 @@ func main() {
 		for k := range opts.MustHeader {
 			req.Header.Set(k, opts.MustHeader.Get(k))
 		}
-		req.Header.Set("brand-code", "tsus")
 		for _, c := range opts.MustCookies {
 			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
 				val := fmt.Sprintf("%s=%s", c.Name, c.Value)

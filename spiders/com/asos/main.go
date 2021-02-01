@@ -62,15 +62,15 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options.EnableHeadless = false
 	options.LoginRequired = false
 	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
-	// options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
 	options.MustCookies = append(options.MustCookies,
-		&http.Cookie{
-			Name:  "geocountry",
-			Value: `US`,
-			Path:  "/",
-		},
+		&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
+		// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
+		// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
+		// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
+		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+		// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
 	)
-	// other cookies: bm_sz, _abck
 	return options
 }
 
@@ -304,8 +304,6 @@ func (c *_Crawler) parseProductGroup(ctx context.Context, resp *http.Response, y
 			u.Path = "/us" + path
 		}
 		u.Fragment = ""
-		// keep raw query params
-		// u.RawQuery = ""
 
 		if req, err := http.NewRequest(http.MethodGet, u.String(), nil); err != nil {
 			return err
@@ -477,6 +475,7 @@ type parseProductRatingResponse struct {
 var (
 	detailReg     = regexp.MustCompile(`window\.asos\.pdp\.config\.product\s*=\s*({[^;]+});`)
 	stockPriceReg = regexp.MustCompile(`window\.asos\.pdp\.config\.stockPriceApiUrl\s*=\s*'(/api/product/catalogue/[^;]+)'\s*;`)
+	appVersionReg = regexp.MustCompile(`window\.asos\.pdp\.config\.appVersion\s*=\s*'([a-z0-9-.]+)';`)
 	ratingReg     = regexp.MustCompile(`window\.asos\.pdp\.config\.ratings\s*=\s*([^;]*);`)
 	descReg       = regexp.MustCompile(`<script\s+id="split\-structured\-data"\s+type="application/ld\+json">(.*)</script>`)
 )
@@ -493,6 +492,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 	matched := detailReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
+		c.logger.Debugf("data %s", respBody)
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
 	}
 	matchedStock := stockPriceReg.FindSubmatch(respBody)
@@ -526,7 +526,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
-	{
+	matched = appVersionReg.FindSubmatch(respBody)
+	if len(matched) > 1 {
 		// fetch stock
 		stockUrl := fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, matchedStock[1])
 		req, err := http.NewRequest(http.MethodGet, stockUrl, nil)
@@ -534,8 +535,26 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			c.logger.Error(err)
 			return err
 		}
-		req.Header = resp.Request.Header
+		opts := c.CrawlOptions()
+		for k := range opts.MustHeader {
+			req.Header.Set(k, opts.MustHeader.Get(k))
+		}
 		req.Header.Set("Referer", resp.Request.URL.String())
+		req.Header.Set("User-Agent", resp.Request.Header.Get("User-Agent"))
+		req.Header.Set("asos-c-name", "asos-web-productpage")
+		req.Header.Set("asos-c-version", string(matched[1]))
+
+		for _, c := range opts.MustCookies {
+			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
+				val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+				if c := req.Header.Get("Cookie"); c != "" {
+					req.Header.Set("Cookie", c+"; "+val)
+				} else {
+					req.Header.Set("Cookie", val)
+				}
+			}
+		}
+
 		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 			EnableProxy:    true,
 			EnableHeadless: c.CrawlOptions().EnableHeadless,
@@ -649,19 +668,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
-	// req, _ := http.NewRequest(http.MethodGet, "https://www.asos.com/us/women/new-in/new-in-clothing/cat/?cid=2623&nlid=ww%7Cclothing%7Cshop%20by%20product&page=1", nil)
-	// reqs = append(reqs, req)
-
-	req, _ := http.NewRequest(http.MethodGet, "https://www.asos.com/api/product/search/v2/categories/2623?channel=desktop-web&country=US&currency=USD&keyStoreDataversion=3pmn72e-27&lang=en-US&limit=72&nlid=ww%7Cclothing%7Cshop+by+product&offset=72&rowlength=4&store=US", nil)
-	reqs = append(reqs, req)
-
-	req, _ = http.NewRequest(http.MethodGet, "https://www.asos.com/us/missguided-plus/missguided-plus-oversized-long-sleeve-t-shirt-in-gray-snake-tie-dye/prd/23385813?colourwayid=60477943&SearchQuery=&cid=4169", nil)
-	reqs = append(reqs, req)
-
-	req, _ = http.NewRequest(http.MethodGet, "https://www.asos.com/us/asos-design/asos-design-tie-front-maxi-beach-set-in-black/grp/33060?colourwayid=60343707#22019820&SearchQuery=&cid=2623", nil)
-	reqs = append(reqs, req)
-
-	return
+	for _, u := range []string{
+		"https://www.asos.com/us/women/new-in/new-in-clothing/cat/?cid=2623&nlid=ww%7Cclothing%7Cshop%20by%20product&page=1",
+		"https://www.asos.com/api/product/search/v2/categories/2623?channel=desktop-web&country=US&currency=USD&keyStoreDataversion=3pmn72e-27&lang=en-US&limit=72&nlid=ww%7Cclothing%7Cshop+by+product&offset=72&rowlength=4&store=US",
+		"https://www.asos.com/us/missguided-plus/missguided-plus-oversized-long-sleeve-t-shirt-in-gray-snake-tie-dye/prd/23385813?colourwayid=60477943&SearchQuery=&cid=4169",
+		"https://www.asos.com/us/asos-design/asos-design-tie-front-maxi-beach-set-in-black/grp/33060?colourwayid=60343707#22019820&SearchQuery=&cid=2623",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, u, nil)
+		reqs = append(reqs, req)
+	}
+	return reqs
 }
 
 func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) error {
@@ -683,15 +699,14 @@ func main() {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
 	}
 
-	client, err := proxycrawl.NewProxyCrawlClient(
-		proxycrawl.WithAPITokenOption(apiToken),
-		proxycrawl.WithJSTokenOption(jsToken),
+	logger := glog.New(glog.LogLevelDebug)
+	client, err := proxycrawl.NewProxyCrawlClient(logger,
+		proxycrawl.Options{APIToken: apiToken, JSToken: jsToken},
 	)
 	if err != nil {
 		panic(err)
 	}
 
-	logger := glog.New(glog.LogLevelDebug)
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)
@@ -703,6 +718,7 @@ func main() {
 		defer cancel()
 
 		logger.Debugf("Access %s", req.URL)
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
 		for k := range opts.MustHeader {
 			req.Header.Set(k, opts.MustHeader.Get(k))
 		}

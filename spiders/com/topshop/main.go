@@ -540,6 +540,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	var r parseCategoryProductsResponse
 	if err := json.Unmarshal(matched[1], &r); err != nil {
+		c.logger.Debugf("%s", respBody)
 		return fmt.Errorf("parse fetch product detail failed, error=%s", err)
 	}
 
@@ -707,15 +708,14 @@ func main() {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
 	}
 
-	client, err := proxycrawl.NewProxyCrawlClient(
-		proxycrawl.WithAPITokenOption(apiToken),
-		proxycrawl.WithJSTokenOption(jsToken),
+	logger := glog.New(glog.LogLevelDebug)
+	client, err := proxycrawl.NewProxyCrawlClient(logger,
+		proxycrawl.Options{APIToken: apiToken, JSToken: jsToken},
 	)
 	if err != nil {
 		panic(err)
 	}
 
-	logger := glog.New(glog.LogLevelDebug)
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)

@@ -9,8 +9,10 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
+	"github.com/voiladev/go-framework/glog"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -18,58 +20,40 @@ const (
 	gatewayAddr = "https://api.proxycrawl.com/"
 )
 
-type clientOptions struct {
+type Options struct {
 	APIToken string
 	JSToken  string
 }
 
-type ClientOptionFunc func(opts *clientOptions) error
-
-func WithAPITokenOption(token string) ClientOptionFunc {
-	return func(opts *clientOptions) error {
-		if opts == nil {
-			return nil
-		}
-		opts.APIToken = token
-
-		return nil
-	}
-}
-
-func WithJSTokenOption(token string) ClientOptionFunc {
-	return func(opts *clientOptions) error {
-		if opts == nil {
-			return nil
-		}
-		opts.JSToken = token
-		return nil
-	}
-}
-
 // proxyCrawlClient
 type proxyCrawlClient struct {
-	httpClient *rhttp.Client
-	options    clientOptions
+	httpClient      *rhttp.Client
+	httpProxyClient *rhttp.Client
+	options         Options
+	logger          glog.Log
 }
 
-func NewProxyCrawlClient(opts ...ClientOptionFunc) (http.Client, error) {
+// NewProxyCrawlClient returns a http client which support native http.Client and
+// supports ProxyCrawl Backconnect proxy, Crawling API.
+func NewProxyCrawlClient(logger glog.Log, opts Options) (http.Client, error) {
+	if opts.APIToken == "" && opts.JSToken == "" {
+		return nil, errors.New("missing proxy api access token")
+	}
+
 	client := proxyCrawlClient{
-		httpClient: &rhttp.Client{},
+		httpClient:      &rhttp.Client{},
+		httpProxyClient: &rhttp.Client{},
+		options:         opts,
+		logger:          logger,
 	}
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		return nil, err
 	}
 	client.httpClient.Jar = jar
-
-	for _, optFunc := range opts {
-		if optFunc == nil {
-			continue
-		}
-		optFunc(&client.options)
-	}
-	if client.options.APIToken == "" && client.options.JSToken == "" {
-		return nil, errors.New("missing proxy api access token")
+	client.httpProxyClient.Jar = jar
+	client.httpProxyClient.Transport = &rhttp.Transport{
+		Proxy: rhttp.ProxyURL(&url.URL{Host: "proxy.proxycrawl.com:9000"}),
 	}
 	return &client, nil
 }
@@ -81,58 +65,139 @@ func (c *proxyCrawlClient) Do(ctx context.Context, r *http.Request) (*http.Respo
 	return c.DoWithOptions(ctx, r, http.Options{})
 }
 
+// DoWithOptions
+// If proxy is enabled, the client will try backconnect proxy for at most twice.
+// If all the two try failed, then this proxy will try crawling api.
+// To remember that timeout is controlled by ctx
 func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, opts http.Options) (*http.Response, error) {
 	if c == nil || r == nil {
 		return nil, nil
 	}
+	if opts.EnableHeadless {
+		opts.EnableProxy = true
+	}
 
 	var (
-		err error
-		req *http.Request = r
+		err  error
+		req  *http.Request = r
+		resp *http.Response
 	)
+
 	if opts.EnableProxy {
-		u, _ := url.Parse(gatewayAddr)
-
-		// Set params
-		vals := u.Query()
-		if opts.EnableHeadless {
-			vals.Set("token", c.options.JSToken)
-		} else {
-			vals.Set("token", c.options.APIToken)
+		if req.Header.Get("User-Agent") == "" {
+			req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
 		}
-		vals.Set("url", r.URL.String())
+		for i := 0; i < 3; i++ {
+			creq := req.Clone(ctx)
+			if resp, err = c.httpProxyClient.Do(creq); err != nil {
+				c.logger.Debugf("do http request failed, error=%s", err)
+				time.Sleep(time.Millisecond * 100)
+				continue
+			} else if resp.StatusCode == http.StatusRequestTimeout ||
+				resp.StatusCode == http.StatusInternalServerError ||
+				resp.StatusCode == http.StatusServiceUnavailable {
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
+			break
+		}
 
-		if len(r.Header) > 0 {
-			var header string
-			for k := range r.Header {
-				if k == "Cookie" {
-					vals.Set("cookies", r.Header.Get(k))
-				} else {
-					if header == "" {
-						header = k + ":" + r.Header.Get(k)
+		if resp == nil {
+			u, _ := url.Parse(gatewayAddr)
+			// Set params
+			vals := u.Query()
+			if opts.EnableHeadless {
+				vals.Set("token", c.options.JSToken)
+			} else {
+				vals.Set("token", c.options.APIToken)
+			}
+			vals.Set("url", r.URL.String())
+
+			if len(r.Header) > 0 {
+				var header string
+				for k := range r.Header {
+					if k == "Cookie" {
+						vals.Set("cookies", r.Header.Get(k))
+					} else if k == "User-Agent" {
+						continue
 					} else {
-						header = header + "|" + k + ":" + r.Header.Get(k)
+						if header == "" {
+							header = k + ":" + r.Header.Get(k)
+						} else {
+							header = header + "|" + k + ":" + r.Header.Get(k)
+						}
 					}
 				}
+				vals.Set("request_headers", header)
 			}
-			vals.Set("request_headers", header)
+			vals.Set("get_headers", "true")
+			vals.Set("get_cookies", "true")
+			// Set this param for we develop almost all crawler on desktop
+			vals.Set("device", "desktop")
+
+			u.RawQuery = vals.Encode()
+			if req, err = http.NewRequest(http.MethodGet, u.String(), r.Body); err != nil {
+				return nil, err
+			}
+			req = req.WithContext(ctx)
+
+			for i := 0; i < 3; i++ {
+				if resp, err = c.httpClient.Do(req); err != nil {
+					c.logger.Debugf("access %s failed, error=%s", err)
+					time.Sleep(time.Millisecond * 100)
+					continue
+				} else if resp.StatusCode == http.StatusRequestTimeout ||
+					resp.StatusCode == http.StatusInternalServerError ||
+					resp.StatusCode == http.StatusServiceUnavailable {
+					time.Sleep(time.Millisecond * 100)
+					continue
+				}
+				break
+			}
+			if err != nil {
+				return nil, err
+			}
+
+			for key := range resp.Header {
+				key := strings.ToLower(key)
+				if key == "original_status" {
+					code, _ := strconv.ParseInt(resp.Header.Get("original_status"), 10, 32)
+					resp.StatusCode = int(code)
+					resp.Header.Del(key)
+				} else if strings.HasPrefix(key, "original_") {
+					// TODO: there may exists header with underline
+					realKey := strings.Replace(strings.TrimPrefix(key, "original_"), "_", "-", -1)
+					resp.Header.Set(realKey, resp.Header.Get(key))
+					resp.Header.Del(key)
+				} else if key == "pc_status" {
+					resp.Header.Del(key)
+				}
+			}
+			resp.Request = r
+
+			cookies := resp.Cookies()
+			if len(cookies) > 0 {
+				c.httpClient.Jar.SetCookies(resp.Request.URL, cookies)
+			}
 		}
-		vals.Set("get_headers", "true")
-		vals.Set("get_cookies", "true")
-		// Set this param for we develop almost all crawler on desktop
-		vals.Set("device", "desktop")
-
-		u.RawQuery = vals.Encode()
-
-		if req, err = http.NewRequest(http.MethodGet, u.String(), r.Body); err != nil {
+	} else {
+		for i := 0; i < 2; i++ {
+			creq := req.Clone(ctx)
+			if resp, err = c.httpClient.Do(creq); err != nil {
+				c.logger.Debugf("access %s failed, error=%s", err)
+				time.Sleep(time.Millisecond * 100)
+				continue
+			} else if resp.StatusCode == http.StatusRequestTimeout ||
+				resp.StatusCode == http.StatusInternalServerError ||
+				resp.StatusCode == http.StatusServiceUnavailable {
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
+			break
+		}
+		if err != nil {
 			return nil, err
 		}
-	}
-	req = req.WithContext(ctx)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, err
 	}
 	defer resp.Body.Close()
 
@@ -142,26 +207,5 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 	}
 	resp.Body = http.NewReader(data)
 
-	if opts.EnableProxy {
-		res := http.Response{Header: rhttp.Header{}}
-		for key := range resp.Header {
-			key := strings.ToLower(key)
-			if key == "original_status" {
-				code, _ := strconv.ParseInt(resp.Header.Get("original_status"), 10, 32)
-				res.StatusCode = int(code)
-			} else if strings.HasPrefix(key, "original_") {
-				// TODO: there may exists header with underline
-				realKey := strings.Replace(strings.TrimPrefix(key, "original_"), "_", "-", -1)
-				res.Header.Set(realKey, resp.Header.Get(key))
-			}
-		}
-		res.Body = resp.Body
-		res.Request = r
-		resp = &res
-
-		if len(res.Cookies()) > 0 {
-			c.httpClient.Jar.SetCookies(res.Request.URL, res.Cookies())
-		}
-	}
 	return resp, nil
 }

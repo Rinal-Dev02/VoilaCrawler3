@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
@@ -385,8 +386,14 @@ func (c *_Crawler) parseProductJson(ctx context.Context, resp *http.Response, yi
 		return nil
 	}
 
+	respbody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
 	var i parseProductJsonResponse
-	if err := json.NewDecoder(resp.Body).Decode(&i); err != nil {
+	if err := json.Unmarshal(respbody, &i); err != nil {
+		c.logger.Debugf("%s", respbody)
 		return err
 	}
 
@@ -516,9 +523,9 @@ func main() {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
 	}
 
-	client, err := proxycrawl.NewProxyCrawlClient(
-		proxycrawl.WithAPITokenOption(apiToken),
-		proxycrawl.WithJSTokenOption(jsToken),
+	logger := glog.New(glog.LogLevelDebug)
+	client, err := proxycrawl.NewProxyCrawlClient(logger,
+		proxycrawl.Options{APIToken: apiToken, JSToken: jsToken},
 	)
 	if err != nil {
 		panic(err)
@@ -527,7 +534,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	spider, err := New(client, glog.New(glog.LogLevelDebug))
+	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)
 	}

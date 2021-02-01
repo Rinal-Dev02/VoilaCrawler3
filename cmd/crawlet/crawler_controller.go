@@ -11,6 +11,7 @@ import (
 
 	ctxUtil "github.com/voiladev/VoilaCrawl/pkg/context"
 	http "github.com/voiladev/VoilaCrawl/pkg/net/http"
+	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
@@ -309,6 +310,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 									subreq.Body = fmt.Sprintf("%s", data)
 								}
 							}
+
 							// over write header
 							for k := range val.Header {
 								subreq.CustomHeaders[k] = val.Header.Get(k)
@@ -320,12 +322,32 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 								subreq.CustomHeaders[k] = v
 							}
 
-							for k, v := range sharingData {
-								key, ok1 := k.(string)
-								val, ok2 := v.(string)
-								if !ok1 || !ok2 {
+							now := time.Now()
+							for _, cookie := range resp.Cookies() {
+								if cookie.MaxAge < 0 || (cookie.MaxAge == 0 && cookie.Expires.Before(now)) {
 									continue
 								}
+								var expiresAt int64
+								if !cookie.Expires.IsZero() {
+									expiresAt = cookie.Expires.Unix()
+								} else {
+									expiresAt = now.Unix() + int64(cookie.MaxAge)
+								}
+
+								subreq.CustomCookies = append(subreq.CustomCookies, &pbHttp.Cookie{
+									Name:    cookie.Name,
+									Value:   cookie.Value,
+									Path:    cookie.Path,
+									Expires: expiresAt,
+								})
+							}
+
+							for k, v := range sharingData {
+								key, ok := k.(string)
+								if !ok {
+									continue
+								}
+								val := strconv.Format(v)
 
 								if strings.HasSuffix(key, "tracing_id") ||
 									strings.HasSuffix(key, "job_id") ||
