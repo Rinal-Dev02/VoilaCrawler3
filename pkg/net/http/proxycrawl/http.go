@@ -191,7 +191,9 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 				} else if strings.HasPrefix(key, "original_") {
 					// TODO: there may exists header with underline
 					realKey := strings.Replace(strings.TrimPrefix(key, "original_"), "_", "-", -1)
-					resp.Header.Set(realKey, resp.Header.Get(key))
+					for _, v := range resp.Header.Values(key) {
+						resp.Header.Add(realKey, v)
+					}
 					resp.Header.Del(key)
 				} else if key == "pc_status" {
 					resp.Header.Del(key)
