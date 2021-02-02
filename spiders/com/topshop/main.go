@@ -65,9 +65,9 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	// options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
 	options.MustCookies = append(options.MustCookies,
 		// source,akavpau_VP_TS,bm_mi,bm_sv,_arc_be_jwt
+		&http.Cookie{Name: "GEOIP", Value: "US", Path: "/"},
 		&http.Cookie{Name: "deviceType", Value: "laptop", Path: "/"},
 		&http.Cookie{Name: "viewport", Value: "laptp", Path: "/"},
-		&http.Cookie{Name: "GEOIP", Value: "US", Path: "/"},
 		&http.Cookie{Name: "ENSEARCH", Value: "BENVER=1", Path: "/"},
 	)
 	return options
@@ -101,9 +101,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		// https://us.topshop.com/en/tsus/category/bags-accessories-7594012
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.categoryJsonPathMatcher.MatchString(resp.Request.URL.Path) {
-		// https://us.topshop.com/api/products?currentPage=3&pageSize=24&category=208582
-		return c.parseCategoryProductsJson(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		// https://us.topshop.com/en/tsus/product/bags-accessories-7594012/hats-70518/borg-bucket-hat-10114468
 		return c.parseProduct(ctx, resp, yield)
@@ -414,6 +411,7 @@ var (
 )
 
 // parseCategoryProducts parse api url from web page url
+// NOTE: there are some problems of use backconnect proxy to fetch data
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -443,7 +441,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	matched := prodDataExtraReg.FindSubmatch(respBody)
 	if len(matched) < 1 {
-		return fmt.Errorf("product info not found for url %s", resp.Request.URL)
+		c.logger.Debugf("%s, status=%d", respBody, resp.StatusCode)
+		return fmt.Errorf("products info not found for url %s", resp.Request.URL)
 	}
 	var initData parseCategoryProductsResponse
 	if err := json.Unmarshal(matched[1], &initData); err != nil {
@@ -465,16 +464,20 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if int(currentPage)*defaultPageSize >= initData.Products.TotalProducts {
 		return nil
 	}
-	cate := initData.Products.Breadcrumbs[len(initData.Products.Breadcrumbs)-1].Category
-	pageUrl := fmt.Sprintf("/api/products?currentPage=%v&pageSize=%d&category=%s", currentPage+1, defaultPageSize, cate)
-	if req, err := http.NewRequest(http.MethodGet, pageUrl, nil); err != nil {
+
+	u := *resp.Request.URL
+	vals := u.Query()
+	vals.Set("currentPage", strconv.Format(currentPage+1))
+	u.RawQuery = vals.Encode()
+
+	if req, err := http.NewRequest(http.MethodGet, u.String(), nil); err != nil {
 		return err
 	} else {
-		req.Header.Set("brand-code", "tsus")
 		return yield(context.WithValue(ctx, "item.index", lastIndex), req)
 	}
 }
 
+/*
 // parseCategoryProductsJson
 func (c *_Crawler) parseCategoryProductsJson(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil {
@@ -521,6 +524,7 @@ func (c *_Crawler) parseCategoryProductsJson(ctx context.Context, resp *http.Res
 		return yield(context.WithValue(ctx, "item.index", lastIndex), req)
 	}
 }
+*/
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -671,13 +675,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		// "https://us.topshop.com/en/tsus/product/clothing-70483/dresses-70497/idol-ruffle-patchwork-print-midi-dress-10411905",
+		"https://us.topshop.com/en/tsus/product/clothing-70483/dresses-70497/idol-ruffle-patchwork-print-midi-dress-10411905",
 		// "https://us.topshop.com/en/tsus/product/clothing-70483/jeans-4593087/ecru-jamie-skinny-jeans-9611474",
 		// "https://us.topshop.com/en/tsus/product/clothing-70483/jeans-4593087/blue-black-jamie-skinny-jeans-9713412",
 		// "https://us.topshop.com/en/tsus/product/clothing-70483/petite-70510/petite-black-jamie-skinny-stretch-jeans-10407726",
 		// "https://us.topshop.com/en/tsus/product/clothing-70483/jeans-4593087/black-jamie-skinny-jeans-9611011",
 		// "https://us.topshop.com/en/tsus/category/sale-6923951/shop-all-sale-7108379",
-		"https://us.topshop.com/api/products?currentPage=2&pageSize=24&category=386999,397549",
+		// "https://us.topshop.com/en/tsus/category/sale-6923951/shop-all-sale-7108379",
+		// "https://us.topshop.com/en/tsus/category/sale-6923951/shop-all-sale-7108379?currentPage=3",
+		// drop "https://us.topshop.com/api/products?currentPage=2&pageSize=24&category=386999,397549",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -730,7 +736,11 @@ func main() {
 		for k := range opts.MustHeader {
 			req.Header.Set(k, opts.MustHeader.Get(k))
 		}
-		req.Header.Set("brand-code", "tsus")
+		// req.Header.Set("brand-code", "tsus")
+		// req.Header.Set("x-newrelic-id", "VQUHV1RWARAJV1JVBAAGUg==")
+		// req.Header.Set("x-pref-ship", "United States")
+		// req.Header.Set("x-trace-id", "1612229778289R250663")
+		// req.Header.Set("monty-mobile-hostname", "false")
 		for _, c := range opts.MustCookies {
 			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
 				val := fmt.Sprintf("%s=%s", c.Name, c.Value)

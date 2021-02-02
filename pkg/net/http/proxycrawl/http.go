@@ -2,6 +2,7 @@ package proxycrawl
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"io/ioutil"
 	rhttp "net/http"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	// "golang.org/x/time/rate"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/go-framework/glog"
 	"golang.org/x/net/publicsuffix"
@@ -40,20 +42,31 @@ func NewProxyCrawlClient(logger glog.Log, opts Options) (http.Client, error) {
 		return nil, errors.New("missing proxy api access token")
 	}
 
-	client := proxyCrawlClient{
-		httpClient:      &rhttp.Client{},
-		httpProxyClient: &rhttp.Client{},
-		options:         opts,
-		logger:          logger,
-	}
 	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 	if err != nil {
 		return nil, err
 	}
-	client.httpClient.Jar = jar
-	client.httpProxyClient.Jar = jar
-	client.httpProxyClient.Transport = &rhttp.Transport{
-		Proxy: rhttp.ProxyURL(&url.URL{Host: "proxy.proxycrawl.com:9000"}),
+	client := proxyCrawlClient{
+		httpClient: &rhttp.Client{
+			Transport: &rhttp.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 5,
+				IdleConnTimeout:     time.Second * 30,
+			},
+			Jar: jar,
+		},
+		httpProxyClient: &rhttp.Client{
+			Transport: &rhttp.Transport{
+				// MaxIdleConns:      100,
+				// DisableKeepAlives: true,
+				IdleConnTimeout: time.Second,
+				TLSNextProto:    map[string]func(string, *tls.Conn) rhttp.RoundTripper{}, // disable http2
+				Proxy:           rhttp.ProxyURL(&url.URL{Host: "proxy.proxycrawl.com:9000"}),
+			},
+			Jar: jar,
+		},
+		options: opts,
+		logger:  logger,
 	}
 	return &client, nil
 }
@@ -87,16 +100,26 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 		if req.Header.Get("User-Agent") == "" {
 			req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
 		}
-		for i := 0; i < 3; i++ {
+
+		var (
+			retryCount = 5
+		)
+		for i := 0; i < retryCount; i++ {
 			creq := req.Clone(ctx)
 			if resp, err = c.httpProxyClient.Do(creq); err != nil {
 				c.logger.Debugf("do http request failed, error=%s", err)
-				time.Sleep(time.Millisecond * 100)
+				time.Sleep(time.Millisecond * 200)
 				continue
 			} else if resp.StatusCode == http.StatusRequestTimeout ||
 				resp.StatusCode == http.StatusInternalServerError ||
 				resp.StatusCode == http.StatusServiceUnavailable {
-				time.Sleep(time.Millisecond * 100)
+				c.logger.Debugf("do http request with status %v, retry...", resp.StatusCode)
+				time.Sleep(time.Millisecond * 200)
+				continue
+			} else if resp.StatusCode == http.StatusForbidden {
+				c.logger.Debugf("do http request with status %v, retry...", resp.StatusCode)
+				retryCount = 10
+				time.Sleep(time.Millisecond * 5000)
 				continue
 			}
 			break
@@ -181,7 +204,8 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 			}
 		}
 	} else {
-		for i := 0; i < 2; i++ {
+		retryCount := 2
+		for i := 0; i < retryCount; i++ {
 			creq := req.Clone(ctx)
 			if resp, err = c.httpClient.Do(creq); err != nil {
 				c.logger.Debugf("access %s failed, error=%s", err)
@@ -191,6 +215,11 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 				resp.StatusCode == http.StatusInternalServerError ||
 				resp.StatusCode == http.StatusServiceUnavailable {
 				time.Sleep(time.Millisecond * 100)
+				continue
+			} else if resp.StatusCode == http.StatusForbidden {
+				c.logger.Debugf("do http request with status %v, retry...", resp.StatusCode)
+				time.Sleep(time.Millisecond * 5000)
+				retryCount = 5
 				continue
 			}
 			break
