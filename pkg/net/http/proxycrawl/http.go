@@ -97,32 +97,32 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 	)
 
 	if opts.EnableProxy {
-		if req.Header.Get("User-Agent") == "" {
-			req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
-		}
 
-		var (
-			retryCount = 5
-		)
-		for i := 0; i < retryCount; i++ {
-			creq := req.Clone(ctx)
-			if resp, err = c.httpProxyClient.Do(creq); err != nil {
-				c.logger.Debugf("do http request failed, error=%s", err)
-				time.Sleep(time.Millisecond * 200)
-				continue
-			} else if resp.StatusCode == http.StatusRequestTimeout ||
-				resp.StatusCode == http.StatusInternalServerError ||
-				resp.StatusCode == http.StatusServiceUnavailable {
-				c.logger.Debugf("do http request with status %v, retry...", resp.StatusCode)
-				time.Sleep(time.Millisecond * 200)
-				continue
-			} else if resp.StatusCode == http.StatusForbidden {
-				c.logger.Debugf("do http request with status %v, retry...", resp.StatusCode)
-				retryCount = 10
-				time.Sleep(time.Millisecond * 5000)
-				continue
+		if !opts.DisableBackconnect {
+			if req.Header.Get("User-Agent") == "" {
+				req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
 			}
-			break
+			retryCount := 5
+			for i := 0; i < retryCount; i++ {
+				creq := req.Clone(ctx)
+				if resp, err = c.httpProxyClient.Do(creq); err != nil {
+					c.logger.Debugf("do http request failed, error=%s", err)
+					time.Sleep(time.Millisecond * 200)
+					continue
+				} else if resp.StatusCode == http.StatusRequestTimeout ||
+					resp.StatusCode == http.StatusInternalServerError ||
+					resp.StatusCode == http.StatusServiceUnavailable {
+					c.logger.Debugf("do http request with status %v, retry...", resp.StatusCode)
+					time.Sleep(time.Millisecond * 200)
+					continue
+				} else if resp.StatusCode == http.StatusForbidden {
+					c.logger.Debugf("do http request with status %v, retry...", resp.StatusCode)
+					retryCount = 10
+					time.Sleep(time.Millisecond * 5000)
+					continue
+				}
+				break
+			}
 		}
 
 		if resp == nil {
@@ -142,6 +142,7 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 					if k == "Cookie" {
 						vals.Set("cookies", r.Header.Get(k))
 					} else if k == "User-Agent" {
+						// ignore user-agent
 						continue
 					} else {
 						if header == "" {

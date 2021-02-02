@@ -29,8 +29,9 @@ var (
 )
 
 type Options struct {
-	EnableProxy    bool
-	EnableHeadless bool
+	EnableProxy        bool
+	DisableBackconnect bool
+	EnableHeadless     bool
 }
 
 type Client interface {
