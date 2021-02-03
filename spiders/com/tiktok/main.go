@@ -29,6 +29,7 @@ type _Crawler struct {
 	detailPageReg          *regexp.Regexp
 	detailInternalPageReg  *regexp.Regexp
 	detailShortLinkPageReg *regexp.Regexp
+	downloadVideoReg       *regexp.Regexp
 
 	logger glog.Log
 }
@@ -39,6 +40,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 		detailPageReg:          regexp.MustCompile(`^/@[0-9a-zA-Z-_]+/video/[0-9]+/?$`),
 		detailInternalPageReg:  regexp.MustCompile(`^/v/[0-9]+.html$`),
 		detailShortLinkPageReg: regexp.MustCompile(`^/[a-zA-Z0-9]+/?$`),
+		downloadVideoReg:       regexp.MustCompile(`^/video/tos/alisg/tos\-alisg\-pve\-[a-z0-9]+/[a-z0-9]+/?$`),
 		logger:                 logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -93,6 +95,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		c.detailPageReg.MatchString(resp.Request.URL.Path) ||
 		c.detailInternalPageReg.MatchString(resp.Request.URL.Path) {
 		return c.parseDetail(ctx, resp, yield)
+	} else if c.downloadVideoReg.MatchString(resp.Request.URL.Path) {
+		return c.download(ctx, resp, yield)
 	}
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
@@ -115,6 +119,19 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 	if err != nil {
 		return err
 	}
+
+	c.logger.Debugf("matched %s", resp.Request.URL.Path)
+
+	if c.detailInternalPageReg.MatchString(resp.Request.URL.Path) {
+		if href, exists := doc.Find(`link[rel="canonical"]`).Attr("href"); exists && href != "" {
+			href = href + "?" + resp.Request.URL.Query().Encode() + "&source=h5_m"
+			if req, _ := http.NewRequest(http.MethodGet, href, nil); req != nil {
+				return yield(ctx, req)
+			}
+		}
+	}
+
+	// c.logger.Debugf("%s", respBody)
 
 	var (
 		rawurl string
@@ -183,44 +200,103 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 	item.Source.CrawlUrl = rawurl
 
 	var (
-		cookies   string
+		cookies   = map[string]*http.Cookie{}
 		expiresAt time.Time
 	)
-	if req, err := http.NewRequest(http.MethodGet, "https://www.tiktok.com/manifest.json", nil); err != nil {
-		return err
-	} else if resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-		EnableProxy:        true,
-		DisableBackconnect: true,
-	}); err != nil {
-		return err
-	} else {
-		for _, c := range resp.Cookies() {
-			v := fmt.Sprintf("%s=%s", c.Name, c.Value)
-			if cookies == "" {
-				cookies = v
-			} else {
-				cookies = cookies + "; " + v
-			}
+	for _, c := range resp.Cookies() {
+		cookies[c.Name] = c
+	}
 
-			if !c.Expires.IsZero() {
-				if expiresAt.IsZero() || expiresAt.After(c.Expires) {
-					expiresAt = c.Expires
-				}
-			} else if c.MaxAge > 0 {
-				t := time.Now().Add(time.Second * time.Duration(c.MaxAge))
-				if expiresAt.IsZero() || expiresAt.After(t) {
-					expiresAt = t
-				}
+	mockCookieUrls := []string{}
+	reg := regexp.MustCompile(`<script\s+type="text/javascript"\s+src="(https://www.tiktok.com/akam/[a-z0-9]+/[a-z0-9]+)"\s+defer>\s*</script>`)
+	if matched := reg.FindSubmatch(respBody); len(matched) > 1 {
+		mockCookieUrls = append(mockCookieUrls, string(matched[1]))
+	}
+	reg = regexp.MustCompile(`src="(https?://www.tiktok.com/akam/[a-z0-9]+/pixel_[a-z0-9]+\?a=[a-zA-Z0-9=+-.]+)"`)
+	if matched := reg.FindSubmatch(respBody); len(matched) > 1 {
+		mockCookieUrls = append(mockCookieUrls, string(matched[1]))
+	}
+
+	for _, u := range mockCookieUrls {
+		c.logger.Debugf("mock cookie %s", u)
+		if req, err := http.NewRequest(http.MethodGet, u, nil); err != nil {
+			return err
+		} else if resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:        false,
+			DisableBackconnect: false,
+		}); err != nil {
+			return err
+		} else {
+			for _, c := range resp.Cookies() {
+				cookies[c.Name] = c
 			}
 		}
 	}
-	item.AuthInfo.Cookies = cookies
+	for _, c := range cookies {
+		v := fmt.Sprintf("%s=%s", c.Name, c.Value)
+		if item.AuthInfo.Cookies == "" {
+			item.AuthInfo.Cookies = v
+		} else {
+			item.AuthInfo.Cookies += "; " + v
+		}
+
+		if !c.Expires.IsZero() {
+			if expiresAt.IsZero() || expiresAt.After(c.Expires) {
+				expiresAt = c.Expires
+			}
+		} else if c.MaxAge > 0 {
+			t := time.Now().Add(time.Second * time.Duration(c.MaxAge))
+			if expiresAt.IsZero() || expiresAt.After(t) {
+				expiresAt = t
+			}
+		}
+	}
+
 	if expiresAt.IsZero() {
 		item.AuthInfo.ExpiresAt = time.Now().Add(time.Hour * 24).Unix()
 	} else {
 		item.AuthInfo.ExpiresAt = expiresAt.Unix()
 	}
-	return yield(ctx, &item)
+	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s", item.Video.OriginalUrl), nil)
+	if err != nil {
+		return err
+	}
+
+	// req.Header.Set("Accept", "*/*")
+	// req.Header.Set("Accept-Encoding", "identity;q=1, *;q=0")
+	// req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,pl;q=0.7,zh-TW;q=0.6,ca;q=0.5,mt;q=0.4")
+	// req.Header.Set("Cache-Control", "no-cache")
+	// req.Header.Set("Connection", "keep-alive")
+	// req.Header.Set("Pragma", "no-cache")
+	req.Header.Set("Referer", "https://www.tiktok.com/")
+	// req.Header.Set("sec-ch-ua", `"Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99"`)
+	// req.Header.Set("sec-ch-ua-mobile", "?0")
+	// req.Header.Set("Sec-Fetch-Dest", "video")
+	// req.Header.Set("Sec-Fetch-Mode", "no-cors")
+	// req.Header.Set("Sec-Fetch-Site", "same-site")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
+	req.Header.Set("Range", "bytes=0-")
+
+	{
+		cookies := c.httpClient.Jar().Cookies(req.URL)
+		c.logger.Debugf("cookies: %+v", cookies)
+	}
+	return yield(ctx, req)
+	// return yield(ctx, &item)
+}
+
+func (c *_Crawler) download(ctx context.Context, resp *http.Response, yield interface{}) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	c.logger.Debugf("download resp: %d, size: %d", resp.StatusCode, len(data))
+
+	return nil
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {

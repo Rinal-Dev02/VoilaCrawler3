@@ -29,6 +29,7 @@ type Options struct {
 
 // proxyCrawlClient
 type proxyCrawlClient struct {
+	jar             rhttp.CookieJar
 	httpClient      *rhttp.Client
 	httpProxyClient *rhttp.Client
 	options         Options
@@ -47,6 +48,7 @@ func NewProxyCrawlClient(logger glog.Log, opts Options) (http.Client, error) {
 		return nil, err
 	}
 	client := proxyCrawlClient{
+		jar: jar,
 		httpClient: &rhttp.Client{
 			Transport: &rhttp.Transport{
 				MaxIdleConns:        100,
@@ -69,6 +71,13 @@ func NewProxyCrawlClient(logger glog.Log, opts Options) (http.Client, error) {
 		logger:  logger,
 	}
 	return &client, nil
+}
+
+func (c *proxyCrawlClient) Jar() http.CookieJar {
+	if c == nil {
+		return nil
+	}
+	return c.jar
 }
 
 func (c *proxyCrawlClient) Do(ctx context.Context, r *http.Request) (*http.Response, error) {
@@ -96,12 +105,12 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 		resp *http.Response
 	)
 
-	if opts.EnableProxy {
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
+	}
 
+	if opts.EnableProxy {
 		if !opts.DisableBackconnect {
-			if req.Header.Get("User-Agent") == "" {
-				req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
-			}
 			retryCount := 5
 			for i := 0; i < retryCount; i++ {
 				creq := req.Clone(ctx)

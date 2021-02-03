@@ -35,6 +35,7 @@ type Options struct {
 }
 
 type Client interface {
+	Jar() http.CookieJar
 	Do(context.Context, *http.Request) (*http.Response, error)
 	DoWithOptions(ctx context.Context, req *http.Request, opts Options) (*http.Response, error)
 }
