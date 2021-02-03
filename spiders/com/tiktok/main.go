@@ -135,13 +135,7 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 
 	var (
 		rawurl string
-		item   = &pbItem.Tiktok_Item{
-			Source: &pbItem.Tiktok_Source{},
-			Video:  &media.Media_Video{Cover: &media.Media_Image{}},
-			Headers: map[string]string{
-				"Referer": "https://www.tiktok.com/",
-			},
-		}
+		item   *pbItem.Tiktok_Item
 	)
 
 	if rawProp := doc.Find("#__NEXT_DATA__").Text(); strings.TrimSpace(rawProp) != "" {
@@ -153,7 +147,13 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 			return err
 		}
 	} else {
-		var exists bool
+		var (
+			exists bool
+			item   = &pbItem.Tiktok_Item{
+				Source: &pbItem.Tiktok_Source{},
+				Video:  &media.Media_Video{Cover: &media.Media_Image{}},
+			}
+		)
 		rawurl, exists = doc.Find(`meta[property="og:url"]`).Attr("content")
 		if !exists {
 			return fmt.Errorf("real url of %s not found", resp.Request.URL)
@@ -255,7 +255,12 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 			}
 		}
 	}
+	if item.Headers == nil {
+		item.Headers = map[string]string{}
+	}
+	item.Headers["Referer"] = "https://www.tiktok.com/"
 	item.Headers["Cookie"] = cookie
+
 	if expiresAt.IsZero() {
 		item.ExpiresUtc = time.Now().Add(time.Hour * 3).Unix()
 	} else {
