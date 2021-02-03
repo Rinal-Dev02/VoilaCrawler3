@@ -266,27 +266,7 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 	} else {
 		item.ExpiresUtc = expiresAt.Unix()
 	}
-
-	// req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s", item.Video.OriginalUrl), nil)
-	// if err != nil {
-	// 	return err
-	// }
-	// req.Header.Set("Accept", "*/*")
-	// req.Header.Set("Accept-Encoding", "identity;q=1, *;q=0")
-	// req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,pl;q=0.7,zh-TW;q=0.6,ca;q=0.5,mt;q=0.4")
-	// req.Header.Set("Cache-Control", "no-cache")
-	// req.Header.Set("Connection", "keep-alive")
-	// req.Header.Set("Pragma", "no-cache")
-	// req.Header.Set("Referer", "https://www.tiktok.com/")
-	// req.Header.Set("sec-ch-ua", `"Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99"`)
-	// req.Header.Set("sec-ch-ua-mobile", "?0")
-	// req.Header.Set("Sec-Fetch-Dest", "video")
-	// req.Header.Set("Sec-Fetch-Mode", "no-cors")
-	// req.Header.Set("Sec-Fetch-Site", "same-site")
-	// req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
-	// req.Header.Set("Range", "bytes=0-")
-	// return yield(ctx, req)
-	return yield(ctx, &item)
+	return yield(ctx, item)
 }
 
 func (c *_Crawler) download(ctx context.Context, resp *http.Response, yield interface{}) error {
@@ -372,6 +352,38 @@ func main() {
 			defer resp.Body.Close()
 
 			return spider.Parse(ctx, resp, callback)
+		case *pbItem.Tiktok_Item:
+			req, err := http.NewRequest(http.MethodGet, i.Video.OriginalUrl, nil)
+			if err != nil {
+				return err
+			}
+			// req.Header.Set("Accept", "*/*")
+			// req.Header.Set("Accept-Encoding", "identity;q=1, *;q=0")
+			// req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,pl;q=0.7,zh-TW;q=0.6,ca;q=0.5,mt;q=0.4")
+			// req.Header.Set("Cache-Control", "no-cache")
+			// req.Header.Set("Connection", "keep-alive")
+			// req.Header.Set("Pragma", "no-cache")
+			// req.Header.Set("sec-ch-ua", `"Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99"`)
+			// req.Header.Set("sec-ch-ua-mobile", "?0")
+			// req.Header.Set("Sec-Fetch-Dest", "video")
+			// req.Header.Set("Sec-Fetch-Mode", "no-cors")
+			// req.Header.Set("Sec-Fetch-Site", "same-site")
+			// req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
+			// req.Header.Set("Range", "bytes=0-")
+			for k, v := range i.Headers {
+				req.Header.Set(k, v)
+			}
+			resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: false, DisableBackconnect: false})
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
+
+			if data, err := ioutil.ReadAll(resp.Body); err != nil {
+				logger.Fatal(err)
+			} else {
+				logger.Infof("status: %v, size: %d", resp.StatusCode, len(data))
+			}
 		default:
 			data, err := json.Marshal(i)
 			if err != nil {
