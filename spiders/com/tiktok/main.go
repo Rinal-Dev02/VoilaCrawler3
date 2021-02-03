@@ -136,9 +136,11 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 	var (
 		rawurl string
 		item   = &pbItem.Tiktok_Item{
-			Source:   &pbItem.Tiktok_Source{},
-			Video:    &media.Media_Video{Cover: &media.Media_Image{}},
-			AuthInfo: &pbItem.Tiktok_Item_AuthInfo{},
+			Source: &pbItem.Tiktok_Source{},
+			Video:  &media.Media_Video{Cover: &media.Media_Image{}},
+			Headers: map[string]string{
+				"Referer": "https://www.tiktok.com/",
+			},
 		}
 	)
 
@@ -232,12 +234,14 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 			}
 		}
 	}
+
+	var cookie string
 	for _, c := range cookies {
 		v := fmt.Sprintf("%s=%s", c.Name, c.Value)
-		if item.AuthInfo.Cookies == "" {
-			item.AuthInfo.Cookies = v
+		if cookie == "" {
+			cookie = v
 		} else {
-			item.AuthInfo.Cookies += "; " + v
+			cookie += "; " + v
 		}
 
 		if !c.Expires.IsZero() {
@@ -251,38 +255,33 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 			}
 		}
 	}
-
+	item.Headers["Cookie"] = cookie
 	if expiresAt.IsZero() {
-		item.AuthInfo.ExpiresAt = time.Now().Add(time.Hour * 24).Unix()
+		item.ExpiresUtc = time.Now().Add(time.Hour * 3).Unix()
 	} else {
-		item.AuthInfo.ExpiresAt = expiresAt.Unix()
-	}
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s", item.Video.OriginalUrl), nil)
-	if err != nil {
-		return err
+		item.ExpiresUtc = expiresAt.Unix()
 	}
 
+	// req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s", item.Video.OriginalUrl), nil)
+	// if err != nil {
+	// 	return err
+	// }
 	// req.Header.Set("Accept", "*/*")
 	// req.Header.Set("Accept-Encoding", "identity;q=1, *;q=0")
 	// req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,pl;q=0.7,zh-TW;q=0.6,ca;q=0.5,mt;q=0.4")
 	// req.Header.Set("Cache-Control", "no-cache")
 	// req.Header.Set("Connection", "keep-alive")
 	// req.Header.Set("Pragma", "no-cache")
-	req.Header.Set("Referer", "https://www.tiktok.com/")
+	// req.Header.Set("Referer", "https://www.tiktok.com/")
 	// req.Header.Set("sec-ch-ua", `"Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99"`)
 	// req.Header.Set("sec-ch-ua-mobile", "?0")
 	// req.Header.Set("Sec-Fetch-Dest", "video")
 	// req.Header.Set("Sec-Fetch-Mode", "no-cors")
 	// req.Header.Set("Sec-Fetch-Site", "same-site")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
-	req.Header.Set("Range", "bytes=0-")
-
-	{
-		cookies := c.httpClient.Jar().Cookies(req.URL)
-		c.logger.Debugf("cookies: %+v", cookies)
-	}
-	return yield(ctx, req)
-	// return yield(ctx, &item)
+	// req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
+	// req.Header.Set("Range", "bytes=0-")
+	// return yield(ctx, req)
+	return yield(ctx, &item)
 }
 
 func (c *_Crawler) download(ctx context.Context, resp *http.Response, yield interface{}) error {

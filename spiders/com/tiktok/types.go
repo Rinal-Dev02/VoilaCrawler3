@@ -236,9 +236,9 @@ func parsePropData(data []byte) (string, *pbItem.Tiktok_Item, error) {
 	}
 
 	item := &pbItem.Tiktok_Item{
-		Source:   &pbItem.Tiktok_Source{},
-		Video:    &media.Media_Video{Cover: &media.Media_Image{}},
-		AuthInfo: &pbItem.Tiktok_Item_AuthInfo{},
+		Source: &pbItem.Tiktok_Source{},
+		Author: &pbItem.Tiktok_Author{},
+		Video:  &media.Media_Video{Cover: &media.Media_Image{}},
 	}
 	for key, val := range interData {
 		if val == nil {
@@ -270,6 +270,11 @@ func parsePropData(data []byte) (string, *pbItem.Tiktok_Item, error) {
 			if video.Cover == "" {
 				item.Video.Cover.OriginalUrl = video.OriginCover
 			}
+			author := prop.Props.PageProps.ItemInfo.ItemStruct.Author
+			item.Author.Id = author.ID
+			item.Author.Name = author.Nickname
+			item.Author.Icon = author.AvatarLarger
+
 			return prop.Props.InitialProps.FullURL, item, nil
 		} else if strings.HasPrefix(key, "/v/") {
 			var prop PropDataV2
@@ -295,6 +300,16 @@ func parsePropData(data []byte) (string, *pbItem.Tiktok_Item, error) {
 			for _, u := range prop.VideoData.ItemInfos.Covers {
 				if u != "" {
 					item.Video.Cover.OriginalUrl = u
+					break
+				}
+			}
+
+			author := prop.VideoData.AuthorInfos
+			item.Author.Id = author.UserID
+			item.Author.Name = author.NickName
+			for _, u := range author.Covers {
+				if u != "" {
+					item.Author.Icon = u
 					break
 				}
 			}
