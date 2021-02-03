@@ -27,6 +27,7 @@ type _Crawler struct {
 	httpClient http.Client
 
 	detailPageReg          *regexp.Regexp
+	detailInternalPageReg  *regexp.Regexp
 	detailShortLinkPageReg *regexp.Regexp
 
 	logger glog.Log
@@ -36,6 +37,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:             client,
 		detailPageReg:          regexp.MustCompile(`^/@[0-9a-zA-Z-_]+/video/[0-9]+/?$`),
+		detailInternalPageReg:  regexp.MustCompile(`^/v/[0-9]+.html$`),
 		detailShortLinkPageReg: regexp.MustCompile(`^/[a-zA-Z0-9]+/?$`),
 		logger:                 logger.New("_Crawler"),
 	}
@@ -63,7 +65,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"vm.tiktok.com", "www.tiktok.com"}
+	return []string{"*.tiktok.com"}
 }
 
 func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
@@ -87,122 +89,18 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	if c.detailShortLinkPageReg.MatchString(resp.Request.URL.Path) || c.detailPageReg.MatchString(resp.Request.URL.Path) {
+	if c.detailShortLinkPageReg.MatchString(resp.Request.URL.Path) ||
+		c.detailPageReg.MatchString(resp.Request.URL.Path) ||
+		c.detailInternalPageReg.MatchString(resp.Request.URL.Path) {
 		return c.parseDetail(ctx, resp, yield)
 	}
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
 
-var videoCoverReg = regexp.MustCompile(`background-image:\s*url\("([^;]+)"\);`)
-
-type PropData struct {
-	Props struct {
-		InitialProps struct {
-			StatusCode int    `json:"statusCode"`
-			FullURL    string `json:"$fullUrl"`
-			CsrfToken  string `json:"$csrfToken"`
-		} `json:"initialProps"`
-		PageProps struct {
-			Key        string `json:"key"`
-			ServerCode int    `json:"serverCode"`
-			StatusCode int    `json:"statusCode"`
-			StatusMsg  string `json:"statusMsg"`
-			ItemInfo   struct {
-				ItemStruct struct {
-					ID         string `json:"id"`
-					Desc       string `json:"desc"`
-					CreateTime int    `json:"createTime"`
-					Video      struct {
-						ID           string   `json:"id"`
-						Height       int      `json:"height"`
-						Width        int      `json:"width"`
-						Duration     int      `json:"duration"`
-						Ratio        string   `json:"ratio"`
-						Cover        string   `json:"cover"`
-						OriginCover  string   `json:"originCover"`
-						DynamicCover string   `json:"dynamicCover"`
-						PlayAddr     string   `json:"playAddr"`
-						DownloadAddr string   `json:"downloadAddr"`
-						ShareCover   []string `json:"shareCover"`
-						ReflowCover  string   `json:"reflowCover"`
-					} `json:"video"`
-					Author struct {
-						ID             string `json:"id"`
-						ShortID        string `json:"shortId"`
-						UniqueID       string `json:"uniqueId"`
-						Nickname       string `json:"nickname"`
-						AvatarLarger   string `json:"avatarLarger"`
-						AvatarMedium   string `json:"avatarMedium"`
-						AvatarThumb    string `json:"avatarThumb"`
-						Signature      string `json:"signature"`
-						CreateTime     int    `json:"createTime"`
-						Verified       bool   `json:"verified"`
-						SecUID         string `json:"secUid"`
-						Ftc            bool   `json:"ftc"`
-						Relation       int    `json:"relation"`
-						OpenFavorite   bool   `json:"openFavorite"`
-						CommentSetting int    `json:"commentSetting"`
-						DuetSetting    int    `json:"duetSetting"`
-						StitchSetting  int    `json:"stitchSetting"`
-						PrivateAccount bool   `json:"privateAccount"`
-						Secret         bool   `json:"secret"`
-						RoomID         string `json:"roomId"`
-					} `json:"author"`
-					Music struct {
-						ID                 string `json:"id"`
-						Title              string `json:"title"`
-						PlayURL            string `json:"playUrl"`
-						CoverLarge         string `json:"coverLarge"`
-						CoverMedium        string `json:"coverMedium"`
-						CoverThumb         string `json:"coverThumb"`
-						AuthorName         string `json:"authorName"`
-						Original           bool   `json:"original"`
-						Duration           int    `json:"duration"`
-						Album              string `json:"album"`
-						ScheduleSearchTime int    `json:"scheduleSearchTime"`
-					} `json:"music"`
-					Stats struct {
-						DiggCount    int `json:"diggCount"`
-						ShareCount   int `json:"shareCount"`
-						CommentCount int `json:"commentCount"`
-						PlayCount    int `json:"playCount"`
-					} `json:"stats"`
-					IsActivityItem bool `json:"isActivityItem"`
-					DuetInfo       struct {
-						DuetFromID string `json:"duetFromId"`
-					} `json:"duetInfo"`
-					OriginalItem      bool `json:"originalItem"`
-					OfficalItem       bool `json:"officalItem"`
-					Secret            bool `json:"secret"`
-					ForFriend         bool `json:"forFriend"`
-					Digged            bool `json:"digged"`
-					ItemCommentStatus int  `json:"itemCommentStatus"`
-					ShowNotPass       bool `json:"showNotPass"`
-					Vl1               bool `json:"vl1"`
-					TakeDown          int  `json:"takeDown"`
-					ItemMute          bool `json:"itemMute"`
-					AuthorStats       struct {
-						FollowerCount  int `json:"followerCount"`
-						FollowingCount int `json:"followingCount"`
-						Heart          int `json:"heart"`
-						HeartCount     int `json:"heartCount"`
-						VideoCount     int `json:"videoCount"`
-						DiggCount      int `json:"diggCount"`
-					} `json:"authorStats"`
-					PrivateItem   bool `json:"privateItem"`
-					DuetEnabled   bool `json:"duetEnabled"`
-					StitchEnabled bool `json:"stitchEnabled"`
-					IsAd          bool `json:"isAd"`
-					ShareEnabled  bool `json:"shareEnabled"`
-				} `json:"itemStruct"`
-			} `json:"itemInfo"`
-		} `json:"pageProps"`
-	} `json:"props"`
-	BuildID      string `json:"buildId"`
-	CustomServer bool   `json:"customServer"`
-	Gip          bool   `json:"gip"`
-	AppGip       bool   `json:"appGip"`
-}
+var (
+	videoCoverReg = regexp.MustCompile(`background-image:\s*url\("([^;]+)"\);`)
+	initPropReg   = regexp.MustCompile(`<script\s*[^>]*\s*>\s*window.__INIT_PROPS__\s*=\s*([^\r\n]+);?\s*</script>`)
+)
 
 func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -213,46 +111,30 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 	if err != nil {
 		return err
 	}
-	c.logger.Debugf("%s", respBody)
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		return err
+	}
 
 	var (
 		rawurl string
-		exists bool
-		item   = pbItem.Tiktok_Item{
+		item   = &pbItem.Tiktok_Item{
+			Source:   &pbItem.Tiktok_Source{},
 			Video:    &media.Media_Video{Cover: &media.Media_Image{}},
 			AuthInfo: &pbItem.Tiktok_Item_AuthInfo{},
 		}
 	)
 
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		return err
-	}
 	if rawProp := doc.Find("#__NEXT_DATA__").Text(); strings.TrimSpace(rawProp) != "" {
-		var prop PropData
-		if err := json.Unmarshal([]byte(strings.TrimSpace(rawProp)), &prop); err != nil {
+		if rawurl, item, err = parsePropData([]byte(strings.TrimSpace(rawProp))); err != nil {
 			return err
 		}
-		video := prop.Props.PageProps.ItemInfo.ItemStruct.Video
-
-		item.Title = prop.Props.PageProps.ItemInfo.ItemStruct.Desc
-		if video.PlayAddr == "" && video.DownloadAddr == "" {
-			return fmt.Errorf("video url not found for %s", resp.Request.URL)
+	} else if matched := initPropReg.FindSubmatch(respBody); len(matched) > 1 {
+		if rawurl, item, err = parsePropData(matched[1]); err != nil {
+			return err
 		}
-		item.Video.Id = video.ID
-		item.Video.OriginalUrl = video.PlayAddr
-		if item.Video.OriginalUrl == "" {
-			item.Video.OriginalUrl = video.DownloadAddr
-		}
-		item.Video.Width = int32(video.Width)
-		item.Video.Height = int32(video.Height)
-		item.Video.Duration = int32(video.Duration)
-		item.Video.Cover.OriginalUrl = video.Cover
-		if video.Cover == "" {
-			item.Video.Cover.OriginalUrl = video.OriginCover
-		}
-		rawurl = prop.Props.InitialProps.FullURL
 	} else {
+		var exists bool
 		rawurl, exists = doc.Find(`meta[property="og:url"]`).Attr("content")
 		if !exists {
 			return fmt.Errorf("real url of %s not found", resp.Request.URL)
@@ -294,6 +176,11 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 			item.Video.Cover.OriginalUrl = html.UnescapeString(val)
 		}
 	}
+
+	if item.Source == nil {
+		item.Source = &pbItem.Tiktok_Source{}
+	}
+	item.Source.CrawlUrl = rawurl
 
 	var (
 		cookies   string
@@ -379,47 +266,48 @@ func main() {
 	}
 	opts := spider.CrawlOptions()
 
+	var callback func(ctx context.Context, val interface{}) error
+	callback = func(ctx context.Context, val interface{}) error {
+		switch i := val.(type) {
+		case *http.Request:
+			logger.Debugf("Access %s", i.URL)
+
+			for k := range opts.MustHeader {
+				i.Header.Set(k, opts.MustHeader.Get(k))
+			}
+			for _, c := range opts.MustCookies {
+				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
+					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+					if c := i.Header.Get("Cookie"); c != "" {
+						i.Header.Set("Cookie", c+"; "+val)
+					} else {
+						i.Header.Set("Cookie", val)
+					}
+				}
+			}
+			resp, err := client.DoWithOptions(ctx, i, http.Options{EnableProxy: false, DisableBackconnect: false})
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
+
+			return spider.Parse(ctx, resp, callback)
+		default:
+			data, err := json.Marshal(i)
+			if err != nil {
+				return err
+			}
+			logger.Infof("data: %s", data)
+		}
+		return nil
+	}
+
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 		defer cancel()
 
-		logger.Debugf("Access %s", req.URL)
-		for k := range opts.MustHeader {
-			req.Header.Set(k, opts.MustHeader.Get(k))
-		}
-		for _, c := range opts.MustCookies {
-			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
-				val := fmt.Sprintf("%s=%s", c.Name, c.Value)
-				if c := req.Header.Get("Cookie"); c != "" {
-					req.Header.Set("Cookie", c+"; "+val)
-				} else {
-					req.Header.Set("Cookie", val)
-				}
-			}
-		}
-
-		resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: true, DisableBackconnect: true})
-		if err != nil {
-			panic(err)
-		}
-		defer resp.Body.Close()
-
-		logger.Debugf("req url: %s", resp.Request.URL)
-
-		if err := spider.Parse(ctx, resp, func(ctx context.Context, val interface{}) error {
-			switch i := val.(type) {
-			case *http.Request:
-				logger.Infof("new request %s", i.URL)
-			default:
-				data, err := json.Marshal(i)
-				if err != nil {
-					return err
-				}
-				logger.Infof("data: %s", data)
-			}
-			return nil
-		}); err != nil {
-			panic(err)
+		if err := callback(ctx, req); err != nil {
+			logger.Fatal(err)
 		}
 	}
 }

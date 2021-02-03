@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/types/vermap"
@@ -69,8 +70,7 @@ func (m *CrawlerManager) GetByHost(ctx context.Context, host string) ([]*Crawler
 		for _, val := range vals {
 			crawler := val.(*Crawler)
 			for _, d := range crawler.AllowedDomains() {
-				m.logger.Debugf("%s=%s", host, d)
-				if d == host {
+				if matched, _ := filepath.Match(d, host); matched {
 					ret = append(ret, crawler)
 				}
 			}
