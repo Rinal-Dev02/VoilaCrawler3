@@ -209,31 +209,34 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 		cookies[c.Name] = c
 	}
 
-	mockCookieUrls := []string{}
-	reg := regexp.MustCompile(`<script\s+type="text/javascript"\s+src="(https://www.tiktok.com/akam/[a-z0-9]+/[a-z0-9]+)"\s+defer>\s*</script>`)
-	if matched := reg.FindSubmatch(respBody); len(matched) > 1 {
-		mockCookieUrls = append(mockCookieUrls, string(matched[1]))
-	}
-	reg = regexp.MustCompile(`src="(https?://www.tiktok.com/akam/[a-z0-9]+/pixel_[a-z0-9]+\?a=[a-zA-Z0-9=+-.]+)"`)
-	if matched := reg.FindSubmatch(respBody); len(matched) > 1 {
-		mockCookieUrls = append(mockCookieUrls, string(matched[1]))
-	}
-
-	for _, u := range mockCookieUrls {
-		c.logger.Debugf("mock cookie %s", u)
-		if req, err := http.NewRequest(http.MethodGet, u, nil); err != nil {
-			return err
-		} else if resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-			EnableProxy:        false,
-			DisableBackconnect: false,
-		}); err != nil {
-			return err
-		} else {
-			for _, c := range resp.Cookies() {
-				cookies[c.Name] = c
-			}
+	/*
+		// this is not necessory
+		mockCookieUrls := []string{}
+		reg := regexp.MustCompile(`<script\s+type="text/javascript"\s+src="(https://www.tiktok.com/akam/[a-z0-9]+/[a-z0-9]+)"\s+defer>\s*</script>`)
+		if matched := reg.FindSubmatch(respBody); len(matched) > 1 {
+			mockCookieUrls = append(mockCookieUrls, string(matched[1]))
 		}
-	}
+		reg = regexp.MustCompile(`src="(https?://www.tiktok.com/akam/[a-z0-9]+/pixel_[a-z0-9]+\?a=[a-zA-Z0-9=+-.]+)"`)
+		if matched := reg.FindSubmatch(respBody); len(matched) > 1 {
+			mockCookieUrls = append(mockCookieUrls, string(matched[1]))
+		}
+
+			for _, u := range mockCookieUrls {
+				c.logger.Debugf("mock cookie %s", u)
+				if req, err := http.NewRequest(http.MethodGet, u, nil); err != nil {
+					return err
+				} else if resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+					EnableProxy:        false,
+					DisableBackconnect: false,
+				}); err != nil {
+					return err
+				} else {
+					for _, c := range resp.Cookies() {
+						cookies[c.Name] = c
+					}
+				}
+			}
+	*/
 
 	var cookie string
 	for _, c := range cookies {
