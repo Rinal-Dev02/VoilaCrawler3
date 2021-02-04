@@ -158,7 +158,13 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			Query map[string]interface{} `json:"query"`
 		} `json:"search"`
 	}
-	matched[1] = bytes.ReplaceAll(matched[1], []byte("\\'"), []byte("'"))
+
+	matched[1] = bytes.ReplaceAll(bytes.ReplaceAll(matched[1], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
+	// rawData, err := strconv.Unquote(string(matched[1]))
+	//if err != nil {
+	//	c.logger.Errorf("unquote raw string failed, error=%s", err)
+	//	return err
+	//}
 	if err = json.Unmarshal(matched[1], &r); err != nil {
 		c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
 		return err
