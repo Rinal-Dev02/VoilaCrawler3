@@ -75,10 +75,10 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 		&http.Cookie{Name: "urbn_geo_region", Value: "US-NV", Path: "/"},
 		&http.Cookie{Name: "urbn_inventory_pool", Value: "US_DIRECT", Path: "/"},
 		&http.Cookie{Name: "urbn_language", Value: "en-US", Path: "/"},
-		&http.Cookie{Name: "urbn_personalization_context", Value: "%5B%5B%22device_type%22%2C%20%22LARGE%22%5D%2C%20%5B%22personalization%22%2C%20%5B%5B%22ab%22%2C%20%5B%5D%5D%2C%20%5B%22experience%22%2C%20%5B%5B%22image_quality%22%2C%2080%5D%2C%20%5B%22reduced%22%2C%20false%5D%5D%5D%2C%20%5B%22initialized%22%2C%20false%5D%2C%20%5B%22isSiteOutsideNorthAmerica%22%2C%20false%5D%2C%20%5B%22isSiteOutsideUSA%22%2C%20false%5D%2C%20%5B%22isViewingInEnglish%22%2C%20true%5D%2C%20%5B%22isViewingRegionalSite%22%2C%20true%5D%2C%20%5B%22loyalty%22%2C%20false%5D%2C%20%5B%22loyaltyPoints%22%2C%20%22%22%5D%2C%20%5B%22privacyRestriction%22%2C%20%5B%5B%22country%22%2C%20%22US%22%5D%2C%20%5B%22region%22%2C%20%22CA%22%5D%2C%20%5B%22userHasDismissedPrivacyNotice%22%2C%20false%5D%2C%20%5B%22userHasOptedOut%22%2C%20false%5D%2C%20%5B%22userIsResident%22%2C%20true%5D%5D%5D%2C%20%5B%22siteDown%22%2C%20false%5D%2C%20%5B%22thirdParty%22%2C%20%5B%5B%22dynamicYield%22%2C%20true%5D%2C%20%5B%22googleMaps%22%2C%20true%5D%2C%20%5B%22moduleImages%22%2C%20true%5D%2C%20%5B%22personalizationQs%22%2C%20%22%22%5D%2C%20%5B%22productImages%22%2C%20true%5D%2C%20%5B%22promoBanners%22%2C%20true%5D%2C%20%5B%22tealium%22%2C%20true%5D%5D%5D%2C%20%5B%22userHasAgreedToCookies%22%2C%20false%5D%5D%5D%2C%20%5B%22scope%22%2C%20%22GUEST%22%5D%2C%20%5B%22user_location%22%2C%20%22c0968e82cfc373f755331f5767a064bb%22%5D%5D", Path: "/"},
+		// &http.Cookie{Name: "urbn_personalization_context", Value: "%5B%5B%22device_type%22%2C%20%22LARGE%22%5D%2C%20%5B%22personalization%22%2C%20%5B%5B%22ab%22%2C%20%5B%5D%5D%2C%20%5B%22experience%22%2C%20%5B%5B%22image_quality%22%2C%2080%5D%2C%20%5B%22reduced%22%2C%20false%5D%5D%5D%2C%20%5B%22initialized%22%2C%20false%5D%2C%20%5B%22isSiteOutsideNorthAmerica%22%2C%20false%5D%2C%20%5B%22isSiteOutsideUSA%22%2C%20false%5D%2C%20%5B%22isViewingInEnglish%22%2C%20true%5D%2C%20%5B%22isViewingRegionalSite%22%2C%20true%5D%2C%20%5B%22loyalty%22%2C%20false%5D%2C%20%5B%22loyaltyPoints%22%2C%20%22%22%5D%2C%20%5B%22privacyRestriction%22%2C%20%5B%5B%22country%22%2C%20%22US%22%5D%2C%20%5B%22region%22%2C%20%22CA%22%5D%2C%20%5B%22userHasDismissedPrivacyNotice%22%2C%20false%5D%2C%20%5B%22userHasOptedOut%22%2C%20false%5D%2C%20%5B%22userIsResident%22%2C%20true%5D%5D%5D%2C%20%5B%22siteDown%22%2C%20false%5D%2C%20%5B%22thirdParty%22%2C%20%5B%5B%22dynamicYield%22%2C%20true%5D%2C%20%5B%22googleMaps%22%2C%20true%5D%2C%20%5B%22moduleImages%22%2C%20true%5D%2C%20%5B%22personalizationQs%22%2C%20%22%22%5D%2C%20%5B%22productImages%22%2C%20true%5D%2C%20%5B%22promoBanners%22%2C%20true%5D%2C%20%5B%22tealium%22%2C%20true%5D%5D%5D%2C%20%5B%22userHasAgreedToCookies%22%2C%20false%5D%5D%5D%2C%20%5B%22scope%22%2C%20%22GUEST%22%5D%2C%20%5B%22user_location%22%2C%20%22c0968e82cfc373f755331f5767a064bb%22%5D%5D", Path: "/"},
 		&http.Cookie{Name: "urbn_privacy_restriction_region", Value: "CA", Path: "/"},
 		&http.Cookie{Name: "urbn_site_id", Value: "uo-us", Path: "/"},
-		&http.Cookie{Name: "urbn_tracer", Value: "8IOPHZ11TD", Path: "/"},
+		// &http.Cookie{Name: "urbn_tracer", Value: "8IOPHZ11TD", Path: "/"},
 	)
 	return options
 }
@@ -183,8 +183,18 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	u := fmt.Sprintf("/api/catalog/v2/uo-us/pools/US_DIRECT/navigation-items/%s/products?page-size=%v&skip=%v&projection-slug=categorytiles", category, perPageCount, currentPage*perPageCount)
 	if req, err := http.NewRequest(http.MethodGet, u, nil); err != nil {
 		return err
-	} else if err = yield(nctx, req); err != nil {
-		return err
+	} else {
+		req.Header.Set("x-urbn-channel", "web")
+		req.Header.Set("x-urbn-country", "US")
+		req.Header.Set("x-urbn-currency", "USD")
+		req.Header.Set("x-urbn-experience", "ss")
+		req.Header.Set("x-urbn-geo-region", "US-NV")
+		req.Header.Set("x-urbn-language", "en-US")
+		req.Header.Set("x-urbn-primary-data-center-id", "US-NV")
+		req.Header.Set("x-urbn-site-id", "uo-us")
+		if err = yield(nctx, req); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -255,7 +265,6 @@ func (c *_Crawler) parseCategoryJsonProducts(ctx context.Context, resp *http.Res
 		c.logger.Debug(err)
 		return err
 	}
-
 	c.logger.Debugf("resp: %s", respBody)
 
 	lastIndex := nextIndex(ctx)
@@ -285,8 +294,8 @@ func (c *_Crawler) parseCategoryJsonProducts(ctx context.Context, resp *http.Res
 				break
 			}
 		}
-		// query params type, quantity, size is auto set by js, ignore them
 
+		// query params type, quantity, size is auto set by js, ignore them
 		if req, err := http.NewRequest(http.MethodGet, u.String(), nil); err != nil {
 			return err
 		} else if err = yield(context.WithValue(ctx, "item.index", lastIndex), req); err != nil {
@@ -305,8 +314,18 @@ func (c *_Crawler) parseCategoryJsonProducts(ctx context.Context, resp *http.Res
 	u := fmt.Sprintf("/api/catalog/v2/uo-us/pools/US_DIRECT/navigation-items/%s/products?page-size=%v&skip=%v&projection-slug=categorytiles", category, perPageCount, skipCount+perPageCount)
 	if req, err := http.NewRequest(http.MethodGet, u, nil); err != nil {
 		return err
-	} else if err = yield(nctx, req); err != nil {
-		return err
+	} else {
+		req.Header.Set("x-urbn-channel", "web")
+		req.Header.Set("x-urbn-country", "US")
+		req.Header.Set("x-urbn-currency", "USD")
+		req.Header.Set("x-urbn-experience", "ss")
+		req.Header.Set("x-urbn-geo-region", "US-NV")
+		req.Header.Set("x-urbn-language", "en-US")
+		req.Header.Set("x-urbn-primary-data-center-id", "US-NV")
+		req.Header.Set("x-urbn-site-id", "uo-us")
+		if err = yield(nctx, req); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -660,6 +679,14 @@ func main() {
 		for k := range opts.MustHeader {
 			req.Header.Set(k, opts.MustHeader.Get(k))
 		}
+		req.Header.Set("x-urbn-channel", "web")
+		req.Header.Set("x-urbn-country", "US")
+		req.Header.Set("x-urbn-currency", "USD")
+		req.Header.Set("x-urbn-experience", "ss")
+		req.Header.Set("x-urbn-geo-region", "US-NV")
+		req.Header.Set("x-urbn-language", "en-US")
+		req.Header.Set("x-urbn-primary-data-center-id", "US-NV")
+		req.Header.Set("x-urbn-site-id", "uo-us")
 		for _, c := range opts.MustCookies {
 			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
 				val := fmt.Sprintf("%s=%s", c.Name, c.Value)
