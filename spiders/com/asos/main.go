@@ -15,7 +15,8 @@ import (
 	"github.com/gosimple/slug"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
-	"github.com/voiladev/VoilaCrawl/pkg/net/http/proxycrawl"
+	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
+	"github.com/voiladev/VoilaCrawl/pkg/proxy"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
@@ -700,8 +701,9 @@ func main() {
 	}
 
 	logger := glog.New(glog.LogLevelDebug)
-	client, err := proxycrawl.NewProxyCrawlClient(logger,
-		proxycrawl.Options{APIToken: apiToken, JSToken: jsToken},
+	client, err := proxy.NewProxyClient(
+		cookiejar.New(), logger,
+		proxy.Options{APIToken: apiToken, JSToken: jsToken},
 	)
 	if err != nil {
 		panic(err)

@@ -30,9 +30,7 @@ func New(tracingId string, i *pbHttp.Cookie) (*Cookie, error) {
 	}
 	c.Expires = i.Expires
 	c.HttpOnly = i.HttpOnly
-	c.Session = i.Session
 	c.SameSite = i.SameSite
-	c.Priority = i.Priority
 
 	if c.GetName() == "" {
 		return nil, errors.New("invalid cookie name")
@@ -83,9 +81,7 @@ func (c *Cookie) Unmarshal(ret interface{}) error {
 		val.Expires = c.Expires
 		val.Size = int32(len(val.Value))
 		val.HttpOnly = c.HttpOnly
-		val.Session = c.Session
 		val.SameSite = c.SameSite
-		val.Priority = c.Priority
 	default:
 		return errors.New("unsupported unmarshal type")
 	}

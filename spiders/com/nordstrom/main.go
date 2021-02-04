@@ -17,7 +17,8 @@ import (
 
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
-	"github.com/voiladev/VoilaCrawl/pkg/net/http/proxycrawl"
+	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
+	"github.com/voiladev/VoilaCrawl/pkg/proxy"
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
@@ -707,14 +708,15 @@ func main() {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
 	}
 
-	client, err := proxycrawl.NewProxyCrawlClient(glog.New(glog.LogLevelDebug),
-		proxycrawl.Options{APIToken: apiToken, JSToken: jsToken},
+	logger := glog.New(glog.LogLevelDebug)
+	client, err := proxy.NewProxyClient(
+		cookiejar.New(), logger,
+		proxy.Options{APIToken: apiToken, JSToken: jsToken},
 	)
 	if err != nil {
 		panic(err)
 	}
 
-	logger := glog.New(glog.LogLevelDebug)
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)

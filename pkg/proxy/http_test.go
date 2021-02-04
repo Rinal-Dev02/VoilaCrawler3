@@ -1,4 +1,4 @@
-package proxycrawl
+package proxy
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/voiladev/go-framework/glog"
 )
 
-func Test_proxyCrawlClient_DoWithOptions(t *testing.T) {
+func Test_proxyClient_DoWithOptions(t *testing.T) {
 	var (
 		apiToken = os.Getenv("PC_API_TOKEN")
 		jsToken  = os.Getenv("PC_JS_TOKEN")
@@ -20,7 +20,7 @@ func Test_proxyCrawlClient_DoWithOptions(t *testing.T) {
 	}
 
 	logger := glog.New(glog.LogLevelDebug)
-	client, err := NewProxyCrawlClient(logger, Options{APIToken: apiToken, JSToken: jsToken})
+	client, err := NewProxyClient(nil, logger, Options{APIToken: apiToken, JSToken: jsToken})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -46,9 +46,9 @@ func Test_proxyCrawlClient_DoWithOptions(t *testing.T) {
 	req.Header.Set("Sec-Fetch-Site", "same-site")
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
 	req.Header.Set("Range", "bytes=0-")
-	resp, err := client.DoWithOptions(context.Background(), req, http.Options{EnableProxy: false, DisableBackconnect: false})
+	resp, err := client.DoWithOptions(context.Background(), req, http.Options{EnableProxy: false})
 	if err != nil {
-		t.Fatalf("proxyCrawlClient.DoWithOptions() error = %v", err)
+		t.Fatalf("proxyClient.DoWithOptions() error = %v", err)
 	}
 	defer resp.Body.Close()
 

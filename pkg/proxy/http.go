@@ -1,4 +1,4 @@
-package proxycrawl
+package proxy
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io/ioutil"
 	rhttp "net/http"
-	"net/http/cookiejar"
 	"net/url"
 	"strconv"
 	"strings"
@@ -15,7 +14,6 @@ import (
 	// "golang.org/x/time/rate"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/go-framework/glog"
-	"golang.org/x/net/publicsuffix"
 )
 
 const (
@@ -27,35 +25,30 @@ type Options struct {
 	JSToken  string
 }
 
-// proxyCrawlClient
-type proxyCrawlClient struct {
-	jar             rhttp.CookieJar
+// proxyClient
+type proxyClient struct {
+	jar             http.CookieJar
 	httpClient      *rhttp.Client
 	httpProxyClient *rhttp.Client
 	options         Options
 	logger          glog.Log
 }
 
-// NewProxyCrawlClient returns a http client which support native http.Client and
-// supports ProxyCrawl Backconnect proxy, Crawling API.
-func NewProxyCrawlClient(logger glog.Log, opts Options) (http.Client, error) {
+// NewProxyClient returns a http client which support native http.Client and
+// supports Proxy Backconnect proxy, Crawling API.
+func NewProxyClient(cookieJar http.CookieJar, logger glog.Log, opts Options) (http.Client, error) {
 	if opts.APIToken == "" && opts.JSToken == "" {
 		return nil, errors.New("missing proxy api access token")
 	}
 
-	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
-	if err != nil {
-		return nil, err
-	}
-	client := proxyCrawlClient{
-		jar: jar,
+	client := proxyClient{
+		jar: cookieJar,
 		httpClient: &rhttp.Client{
 			Transport: &rhttp.Transport{
 				MaxIdleConns:        100,
 				MaxIdleConnsPerHost: 5,
 				IdleConnTimeout:     time.Second * 30,
 			},
-			Jar: jar,
 		},
 		httpProxyClient: &rhttp.Client{
 			Transport: &rhttp.Transport{
@@ -65,7 +58,6 @@ func NewProxyCrawlClient(logger glog.Log, opts Options) (http.Client, error) {
 				TLSNextProto:    map[string]func(string, *tls.Conn) rhttp.RoundTripper{}, // disable http2
 				Proxy:           rhttp.ProxyURL(&url.URL{Host: "proxy.proxycrawl.com:9000"}),
 			},
-			Jar: jar,
 		},
 		options: opts,
 		logger:  logger,
@@ -73,14 +65,14 @@ func NewProxyCrawlClient(logger glog.Log, opts Options) (http.Client, error) {
 	return &client, nil
 }
 
-func (c *proxyCrawlClient) Jar() http.CookieJar {
+func (c *proxyClient) Jar() http.CookieJar {
 	if c == nil {
 		return nil
 	}
 	return c.jar
 }
 
-func (c *proxyCrawlClient) Do(ctx context.Context, r *http.Request) (*http.Response, error) {
+func (c *proxyClient) Do(ctx context.Context, r *http.Request) (*http.Response, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -91,18 +83,30 @@ func (c *proxyCrawlClient) Do(ctx context.Context, r *http.Request) (*http.Respo
 // If proxy is enabled, the client will try backconnect proxy for at most twice.
 // If all the two try failed, then this proxy will try crawling api.
 // To remember that timeout is controlled by ctx
-func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, opts http.Options) (*http.Response, error) {
+func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts http.Options) (*http.Response, error) {
 	if c == nil || r == nil {
 		return nil, nil
 	}
+
+	if c.jar != nil {
+		if cookies, err := c.jar.Cookies(ctx, r.URL); err != nil {
+			c.logger.Warnf("get cookies failed, error=%s", err)
+		} else {
+			for _, c := range cookies {
+				r.AddCookie(c)
+			}
+		}
+	}
+
 	if opts.EnableHeadless {
 		opts.EnableProxy = true
 	}
 
 	var (
-		err  error
-		req  *http.Request = r
-		resp *http.Response
+		err   error
+		req   *http.Request = r
+		resp  *http.Response
+		level = opts.ProxyLevel
 	)
 
 	if req.Header.Get("User-Agent") == "" {
@@ -110,10 +114,13 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 	}
 
 	if opts.EnableProxy {
-		if !opts.DisableBackconnect {
+		if level <= http.ProxyLevelSharing {
+			level += 1
+
 			retryCount := 5
 			for i := 0; i < retryCount; i++ {
 				creq := req.Clone(ctx)
+
 				if resp, err = c.httpProxyClient.Do(creq); err != nil {
 					c.logger.Debugf("do http request failed, error=%s", err)
 					time.Sleep(time.Millisecond * 200)
@@ -134,6 +141,7 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 			}
 		}
 
+		// TODO: add more proxy level support
 		if resp == nil {
 			u, _ := url.Parse(gatewayAddr)
 			// Set params
@@ -209,11 +217,6 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 				}
 			}
 			resp.Request = r
-
-			cookies := resp.Cookies()
-			if len(cookies) > 0 {
-				c.httpClient.Jar.SetCookies(resp.Request.URL, cookies)
-			}
 		}
 	} else {
 		retryCount := 2
@@ -241,6 +244,13 @@ func (c *proxyCrawlClient) DoWithOptions(ctx context.Context, r *http.Request, o
 		}
 	}
 	defer resp.Body.Close()
+
+	if c.jar != nil {
+		cookies := resp.Cookies()
+		if len(cookies) > 0 {
+			c.jar.SetCookies(ctx, resp.Request.URL, cookies)
+		}
+	}
 
 	data, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

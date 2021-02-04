@@ -16,7 +16,8 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
-	"github.com/voiladev/VoilaCrawl/pkg/net/http/proxycrawl"
+	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
+	"github.com/voiladev/VoilaCrawl/pkg/proxy"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
@@ -316,8 +317,9 @@ func main() {
 	}
 
 	logger := glog.New(glog.LogLevelDebug)
-	client, err := proxycrawl.NewProxyCrawlClient(logger,
-		proxycrawl.Options{APIToken: apiToken, JSToken: jsToken},
+	client, err := proxy.NewProxyClient(
+		cookiejar.New(), logger,
+		proxy.Options{APIToken: apiToken, JSToken: jsToken},
 	)
 	if err != nil {
 		panic(err)
@@ -348,7 +350,8 @@ func main() {
 					}
 				}
 			}
-			resp, err := client.DoWithOptions(ctx, i, http.Options{EnableProxy: false, DisableBackconnect: false})
+
+			resp, err := client.DoWithOptions(ctx, i, http.Options{EnableProxy: false, ProxyLevel: http.ProxyLevelReliable})
 			if err != nil {
 				panic(err)
 			}
@@ -376,7 +379,7 @@ func main() {
 			for k, v := range i.Headers {
 				req.Header.Set(k, v)
 			}
-			resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: false, DisableBackconnect: false})
+			resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: false, ProxyLevel: http.ProxyLevelReliable})
 			if err != nil {
 				panic(err)
 			}

@@ -8,8 +8,11 @@ import (
 	"runtime"
 
 	"github.com/urfave/cli/v2"
-	"github.com/voiladev/VoilaCrawl/pkg/net/http/proxycrawl"
+	"github.com/voiladev/VoilaCrawl/internal/pkg/cookiejar"
+	"github.com/voiladev/VoilaCrawl/pkg/proxy"
+	pbSession "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	"github.com/voiladev/go-framework/glog"
+	"google.golang.org/grpc"
 )
 
 // App
@@ -41,10 +44,6 @@ func (app *App) Run(args []string) {
 			Name:  "crawl-addr",
 			Usage: "Crawl server grpc address",
 		},
-		&cli.StringFlag{
-			Name:  "account-addr",
-			Usage: "(TODO) account server grpc addr, used to get website auth info includes cookie...",
-		},
 		&cli.IntFlag{
 			Name:  "max-currency",
 			Usage: "max goroutines in currency",
@@ -56,14 +55,18 @@ func (app *App) Run(args []string) {
 			Value: "./plugins",
 		},
 		&cli.StringFlag{
-			Name:  "proxy-api-token",
-			Usage: "proxy api token",
-			Value: "C1hwEn7zzYhHptBUoZFisQ",
+			Name:  "session-addr",
+			Usage: "session server grpc address",
 		},
 		&cli.StringFlag{
-			Name:  "proxy-js-token",
-			Usage: "proxy js api token",
-			Value: "YOhYOQ6Ppd17eK9ACA54cw",
+			Name:    "proxy-api-token",
+			Usage:   "proxy api token",
+			EnvVars: []string{"PC_API_TOKEN"},
+		},
+		&cli.StringFlag{
+			Name:    "proxy-js-token",
+			Usage:   "proxy js api token",
+			EnvVars: []string{"PC_JS_TOKEN"},
 		},
 		&cli.BoolFlag{
 			Name:    "debug",
@@ -78,9 +81,23 @@ func (app *App) Run(args []string) {
 			os.Setenv("DEBUG", "1")
 		}
 
-		httpClient, err := proxycrawl.NewProxyCrawlClient(
+		grpcConn, err := grpc.DialContext(app.ctx, c.String("session-addr"))
+		if err != nil {
+			logger.Errorf("connect to %s failed, error=%s", c.String("session-addr"), err)
+			return cli.NewExitError(err, 1)
+		}
+		sessionClient := pbSession.NewSessionManagerClient(grpcConn)
+
+		jar, err := cookiejar.New(sessionClient, logger)
+		if err != nil {
+			logger.Errorf("create cookie jar failed, error=%s", err)
+			return cli.NewExitError(err, 1)
+		}
+
+		httpClient, err := proxy.NewProxyClient(
+			jar,
 			logger,
-			proxycrawl.Options{
+			proxy.Options{
 				APIToken: c.String("proxy-api-token"),
 				JSToken:  c.String("proxy-js-token"),
 			},

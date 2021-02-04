@@ -29,12 +29,8 @@ message Cookie {
     // int32  size      = 13;
     // HttpOnly
     bool   httpOnly  = 14;
-    // Session
-    bool   session   = 15;
-    // SameSite Strict,Lax,None
-    string sameSite  = 16;
-    // Priority Low, Medium, High
-    string priority  = 17;
+    // SameSite
+    int32  sameSite  = 16;
 
     // CreatedUtc
     int64  createdUtc = 21;
