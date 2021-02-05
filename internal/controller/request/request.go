@@ -5,149 +5,86 @@ import (
 	"errors"
 	"time"
 
-	"github.com/nsqio/go-nsq"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
-
+	nodeCtrl "github.com/voiladev/VoilaCrawl/internal/controller/node"
 	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
-	pbEvent "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/event"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
-	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
+	"github.com/voiladev/go-framework/redis"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
-type Sender interface {
-	Send(ctx context.Context, msg protoreflect.ProtoMessage) error
-}
-
-type RequestControllerOptions struct {
-	NsqdAddress         string
-	NsqLookupdAddresses []string
-}
-
 type RequestController struct {
-	ctx             context.Context
-	producer        *nsq.Producer
-	requestConsumer *nsq.Consumer
-	options         RequestControllerOptions
-	logger          glog.Log
+	ctx         context.Context
+	nodeCtrl    *nodeCtrl.NodeController
+	redisClient *redis.RedisClient
+	logger      glog.Log
 }
 
 func NewRequestController(
 	ctx context.Context,
-	sender Sender,
-	options *RequestControllerOptions,
+	nodeCtrl *nodeCtrl.NodeController,
+	redisClient *redis.RedisClient,
 	logger glog.Log) (*RequestController, error) {
-	if sender == nil {
-		return nil, errors.New("invalid sender")
-	}
-	if options == nil {
-		return nil, errors.New("invalid options")
-	}
-	if len(options.NsqLookupdAddresses) == 0 {
-		return nil, errors.New("invalid nsq lookup address")
+	if redisClient == nil {
+		return nil, errors.New("invalid redis client")
 	}
 	ctrl := RequestController{
-		ctx:     ctx,
-		options: *options,
-		logger:  logger.New("RequestController"),
-	}
-
-	var (
-		err  error
-		conf = nsq.NewConfig()
-	)
-	conf.MaxAttempts = 20
-	conf.MaxBackoffDuration = time.Hour
-	if ctrl.requestConsumer, err = nsq.NewConsumer(config.CrawlRequestTopic, "crawl-api", conf); err != nil {
-		ctrl.logger.Errorf("create consumer failed, error=%s", err)
-		return nil, err
-	}
-	ctrl.requestConsumer.AddHandler(&RequestHandler{ctx: ctx, sender: sender, logger: logger})
-	if err = ctrl.requestConsumer.ConnectToNSQLookupds(ctrl.options.NsqLookupdAddresses); err != nil {
-		ctrl.logger.Errorf("connect to nsq fialed, error=%s", err)
-		panic(err)
+		ctx:         ctx,
+		redisClient: redisClient,
+		nodeCtrl:    nodeCtrl,
+		logger:      logger.New("RequestController"),
 	}
 	return &ctrl, nil
 }
 
-func (ctrl *RequestController) Exit() error {
-	if ctrl == nil || ctrl.requestConsumer == nil {
-		return nil
-	}
-	ctrl.requestConsumer.Stop()
-	<-ctrl.requestConsumer.StopChan
-	return nil
-}
-
-type RequestHandler struct {
-	ctx    context.Context
-	ctrl   *RequestController
-	sender Sender
-	logger glog.Log
-}
-
-func (h *RequestHandler) HandleMessage(msg *nsq.Message) error {
-	if h == nil {
-		return nil
-	}
-	msg.DisableAutoResponse()
-
-	var (
-		event pbEvent.Event
-		req   pbCrawl.Command_Request
-	)
-	if err := proto.Unmarshal(msg.Body, &event); err != nil {
-		h.logger.Errorf("unmarshal event data failed, error=%s", err)
-		return err
-	}
-	if err := proto.Unmarshal(event.GetData(), &req); err != nil {
-		h.logger.Errorf("unmarshal request data failed, error=%s", err)
-		return err
-	}
-	if h.sender == nil {
-		msg.Requeue(time.Second * 30 * time.Duration(msg.Attempts+1))
+func (ctrl *RequestController) Run(ctx context.Context) error {
+	if ctrl == nil {
 		return nil
 	}
 
-	if err := h.sender.Send(h.ctx, &req); err == pbError.ErrUnavailable {
-		// NOTE: for service unavailable, backoff for 5mins
-		// there exists case that if the crawlet always offline, some message may dropped
-		h.logger.Debugf("message requeued for service unavaliable")
-		msg.Requeue(time.Second * 30 * time.Duration(msg.Attempts+1))
-		return nil
-	} else if err != nil {
-		h.logger.Error(err)
-		msg.RequeueWithoutBackoff(time.Second * 30 * time.Duration(msg.Attempts+1))
-		return err
-	}
-	msg.Finish()
-	return nil
-}
-
-func (h *RequestHandler) LogFailedMessage(msg *nsq.Message) {
-	if h == nil || h.ctrl == nil {
-		return
+	if ctx == nil {
+		return errors.New("invalidcontext")
 	}
 
 	var (
-		event pbEvent.Event
-		req   pbCrawl.Command_Request
+		err  error
+		data []byte
+		msg  pbCrawl.Command_Request
 	)
-	if err := proto.Unmarshal(msg.Body, &event); err != nil {
-		h.logger.Errorf("unmarshal event data failed, error=%s", err)
-		return
-	}
-	if err := proto.Unmarshal(event.GetData(), &req); err != nil {
-		h.logger.Errorf("unmarshal request data failed, error=%s", err)
-		return
-	}
-	data, _ := protojson.Marshal(&req)
-	h.logger.Errorf("submit request failed: %s", data)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			node := ctrl.nodeCtrl.NextNode()
+			if node == nil {
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
 
-	// requeue for failed message
-	if err := h.ctrl.producer.Publish(config.CrawlRequestTopic, msg.Body); err != nil {
-		h.logger.Errorf("republish %s failed, error=%s", data, err)
+			data, err = redis.Bytes(ctrl.redisClient.Do("RPOP", config.CrawlRequestQueue))
+			if err == redis.ErrNil {
+				time.Sleep(time.Millisecond * 200)
+				continue
+			} else if err != nil {
+				ctrl.logger.Errorf("pop data from %s failed, error=%s", config.CrawlRequestQueue, err)
+				time.Sleep(time.Millisecond * 200)
+				continue
+			}
+
+			msg.Reset()
+			if err = protojson.Unmarshal(data, &msg); err != nil {
+				ctrl.logger.Errorf("unmarshal data failed, error=%s", err)
+				continue
+			}
+
+			cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano()}
+			cmd.Data, _ = anypb.New(&msg)
+			if err = node.Send(ctx, &cmd); err != nil {
+				ctrl.logger.Errorf("send msg failed, error=%s", err)
+				continue
+			}
+		}
 	}
 }

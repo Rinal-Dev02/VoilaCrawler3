@@ -81,7 +81,7 @@ func (app *App) Run(args []string) {
 			os.Setenv("DEBUG", "1")
 		}
 
-		grpcConn, err := grpc.DialContext(app.ctx, c.String("session-addr"))
+		grpcConn, err := grpc.DialContext(app.ctx, c.String("session-addr"), grpc.WithInsecure())
 		if err != nil {
 			logger.Errorf("connect to %s failed, error=%s", c.String("session-addr"), err)
 			return cli.NewExitError(err, 1)

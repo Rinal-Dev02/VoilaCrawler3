@@ -3,6 +3,8 @@ package request
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/url"
 
 	"github.com/voiladev/VoilaCrawl/pkg/types"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
@@ -96,7 +98,32 @@ func NewRequest(req interface{}) (*Request, error) {
 		return nil, errors.New("unsupported request load type")
 	}
 
+	if r.GetTracingId() == "" {
+		r.TracingId = r.GetJobId()
+	}
 	return &r, nil
+}
+
+func (r *Request) Validate() error {
+	if r == nil {
+		return errors.New("nil request")
+	}
+
+	if r.GetTracingId() == "" {
+		return errors.New("invalid tracing id")
+	}
+	if r.GetJobId() == "" {
+		return errors.New("invalid request job id")
+	}
+	if r.GetMethod() != http.MethodGet &&
+		r.GetMethod() != http.MethodPost &&
+		r.GetMethod() != http.MethodPut {
+		return errors.New("unsupported http method")
+	}
+	if _, err := url.Parse(r.GetUrl()); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *Request) Unmarshal(ret interface{}) error {

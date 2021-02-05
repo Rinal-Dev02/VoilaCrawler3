@@ -358,7 +358,7 @@ type GatewayClient interface {
 	//
 	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
 	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
-	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
 }
 
 type gatewayClient struct {
@@ -400,8 +400,8 @@ func (x *gatewayChannelClient) Recv() (*anypb.Any, error) {
 	return m, nil
 }
 
-func (c *gatewayClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *gatewayClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error) {
+	out := new(FetchResponse)
 	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.Gateway/Fetch", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -424,7 +424,7 @@ type GatewayServer interface {
 	//
 	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
 	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
-	Fetch(context.Context, *FetchRequest) (*emptypb.Empty, error)
+	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
 	mustEmbedUnimplementedGatewayServer()
 }
 
@@ -435,7 +435,7 @@ type UnimplementedGatewayServer struct {
 func (UnimplementedGatewayServer) Channel(Gateway_ChannelServer) error {
 	return status.Errorf(codes.Unimplemented, "method Channel not implemented")
 }
-func (UnimplementedGatewayServer) Fetch(context.Context, *FetchRequest) (*emptypb.Empty, error) {
+func (UnimplementedGatewayServer) Fetch(context.Context, *FetchRequest) (*FetchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Fetch not implemented")
 }
 func (UnimplementedGatewayServer) mustEmbedUnimplementedGatewayServer() {}

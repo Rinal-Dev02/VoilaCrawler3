@@ -3,7 +3,7 @@ package node
 import (
 	"context"
 	"errors"
-	"sync/atomic"
+	"fmt"
 	"time"
 
 	"github.com/nsqio/go-nsq"
@@ -14,9 +14,13 @@ import (
 	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
 	pbEvent "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/event"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
+	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/protoutil"
+	"github.com/voiladev/go-framework/redis"
 	"github.com/voiladev/go-framework/types/sortedmap"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -36,6 +40,7 @@ type NodeController struct {
 	crawlerManager *crawlerManager.CrawlerManager
 	requestManager *reqManager.RequestManager
 	nodeHandlers   *sortedmap.SortedMap
+	redisClient    *redis.RedisClient
 	publisher      *nsq.Producer
 
 	options NodeControllerOptions
@@ -48,6 +53,7 @@ func NewNodeController(
 	nodeManager *nodeManager.NodeManager,
 	crawlerManager *crawlerManager.CrawlerManager,
 	requestManager *reqManager.RequestManager,
+	redisClient *redis.RedisClient,
 	options *NodeControllerOptions,
 	logger glog.Log,
 ) (*NodeController, error) {
@@ -62,6 +68,9 @@ func NewNodeController(
 	}
 	if requestManager == nil {
 		return nil, errors.New("invalid request manager")
+	}
+	if redisClient == nil {
+		return nil, errors.New("invalid redis client")
 	}
 	if options == nil {
 		return nil, errors.New("invalid options")
@@ -78,6 +87,7 @@ func NewNodeController(
 		nodeManager:    nodeManager,
 		crawlerManager: crawlerManager,
 		requestManager: requestManager,
+		redisClient:    redisClient,
 		nodeHandlers:   sortedmap.New(),
 		options:        *options,
 		logger:         logger.New("NodeController"),
@@ -125,62 +135,6 @@ func (ctrl *NodeController) Unregister(ctx context.Context, id string) error {
 	return nil
 }
 
-// func (ctrl *NodeController) IsOkToSend() bool {
-// 	if ctrl == nil {
-// 		return false
-// 	}
-// 	return ctrl.nodeHandlers.Size() > 0
-// }
-
-func (ctrl *NodeController) Send(ctx context.Context, msg protoreflect.ProtoMessage) error {
-	if ctrl == nil {
-		return nil
-	}
-
-	var (
-		handler *nodeHanadler
-		maxIdle int32
-	)
-
-	for i := 0; i < 3; i++ {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			ctrl.nodeHandlers.Range(func(key string, val interface{}) bool {
-				select {
-				case <-ctx.Done():
-					return false
-				default:
-					h := val.(*nodeHanadler)
-
-					if h.IsInited() && h.IdleConcurrency() > maxIdle {
-						handler = h
-						maxIdle = h.IdleConcurrency()
-					}
-					return true
-				}
-			})
-			if handler != nil {
-				switch v := msg.(type) {
-				case *pbCrawl.Command_Request:
-					cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano()}
-					cmd.Data, _ = anypb.New(v)
-					msg = &cmd
-				}
-				if err := handler.Send(ctx, msg); err != nil {
-					return err
-				} else {
-					atomic.AddInt32(&handler.node.IdleConcurrency, -1)
-				}
-				return nil
-			}
-		}
-		time.Sleep(time.Second)
-	}
-	return pbError.ErrUnavailable
-}
-
 func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Request) error {
 	if ctrl == nil || req == nil {
 		return nil
@@ -189,25 +143,19 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 
 	var cmdReq pbCrawl.Command_Request
 	if err := req.Unmarshal(&cmdReq); err != nil {
+		logger.Errorf("unmarshal command request failed, error=%s", err)
 		return pbError.ErrInternal.New(err)
 	}
-	reqData, _ := anypb.New(&cmdReq)
 
-	event := pbEvent.Event{
-		Id:   req.GetId(),
-		Type: pbEvent.EventType_Created,
-		Headers: map[string]string{
-			"Type-Url": reqData.GetTypeUrl(),
-			"Datetime": time.Now().Format(time.RFC3339Nano),
-		},
-		Data:      reqData.GetValue(),
-		Timestamp: time.Now().UnixNano(),
-	}
-	data, _ := proto.Marshal(&event)
-	logger.Debugf("############# publish request")
-	if err := ctrl.publisher.Publish(config.CrawlRequestTopic, data); err != nil {
-		logger.Errorf("publish request failed, error=%s", err)
+	reqData, err := protojson.Marshal(&cmdReq)
+	if err != nil {
+		logger.Errorf("marshal Command_Request failed, error=%s", err)
 		return pbError.ErrInternal.New(err)
+	}
+
+	if _, err := ctrl.redisClient.Do("LPUSH", config.CrawlRequestQueue, reqData); err != nil {
+		logger.Errorf("lpush request failed, error=%s", err)
+		return pbError.ErrDatabase.New(err)
 	}
 	return nil
 }
@@ -223,20 +171,130 @@ func (ctrl *NodeController) PublishItem(ctx context.Context, item *pbCrawl.Item)
 	}
 
 	itemData, _ := anypb.New(item)
-	event := pbEvent.Event{
-		Id:   item.GetReqId(),
-		Type: pbEvent.EventType_Created,
-		Headers: map[string]string{
-			"Type-Url": itemData.GetTypeUrl(),
-			"Datetime": time.Now().Format(time.RFC3339Nano),
-		},
-		Data:      itemData.GetValue(),
-		Timestamp: time.Now().UnixNano(),
-	}
-	data, _ := proto.Marshal(&event)
-	if err := ctrl.publisher.Publish(config.CrawlItemTopic, data); err != nil {
-		logger.Errorf("publish item failed, error=%s", err)
-		return pbError.ErrInternal.New(err)
+
+	switch item.GetData().GetTypeUrl() {
+	case protoutil.GetTypeUrl(&pbItem.Product{}):
+		event := pbEvent.Event{
+			Id:   item.GetReqId(),
+			Type: pbEvent.EventType_Created,
+			Headers: map[string]string{
+				"Type-Url": itemData.GetTypeUrl(),
+				"Datetime": time.Now().Format(time.RFC3339Nano),
+			},
+			Data:      itemData.GetValue(),
+			Timestamp: time.Now().UnixNano(),
+		}
+		data, _ := proto.Marshal(&event)
+		if err := ctrl.publisher.Publish(config.CrawlItemProductTopic, data); err != nil {
+			logger.Errorf("publish item failed, error=%s", err)
+			return pbError.ErrInternal.New(err)
+		}
+	default:
+		data, _ := proto.Marshal(item)
+		retKey := fmt.Sprintf("fetch://tracing/%s", item.GetTracingId())
+		if _, err := ctrl.redisClient.Do("LPUSH", retKey, data); err != nil {
+			logger.Errorf("cache item data failed, error=%s", err)
+			return pbError.ErrInternal.New(err)
+		}
+		if _, err := ctrl.redisClient.Do("EXPIRES", retKey, 3600); err != nil {
+			logger.Errorf("update key expires ttl failed, error=%s", err)
+			return pbError.ErrInternal.New(err)
+		}
 	}
 	return nil
+}
+
+// Broadcast
+func (ctrl *NodeController) broadcast(ctx context.Context, msg protoreflect.ProtoMessage) error {
+	if ctrl == nil || msg == nil {
+		return nil
+	}
+
+	switch v := msg.(type) {
+	case *pbCrawl.Command_Request:
+		cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano()}
+		cmd.Data, _ = anypb.New(v)
+		msg = &cmd
+	}
+	ctrl.nodeHandlers.Range(func(key string, val interface{}) bool {
+		select {
+		case <-ctx.Done():
+			return false
+		default:
+			h := val.(*nodeHanadler)
+			if h.IsInited() {
+				h.Send(ctx, msg)
+			}
+			return true
+		}
+	})
+	return nil
+}
+
+// Send
+func (ctrl *NodeController) Send(ctx context.Context, msg protoreflect.ProtoMessage, broadcast bool) error {
+	if ctrl == nil {
+		return nil
+	}
+
+	if broadcast {
+		return ctrl.broadcast(ctx, msg)
+	}
+
+	var handler *nodeHanadler
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			// find the most idle node
+			ctrl.nodeHandlers.Range(func(key string, val interface{}) bool {
+				h := val.(*nodeHanadler)
+
+				if !h.IsInited() {
+					return true
+				}
+
+				handler = h
+				return false
+			})
+
+			if handler != nil {
+				// get one request
+				switch v := msg.(type) {
+				case *pbCrawl.Command_Request:
+					cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano()}
+					cmd.Data, _ = anypb.New(v)
+					msg = &cmd
+				}
+				return handler.Send(ctx, msg)
+			}
+			time.Sleep(time.Millisecond * 200)
+		}
+	}
+}
+
+// NextNode
+func (ctrl *NodeController) NextNode() *nodeHanadler {
+	if ctrl == nil {
+		return nil
+	}
+	var (
+		handler *nodeHanadler
+		maxIdle int32 = 0
+	)
+	ctrl.nodeHandlers.Range(func(key string, val interface{}) bool {
+		h := val.(*nodeHanadler)
+		if !h.IsInited() {
+			return true
+		}
+
+		idleCount := h.IdleConcurrency()
+		if idleCount > maxIdle {
+			handler = h
+			maxIdle = idleCount
+		}
+		return true
+	})
+	return handler
 }

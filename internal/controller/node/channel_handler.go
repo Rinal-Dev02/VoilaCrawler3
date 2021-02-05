@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync/atomic"
 	"time"
 
 	uuid "github.com/satori/go.uuid"
@@ -112,16 +113,23 @@ func (handler *nodeHanadler) Send(ctx context.Context, msg proto.Message) error 
 	if handler == nil {
 		return nil
 	}
+
 	if msg == nil {
 		return pbError.ErrInternal.New("invalid cmd")
 	}
-
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	case handler.msgBuffer <- msg:
-		return nil
 	}
+
+	switch v := msg.(type) {
+	case *anypb.Any:
+		if v.GetTypeUrl() == protoutil.GetTypeUrl(&pbCrawl.Command_Request{}) {
+			atomic.AddInt32(&handler.node.IdleConcurrency, -1)
+		}
+	}
+	return nil
 }
 
 func isConnectionClosed(ctx context.Context) bool {

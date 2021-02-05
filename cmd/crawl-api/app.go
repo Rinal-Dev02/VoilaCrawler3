@@ -25,6 +25,7 @@ import (
 	"github.com/voiladev/go-framework/grpcutil"
 	"github.com/voiladev/go-framework/invocation"
 	"github.com/voiladev/go-framework/mysql"
+	"github.com/voiladev/go-framework/redis"
 	pbDesc "github.com/voiladev/protobuf/protoc-gen-go/protobuf"
 	"go.uber.org/fx"
 	grpc "google.golang.org/grpc"
@@ -84,6 +85,11 @@ func (app *App) Run(args []string) {
 			Name:  "mysql-dsn",
 			Usage: "mysql data source name",
 			Value: "root:china123@tcp(voiladev.com:3306)/voila_crawl?charset=utf8mb4&parseTime=True",
+		},
+		&cli.StringFlag{
+			Name:  "redis-addr",
+			Usage: "redis server address",
+			Value: "127.0.0.1:6379",
 		},
 		&cli.StringFlag{
 			Name:  "nsqd-tcp-addr",
@@ -146,14 +152,7 @@ func (app *App) Run(args []string) {
 				}
 			}),
 			fx.Provide(nodeCtrl.NewNodeController),
-			fx.Provide(func() *reqCtrl.RequestControllerOptions {
-				return &reqCtrl.RequestControllerOptions{
-					NsqLookupdAddresses: c.StringSlice("nsqlookupd-http-addr"),
-				}
-			}),
-			fx.Provide(func(ctrl *nodeCtrl.NodeController) reqCtrl.Sender {
-				return ctrl
-			}),
+			fx.Provide(reqCtrl.NewRequestController),
 
 			// Register services
 			fx.Provide(svcGateway.NewGatewayServer),
@@ -165,7 +164,14 @@ func (app *App) Run(args []string) {
 
 			// Register http handler
 			fx.Invoke(pbCrawl.RegisterGatewayHandler),
-			fx.Invoke(reqCtrl.NewRequestController),
+			fx.Invoke(func(reqCtrl *reqCtrl.RequestController) error {
+				go func() {
+					if err := reqCtrl.Run(app.ctx); err != nil {
+						logger.Fatal(err)
+					}
+				}()
+				return nil
+			}),
 		)
 
 		depInj := fx.New(options...)
@@ -199,6 +205,18 @@ func (app *App) loadBackends(c *cli.Context) (opts []fx.Option, err error) {
 	} else {
 		opts = append(opts, fx.Provide(ins.Instance))
 	}
+
+	if redisClient, err := redis.NewRedisClient(redis.RedisClientOptions{
+		URI:          c.String("redis-addr"),
+		MaxIdelConns: 10,
+	}); err != nil {
+		return nil, err
+	} else {
+		opts = append(opts, fx.Provide(func() *redis.RedisClient {
+			return redisClient
+		}))
+	}
+
 	return
 }
 
