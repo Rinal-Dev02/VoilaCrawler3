@@ -104,3 +104,22 @@ func (s *SessionServer) SetCookies(ctx context.Context, req *pbSession.SetCookie
 	}
 	return &emptypb.Empty{}, nil
 }
+
+func (s *SessionServer) ClearCookies(ctx context.Context, req *pbSession.Session) (*emptypb.Empty, error) {
+	if s == nil {
+		return nil, nil
+	}
+	logger := s.logger.New("ClearCookies")
+
+	u, err := url.Parse(req.GetUrl())
+	if err != nil {
+		logger.Errorf("parse url %s failed, error=%s", req.GetUrl(), err)
+		return nil, pbError.ErrInvalidArgument.New(err)
+	}
+
+	if err := s.cookieManager.Delete(ctx, u, req.GetTracingId()); err != nil {
+		logger.Errorf("save cookie %s %s failed, error=%s", req.GetTracingId(), req.GetUrl(), err)
+		return nil, pbError.ErrInvalidArgument.New(err)
+	}
+	return &emptypb.Empty{}, nil
+}

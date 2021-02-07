@@ -22,6 +22,8 @@ type SessionManagerClient interface {
 	GetCookies(ctx context.Context, in *GetCookiesRequest, opts ...grpc.CallOption) (*GetCookiesResponse, error)
 	// SetCookies
 	SetCookies(ctx context.Context, in *SetCookiesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ClearCookies
+	ClearCookies(ctx context.Context, in *ClearCookiesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type sessionManagerClient struct {
@@ -50,6 +52,15 @@ func (c *sessionManagerClient) SetCookies(ctx context.Context, in *SetCookiesReq
 	return out, nil
 }
 
+func (c *sessionManagerClient) ClearCookies(ctx context.Context, in *ClearCookiesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.session.SessionManager/ClearCookies", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SessionManagerServer is the server API for SessionManager service.
 // All implementations must embed UnimplementedSessionManagerServer
 // for forward compatibility
@@ -58,6 +69,8 @@ type SessionManagerServer interface {
 	GetCookies(context.Context, *GetCookiesRequest) (*GetCookiesResponse, error)
 	// SetCookies
 	SetCookies(context.Context, *SetCookiesRequest) (*emptypb.Empty, error)
+	// ClearCookies
+	ClearCookies(context.Context, *ClearCookiesRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedSessionManagerServer()
 }
 
@@ -70,6 +83,9 @@ func (UnimplementedSessionManagerServer) GetCookies(context.Context, *GetCookies
 }
 func (UnimplementedSessionManagerServer) SetCookies(context.Context, *SetCookiesRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetCookies not implemented")
+}
+func (UnimplementedSessionManagerServer) ClearCookies(context.Context, *ClearCookiesRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClearCookies not implemented")
 }
 func (UnimplementedSessionManagerServer) mustEmbedUnimplementedSessionManagerServer() {}
 
@@ -120,6 +136,24 @@ func _SessionManager_SetCookies_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _SessionManager_ClearCookies_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClearCookiesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SessionManagerServer).ClearCookies(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawl.session.SessionManager/ClearCookies",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SessionManagerServer).ClearCookies(ctx, req.(*ClearCookiesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // SessionManager_ServiceDesc is the grpc.ServiceDesc for SessionManager service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -134,6 +168,10 @@ var SessionManager_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetCookies",
 			Handler:    _SessionManager_SetCookies_Handler,
+		},
+		{
+			MethodName: "ClearCookies",
+			Handler:    _SessionManager_ClearCookies_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

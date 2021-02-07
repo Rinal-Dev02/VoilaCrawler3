@@ -135,3 +135,27 @@ func (j *Jar) SetCookies(ctx context.Context, u *url.URL, cookies []*http.Cookie
 	}
 	return
 }
+
+func (j *Jar) Clear(ctx context.Context, u *url.URL) (err error) {
+	if j == nil || u == nil {
+		return
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return
+	}
+	logger := j.logger.New("Clear")
+
+	var tracingId string
+	if v := ctx.Value("tracing_id"); v != nil {
+		tracingId, _ = v.(string)
+	}
+
+	if _, err := j.sessionClient.ClearCookies(ctx, &pbSession.ClearCookiesRequest{
+		TracingId: tracingId,
+		Url:       u.String(),
+	}); err != nil {
+		logger.Errorf("get cookies failed, error=%s", err)
+		return err
+	}
+	return
+}

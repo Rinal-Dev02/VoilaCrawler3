@@ -111,3 +111,17 @@ func (m *CookieManager) Save(ctx context.Context, c *cookie.Cookie) error {
 	}
 	return nil
 }
+
+func (m *CookieManager) Delete(ctx context.Context, u *url.URL, tracingId string) error {
+	if m == nil {
+		return nil
+	}
+	logger := m.logger.New("Delete")
+
+	key := uniqueDomainKey(u.Host, tracingId)
+	if _, err := m.redisClient.Do("DELETE", key); err != nil {
+		logger.Errorf("save cookie failed, error=%s", err)
+		return pbError.ErrDatabase.New(err)
+	}
+	return nil
+}
