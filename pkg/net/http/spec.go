@@ -33,14 +33,20 @@ var (
 type ProxyLevel int
 
 const (
+	// using sharing proxys, as if ProxyCrawl's Backconnect
 	ProxyLevelSharing ProxyLevel = iota
+	// currently using sharing proxys, as if ProxyCrawl's Backconnect
 	ProxyLevelSharingButReliable
+	// as if ProxyCrawl's Crawl API
 	ProxyLevelReliable
+	// as if ProxyCrawl's Crawl API
 	ProxyLevelHA
 )
 
 type Options struct {
-	EnableProxy    bool
+	// EnableProxy
+	EnableProxy bool
+	// EnableHeadless
 	EnableHeadless bool
 	// ProxyLevel proxies will try from low level to high level
 	ProxyLevel ProxyLevel

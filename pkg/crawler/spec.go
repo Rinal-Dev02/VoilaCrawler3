@@ -4,9 +4,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
 
 	"github.com/voiladev/go-framework/glog"
+)
+
+var (
+	// ErrNotSupportedPath
+	ErrNotSupportedPath = errors.New("not supporped url path")
 )
 
 // CrawlOptions
@@ -62,9 +66,9 @@ type Crawler interface {
 	// AllowedDomains returns the domains this crawler supportes
 	AllowedDomains() []string
 
-	// IsUrlMatch check whether the supplied url matched the crawler's url set.
+	// Deprecated. IsUrlMatch check whether the supplied url matched the crawler's url set.
 	// if matched, the can use crawler to extract info from the response of this url.
-	IsUrlMatch(*url.URL) bool
+	// IsUrlMatch(*url.URL) bool
 
 	// Parser used to parse http request parse.
 	//   param ctx used to share info between parent and child. and it can set the max ttl for parse job.
