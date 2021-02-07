@@ -105,7 +105,7 @@ func (s *SessionServer) SetCookies(ctx context.Context, req *pbSession.SetCookie
 	return &emptypb.Empty{}, nil
 }
 
-func (s *SessionServer) ClearCookies(ctx context.Context, req *pbSession.Session) (*emptypb.Empty, error) {
+func (s *SessionServer) ClearCookies(ctx context.Context, req *pbSession.ClearCookiesRequest) (*emptypb.Empty, error) {
 	if s == nil {
 		return nil, nil
 	}
