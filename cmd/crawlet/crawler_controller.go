@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ctxUtil "github.com/voiladev/VoilaCrawl/pkg/context"
+	crawlerSpec "github.com/voiladev/VoilaCrawl/pkg/crawler"
 	http "github.com/voiladev/VoilaCrawl/pkg/net/http"
 	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
@@ -206,8 +207,8 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 				continue
 			}
 
-			var crawler *Crawler
-			if crawlers, err := ctrl.crawlerManager.GetByHost(ctx, u.Host); err != nil {
+			var crawlers []*Crawler
+			if crawlers, err = ctrl.crawlerManager.GetByHost(ctx, u.Host); err != nil {
 				logger.Errorf("get crawlers by host failed, error=%s", err)
 				ctrl.Send(ctx, &pbCrawl.Command_Error{
 					TracingId: r.GetTracingId(),
@@ -216,15 +217,8 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					ErrMsg:    err.Error(),
 				})
 				continue
-			} else {
-				for _, c := range crawlers {
-					if c.IsUrlMatch(u) {
-						crawler = c
-						break
-					}
-				}
 			}
-			if crawler == nil {
+			if len(crawlers) == 0 {
 				logger.Errorf("no crawler found for %s", r.Url)
 				count, _ := ctrl.crawlerManager.Count(ctx)
 				ctrl.Send(ctx, &pbCrawl.Command_Error{
@@ -240,6 +234,8 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 				var (
 					shareCtx    context.Context
 					sharingData []string
+					duration    int64
+					err         error
 				)
 				sharingData = append(sharingData,
 					"tracing_id", r.TracingId,
@@ -252,149 +248,155 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 				// share context is used to share data between crawlers
 				shareCtx = ctxUtil.WithValues(ctx, sharingData...)
 
-				duration, err := func() (int64, error) {
-					req, err := NewRequest(r)
-					if err != nil {
-						return 0, err
-					}
-					req = crawler.SetHeader(req)
+				for _, crawler := range crawlers {
+					duration, err = func(crawler *Crawler) (int64, error) {
+						req, err := NewRequest(r)
+						if err != nil {
+							return 0, err
+						}
+						req = crawler.SetHeader(req)
 
-					maxTtlPerRequest := defaultTtlPerRequest
-					if r.Options.MaxTtlPerRequest > 0 {
-						maxTtlPerRequest = r.Options.MaxTtlPerRequest
-					}
-					requestCtx, cancel := context.WithTimeout(shareCtx, time.Duration(maxTtlPerRequest)*time.Second)
-					defer cancel()
+						maxTtlPerRequest := defaultTtlPerRequest
+						if r.Options.MaxTtlPerRequest > 0 {
+							maxTtlPerRequest = r.Options.MaxTtlPerRequest
+						}
+						requestCtx, cancel := context.WithTimeout(shareCtx, time.Duration(maxTtlPerRequest)*time.Second)
+						defer cancel()
 
-					startTime := time.Now()
-					resp, err := ctrl.httpClient.DoWithOptions(requestCtx, req, http.Options{
-						EnableProxy:    !r.Options.DisableProxy,
-						EnableHeadless: crawler.CrawlOptions().EnableHeadless,
-					})
-					duration := (time.Now().UnixNano() - startTime.UnixNano()) / 1000000 // in millseconds
-					if err != nil {
-						return duration, err
-					}
-					defer resp.Body.Close()
+						startTime := time.Now()
+						resp, err := ctrl.httpClient.DoWithOptions(requestCtx, req, http.Options{
+							EnableProxy:    !r.Options.DisableProxy,
+							EnableHeadless: crawler.CrawlOptions().EnableHeadless,
+						})
+						duration := (time.Now().UnixNano() - startTime.UnixNano()) / 1000000 // in millseconds
+						if err != nil {
+							return duration, err
+						}
+						defer resp.Body.Close()
 
-					return duration, crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
-						sharingData := ctxUtil.RetrieveAllValues(c)
-						switch val := i.(type) {
-						case *http.Request:
-							if val.URL.Host == "" {
-								val.URL.Scheme = req.URL.Scheme
-								val.URL.Host = req.URL.Host
-							}
-							if val.URL.Scheme == "http" && req.URL.Scheme == "https" {
-								val.URL.Scheme = req.URL.Scheme
-							}
-
-							// convert http.Request to pbCrawl.Command_Request and forward
-							subreq := pbCrawl.Command_Request{
-								TracingId:     r.GetTracingId(),
-								JobId:         r.GetJobId(),
-								ReqId:         r.GetReqId(),
-								Url:           val.URL.String(),
-								Method:        val.Method,
-								Parent:        r,
-								CustomHeaders: map[string]string{},
-								CustomCookies: r.CustomCookies,
-								Options:       r.Options,
-								SharingData:   r.SharingData,
-							}
-							if val.Body != nil {
-								defer val.Body.Close()
-								if data, err := ioutil.ReadAll(val.Body); err != nil {
-									return err
-								} else {
-									subreq.Body = fmt.Sprintf("%s", data)
+						return duration, crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
+							sharingData := ctxUtil.RetrieveAllValues(c)
+							switch val := i.(type) {
+							case *http.Request:
+								if val.URL.Host == "" {
+									val.URL.Scheme = req.URL.Scheme
+									val.URL.Host = req.URL.Host
 								}
-							}
-
-							// over write header
-							for k := range val.Header {
-								subreq.CustomHeaders[k] = val.Header.Get(k)
-							}
-							for k, v := range r.CustomHeaders {
-								if _, ok := subreq.CustomHeaders[k]; ok {
-									continue
-								}
-								subreq.CustomHeaders[k] = v
-							}
-
-							now := time.Now()
-							for _, cookie := range resp.Cookies() {
-								if cookie.MaxAge < 0 || (cookie.MaxAge == 0 && cookie.Expires.Before(now)) {
-									continue
-								}
-								var expiresAt int64
-								if !cookie.Expires.IsZero() {
-									expiresAt = cookie.Expires.Unix()
-								} else {
-									expiresAt = now.Unix() + int64(cookie.MaxAge)
+								if val.URL.Scheme == "http" && req.URL.Scheme == "https" {
+									val.URL.Scheme = req.URL.Scheme
 								}
 
-								subreq.CustomCookies = append(subreq.CustomCookies, &pbHttp.Cookie{
-									Name:    cookie.Name,
-									Value:   cookie.Value,
-									Path:    cookie.Path,
-									Expires: expiresAt,
-								})
-							}
-
-							for k, v := range sharingData {
-								key, ok := k.(string)
-								if !ok {
-									continue
+								// convert http.Request to pbCrawl.Command_Request and forward
+								subreq := pbCrawl.Command_Request{
+									TracingId:     r.GetTracingId(),
+									JobId:         r.GetJobId(),
+									ReqId:         r.GetReqId(),
+									Url:           val.URL.String(),
+									Method:        val.Method,
+									Parent:        r,
+									CustomHeaders: map[string]string{},
+									CustomCookies: r.CustomCookies,
+									Options:       r.Options,
+									SharingData:   r.SharingData,
 								}
-								val := strconv.Format(v)
-
-								if strings.HasSuffix(key, "tracing_id") ||
-									strings.HasSuffix(key, "job_id") ||
-									strings.HasSuffix(key, "req_id") {
-									continue
-								}
-								found := false
-								for _, item := range subreq.SharingData {
-									if item.Key == key {
-										item.Value = val
-										found = true
-										break
+								if val.Body != nil {
+									defer val.Body.Close()
+									if data, err := ioutil.ReadAll(val.Body); err != nil {
+										return err
+									} else {
+										subreq.Body = fmt.Sprintf("%s", data)
 									}
 								}
-								if !found {
-									subreq.SharingData = append(subreq.SharingData, &pbCrawl.Command_Request_KeyValue{
-										Key: key, Value: val,
+
+								// over write header
+								for k := range val.Header {
+									subreq.CustomHeaders[k] = val.Header.Get(k)
+								}
+								for k, v := range r.CustomHeaders {
+									if _, ok := subreq.CustomHeaders[k]; ok {
+										continue
+									}
+									subreq.CustomHeaders[k] = v
+								}
+
+								now := time.Now()
+								for _, cookie := range resp.Cookies() {
+									if cookie.MaxAge < 0 || (cookie.MaxAge == 0 && cookie.Expires.Before(now)) {
+										continue
+									}
+									var expiresAt int64
+									if !cookie.Expires.IsZero() {
+										expiresAt = cookie.Expires.Unix()
+									} else {
+										expiresAt = now.Unix() + int64(cookie.MaxAge)
+									}
+
+									subreq.CustomCookies = append(subreq.CustomCookies, &pbHttp.Cookie{
+										Name:    cookie.Name,
+										Value:   cookie.Value,
+										Path:    cookie.Path,
+										Expires: expiresAt,
 									})
 								}
-							}
 
-							cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
-							cmd.Data, _ = anypb.New(&subreq)
-							ctrl.Send(shareCtx, &cmd)
-						case *pbItem.Product:
-							var index int64
-							if indexVal, ok := sharingData["item.index"]; ok && indexVal != nil {
-								ctrl.logger.Errorf("%v", indexVal)
-								index = strconv.MustParseInt(indexVal)
-							}
-							item := pbCrawl.Item{
-								Timestamp: time.Now().UnixNano(),
-								NodeId:    NodeId(),
-								TracingId: r.GetTracingId(),
-								JobId:     r.GetJobId(),
-								ReqId:     r.GetReqId(),
-								Index:     int32(index),
-							}
-							item.Data, _ = anypb.New(val)
+								for k, v := range sharingData {
+									key, ok := k.(string)
+									if !ok {
+										continue
+									}
+									val := strconv.Format(v)
 
-							ctrl.logger.Infof("#####################", ctrl.Send(shareCtx, &item))
-						default:
-							return errors.New("unsupported response data type")
-						}
-						return nil
-					})
-				}()
+									if strings.HasSuffix(key, "tracing_id") ||
+										strings.HasSuffix(key, "job_id") ||
+										strings.HasSuffix(key, "req_id") {
+										continue
+									}
+									found := false
+									for _, item := range subreq.SharingData {
+										if item.Key == key {
+											item.Value = val
+											found = true
+											break
+										}
+									}
+									if !found {
+										subreq.SharingData = append(subreq.SharingData, &pbCrawl.Command_Request_KeyValue{
+											Key: key, Value: val,
+										})
+									}
+								}
+
+								cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
+								cmd.Data, _ = anypb.New(&subreq)
+								ctrl.Send(shareCtx, &cmd)
+							case *pbItem.Product:
+								var index int64
+								if indexVal, ok := sharingData["item.index"]; ok && indexVal != nil {
+									ctrl.logger.Errorf("%v", indexVal)
+									index = strconv.MustParseInt(indexVal)
+								}
+								item := pbCrawl.Item{
+									Timestamp: time.Now().UnixNano(),
+									NodeId:    NodeId(),
+									TracingId: r.GetTracingId(),
+									JobId:     r.GetJobId(),
+									ReqId:     r.GetReqId(),
+									Index:     int32(index),
+								}
+								item.Data, _ = anypb.New(val)
+
+								ctrl.logger.Infof("#####################", ctrl.Send(shareCtx, &item))
+							default:
+								return errors.New("unsupported response data type")
+							}
+							return nil
+						})
+					}(crawler)
+					if err != crawlerSpec.ErrNotSupportedPath {
+						continue
+					}
+					break
+				}
 
 				var (
 					errMsg string
