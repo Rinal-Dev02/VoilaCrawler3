@@ -6,6 +6,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.6.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2
+	github.com/google/martian v2.1.0+incompatible
 	github.com/gosimple/slug v1.9.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1
 	github.com/nsqio/go-nsq v1.0.8

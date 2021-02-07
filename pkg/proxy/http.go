@@ -95,16 +95,31 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	if c.jar != nil {
 		if cookies, err := c.jar.Cookies(ctx, r.URL); err != nil {
 			c.logger.Warnf("get cookies failed, error=%s", err)
-		} else {
+		} else if len(cookies) > 0 {
 			for _, c := range cookies {
 				r.AddCookie(c)
 			}
+		} else if opts.EnableSessionInit {
+			opts.EnableHeadless = true
 		}
+	} else if opts.EnableSessionInit || opts.KeepSession {
+		return nil, errors.New("not cookie jar set")
 	}
 
 	if opts.EnableHeadless {
 		opts.EnableProxy = true
 		opts.ProxyLevel = http.ProxyLevelReliable
+	}
+
+	var tracingId string
+	if opts.KeepSession {
+		v := ctx.Value("tracing_id")
+		if v != nil {
+			tracingId = v.(string)
+		}
+		if tracingId == "" {
+			c.logger.Warnf("no tracing_id found in context")
+		}
 	}
 
 	var (
@@ -117,8 +132,6 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
 	}
-
-	// init cookies
 
 	if opts.EnableProxy {
 		if level <= http.ProxyLevelSharing {
@@ -159,6 +172,9 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 				vals.Set("ajax_wait", "false")
 			} else {
 				vals.Set("token", c.options.APIToken)
+			}
+			if opts.KeepSession {
+				vals.Set("proxy_session", tracingId)
 			}
 			vals.Set("url", r.URL.String())
 

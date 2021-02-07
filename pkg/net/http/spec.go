@@ -48,6 +48,12 @@ type Options struct {
 	EnableProxy bool
 	// EnableHeadless
 	EnableHeadless bool
+
+	// EnableSessionInit
+	EnableSessionInit bool
+	// KeepSession
+	KeepSession bool
+
 	// ProxyLevel proxies will try from low level to high level
 	ProxyLevel ProxyLevel
 }

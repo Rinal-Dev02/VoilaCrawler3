@@ -265,8 +265,10 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 
 						startTime := time.Now()
 						resp, err := ctrl.httpClient.DoWithOptions(requestCtx, req, http.Options{
-							EnableProxy:    !r.Options.DisableProxy,
-							EnableHeadless: crawler.CrawlOptions().EnableHeadless,
+							EnableProxy:       !r.Options.DisableProxy,
+							EnableHeadless:    crawler.CrawlOptions().EnableHeadless,
+							EnableSessionInit: crawler.CrawlOptions().EnableSessionInit,
+							KeepSession:       crawler.CrawlOptions().KeepSession,
 						})
 						duration := (time.Now().UnixNano() - startTime.UnixNano()) / 1000000 // in millseconds
 						if err != nil {
