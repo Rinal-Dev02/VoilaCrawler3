@@ -435,23 +435,20 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			c.logger.Warnf("product %v not found", idv)
 			continue
 		}
-		c.logger.Debugf("%s", p.Name)
 
-		/*
-			req, err := http.NewRequest(http.MethodGet, p.ProductPageURL, nil)
-			if err != nil {
-				c.logger.Errorf("load http request of url %s failed, error=%s", p.ProductPageURL, err)
-				return err
-			}
+		req, err := http.NewRequest(http.MethodGet, p.ProductPageURL, nil)
+		if err != nil {
+			c.logger.Errorf("load http request of url %s failed, error=%s", p.ProductPageURL, err)
+			return err
+		}
 
-			lastIndex += 1
-			// set the index of the product crawled in the sub response
-			nctx := context.WithValue(ctx, "item.index", lastIndex)
-			// yield sub request
-			if err := yield(nctx, req); err != nil {
-				return err
-			}
-		*/
+		lastIndex += 1
+		// set the index of the product crawled in the sub response
+		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		// yield sub request
+		if err := yield(nctx, req); err != nil {
+			return err
+		}
 	}
 
 	// get current page number
@@ -693,7 +690,7 @@ func main() {
 				EnableHeadless:    false,
 				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
 				KeepSession:       spider.CrawlOptions().KeepSession,
-				ProxyLevel:        http.ProxyLevelSharing,
+				ProxyLevel:        http.ProxyLevelReliable,
 			})
 			if err != nil {
 				panic(err)
