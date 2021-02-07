@@ -435,20 +435,23 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			c.logger.Warnf("product %v not found", idv)
 			continue
 		}
+		c.logger.Debugf("%s", p.Name)
 
-		req, err := http.NewRequest(http.MethodGet, p.ProductPageURL, nil)
-		if err != nil {
-			c.logger.Errorf("load http request of url %s failed, error=%s", p.ProductPageURL, err)
-			return err
-		}
+		/*
+			req, err := http.NewRequest(http.MethodGet, p.ProductPageURL, nil)
+			if err != nil {
+				c.logger.Errorf("load http request of url %s failed, error=%s", p.ProductPageURL, err)
+				return err
+			}
 
-		lastIndex += 1
-		// set the index of the product crawled in the sub response
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		// yield sub request
-		if err := yield(nctx, req); err != nil {
-			return err
-		}
+			lastIndex += 1
+			// set the index of the product crawled in the sub response
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			// yield sub request
+			if err := yield(nctx, req); err != nil {
+				return err
+			}
+		*/
 	}
 
 	// get current page number
@@ -640,18 +643,6 @@ func main() {
 		panic(err)
 	}
 
-	// this 9 lines of code is used to init the first cookie for nordstrom, with EnableHeadless set
-	req, err := http.NewRequest(http.MethodGet,
-		"https://www.nordstrom.com/browse/men/clothing/jeans?breadcrumb=Home%2FMen%2FClothing%2FJeans&origin=topnav", nil)
-	if err != nil {
-		panic(err)
-	}
-	resp, err := client.DoWithOptions(context.Background(), req, http.Options{EnableProxy: true, EnableHeadless: true})
-	if err != nil {
-		panic(err)
-	}
-	resp.Body.Close()
-
 	// instance the spider locally
 	spider, err := New(client, logger)
 	if err != nil {
@@ -695,10 +686,14 @@ func main() {
 			}
 
 			// do http requests here.
-			resp, err := client.DoWithOptions(ctx, i, http.Options{
-				EnableProxy:    true,
-				EnableHeadless: false,
-				ProxyLevel:     http.ProxyLevelReliable,
+			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+			defer cancel()
+			resp, err := client.DoWithOptions(nctx, i, http.Options{
+				EnableProxy:       true,
+				EnableHeadless:    false,
+				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
+				KeepSession:       spider.CrawlOptions().KeepSession,
+				ProxyLevel:        http.ProxyLevelSharing,
 			})
 			if err != nil {
 				panic(err)
@@ -717,11 +712,9 @@ func main() {
 		return nil
 	}
 
+	ctx := context.WithValue(context.Background(), "tracing_id", "nordstrom_123456")
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-		defer cancel()
-
 		if err := callback(ctx, req); err != nil {
 			logger.Fatal(err)
 		}
