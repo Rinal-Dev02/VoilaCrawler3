@@ -18,10 +18,15 @@ type CrawlOptions struct {
 	// EnableHeadless
 	EnableHeadless bool `json:"enableHeadless"`
 
+	// EnableSessionInit init the session with current request url if the session is not inited
+	// which will get the full cookies. This mostly simplified the work todo with decrypt one website.
+	EnableSessionInit bool `json:"enableSessionInit"`
 	// KeepSession keep the session for all the sub requests
 	KeepSession bool `json:"keepSession"`
+	// SessionTTL if not set, will set session ttl according to last cookie expires
+	SessionTtl int32 `json:"sessionTtl"`
 
-	// LoginRequired indicates that this website needs login before crawl
+	// (TODO) LoginRequired indicates that this website needs login before crawl
 	// there must be an login subsystem with manages all the robot accounts
 	// and cache the cookies after signin.
 	LoginRequired bool `json:"loginRequired"`
