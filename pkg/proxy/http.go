@@ -23,6 +23,7 @@ const (
 type Options struct {
 	APIToken string
 	JSToken  string
+	Proxy    *url.URL
 }
 
 // proxyClient
@@ -40,6 +41,9 @@ func NewProxyClient(cookieJar http.CookieJar, logger glog.Log, opts Options) (ht
 	if opts.APIToken == "" && opts.JSToken == "" {
 		return nil, errors.New("missing proxy api access token")
 	}
+	if opts.Proxy == nil {
+		opts.Proxy = &url.URL{Host: "proxy.proxycrawl.com:9000"}
+	}
 
 	client := proxyClient{
 		jar: cookieJar,
@@ -56,7 +60,7 @@ func NewProxyClient(cookieJar http.CookieJar, logger glog.Log, opts Options) (ht
 				// DisableKeepAlives: true,
 				IdleConnTimeout: time.Second,
 				TLSNextProto:    map[string]func(string, *tls.Conn) rhttp.RoundTripper{}, // disable http2
-				Proxy:           rhttp.ProxyURL(&url.URL{Host: "proxy.proxycrawl.com:9000"}),
+				Proxy:           rhttp.ProxyURL(opts.Proxy),
 			},
 		},
 		options: opts,
@@ -100,6 +104,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 
 	if opts.EnableHeadless {
 		opts.EnableProxy = true
+		opts.ProxyLevel = http.ProxyLevelReliable
 	}
 
 	var (
@@ -112,6 +117,8 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
 	}
+
+	// init cookies
 
 	if opts.EnableProxy {
 		if level <= http.ProxyLevelSharing {
@@ -148,6 +155,8 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			vals := u.Query()
 			if opts.EnableHeadless {
 				vals.Set("token", c.options.JSToken)
+				vals.Set("page_wait", "1000")
+				vals.Set("ajax_wait", "false")
 			} else {
 				vals.Set("token", c.options.APIToken)
 			}
@@ -173,6 +182,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			}
 			vals.Set("get_headers", "true")
 			vals.Set("get_cookies", "true")
+			// vals.Set("proxy_session", "1234567890")
 			// Set this param for we develop almost all crawler on desktop
 			vals.Set("device", "desktop")
 

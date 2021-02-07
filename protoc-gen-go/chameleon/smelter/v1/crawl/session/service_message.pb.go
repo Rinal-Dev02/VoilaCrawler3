@@ -196,6 +196,64 @@ func (x *SetCookiesRequest) GetCookies() []*http.Cookie {
 	return nil
 }
 
+// ClearCookiesRequest
+type ClearCookiesRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// TracingId
+	TracingId string `protobuf:"bytes,1,opt,name=tracingId,proto3" json:"tracingId,omitempty"`
+	// Url @required
+	Url string `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+}
+
+func (x *ClearCookiesRequest) Reset() {
+	*x = ClearCookiesRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_session_service_message_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ClearCookiesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ClearCookiesRequest) ProtoMessage() {}
+
+func (x *ClearCookiesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_session_service_message_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ClearCookiesRequest.ProtoReflect.Descriptor instead.
+func (*ClearCookiesRequest) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_session_service_message_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ClearCookiesRequest) GetTracingId() string {
+	if x != nil {
+		return x.TracingId
+	}
+	return ""
+}
+
+func (x *ClearCookiesRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
 var File_chameleon_smelter_v1_crawl_session_service_message_proto protoreflect.FileDescriptor
 
 var file_chameleon_smelter_v1_crawl_session_service_message_proto_rawDesc = []byte{
@@ -227,11 +285,15 @@ var file_chameleon_smelter_v1_crawl_session_service_message_proto_rawDesc = []by
 	0x28, 0x09, 0x52, 0x03, 0x75, 0x72, 0x6c, 0x12, 0x34, 0x0a, 0x07, 0x63, 0x6f, 0x6f, 0x6b, 0x69,
 	0x65, 0x73, 0x18, 0x06, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65,
 	0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x68, 0x74, 0x74, 0x70, 0x2e, 0x43, 0x6f,
-	0x6f, 0x6b, 0x69, 0x65, 0x52, 0x07, 0x63, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x73, 0x42, 0x2c, 0x5a,
-	0x2a, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c, 0x74,
-	0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2f, 0x73, 0x65, 0x73, 0x73,
-	0x69, 0x6f, 0x6e, 0x3b, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x6f, 0x6b, 0x69, 0x65, 0x52, 0x07, 0x63, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x73, 0x22, 0x45, 0x0a,
+	0x13, 0x43, 0x6c, 0x65, 0x61, 0x72, 0x43, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x73, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x12, 0x1c, 0x0a, 0x09, 0x74, 0x72, 0x61, 0x63, 0x69, 0x6e, 0x67, 0x49,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x74, 0x72, 0x61, 0x63, 0x69, 0x6e, 0x67,
+	0x49, 0x64, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x03, 0x75, 0x72, 0x6c, 0x42, 0x2c, 0x5a, 0x2a, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f,
+	0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61,
+	0x77, 0x6c, 0x2f, 0x73, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x3b, 0x73, 0x65, 0x73, 0x73, 0x69,
+	0x6f, 0x6e, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -246,16 +308,17 @@ func file_chameleon_smelter_v1_crawl_session_service_message_proto_rawDescGZIP()
 	return file_chameleon_smelter_v1_crawl_session_service_message_proto_rawDescData
 }
 
-var file_chameleon_smelter_v1_crawl_session_service_message_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_chameleon_smelter_v1_crawl_session_service_message_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_chameleon_smelter_v1_crawl_session_service_message_proto_goTypes = []interface{}{
-	(*GetCookiesRequest)(nil),  // 0: chameleon.smelter.v1.crawl.session.GetCookiesRequest
-	(*GetCookiesResponse)(nil), // 1: chameleon.smelter.v1.crawl.session.GetCookiesResponse
-	(*SetCookiesRequest)(nil),  // 2: chameleon.smelter.v1.crawl.session.SetCookiesRequest
-	(*http.Cookie)(nil),        // 3: chameleon.api.http.Cookie
+	(*GetCookiesRequest)(nil),   // 0: chameleon.smelter.v1.crawl.session.GetCookiesRequest
+	(*GetCookiesResponse)(nil),  // 1: chameleon.smelter.v1.crawl.session.GetCookiesResponse
+	(*SetCookiesRequest)(nil),   // 2: chameleon.smelter.v1.crawl.session.SetCookiesRequest
+	(*ClearCookiesRequest)(nil), // 3: chameleon.smelter.v1.crawl.session.ClearCookiesRequest
+	(*http.Cookie)(nil),         // 4: chameleon.api.http.Cookie
 }
 var file_chameleon_smelter_v1_crawl_session_service_message_proto_depIdxs = []int32{
-	3, // 0: chameleon.smelter.v1.crawl.session.GetCookiesResponse.data:type_name -> chameleon.api.http.Cookie
-	3, // 1: chameleon.smelter.v1.crawl.session.SetCookiesRequest.cookies:type_name -> chameleon.api.http.Cookie
+	4, // 0: chameleon.smelter.v1.crawl.session.GetCookiesResponse.data:type_name -> chameleon.api.http.Cookie
+	4, // 1: chameleon.smelter.v1.crawl.session.SetCookiesRequest.cookies:type_name -> chameleon.api.http.Cookie
 	2, // [2:2] is the sub-list for method output_type
 	2, // [2:2] is the sub-list for method input_type
 	2, // [2:2] is the sub-list for extension type_name
@@ -306,6 +369,18 @@ func file_chameleon_smelter_v1_crawl_session_service_message_proto_init() {
 				return nil
 			}
 		}
+		file_chameleon_smelter_v1_crawl_session_service_message_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ClearCookiesRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -313,7 +388,7 @@ func file_chameleon_smelter_v1_crawl_session_service_message_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_chameleon_smelter_v1_crawl_session_service_message_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -14,6 +14,9 @@ type CrawlOptions struct {
 	// EnableHeadless
 	EnableHeadless bool `json:"enableHeadless"`
 
+	// KeepSession keep the session for all the sub requests
+	KeepSession bool `json:"keepSession"`
+
 	// LoginRequired indicates that this website needs login before crawl
 	// there must be an login subsystem with manages all the robot accounts
 	// and cache the cookies after signin.
