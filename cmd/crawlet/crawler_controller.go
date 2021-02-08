@@ -242,8 +242,8 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					"job_id", r.JobId,
 					"req_id", r.ReqId,
 				)
-				for _, item := range r.SharingData {
-					sharingData = append(sharingData, item.Key, item.Value)
+				for k, v := range r.SharingData {
+					sharingData = append(sharingData, k, v)
 				}
 				// share context is used to share data between crawlers
 				shareCtx = ctxUtil.WithValues(ctx, sharingData...)
@@ -353,21 +353,8 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 										strings.HasSuffix(key, "req_id") {
 										continue
 									}
-									found := false
-									for _, item := range subreq.SharingData {
-										if item.Key == key {
-											item.Value = val
-											found = true
-											break
-										}
-									}
-									if !found {
-										subreq.SharingData = append(subreq.SharingData, &pbCrawl.Command_Request_KeyValue{
-											Key: key, Value: val,
-										})
-									}
+									subreq.SharingData[key] = val
 								}
-
 								cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
 								cmd.Data, _ = anypb.New(&subreq)
 								ctrl.Send(shareCtx, &cmd)
