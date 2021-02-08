@@ -38,7 +38,7 @@ type _Crawler struct {
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:             client,
-		detailPageReg:          regexp.MustCompile(`^/@[0-9a-zA-Z-_]+/video/[0-9]+/?$`),
+		detailPageReg:          regexp.MustCompile(`^/@[0-9a-zA-Z-_.]+/video/[0-9]+/?$`),
 		detailInternalPageReg:  regexp.MustCompile(`^/v/[0-9]+.html$`),
 		detailShortLinkPageReg: regexp.MustCompile(`^/[a-zA-Z0-9]+/?$`),
 		downloadVideoReg:       regexp.MustCompile(`^/video/tos/alisg/tos\-alisg\-pve\-[a-z0-9]+/[a-z0-9]+/?$`),
@@ -285,7 +285,8 @@ func (c *_Crawler) download(ctx context.Context, resp *http.Response, yield inte
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://vm.tiktok.com/ZScNvr6C/",
+		// "https://vm.tiktok.com/ZScNvr6C/",
+		"https://www.tiktok.com/@kasey.jo.gerst/video/6923743895247506693?sender_device=mobile&sender_web_id=6926525695457117698&is_from_webapp=v2&is_copy_url=0",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
