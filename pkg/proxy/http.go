@@ -16,6 +16,10 @@ import (
 	"github.com/voiladev/go-framework/glog"
 )
 
+type __disableHttpRedirect__ struct{}
+
+var disableHttpRedirect __disableHttpRedirect__
+
 const (
 	gatewayAddr = "https://api.proxycrawl.com/"
 )
@@ -46,25 +50,27 @@ func NewProxyClient(cookieJar http.CookieJar, logger glog.Log, opts Options) (ht
 	}
 
 	client := proxyClient{
-		jar: cookieJar,
-		httpClient: &rhttp.Client{
-			Transport: &rhttp.Transport{
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 5,
-				IdleConnTimeout:     time.Second * 30,
-			},
-		},
-		httpProxyClient: &rhttp.Client{
-			Transport: &rhttp.Transport{
-				// MaxIdleConns:      100,
-				// DisableKeepAlives: true,
-				IdleConnTimeout: time.Second,
-				TLSNextProto:    map[string]func(string, *tls.Conn) rhttp.RoundTripper{}, // disable http2
-				Proxy:           rhttp.ProxyURL(opts.Proxy),
-			},
-		},
+		jar:     cookieJar,
 		options: opts,
 		logger:  logger,
+	}
+	client.httpClient = &rhttp.Client{
+		Transport: &rhttp.Transport{
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 5,
+			IdleConnTimeout:     time.Second * 30,
+		},
+		CheckRedirect: client.checkRedirect,
+	}
+	client.httpProxyClient = &rhttp.Client{
+		Transport: &rhttp.Transport{
+			// MaxIdleConns:      100,
+			// DisableKeepAlives: true,
+			IdleConnTimeout: time.Second,
+			TLSNextProto:    map[string]func(string, *tls.Conn) rhttp.RoundTripper{}, // disable http2
+			Proxy:           rhttp.ProxyURL(opts.Proxy),
+		},
+		CheckRedirect: client.checkRedirect,
 	}
 	return &client, nil
 }
@@ -90,6 +96,10 @@ func (c *proxyClient) Do(ctx context.Context, r *http.Request) (*http.Response, 
 func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts http.Options) (*http.Response, error) {
 	if c == nil || r == nil {
 		return nil, nil
+	}
+
+	if opts.DisableRedirect {
+		ctx = context.WithValue(ctx, disableHttpRedirect, true)
 	}
 
 	if c.jar != nil {
@@ -248,6 +258,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		retryCount := 2
 		for i := 0; i < retryCount; i++ {
 			creq := req.Clone(ctx)
+			c.logger.Debugf("%+v", creq.Header)
 			if resp, err = c.httpClient.Do(creq); err != nil {
 				c.logger.Debugf("access %s failed, error=%s", err)
 				time.Sleep(time.Millisecond * 100)
@@ -285,4 +296,41 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	resp.Body = http.NewReader(data)
 
 	return resp, nil
+}
+
+// checkRedirect
+func (c *proxyClient) checkRedirect(req *rhttp.Request, via []*rhttp.Request) error {
+	if c == nil {
+		return nil
+	}
+	c.logger.Debugf("redirect to %s, header: %+v", req.URL.String(), req.Response.Cookies())
+
+	var (
+		ctx             = req.Context()
+		disableRedirect bool
+	)
+	disableRedirectVal := ctx.Value(disableHttpRedirect)
+	if disableRedirectVal != nil {
+		disableRedirect = disableRedirectVal.(bool)
+	}
+	if disableRedirect {
+		return rhttp.ErrUseLastResponse
+	}
+
+	if req.Response != nil && c.jar != nil {
+		cookies := req.Response.Cookies()
+		if len(cookies) > 0 {
+			c.jar.SetCookies(ctx, req.Response.Request.URL, cookies)
+		}
+	}
+
+	// init cookies
+	if cookies, err := c.jar.Cookies(ctx, req.URL); err != nil {
+		return err
+	} else {
+		for _, c := range cookies {
+			req.AddCookie(c)
+		}
+	}
+	return nil
 }

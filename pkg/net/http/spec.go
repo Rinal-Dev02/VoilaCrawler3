@@ -54,6 +54,9 @@ type Options struct {
 	// KeepSession
 	KeepSession bool
 
+	// DisableRedirect disable http redirect when do http request
+	DisableRedirect bool
+
 	// ProxyLevel proxies will try from low level to high level
 	ProxyLevel ProxyLevel
 }

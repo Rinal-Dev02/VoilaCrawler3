@@ -202,14 +202,6 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 	}
 	item.Source.CrawlUrl = rawurl
 
-	var (
-		cookies   = map[string]*http.Cookie{}
-		expiresAt time.Time
-	)
-	for _, c := range resp.Cookies() {
-		cookies[c.Name] = c
-	}
-
 	/*
 		// this is not necessory
 		mockCookieUrls := []string{}
@@ -239,7 +231,11 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 			}
 	*/
 
-	var cookie string
+	var (
+		cookies, _ = c.httpClient.Jar().Cookies(ctx, resp.Request.URL)
+		cookie     string
+		expiresAt  time.Time
+	)
 	for _, c := range cookies {
 		v := fmt.Sprintf("%s=%s", c.Name, c.Value)
 		if cookie == "" {
@@ -351,7 +347,7 @@ func main() {
 				}
 			}
 
-			resp, err := client.DoWithOptions(ctx, i, http.Options{EnableProxy: false, ProxyLevel: http.ProxyLevelReliable})
+			resp, err := client.DoWithOptions(ctx, i, http.Options{EnableProxy: false})
 			if err != nil {
 				panic(err)
 			}
@@ -359,27 +355,20 @@ func main() {
 
 			return spider.Parse(ctx, resp, callback)
 		case *pbItem.Tiktok_Item:
+			logger.Debugf("Access %s", i.Video.OriginalUrl)
+
 			req, err := http.NewRequest(http.MethodGet, i.Video.OriginalUrl, nil)
 			if err != nil {
 				return err
 			}
-			// req.Header.Set("Accept", "*/*")
-			// req.Header.Set("Accept-Encoding", "identity;q=1, *;q=0")
-			// req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8,pl;q=0.7,zh-TW;q=0.6,ca;q=0.5,mt;q=0.4")
-			// req.Header.Set("Cache-Control", "no-cache")
-			// req.Header.Set("Connection", "keep-alive")
-			// req.Header.Set("Pragma", "no-cache")
-			// req.Header.Set("sec-ch-ua", `"Chromium";v="88", "Google Chrome";v="88", ";Not A Brand";v="99"`)
-			// req.Header.Set("sec-ch-ua-mobile", "?0")
-			// req.Header.Set("Sec-Fetch-Dest", "video")
-			// req.Header.Set("Sec-Fetch-Mode", "no-cors")
-			// req.Header.Set("Sec-Fetch-Site", "same-site")
-			// req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
-			// req.Header.Set("Range", "bytes=0-")
 			for k, v := range i.Headers {
+				if k == "Cookie" {
+					continue
+				}
+				logger.Debugf("k=%s,v=%s", k, v)
 				req.Header.Set(k, v)
 			}
-			resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: false, ProxyLevel: http.ProxyLevelReliable})
+			resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: false})
 			if err != nil {
 				panic(err)
 			}
