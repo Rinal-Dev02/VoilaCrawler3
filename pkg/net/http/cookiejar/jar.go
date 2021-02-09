@@ -28,6 +28,18 @@ func (j *Jar) Jar() rhttp.CookieJar {
 	return j.jar
 }
 
+func (j *Jar) Clear(ctx context.Context, u *url.URL) (err error) {
+	cs := j.jar.Cookies(u)
+	if len(cs) > 0 {
+		for _, c := range cs {
+			c.MaxAge = -1
+		}
+		j.jar.SetCookies(u, cs)
+	}
+
+	return nil
+}
+
 func (j *Jar) Cookies(ctx context.Context, u *url.URL) (cookies []*http.Cookie, err error) {
 	if j == nil || u == nil {
 		return

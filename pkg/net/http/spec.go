@@ -72,6 +72,9 @@ type CookieJar interface {
 	// Jar returns the standard jar
 	Jar() http.CookieJar
 
+	// Clear cookies
+	Clear(ctx context.Context, u *url.URL) error
+
 	// SetCookies handles the receipt of the cookies in a reply for the
 	// given URL.  It may or may not choose to save the cookies, depending
 	// on the jar's policy and implementation.

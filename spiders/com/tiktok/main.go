@@ -1,5 +1,7 @@
 package main
 
+// Refer to https://github.com/soimort/you-get/blob/develop/src/you_get/extractors/tiktok.py
+
 import (
 	"bytes"
 	"context"
@@ -62,8 +64,10 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
+	options.MustHeader.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	options.MustHeader.Set("Accept-Charset", "UTF-8,*;q=0.5")
 	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
-	options.MustCookies = append(options.MustCookies)
+	// options.MustCookies = append(options.MustCookies)
 	return options
 }
 
@@ -132,7 +136,31 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 		}
 	}
 
-	// c.logger.Debugf("%s", respBody)
+	if ctx.Value("__retry__") == nil {
+		cookies := resp.Cookies()
+
+		nc := cookies[0:0]
+		for _, cookie := range cookies {
+			if cookie.Name != "tt_webid" && cookie.Name != "tt_webid_v2" {
+				cookie.MaxAge = -1
+				cookie.Expires = time.Time{}
+				nc = append(nc, cookie)
+			}
+		}
+		c.httpClient.Jar().SetCookies(ctx, resp.Request.URL, nc)
+
+		ctx = context.WithValue(ctx, "__retry__", true)
+		nreq := resp.Request.Clone(ctx)
+		nreq.Header.Del("Cookie")
+
+		if resp, err = c.httpClient.DoWithOptions(ctx, nreq, http.Options{EnableProxy: false}); err != nil {
+			return err
+		}
+		doc, err = goquery.NewDocumentFromReader(resp.Body)
+		if err != nil {
+			return err
+		}
+	}
 
 	var (
 		rawurl string
@@ -204,31 +232,37 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 
 	/*
 		// this is not necessory
-		mockCookieUrls := []string{}
-		reg := regexp.MustCompile(`<script\s+type="text/javascript"\s+src="(https://www.tiktok.com/akam/[a-z0-9]+/[a-z0-9]+)"\s+defer>\s*</script>`)
-		if matched := reg.FindSubmatch(respBody); len(matched) > 1 {
-			mockCookieUrls = append(mockCookieUrls, string(matched[1]))
+		mockCookieUrls := []string{
+			"https://www.tiktok.com/secsdk_csrf_token",
+			resp.Request.URL.String(),
 		}
-		reg = regexp.MustCompile(`src="(https?://www.tiktok.com/akam/[a-z0-9]+/pixel_[a-z0-9]+\?a=[a-zA-Z0-9=+-.]+)"`)
-		if matched := reg.FindSubmatch(respBody); len(matched) > 1 {
-			mockCookieUrls = append(mockCookieUrls, string(matched[1]))
-		}
-
-			for _, u := range mockCookieUrls {
-				c.logger.Debugf("mock cookie %s", u)
-				if req, err := http.NewRequest(http.MethodGet, u, nil); err != nil {
-					return err
-				} else if resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-					EnableProxy:        false,
-					DisableBackconnect: false,
-				}); err != nil {
-					return err
-				} else {
-					for _, c := range resp.Cookies() {
-						cookies[c.Name] = c
-					}
-				}
+		/*
+			reg := regexp.MustCompile(`<script\s+type="text/javascript"\s+src="(https://www.tiktok.com/akam/[a-z0-9]+/[a-z0-9]+)"\s+defer>\s*</script>`)
+			if matched := reg.FindSubmatch(respBody); len(matched) > 1 {
+				mockCookieUrls = append(mockCookieUrls, string(matched[1]))
 			}
+			reg = regexp.MustCompile(`src="(https?://www.tiktok.com/akam/[a-z0-9]+/pixel_[a-z0-9]+\?a=[a-zA-Z0-9=+-.]+)"`)
+			if matched := reg.FindSubmatch(respBody); len(matched) > 1 {
+				mockCookieUrls = append(mockCookieUrls, string(matched[1]))
+			}
+
+		opts := c.CrawlOptions()
+		for _, u := range mockCookieUrls {
+			c.logger.Debugf("mock cookie %s", u)
+			req, err := http.NewRequest(http.MethodGet, u, nil)
+			if err != nil {
+				return err
+			}
+			if u != resp.Request.URL.String() {
+				req.Header.Set("Referer", resp.Request.URL.String())
+			}
+			for k := range opts.MustHeader {
+				req.Header.Set(k, opts.MustHeader.Get(k))
+			}
+			if _, err := c.httpClient.DoWithOptions(ctx, req, http.Options{EnableProxy: false}); err != nil {
+				return err
+			}
+		}
 	*/
 
 	var (
@@ -258,7 +292,9 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 	if item.Headers == nil {
 		item.Headers = map[string]string{}
 	}
-	item.Headers["Referer"] = "https://www.tiktok.com/"
+	u := *resp.Request.URL
+	u.RawQuery = ""
+	item.Headers["Referer"] = u.String()
 	item.Headers["Cookie"] = cookie
 
 	if expiresAt.IsZero() {
@@ -285,7 +321,7 @@ func (c *_Crawler) download(ctx context.Context, resp *http.Response, yield inte
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		// "https://vm.tiktok.com/ZScNvr6C/",
+		"https://vm.tiktok.com/ZScNvr6C/",
 		"https://www.tiktok.com/@kasey.jo.gerst/video/6923743895247506693?sender_device=mobile&sender_web_id=6926525695457117698&is_from_webapp=v2&is_copy_url=0",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
@@ -337,18 +373,7 @@ func main() {
 			for k := range opts.MustHeader {
 				i.Header.Set(k, opts.MustHeader.Get(k))
 			}
-			for _, c := range opts.MustCookies {
-				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
-					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
-					if c := i.Header.Get("Cookie"); c != "" {
-						i.Header.Set("Cookie", c+"; "+val)
-					} else {
-						i.Header.Set("Cookie", val)
-					}
-				}
-			}
-
-			resp, err := client.DoWithOptions(ctx, i, http.Options{EnableProxy: false})
+			resp, err := client.DoWithOptions(context.Background(), i, http.Options{EnableProxy: false})
 			if err != nil {
 				panic(err)
 			}
@@ -366,9 +391,12 @@ func main() {
 				if k == "Cookie" {
 					continue
 				}
-				logger.Debugf("k=%s,v=%s", k, v)
 				req.Header.Set(k, v)
 			}
+			req.Header.Set("Accept", "*/*")
+			req.Header.Set("Accept-Encoding", "identity;q=1, *;q=0")
+			req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+
 			resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: false})
 			if err != nil {
 				panic(err)

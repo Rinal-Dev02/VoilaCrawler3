@@ -16,6 +16,7 @@ type PropDataV1 struct {
 			StatusCode int    `json:"statusCode"`
 			FullURL    string `json:"$fullUrl"`
 			CsrfToken  string `json:"$csrfToken"`
+			Wid        string `json:"$wid"`
 		} `json:"initialProps"`
 		PageProps struct {
 			Key        string `json:"key"`
@@ -250,7 +251,6 @@ func parsePropData(data []byte) (string, *pbItem.Tiktok_Item, error) {
 			if err := json.Unmarshal(propsBytes, &prop.Props); err != nil {
 				return "", nil, err
 			}
-
 			video := prop.Props.PageProps.ItemInfo.ItemStruct.Video
 
 			item.Source.Id = prop.Props.PageProps.ItemInfo.ItemStruct.ID

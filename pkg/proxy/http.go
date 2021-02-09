@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -106,8 +107,8 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		if cookies, err := c.jar.Cookies(ctx, r.URL); err != nil {
 			c.logger.Warnf("get cookies failed, error=%s", err)
 		} else if len(cookies) > 0 {
-			for _, c := range cookies {
-				r.AddCookie(c)
+			for _, cookie := range cookies {
+				r.AddCookie(cookie)
 			}
 		} else if opts.EnableSessionInit {
 			opts.EnableHeadless = true
@@ -140,7 +141,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	)
 
 	if req.Header.Get("User-Agent") == "" {
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.74 Safari/537.36 Edg/79.0.309.43")
 	}
 
 	if opts.EnableProxy {
@@ -258,7 +259,6 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		retryCount := 2
 		for i := 0; i < retryCount; i++ {
 			creq := req.Clone(ctx)
-			c.logger.Debugf("%+v", creq.Header)
 			if resp, err = c.httpClient.Do(creq); err != nil {
 				c.logger.Debugf("access %s failed, error=%s", err)
 				time.Sleep(time.Millisecond * 100)
@@ -266,6 +266,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			} else if resp.StatusCode == http.StatusRequestTimeout ||
 				resp.StatusCode == http.StatusInternalServerError ||
 				resp.StatusCode == http.StatusServiceUnavailable {
+
 				time.Sleep(time.Millisecond * 100)
 				continue
 			} else if resp.StatusCode == http.StatusForbidden {
@@ -289,12 +290,28 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		}
 	}
 
-	data, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	resp.Body = http.NewReader(data)
+	if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") && !resp.Uncompressed {
+		reader, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		data, err := ioutil.ReadAll(reader)
+		if err != nil {
+			return nil, err
+		}
+		resp.Body = http.NewReader(data)
 
+		resp.Header.Del("Content-Encoding")
+		resp.Header.Del("Content-Length")
+		resp.ContentLength = -1
+		resp.Uncompressed = true
+	} else {
+		data, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		resp.Body = http.NewReader(data)
+	}
 	return resp, nil
 }
 
