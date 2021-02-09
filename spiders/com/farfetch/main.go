@@ -99,7 +99,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseProduct(ctx, resp, yield)
+		//return c.parseProduct(ctx, resp, yield)
+		
 	}
 	
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
@@ -110,7 +111,7 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")) + 1)
 }
 
-//var prodDataExtraReg = regexp.MustCompile(`(window\['__initialState__']) = "([^;)]+)"`)
+var prodDataExtraReg1 = regexp.MustCompile(`(window\['__initialState__']) = "([^;)]+)";`)
 var prodDataExtraReg = regexp.MustCompile(`(window\['__initialState_portal-slices-listing__'\])\s*=\s*({.*})?</script>`)
 
 // parseCategoryProducts parse api url from web page url
@@ -125,13 +126,16 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	 // write the whole body at once
-	//  err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork\\VoilaCrawl\\output.txt", respBody, 0644)
+	//  err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\output.txt", respBody, 0644)
 	//  if err != nil {
 	// 	 panic(err)
 	//  }
 
 	// next page
 	matched := prodDataExtraReg.FindSubmatch(respBody)
+	 if matched == nil {
+		matched = prodDataExtraReg1.FindSubmatch(respBody) //__initialState__
+	 }
 	if len(matched) <= 1 {
 		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
 	}
@@ -1479,7 +1483,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		"https://www.farfetch.com/ae/shopping/women/gucci/items.aspx",		
-		"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
+		//"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -1524,48 +1528,49 @@ func main() {
 	}
 	opts := spider.CrawlOptions()
 
-	for _, req := range spider.NewTestRequest(context.Background()) {
-	
+	var callback func(ctx context.Context, val interface{}) error
+	callback = func(ctx context.Context, val interface{}) error {
+		switch i := val.(type) {
+		case *http.Request:
+			logger.Debugf("Access %s", i.URL)
 
+			for k := range opts.MustHeader {
+				i.Header.Set(k, opts.MustHeader.Get(k))
+			}
+			for _, c := range opts.MustCookies {
+				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
+					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+					if c := i.Header.Get("Cookie"); c != "" {
+						i.Header.Set("Cookie", c+"; "+val)
+					} else {
+						i.Header.Set("Cookie", val)
+					}
+				}
+			}
+
+			resp, err := client.DoWithOptions(ctx, i, http.Options{EnableProxy: false})
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
+
+			return spider.Parse(ctx, resp, callback)		
+		default:
+			data, err := json.Marshal(i)
+			if err != nil {
+				return err
+			}
+			logger.Infof("data: %s", data)
+		}
+		return nil
+	}
+
+	for _, req := range spider.NewTestRequest(context.Background()) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
 		defer cancel()
-		
-		logger.Debugf("Access %s", req.URL)
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
-		for k := range opts.MustHeader {
-			req.Header.Set(k, opts.MustHeader.Get(k))
-		}
-		for _, c := range opts.MustCookies {
-			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
-				val := fmt.Sprintf("%s=%s", c.Name, c.Value)
-				if c := req.Header.Get("Cookie"); c != "" {
-					req.Header.Set("Cookie", c+"; "+val)
-				} else {
-					req.Header.Set("Cookie", val)
-				}
-			}
-		}
 
-		resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: true})
-		if err != nil {
-			panic(err)
-		}
-		defer resp.Body.Close()
-
-		if err := spider.Parse(ctx, resp, func(ctx context.Context, val interface{}) error {
-			switch i := val.(type) {
-			case *http.Request:
-				logger.Infof("new request %s", i.URL)
-			default:
-				data, err := json.Marshal(i)
-				if err != nil {
-					return err
-				}
-				logger.Infof("data: %s", data)
-			}
-			return nil
-		}); err != nil {
-			panic(err)
+		if err := callback(ctx, req); err != nil {
+			logger.Fatal(err)
 		}
 	}
 }
