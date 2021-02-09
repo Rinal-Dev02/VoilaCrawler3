@@ -136,9 +136,8 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 		}
 	}
 
-	if ctx.Value("__retry__") == nil {
+	{
 		cookies := resp.Cookies()
-
 		nc := cookies[0:0]
 		for _, cookie := range cookies {
 			if cookie.Name != "tt_webid" && cookie.Name != "tt_webid_v2" {
@@ -149,7 +148,6 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 		}
 		c.httpClient.Jar().SetCookies(ctx, resp.Request.URL, nc)
 
-		ctx = context.WithValue(ctx, "__retry__", true)
 		nreq := resp.Request.Clone(ctx)
 		nreq.Header.Del("Cookie")
 
