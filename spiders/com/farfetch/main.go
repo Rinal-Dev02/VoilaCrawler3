@@ -99,8 +99,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		//return c.parseProduct(ctx, resp, yield)
-		
+		return c.parseProduct(ctx, resp, yield)		
 	}
 	
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
@@ -331,7 +330,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			ShouldBeDisplayed interface{} `json:"shouldBeDisplayed"`
 		} `json:"similarDesigners"`
 		SizeProfile struct {
-			CombinedCategoriesMapping struct {
+			CombinedCategoriesMapping map[string] struct {
 				Num135979 []int `json:"135979"`
 				Num135981 []int `json:"135981"`
 				Num135983 []int `json:"135983"`
@@ -1195,7 +1194,7 @@ type parseProductResponse struct {
 			} `json:"socialIcons"`
 		} `json:"share"`
 		ShippingInformations struct {
-			Details struct {
+			Details map[string] struct {
 				Nine445 struct {
 					CityID                      int64       `json:"cityId"`
 					CountryCode                 string      `json:"countryCode"`
@@ -1251,7 +1250,7 @@ type parseProductResponse struct {
 		} `json:"shippingInformations"`
 		SimilarProducts interface{} `json:"similarProducts"`
 		Sizes           struct {
-			Available struct {
+			Available map[string] struct {
 				Two0 struct {
 					Description string `json:"description"`
 					LastInStock bool   `json:"lastInStock"`
@@ -1442,48 +1441,48 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		})
 	}
 
-	// for _, variant := range i.ProductViewModel.Sizes.Available {
-	// 	// vv, ok := variants[variant.VariantID] // ASK Why ?
-	// 	// if !ok {
-	// 	// 	continue
-	// 	// }
-	// 	sku := pbItem.Sku{
-	// 		SourceId:    strconv.Format(variant.VariantID),
-	// 		Title:       i.ProductViewModel.Details.ShortDescription,
-	// 		Description: "",
-	// 		Price: &pbItem.Price{				
-	// 			Currency: regulation.Currency_USD,
-	// 			//Current:  int32(vv.Price.Current.Value * 100), //ask ??
-	// 		},
-	// 		Stock: &pbItem.Stock{
-	// 			StockStatus: pbItem.Stock_OutOfStock,
-	// 		},
-	// 		Specs: []*pbItem.SkuSpecOption{
-	// 			{
-	// 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-	// 				Name:  variant.Colour,
-	// 				Value: strconv.Format(variant.ColourWayID),
-	// 			},
-	// 			{
-	// 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-	// 				Name:  variant.Size,
-	// 				Value: strconv.Format(variant.SizeID),
-	// 			},
-	// 		},
-	// 	}
-	// 	// if vv.IsInStock {
-	// 	// 	sku.Stock.StockStatus = pbItem.Stock_InStock
-	// 	// }
-	// 	item.SkuItems = append(item.SkuItems, &sku)
-	//  }
+	for _, variant := range i.ProductViewModel.Sizes.Available {
+		// vv, ok := variants[variant.VariantID] // ASK Why ?
+		// if !ok {
+		// 	continue
+		// }
+		sku := pbItem.Sku{
+			SourceId:    strconv.Format(variant),
+			Title:       i.ProductViewModel.Details.ShortDescription,
+			Description: "",
+			Price: &pbItem.Price{				
+				Currency: regulation.Currency_USD,
+				//Current:  int32(vv.Price.Current.Value * 100), //ask ??
+			},
+			Stock: &pbItem.Stock{
+				StockStatus: pbItem.Stock_OutOfStock,
+			},
+			Specs: []*pbItem.SkuSpecOption{
+				{
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
+					// Name:  variant.Colour,
+					// Value: strconv.Format(variant.ColourWayID),
+				},
+				{
+					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					// Name:  variant.Description,
+					// Value: strconv.Format(variant.SizeID),
+				},
+			},
+		}
+		// if vv.IsInStock {
+		// 	sku.Stock.StockStatus = pbItem.Stock_InStock
+		// }
+		item.SkuItems = append(item.SkuItems, &sku)
+	 }
 	return yield(ctx, &item)
 }
 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.farfetch.com/ae/shopping/women/gucci/items.aspx",		
-		//"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
+		//"https://www.farfetch.com/ae/shopping/women/gucci/items.aspx",		
+		"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
