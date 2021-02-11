@@ -124,12 +124,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	 // write the whole body at once
-	//  err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\output.txt", respBody, 0644)
-	//  if err != nil {
-	// 	 panic(err)
-	//  }
-
 	// next page
 	matched := prodDataExtraReg.FindSubmatch(respBody)
 	 if matched == nil {
@@ -330,168 +324,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			ShouldBeDisplayed interface{} `json:"shouldBeDisplayed"`
 		} `json:"similarDesigners"`
 		SizeProfile struct {
-			CombinedCategoriesMapping map[string] struct {
-				Num135979 []int `json:"135979"`
-				Num135981 []int `json:"135981"`
-				Num135983 []int `json:"135983"`
-				Num135985 []int `json:"135985"`
-				Num136021 []int `json:"136021"`
-				Num136045 []int `json:"136045"`
-				Num136071 []int `json:"136071"`
-				Num136089 []int `json:"136089"`
-				Num136091 []int `json:"136091"`
-				Num136093 []int `json:"136093"`
-				Num136099 []int `json:"136099"`
-				Num136101 []int `json:"136101"`
-				Num136103 []int `json:"136103"`
-				Num136105 []int `json:"136105"`
-				Num136107 []int `json:"136107"`
-				Num136137 []int `json:"136137"`
-				Num136147 []int `json:"136147"`
-				Num136149 []int `json:"136149"`
-				Num136157 []int `json:"136157"`
-				Num136175 []int `json:"136175"`
-				Num136177 []int `json:"136177"`
-				Num136179 []int `json:"136179"`
-				Num136181 []int `json:"136181"`
-				Num136183 []int `json:"136183"`
-				Num136185 []int `json:"136185"`
-				Num136187 []int `json:"136187"`
-				Num136189 []int `json:"136189"`
-				Num136191 []int `json:"136191"`
-				Num136193 []int `json:"136193"`
-				Num136195 []int `json:"136195"`
-				Num136216 []int `json:"136216"`
-				Num136217 []int `json:"136217"`
-				Num136218 []int `json:"136218"`
-				Num136220 []int `json:"136220"`
-				Num136221 []int `json:"136221"`
-				Num136222 []int `json:"136222"`
-				Num136223 []int `json:"136223"`
-				Num136224 []int `json:"136224"`
-				Num136225 []int `json:"136225"`
-				Num136226 []int `json:"136226"`
-				Num136227 []int `json:"136227"`
-				Num136228 []int `json:"136228"`
-				Num136229 []int `json:"136229"`
-				Num136230 []int `json:"136230"`
-				Num136231 []int `json:"136231"`
-				Num136232 []int `json:"136232"`
-				Num136233 []int `json:"136233"`
-				Num136234 []int `json:"136234"`
-				Num136235 []int `json:"136235"`
-				Num136236 []int `json:"136236"`
-				Num136237 []int `json:"136237"`
-				Num136238 []int `json:"136238"`
-				Num136239 []int `json:"136239"`
-				Num136240 []int `json:"136240"`
-				Num136241 []int `json:"136241"`
-				Num136242 []int `json:"136242"`
-				Num136243 []int `json:"136243"`
-				Num136244 []int `json:"136244"`
-				Num136245 []int `json:"136245"`
-				Num136246 []int `json:"136246"`
-				Num136247 []int `json:"136247"`
-				Num136248 []int `json:"136248"`
-				Num136249 []int `json:"136249"`
-				Num136250 []int `json:"136250"`
-				Num136251 []int `json:"136251"`
-				Num136252 []int `json:"136252"`
-				Num136253 []int `json:"136253"`
-				Num136254 []int `json:"136254"`
-				Num136255 []int `json:"136255"`
-				Num136257 []int `json:"136257"`
-				Num136258 []int `json:"136258"`
-				Num136259 []int `json:"136259"`
-				Num136260 []int `json:"136260"`
-				Num136261 []int `json:"136261"`
-				Num136262 []int `json:"136262"`
-				Num136263 []int `json:"136263"`
-				Num136264 []int `json:"136264"`
-				Num136265 []int `json:"136265"`
-				Num136266 []int `json:"136266"`
-				Num136267 []int `json:"136267"`
-				Num136268 []int `json:"136268"`
-				Num136269 []int `json:"136269"`
-				Num136270 []int `json:"136270"`
-				Num136271 []int `json:"136271"`
-				Num136272 []int `json:"136272"`
-				Num136273 []int `json:"136273"`
-				Num136274 []int `json:"136274"`
-				Num136275 []int `json:"136275"`
-				Num136276 []int `json:"136276"`
-				Num136277 []int `json:"136277"`
-				Num136278 []int `json:"136278"`
-				Num136279 []int `json:"136279"`
-				Num136280 []int `json:"136280"`
-				Num136281 []int `json:"136281"`
-				Num136282 []int `json:"136282"`
-				Num136283 []int `json:"136283"`
-				Num136284 []int `json:"136284"`
-				Num136285 []int `json:"136285"`
-				Num136286 []int `json:"136286"`
-				Num136287 []int `json:"136287"`
-				Num136288 []int `json:"136288"`
-				Num136289 []int `json:"136289"`
-				Num136290 []int `json:"136290"`
-				Num136291 []int `json:"136291"`
-				Num136292 []int `json:"136292"`
-				Num136294 []int `json:"136294"`
-				Num136295 []int `json:"136295"`
-				Num136298 []int `json:"136298"`
-				Num136299 []int `json:"136299"`
-				Num136300 []int `json:"136300"`
-				Num136301 []int `json:"136301"`
-				Num136302 []int `json:"136302"`
-				Num136303 []int `json:"136303"`
-				Num136304 []int `json:"136304"`
-				Num136305 []int `json:"136305"`
-				Num136306 []int `json:"136306"`
-				Num136307 []int `json:"136307"`
-				Num136308 []int `json:"136308"`
-				Num136309 []int `json:"136309"`
-				Num136310 []int `json:"136310"`
-				Num136466 []int `json:"136466"`
-				Num136467 []int `json:"136467"`
-				Num136481 []int `json:"136481"`
-				Num136482 []int `json:"136482"`
-				Num136484 []int `json:"136484"`
-				Num136485 []int `json:"136485"`
-				Num136488 []int `json:"136488"`
-				Num136490 []int `json:"136490"`
-				Num136491 []int `json:"136491"`
-				Num136495 []int `json:"136495"`
-				Num136497 []int `json:"136497"`
-				Num137118 []int `json:"137118"`
-				Num137119 []int `json:"137119"`
-				Num137120 []int `json:"137120"`
-				Num137121 []int `json:"137121"`
-				Num137122 []int `json:"137122"`
-				Num137123 []int `json:"137123"`
-				Num137124 []int `json:"137124"`
-				Num137125 []int `json:"137125"`
-				Num137126 []int `json:"137126"`
-				Num137127 []int `json:"137127"`
-				Num137128 []int `json:"137128"`
-				Num137129 []int `json:"137129"`
-				Num137130 []int `json:"137130"`
-				Num137131 []int `json:"137131"`
-				Num137132 []int `json:"137132"`
-				Num137133 []int `json:"137133"`
-				Num137135 []int `json:"137135"`
-				Num137136 []int `json:"137136"`
-				Num137166 []int `json:"137166"`
-				Num137191 []int `json:"137191"`
-				Num137192 []int `json:"137192"`
-				Num137193 []int `json:"137193"`
-				Num137400 []int `json:"137400"`
-				Num137402 []int `json:"137402"`
-				Num137410 []int `json:"137410"`
-				Num137411 []int `json:"137411"`
-				Num137427 []int `json:"137427"`
-				Num137428 []int `json:"137428"`
-				Num137429 []int `json:"137429"`
-				Num138229 []int `json:"138229"`
+			CombinedCategoriesMapping map[string][]struct{
+				Num135979 []int `json:"135979"`		
 			} `json:"combinedCategoriesMapping"`
 		} `json:"sizeProfile"`
 		IsMobile     bool `json:"isMobile"`
@@ -627,11 +461,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			} `json:"scale"`
 		} `json:"listingFilters"`
 	}
-
-	// err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork\\VoilaCrawl\\output_0.txt", matched[0], 0644)
-	// err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork\\VoilaCrawl\\output_1.txt", matched[1], 0644)
-	// err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork\\VoilaCrawl\\output_2.txt", matched[2], 0644)
-	
 
 	matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
 	// rawData, err := strconv.Unquote(string(matched[1]))
@@ -1169,15 +998,16 @@ type parseProductResponse struct {
 		PriceInfo struct {
 			Default struct {
 				CurrencyCode                  string `json:"currencyCode"`
-				FinalPrice                    int64  `json:"finalPrice"`
+				FinalPrice                    float32 `json:"finalPrice"`
 				FormattedFinalPrice           string `json:"formattedFinalPrice"`
 				FormattedFinalPriceInternal   string `json:"formattedFinalPriceInternal"`
 				FormattedInitialPrice         string `json:"formattedInitialPrice"`
 				FormattedInitialPriceInternal string `json:"formattedInitialPriceInternal"`
-				InitialPrice                  int64  `json:"initialPrice"`
+				InitialPrice                  float32  `json:"initialPrice"`
 				IsOnSale                      bool   `json:"isOnSale"`
 				Labels                        struct {
 					Duties string `json:"duties"`
+					Discount string `json:"discount"`
 				} `json:"labels"`
 				PriceTags []string `json:"priceTags"`
 			} `json:"default"`
@@ -1194,8 +1024,8 @@ type parseProductResponse struct {
 			} `json:"socialIcons"`
 		} `json:"share"`
 		ShippingInformations struct {
-			Details map[string] struct {
-				Nine445 struct {
+			Details  map[string]struct {
+				
 					CityID                      int64       `json:"cityId"`
 					CountryCode                 string      `json:"countryCode"`
 					DeliveryBefore              interface{} `json:"deliveryBefore"`
@@ -1219,62 +1049,19 @@ type parseProductResponse struct {
 					ShippingMarketplaceSeller   string      `json:"shippingMarketplaceSeller"`
 					ShippingTitle               interface{} `json:"shippingTitle"`
 					StartTime                   interface{} `json:"startTime"`
-				} `json:"9445"`
-				Default struct {
-					CityID                      int64       `json:"cityId"`
-					CountryCode                 string      `json:"countryCode"`
-					DeliveryBefore              interface{} `json:"deliveryBefore"`
-					DeliveryBy                  interface{} `json:"deliveryBy"`
-					DeliveryCityMessage         interface{} `json:"deliveryCityMessage"`
-					DeliveryGreetingsMessage    interface{} `json:"deliveryGreetingsMessage"`
-					DeliveryIn                  interface{} `json:"deliveryIn"`
-					DeliveryType                interface{} `json:"deliveryType"`
-					EndTime                     interface{} `json:"endTime"`
-					FarfetchOwned               interface{} `json:"farfetchOwned"`
-					IsFromEurasianCustomsUnion  bool        `json:"isFromEurasianCustomsUnion"`
-					IsLocalStock                bool        `json:"isLocalStock"`
-					LocalStockCountry           interface{} `json:"localStockCountry"`
-					MerchandiseLabel            string      `json:"merchandiseLabel"`
-					OrderTimeFrame              interface{} `json:"orderTimeFrame"`
-					PostCodesMessage            interface{} `json:"postCodesMessage"`
-					ShippingAndFreeReturns      interface{} `json:"shippingAndFreeReturns"`
-					ShippingAndFreeReturnsTitle interface{} `json:"shippingAndFreeReturnsTitle"`
-					ShippingContactUs           interface{} `json:"shippingContactUs"`
-					ShippingFromMessage         string      `json:"shippingFromMessage"`
-					ShippingMarketplaceSeller   string      `json:"shippingMarketplaceSeller"`
-					ShippingTitle               interface{} `json:"shippingTitle"`
-					StartTime                   interface{} `json:"startTime"`
-				} `json:"default"`
+				
 			} `json:"details"`
 			VisibleOnDetails bool `json:"visibleOnDetails"`
 		} `json:"shippingInformations"`
 		SimilarProducts interface{} `json:"similarProducts"`
 		Sizes           struct {
-			Available map[string] struct {
-				Two0 struct {
-					Description string `json:"description"`
-					LastInStock bool   `json:"lastInStock"`
-					Quantity    int64  `json:"quantity"`
-					SizeID      int64  `json:"sizeId"`
-					StoreID     int64  `json:"storeId"`
-					VariantID   string `json:"variantId"`
-				} `json:"20"`
-				Two1 struct {
-					Description string `json:"description"`
-					LastInStock bool   `json:"lastInStock"`
-					Quantity    int64  `json:"quantity"`
-					SizeID      int64  `json:"sizeId"`
-					StoreID     int64  `json:"storeId"`
-					VariantID   string `json:"variantId"`
-				} `json:"21"`
-				Two2 struct {
-					Description string `json:"description"`
-					LastInStock bool   `json:"lastInStock"`
-					Quantity    int64  `json:"quantity"`
-					SizeID      int64  `json:"sizeId"`
-					StoreID     int64  `json:"storeId"`
-					VariantID   string `json:"variantId"`
-				} `json:"22"`
+			Available map[string]struct {				
+				Description string `json:"description"`
+				LastInStock bool   `json:"lastInStock"`
+				Quantity    int64  `json:"quantity"`
+				SizeID      int64  `json:"sizeId"`
+				StoreID     int64  `json:"storeId"`
+				VariantID   string `json:"variantId"`				
 			} `json:"available"`
 			CleanScaleDescription string      `json:"cleanScaleDescription"`
 			ConvertedScaleID      interface{} `json:"convertedScaleId"`
@@ -1353,11 +1140,10 @@ type parseProductResponse struct {
 	} `json:"toggles"`
 }
 
-
 var (
 	detailReg = regexp.MustCompile(`(window\['__initialState_slice-pdp__'\])\s*=\s*([^;]+)<\/script>`)
+	detailReg1 = regexp.MustCompile(`(window\['__initialState__']) = "([^;)]+)";`)
 )
-
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -1371,12 +1157,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 	
 	 // write the whole body at once
-	//  err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork\\VoilaCrawl\\output_p.txt", respBody, 0644)
+	//  err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\output_p.html", respBody, 0644)
 	//  if err != nil {
 	// 	 panic(err)
 	//  }
 
 	matched := detailReg.FindSubmatch(respBody)
+	if matched == nil {
+		matched = detailReg1.FindSubmatch(respBody)
+		matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
+	
+	}
 	if len(matched) <= 1 {
 		c.logger.Debugf("data %s", respBody)
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
@@ -1385,48 +1176,61 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	var (
 		i      parseProductResponse
 	)
-	
-	// err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork\\VoilaCrawl\\output_p_0.txt", matched[0], 0644)
-	// err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork\\VoilaCrawl\\output_p_1.txt", matched[1], 0644)
-	// err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork\\VoilaCrawl\\output_p_2.txt", matched[2], 0644)
 
 	if err = json.Unmarshal(matched[2], &i); err != nil {
 		c.logger.Error(err)
 		return err
 	}
-	//var IDs = i.ProductViewModel.Details.ProductID
-	// if IDs.IsSSRMobile {
-
-	// }
 
 	item := pbItem.Product{
 		Source: &pbItem.Source{
 			Id:       strconv.Format(i.ProductViewModel.Details.ProductID),
 			CrawlUrl: resp.Request.URL.String(),
-			//GroupId:  groupId,
 		},
 		Title:        i.ProductViewModel.Details.ShortDescription,
 		Description:  i.ProductViewModel.Details.Description,
 		BrandName:    i.ProductViewModel.DesignerDetails.Name,
 		CrowdType:    i.ProductViewModel.Details.GenderName,
-		Category:     "", // auto set by crawl job info
-		SubCategory:  "",
-		SubCategory2: "",
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
-			Current:  int32(i.ProductViewModel.PriceInfo.Default.FinalPrice),
-		},
-		Stats: &pbItem.Stats{
-			Rating:      0, //float32(rating.AverageOverallRating),
-			ReviewCount: 0,  //int32(rating.TotalReviewCount),
 		},
 	}
-	// if i.IsInStock { //ASK ?
-	// 	item.Stock = &pbItem.Stock{
-	// 		StockStatus: pbItem.Stock_InStock,
-	// 	}
-	// }
+
+	discount, _ := strconv.ParseInt(strings.TrimSuffix(i.ProductViewModel.PriceInfo.Default.Labels.Discount, "% Off"))
+	current, _ := strconv.ParseFloat(i.ProductViewModel.PriceInfo.Default.FinalPrice)
+	msrp, _ := strconv.ParseFloat(i.ProductViewModel.PriceInfo.Default.InitialPrice)
+
+	for _, rawSize := range i.ProductViewModel.Sizes.Available {
+		sku := pbItem.Sku{
+			SourceId: strconv.Format(rawSize.SizeID),		
+			Price: &pbItem.Price{
+				Currency: regulation.Currency_USD,
+				Current:  int32(current),
+				Msrp:     int32(msrp),
+				Discount: int32(discount),
+			},
+			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+		}
+		if rawSize.Quantity > 0 {
+			sku.Stock.StockStatus = pbItem.Stock_InStock
+			sku.Stock.StockCount = int32(rawSize.Quantity)
+		}
+
+		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecSize,
+			Id:    strconv.Format(rawSize.SizeID),
+			Name:  rawSize.Description,
+			Value: strconv.Format(rawSize.SizeID),
+		})
+
+		item.SkuItems = append(item.SkuItems, &sku)
+	}
+
+	isDefault:= true
 	for _, img := range i.ProductViewModel.Images.Main {
+		if img.Index > 1 {			
+			isDefault = false
+		}
 		itemImg, _ := anypb.New(&media.Media_Image{  // ask?
 			OriginalUrl: strings.ReplaceAll(img.Zoom, "_1000.jpg", ""),
 			LargeUrl:    img.Zoom, // $S$, $XXL$
@@ -1434,55 +1238,27 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			SmallUrl:    strings.ReplaceAll(img.Zoom, "_1000.jpg", "_400.jpg"),
 		})
 		item.Medias = append(item.Medias, &media.Media{
-			Detail:    itemImg,
-			// if img.Index == 1 {
-			// 	IsDefault: img.IsPrimary, 
-			// }
+			Detail:    itemImg,			
+			IsDefault: isDefault,			
 		})
 	}
 
-	for _, variant := range i.ProductViewModel.Sizes.Available {
-		// vv, ok := variants[variant.VariantID] // ASK Why ?
-		// if !ok {
-		// 	continue
-		// }
-		sku := pbItem.Sku{
-			SourceId:    strconv.Format(variant),
-			Title:       i.ProductViewModel.Details.ShortDescription,
-			Description: "",
-			Price: &pbItem.Price{				
-				Currency: regulation.Currency_USD,
-				//Current:  int32(vv.Price.Current.Value * 100), //ask ??
-			},
-			Stock: &pbItem.Stock{
-				StockStatus: pbItem.Stock_OutOfStock,
-			},
-			Specs: []*pbItem.SkuSpecOption{
-				{
-					Type:  pbItem.SkuSpecType_SkuSpecColor,
-					// Name:  variant.Colour,
-					// Value: strconv.Format(variant.ColourWayID),
-				},
-				{
-					Type:  pbItem.SkuSpecType_SkuSpecSize,
-					// Name:  variant.Description,
-					// Value: strconv.Format(variant.SizeID),
-				},
-			},
-		}
-		// if vv.IsInStock {
-		// 	sku.Stock.StockStatus = pbItem.Stock_InStock
-		// }
-		item.SkuItems = append(item.SkuItems, &sku)
-	 }
-	return yield(ctx, &item)
+	fmt.Println(&item)
+
+	// yield item result
+	if err = yield(ctx, &item); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.farfetch.com/ae/shopping/women/gucci/items.aspx",		
-		"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
+		//"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
+		"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -1506,11 +1282,10 @@ func main() {
 		apiToken = os.Getenv("PC_API_TOKEN")
 		jsToken  = os.Getenv("PC_JS_TOKEN")
 	)
-	apiToken = "123"
-	jsToken = "123"
-	// if apiToken == "" || jsToken == "" {
-	// 	panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
-	// }
+	
+	if apiToken == "" || jsToken == "" {
+		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
+	}
 
 	logger := glog.New(glog.LogLevelDebug)
 	client, err := proxy.NewProxyClient(
