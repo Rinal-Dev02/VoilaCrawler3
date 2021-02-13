@@ -320,7 +320,6 @@ func (c *proxyClient) checkRedirect(req *rhttp.Request, via []*rhttp.Request) er
 	if c == nil {
 		return nil
 	}
-	c.logger.Debugf("redirect to %s, header: %+v", req.URL.String(), req.Response.Cookies())
 
 	var (
 		ctx             = req.Context()

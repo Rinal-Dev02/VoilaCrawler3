@@ -10,6 +10,120 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 )
 
+type TiktokItem struct {
+	ID         string `json:"id"`
+	Desc       string `json:"desc"`
+	CreateTime int64  `json:"createTime"`
+	Video      struct {
+		ID           string   `json:"id"`
+		Height       int      `json:"height"`
+		Width        int      `json:"width"`
+		Duration     int      `json:"duration"`
+		Ratio        string   `json:"ratio"`
+		Cover        string   `json:"cover"`
+		OriginCover  string   `json:"originCover"`
+		DynamicCover string   `json:"dynamicCover"`
+		PlayAddr     string   `json:"playAddr"`
+		DownloadAddr string   `json:"downloadAddr"`
+		ShareCover   []string `json:"shareCover"`
+		ReflowCover  string   `json:"reflowCover"`
+	} `json:"video"`
+	Author struct {
+		ID             string `json:"id"`
+		ShortID        string `json:"shortId"`
+		UniqueID       string `json:"uniqueId"`
+		Nickname       string `json:"nickname"`
+		AvatarLarger   string `json:"avatarLarger"`
+		AvatarMedium   string `json:"avatarMedium"`
+		AvatarThumb    string `json:"avatarThumb"`
+		Signature      string `json:"signature"`
+		CreateTime     int64  `json:"createTime"`
+		Verified       bool   `json:"verified"`
+		SecUID         string `json:"secUid"`
+		Ftc            bool   `json:"ftc"`
+		Relation       int    `json:"relation"`
+		OpenFavorite   bool   `json:"openFavorite"`
+		CommentSetting int    `json:"commentSetting"`
+		DuetSetting    int    `json:"duetSetting"`
+		StitchSetting  int    `json:"stitchSetting"`
+		PrivateAccount bool   `json:"privateAccount"`
+		Secret         bool   `json:"secret"`
+		RoomID         string `json:"roomId"`
+	} `json:"author"`
+	Music struct {
+		ID                 string `json:"id"`
+		Title              string `json:"title"`
+		PlayURL            string `json:"playUrl"`
+		CoverLarge         string `json:"coverLarge"`
+		CoverMedium        string `json:"coverMedium"`
+		CoverThumb         string `json:"coverThumb"`
+		AuthorName         string `json:"authorName"`
+		Original           bool   `json:"original"`
+		Duration           int    `json:"duration"`
+		Album              string `json:"album"`
+		ScheduleSearchTime int64  `json:"scheduleSearchTime"`
+	} `json:"music"`
+	Challenges []struct {
+		ID            string `json:"id"`
+		Title         string `json:"title"`
+		Desc          string `json:"desc"`
+		ProfileLarger string `json:"profileLarger"`
+		ProfileMedium string `json:"profileMedium"`
+		ProfileThumb  string `json:"profileThumb"`
+		CoverLarger   string `json:"coverLarger"`
+		CoverMedium   string `json:"coverMedium"`
+		CoverThumb    string `json:"coverThumb"`
+		IsCommerce    bool   `json:"isCommerce"`
+	} `json:"challenges"`
+	Stats struct {
+		DiggCount    int `json:"diggCount"`
+		ShareCount   int `json:"shareCount"`
+		CommentCount int `json:"commentCount"`
+		PlayCount    int `json:"playCount"`
+	} `json:"stats"`
+	DuetInfo struct {
+		DuetFromID string `json:"duetFromId"`
+	} `json:"duetInfo"`
+	WarnInfo     []interface{} `json:"warnInfo"`
+	OriginalItem bool          `json:"originalItem"`
+	OfficalItem  bool          `json:"officalItem"`
+	TextExtra    []struct {
+		AwemeID      string `json:"awemeId"`
+		Start        int    `json:"start"`
+		End          int    `json:"end"`
+		HashtagID    string `json:"hashtagId"`
+		HashtagName  string `json:"hashtagName"`
+		Type         int    `json:"type"`
+		UserID       string `json:"userId"`
+		IsCommerce   bool   `json:"isCommerce"`
+		UserUniqueID string `json:"userUniqueId"`
+		SecUID       string `json:"secUid"`
+	} `json:"textExtra"`
+	Secret            bool          `json:"secret"`
+	ForFriend         bool          `json:"forFriend"`
+	Digged            bool          `json:"digged"`
+	ItemCommentStatus int           `json:"itemCommentStatus"`
+	ShowNotPass       bool          `json:"showNotPass"`
+	Vl1               bool          `json:"vl1"`
+	TakeDown          int           `json:"takeDown"`
+	ItemMute          bool          `json:"itemMute"`
+	EffectStickers    []interface{} `json:"effectStickers"`
+	AuthorStats       struct {
+		FollowerCount  int `json:"followerCount"`
+		FollowingCount int `json:"followingCount"`
+		Heart          int `json:"heart"`
+		HeartCount     int `json:"heartCount"`
+		VideoCount     int `json:"videoCount"`
+		DiggCount      int `json:"diggCount"`
+	} `json:"authorStats"`
+	PrivateItem    bool          `json:"privateItem"`
+	DuetEnabled    bool          `json:"duetEnabled"`
+	StitchEnabled  bool          `json:"stitchEnabled"`
+	StickersOnItem []interface{} `json:"stickersOnItem"`
+	IsAd           bool          `json:"isAd"`
+	ShareEnabled   bool          `json:"shareEnabled"`
+}
+
 type PropDataV1 struct {
 	Props struct {
 		InitialProps struct {
@@ -27,7 +141,7 @@ type PropDataV1 struct {
 				ItemStruct struct {
 					ID         string `json:"id"`
 					Desc       string `json:"desc"`
-					CreateTime int    `json:"createTime"`
+					CreateTime int64  `json:"createTime"`
 					Video      struct {
 						ID           string   `json:"id"`
 						Height       int      `json:"height"`
@@ -51,7 +165,7 @@ type PropDataV1 struct {
 						AvatarMedium   string `json:"avatarMedium"`
 						AvatarThumb    string `json:"avatarThumb"`
 						Signature      string `json:"signature"`
-						CreateTime     int    `json:"createTime"`
+						CreateTime     int64  `json:"createTime"`
 						Verified       bool   `json:"verified"`
 						SecUID         string `json:"secUid"`
 						Ftc            bool   `json:"ftc"`
@@ -75,7 +189,7 @@ type PropDataV1 struct {
 						Original           bool   `json:"original"`
 						Duration           int    `json:"duration"`
 						Album              string `json:"album"`
-						ScheduleSearchTime int    `json:"scheduleSearchTime"`
+						ScheduleSearchTime int64  `json:"scheduleSearchTime"`
 					} `json:"music"`
 					Stats struct {
 						DiggCount    int `json:"diggCount"`
@@ -112,6 +226,67 @@ type PropDataV1 struct {
 					ShareEnabled  bool `json:"shareEnabled"`
 				} `json:"itemStruct"`
 			} `json:"itemInfo"`
+			UserInfo struct {
+				User struct {
+					ID           string `json:"id"`
+					ShortID      string `json:"shortId"`
+					UniqueID     string `json:"uniqueId"`
+					Nickname     string `json:"nickname"`
+					AvatarLarger string `json:"avatarLarger"`
+					AvatarMedium string `json:"avatarMedium"`
+					AvatarThumb  string `json:"avatarThumb"`
+					Signature    string `json:"signature"`
+					CreateTime   int64  `json:"createTime"`
+					Verified     bool   `json:"verified"`
+					SecUID       string `json:"secUid"`
+					Ftc          bool   `json:"ftc"`
+					Relation     int    `json:"relation"`
+					OpenFavorite bool   `json:"openFavorite"`
+					BioLink      struct {
+						Link string `json:"link"`
+						Risk int    `json:"risk"`
+					} `json:"bioLink"`
+					CommentSetting int    `json:"commentSetting"`
+					DuetSetting    int    `json:"duetSetting"`
+					StitchSetting  int    `json:"stitchSetting"`
+					PrivateAccount bool   `json:"privateAccount"`
+					Secret         bool   `json:"secret"`
+					RoomID         string `json:"roomId"`
+				} `json:"user"`
+				Stats struct {
+					FollowerCount  int `json:"followerCount"`
+					FollowingCount int `json:"followingCount"`
+					Heart          int `json:"heart"`
+					HeartCount     int `json:"heartCount"`
+					VideoCount     int `json:"videoCount"`
+					DiggCount      int `json:"diggCount"`
+				} `json:"stats"`
+				ItemList []interface{} `json:"itemList"`
+			} `json:"userInfo"`
+			FeedConfig struct {
+				PageType   int    `json:"pageType"`
+				SecUID     string `json:"secUid"`
+				ID         string `json:"id"`
+				ShowAvatar bool   `json:"showAvatar"`
+				EmptyTip   string `json:"emptyTip"`
+			} `json:"feedConfig"`
+			IsSSR       bool `json:"isSSR"`
+			PageOptions struct {
+				Footer struct {
+					Hidden       bool `json:"hidden"`
+					ShowDownload bool `json:"showDownload"`
+				} `json:"footer"`
+				Header struct {
+					ShowUpload bool   `json:"showUpload"`
+					Type       string `json:"type"`
+				} `json:"header"`
+			} `json:"pageOptions"`
+			Items               []TiktokItem `json:"items"`
+			VideoListHasMore    bool         `json:"videoListHasMore"`
+			VideoListMaxCursor  int64        `json:"videoListMaxCursor"`
+			VideoListMinCursor  int64        `json:"videoListMinCursor"`
+			VideoListStatusCode int          `json:"videoListStatusCode"`
+			VideoListMode       string       `json:"videoListMode"`
 		} `json:"pageProps"`
 	} `json:"props"`
 	BuildID      string `json:"buildId"`
