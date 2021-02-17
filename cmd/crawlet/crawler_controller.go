@@ -378,7 +378,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 								}
 								item.Data, _ = anypb.New(val)
 
-								ctrl.logger.Infof("#####################", ctrl.Send(shareCtx, &item))
+								ctrl.Send(shareCtx, &item)
 							default:
 								return errors.New("unsupported response data type")
 							}
