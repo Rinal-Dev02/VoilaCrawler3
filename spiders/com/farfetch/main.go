@@ -133,202 +133,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
 	}
 	var r struct {
-		ListingHeader struct {
-			Type        string `json:"type"`
-			Title       string `json:"title"`
-			Description string `json:"description"`
-			Breadcrumb  []struct {
-				Text string `json:"text"`
-				Href string `json:"href"`
-			} `json:"breadcrumb"`
-			ShouldRequestTitle bool        `json:"shouldRequestTitle"`
-			HomologousBrands   interface{} `json:"homologousBrands"`
-		} `json:"listingHeader"`
-		Listing struct {
-			Sort               string      `json:"sort"`
-			SearchTerm         interface{} `json:"searchTerm"`
-			PreferredDesigners struct {
-				Type      string      `json:"type"`
-				Designers interface{} `json:"designers"`
-			} `json:"preferredDesigners"`
-			Designer interface{} `json:"designer"`
-			Category struct {
-				ID       string      `json:"id"`
-				URLToken string      `json:"urlToken"`
-				Name     interface{} `json:"name"`
-			} `json:"category"`
-			Store      interface{} `json:"store"`
-			Categories []struct {
-				ID   string `json:"id"`
-				Name string `json:"name"`
-			} `json:"categories"`
-			MoreProducts     string      `json:"moreProducts"`
-			SetID            interface{} `json:"setId"`
-			PromotionID      interface{} `json:"promotionId"`
-			LabelID          interface{} `json:"labelId"`
-			SimilarProductID interface{} `json:"similarProductId"`
-			SeoProductID     interface{} `json:"seoProductId"`
-			FfMedium         string      `json:"ffMedium"`
-			UtmMedium        string      `json:"utmMedium"`
-			IsMixMode        bool        `json:"isMixMode"`
-			IsExclusive      bool        `json:"isExclusive"`
-			Strategy         interface{} `json:"strategy"`
-			RecommendedPage  struct {
-				ProductID       interface{} `json:"productId"`
-				Referrer        interface{} `json:"referrer"`
-				EncodedStrategy interface{} `json:"encodedStrategy"`
-			} `json:"recommendedPage"`
-		} `json:"listing"`
-		Labels struct {
-			Piece                               string      `json:"piece"`
-			Pieces                              string      `json:"pieces"`
-			ShowPiece                           string      `json:"showPiece"`
-			ShowPieces                          string      `json:"showPieces"`
-			View                                string      `json:"view"`
-			PaginationOf                        string      `json:"paginationOf"`
-			BackToTop                           string      `json:"backToTop"`
-			LooksCloseTo                        string      `json:"looksCloseTo"`
-			Customize                           string      `json:"customize"`
-			PaginationPage                      string      `json:"paginationPage"`
-			PaginationPrevious                  string      `json:"paginationPrevious"`
-			PaginationNext                      string      `json:"paginationNext"`
-			NoResultsFoundFor                   string      `json:"noResultsFoundFor"`
-			SearchDesigners                     string      `json:"searchDesigners"`
-			AvailableIn                         string      `json:"availableIn"`
-			SeeSimilar                          string      `json:"seeSimilar"`
-			Sort                                string      `json:"sort"`
-			Refine                              string      `json:"refine"`
-			More                                string      `json:"more"`
-			Less                                string      `json:"less"`
-			Apply                               string      `json:"apply"`
-			FilterValueAll                      string      `json:"filterValueAll"`
-			SameDayTo                           string      `json:"sameDayTo"`
-			NinetyMinutesTo                     string      `json:"ninetyMinutesTo"`
-			Filters                             string      `json:"filters"`
-			Done                                string      `json:"done"`
-			SortBy                              string      `json:"sortBy"`
-			Discover                            string      `json:"discover"`
-			PiecesInSale                        string      `json:"piecesInSale"`
-			PieceInSale                         string      `json:"pieceInSale"`
-			FullPriceSingular                   string      `json:"fullPriceSingular"`
-			FullPricePlural                     string      `json:"fullPricePlural"`
-			FilterNoResultsTitle                string      `json:"filterNoResultsTitle"`
-			FilterNoResultsDescription          string      `json:"filterNoResultsDescription"`
-			ClearAll                            string      `json:"clearAll"`
-			UnavailableDesigners                string      `json:"unavailableDesigners"`
-			Women                               string      `json:"women"`
-			Men                                 string      `json:"men"`
-			Kids                                string      `json:"kids"`
-			ShopWomen                           string      `json:"shopWomen"`
-			ShopMen                             string      `json:"shopMen"`
-			ShopKids                            interface{} `json:"shopKids"`
-			Popular                             string      `json:"popular"`
-			FavouriteTabTitle                   string      `json:"favouriteTabTitle"`
-			DesignerAZ                          string      `json:"designerAZ"`
-			Featured                            string      `json:"featured"`
-			ShopNow                             string      `json:"shopNow"`
-			FavouriteDesigners                  string      `json:"favouriteDesigners"`
-			AllFavouriteDesigners               string      `json:"allFavouriteDesigners"`
-			FavouriteDesignerUpdateButton       string      `json:"favouriteDesignerUpdateButton"`
-			FavouriteDesignerUpdateTitle        string      `json:"favouriteDesignerUpdateTitle"`
-			LoadNextButton                      string      `json:"loadNextButton"`
-			LoadPreviousButton                  string      `json:"loadPreviousButton"`
-			Progress                            string      `json:"progress"`
-			PrivateClientExclusives             string      `json:"privateClientExclusives"`
-			SizeProfileYourSizeFitProfile       string      `json:"sizeProfileYourSizeFitProfile"`
-			SizeProfileDescription              string      `json:"sizeProfileDescription"`
-			SizeProfileCreateProfile            string      `json:"sizeProfileCreateProfile"`
-			SizeProfileYourFFitProfile          string      `json:"sizeProfileYourFFitProfile"`
-			SizeProfileCreateProfileTooltip     string      `json:"sizeProfileCreateProfileTooltip"`
-			SizeProfileTitleModal               string      `json:"sizeProfileTitleModal"`
-			SizeProfileSubTitleModal            string      `json:"sizeProfileSubTitleModal"`
-			SizeProfileSelectYourSizes          string      `json:"sizeProfileSelectYourSizes"`
-			SizeProfileSelectYourPreferredSizes string      `json:"sizeProfileSelectYourPreferredSizes"`
-			SizeProfileSaveAndApplyFilters      string      `json:"sizeProfileSaveAndApplyFilters"`
-			SizeProfileFFitProfile              string      `json:"sizeProfileFFitProfile"`
-			TryAgain                            string      `json:"tryAgain"`
-			ErrorLoadingSizeProfile             string      `json:"errorLoadingSizeProfile"`
-			PleaseRefreshOrTryAgainLater        string      `json:"pleaseRefreshOrTryAgainLater"`
-			GotIt                               string      `json:"gotIt"`
-			Available                           string      `json:"available"`
-			SeeAllSizes                         string      `json:"seeAllSizes"`
-			SimilarDesignersForYou              string      `json:"similarDesignersForYou"`
-			DutiesAndTaxesIncluded              string      `json:"dutiesAndTaxesIncluded"`
-			PriceInputMin                       string      `json:"priceInputMin"`
-			PriceInputMax                       string      `json:"priceInputMax"`
-			PriceInputMinErrorMessage           string      `json:"priceInputMinErrorMessage"`
-			PriceInputMaxErrorMessage           string      `json:"priceInputMaxErrorMessage"`
-			PriceInputClear                     string      `json:"priceInputClear"`
-			QuickView                           string      `json:"quickView"`
-			ErrorLoadingProductTitle            string      `json:"errorLoadingProductTitle"`
-			SizeProfileOnBoardTitle             string      `json:"sizeProfileOnBoardTitle"`
-			SizeProfileOnBoardDescription       string      `json:"sizeProfileOnBoardDescription"`
-			Cancel                              string      `json:"cancel"`
-			DeliveryOptions                     string      `json:"deliveryOptions"`
-			DeliveryInNinetyMinutes             string      `json:"deliveryInNinetyMinutes"`
-			DeliverySameDay                     string      `json:"deliverySameDay"`
-			Filter                              string      `json:"filter"`
-		} `json:"labels"`
-		Subfolder   string `json:"subfolder"`
-		SortOptions []struct {
-			Value string `json:"value"`
-			Label string `json:"label"`
-		} `json:"sortOptions"`
-		Defaults struct {
-			Page                   int    `json:"page"`
-			Sort                   string `json:"sort"`
-			FavouriteDesignersSort string `json:"favouriteDesignersSort"`
-		} `json:"defaults"`
-		PageType    string `json:"pageType"`
-		Path        string `json:"path"`
-		FlatContent struct {
-		} `json:"flatContent"`
-		Gender      string `json:"gender"`
-		GenderID    int    `json:"genderId"`
-		CultureInfo struct {
-			CountryCultureCode      string `json:"countryCultureCode"`
-			CurrencyCode            string `json:"currencyCode"`
-			CurrencyPositivePattern int    `json:"currencyPositivePattern"`
-			CurrencySymbol          string `json:"currencySymbol"`
-		} `json:"cultureInfo"`
-		PriceInfo struct {
-			Max                   int         `json:"max"`
-			MaxBoundary           int         `json:"maxBoundary"`
-			MinBoundary           int         `json:"minBoundary"`
-			Description           string      `json:"description"`
-			Filter                interface{} `json:"filter"`
-			IsServerSideRendering bool        `json:"isServerSideRendering"`
-		} `json:"priceInfo"`
-		SeoLinks        []interface{} `json:"seoLinks"`
-		PriceType       string        `json:"priceType"`
-		RenderDirection string        `json:"renderDirection"`
-		Toggles         struct {
-			ShowProductsCount          bool `json:"showProductsCount"`
-			IntegratedContentEnabled   bool `json:"integratedContentEnabled"`
-			IsSizeProfileToggleEnabled bool `json:"isSizeProfileToggleEnabled"`
-			SimilarDesignersToggle     bool `json:"similarDesignersToggle"`
-			IsNewPaginationMechanism   bool `json:"isNewPaginationMechanism"`
-			FiltersHide                bool `json:"filtersHide"`
-		} `json:"toggles"`
-		AbTests struct {
-		} `json:"abTests"`
-		HomologousBrands interface{} `json:"homologousBrands"`
-		AdsInfo          struct {
-			CriteoAdsAPIURL       string   `json:"criteoAdsApiUrl"`
-			CriteoTrackingDomains []string `json:"criteoTrackingDomains"`
-			StaticImagesBaseURI   string   `json:"staticImagesBaseUri"`
-			Installments          int      `json:"installments"`
-		} `json:"adsInfo"`
-		SimilarDesigners struct {
-			Threshold         int         `json:"threshold"`
-			ShouldBeDisplayed interface{} `json:"shouldBeDisplayed"`
-		} `json:"similarDesigners"`
-		SizeProfile struct {
-			CombinedCategoriesMapping map[string][]struct{
-				Num135979 []int `json:"135979"`		
-			} `json:"combinedCategoriesMapping"`
-		} `json:"sizeProfile"`
-		IsMobile     bool `json:"isMobile"`
+		
 		ListingItems struct {
 			Items []struct {
 				ID               int    `json:"id"`
@@ -462,7 +267,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		} `json:"listingFilters"`
 	}
 
-	matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
+	//matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
 	// rawData, err := strconv.Unquote(string(matched[1]))
 	//if err != nil {
 	//	c.logger.Errorf("unquote raw string failed, error=%s", err)
@@ -1155,18 +960,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Error(err)
 		return err
 	}
-	
-	 // write the whole body at once
-	//  err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\output_p.html", respBody, 0644)
-	//  if err != nil {
-	// 	 panic(err)
-	//  }
 
 	matched := detailReg.FindSubmatch(respBody)
 	if matched == nil {
-		matched = detailReg1.FindSubmatch(respBody)
-		matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
-	
+		matched = detailReg1.FindSubmatch(respBody)	
 	}
 	if len(matched) <= 1 {
 		c.logger.Debugf("data %s", respBody)
@@ -1231,7 +1028,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if img.Index > 1 {			
 			isDefault = false
 		}
-		itemImg, _ := anypb.New(&media.Media_Image{  // ask?
+		itemImg, _ := anypb.New(&media.Media_Image{
 			OriginalUrl: strings.ReplaceAll(img.Zoom, "_1000.jpg", ""),
 			LargeUrl:    img.Zoom, // $S$, $XXL$
 			MediumUrl:   strings.ReplaceAll(img.Zoom, "_1000.jpg", "_600.jpg"),
