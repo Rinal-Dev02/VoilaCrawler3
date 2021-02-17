@@ -117,7 +117,7 @@ func NewCrawlerController(
 								logger.Errorf("send heartbeat failed, error=%s", err)
 								return
 							}
-							logger.Debugf("send heartbeta max: %d, idle: %d", msg.GetMaxConcurrency(), msg.GetIdleConcurrency())
+							// logger.Debugf("send heartbeta max: %d, idle: %d", msg.GetMaxConcurrency(), msg.GetIdleConcurrency())
 						case msg, ok := <-handler.conn.msgBuffer:
 							if !ok {
 								return

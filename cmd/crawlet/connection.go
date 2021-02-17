@@ -134,14 +134,14 @@ func (handler *ChannelHandler) Watch(ctx context.Context, callback func(context.
 				handler.isRegistered = true
 				handler.heartbeatTicker.Reset(time.Duration(packet.GetHeartbeatInterval()) * time.Millisecond)
 			}
-			logger.Debugf("network delay %v", packet.NetworkDelay)
+			// logger.Debugf("network delay %v", packet.NetworkDelay)
 		case protoutil.GetTypeUrl(&pbCrawl.Heartbeat_Pong{}):
 			var packet pbCrawl.Heartbeat_Pong
 			if err = anypb.UnmarshalTo(anydata, &packet, proto.UnmarshalOptions{}); err != nil {
 				logger.Errorf("unmarshal heartbeat pong message failed, error=%s", err)
 				return err
 			}
-			logger.Debugf("network delay %v", packet.NetworkDelay)
+			// logger.Debugf("network delay %v", packet.NetworkDelay)
 		case protoutil.GetTypeUrl(&pbCrawl.Command{}):
 			var packet pbCrawl.Command
 			if err = anypb.UnmarshalTo(anydata, &packet, proto.UnmarshalOptions{}); err != nil {
