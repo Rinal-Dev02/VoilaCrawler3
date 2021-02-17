@@ -620,11 +620,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				return err
 			}
 			
-			// // write the whole body at once
-			err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\output_p.html", respBodyImg, 0644)
-			if err != nil {
-				panic(err)
-			}			
+			// // // write the whole body at once
+			// err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\output_p.html", respBodyImg, 0644)
+			// if err != nil {
+			// 	panic(err)
+			// }			
 			
 			matched := imageRegStart.FindSubmatch(respBodyImg)
 			if len(matched) <= 1 {
