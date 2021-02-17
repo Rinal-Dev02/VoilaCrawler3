@@ -460,13 +460,13 @@ type parseProductRatingResponse struct {
 	AverageOverallRating     float64 `json:"averageOverallRating"`
 	AverageOverallStarRating float64 `json:"averageOverallStarRating"`
 	DisplayRatingsSection    bool    `json:"displayRatingsSection"`
-	PercentageRecommended    int     `json:"percentageRecommended"`
+	PercentageRecommended    float64 `json:"percentageRecommended"`
 	RatingDistribution       []struct {
-		RatingsValue int `json:"ratingsValue"`
-		Count        int `json:"count"`
+		RatingsValue float64 `json:"ratingsValue"`
+		Count        float64 `json:"count"`
 	} `json:"ratingDistribution"`
 	MostRecent struct {
-		Rating            int         `json:"rating"`
+		Rating            float64     `json:"rating"`
 		Title             string      `json:"title"`
 		ReviewText        string      `json:"reviewText"`
 		SubmissionRecency string      `json:"submissionRecency"`

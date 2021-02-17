@@ -227,9 +227,9 @@ type parseCategoryJsonProductsResponse struct {
 				HoverImage   string `json:"hoverImage"`
 				FaceOutImage string `json:"faceOutImage"`
 				SkuInfo      struct {
-					ListPriceHigh   int     `json:"listPriceHigh"`
+					ListPriceHigh   float64 `json:"listPriceHigh"`
 					MarkdownState   string  `json:"markdownState"`
-					ListPriceLow    int     `json:"listPriceLow"`
+					ListPriceLow    float64 `json:"listPriceLow"`
 					HasMarkdown     bool    `json:"hasMarkdown"`
 					HasAvailableSku bool    `json:"hasAvailableSku"`
 					SalePriceLow    float64 `json:"salePriceLow"`
@@ -376,9 +376,9 @@ type rawProduct struct {
 		} `json:"links"`
 		LastModified int `json:"lastModified"`
 		SkuInfo      struct {
-			ListPriceHigh    int     `json:"listPriceHigh"`
+			ListPriceHigh    float64 `json:"listPriceHigh"`
 			MarkdownState    string  `json:"markdownState"`
-			ListPriceLow     int     `json:"listPriceLow"`
+			ListPriceLow     float64 `json:"listPriceLow"`
 			HasFlatRateSku   bool    `json:"hasFlatRateSku"`
 			DisplayListPrice bool    `json:"displayListPrice"`
 			HasAvailableSku  bool    `json:"hasAvailableSku"`
@@ -416,12 +416,12 @@ type rawProduct struct {
 						Backorder               int         `json:"backorder"`
 						Size                    string      `json:"size"`
 						Afterpay                struct {
-							Status        string `json:"status"`
-							NumOfPayments int    `json:"numOfPayments"`
-							Payment       int    `json:"payment"`
+							Status        string  `json:"status"`
+							NumOfPayments float64 `json:"numOfPayments"`
+							Payment       float64 `json:"payment"`
 						} `json:"afterpay"`
 						AvailabilityDate  int     `json:"availabilityDate"`
-						ListPrice         int     `json:"listPrice"`
+						ListPrice         float64 `json:"listPrice"`
 						SalePrice         float64 `json:"salePrice"`
 						ReturnRestockInfo struct {
 						} `json:"returnRestockInfo"`

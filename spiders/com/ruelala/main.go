@@ -180,17 +180,17 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 type parseCategoryProductsJsonResponse struct {
 	Data []struct {
-		ID                int    `json:"id"`
-		Name              string `json:"name"`
-		BusinessID        string `json:"businessId"`
-		Brand             string `json:"brand"`
-		BackOrderEnabled  bool   `json:"backOrderEnabled"`
-		HasMultipleColors bool   `json:"hasMultipleColors"`
-		ShowMsrp          bool   `json:"showMsrp"`
-		MsrpMin           int    `json:"msrpMin"`
-		MsrpMax           int    `json:"msrpMax"`
-		ListPriceMin      int    `json:"listPriceMin"`
-		ListPriceMax      int    `json:"listPriceMax"`
+		ID                int     `json:"id"`
+		Name              string  `json:"name"`
+		BusinessID        string  `json:"businessId"`
+		Brand             string  `json:"brand"`
+		BackOrderEnabled  bool    `json:"backOrderEnabled"`
+		HasMultipleColors bool    `json:"hasMultipleColors"`
+		ShowMsrp          bool    `json:"showMsrp"`
+		MsrpMin           int     `json:"msrpMin"`
+		MsrpMax           int     `json:"msrpMax"`
+		ListPriceMin      float64 `json:"listPriceMin"`
+		ListPriceMax      float64 `json:"listPriceMax"`
 		ImageUrls         struct {
 			PRODUCTLIST                 string `json:"PRODUCT_LIST"`
 			PRODUCTLISTALT              string `json:"PRODUCT_LIST_ALT"`
@@ -310,16 +310,16 @@ type parseProductJsonResponse struct {
 			Message   string `json:"message"`
 			HelpURL   string `json:"helpURL"`
 		} `json:"afterpay"`
-		ParentPage              string `json:"parentPage"`
-		TotalInventory          int32  `json:"totalInventory"`
-		ShowLowInventoryWarning bool   `json:"showLowInventoryWarning"`
-		ShipsMessage            string `json:"shipsMessage"`
-		MsrpMin                 int32  `json:"msrpMin"`
-		MsrpMax                 int32  `json:"msrpMax"`
-		ListPriceMin            int32  `json:"listPriceMin"`
-		ListPriceMax            int32  `json:"listPriceMax"`
-		PercentOff              int32  `json:"percentOff"`
-		ShowPercentOff          bool   `json:"showPercentOff"`
+		ParentPage              string  `json:"parentPage"`
+		TotalInventory          int32   `json:"totalInventory"`
+		ShowLowInventoryWarning bool    `json:"showLowInventoryWarning"`
+		ShipsMessage            string  `json:"shipsMessage"`
+		MsrpMin                 float64 `json:"msrpMin"`
+		MsrpMax                 float64 `json:"msrpMax"`
+		ListPriceMin            float64 `json:"listPriceMin"`
+		ListPriceMax            float64 `json:"listPriceMax"`
+		PercentOff              float64 `json:"percentOff"`
+		ShowPercentOff          bool    `json:"showPercentOff"`
 		Skus                    []struct {
 			ID       string `json:"id"`
 			Afterpay struct {
@@ -327,20 +327,20 @@ type parseProductJsonResponse struct {
 				Message   string `json:"message"`
 				HelpURL   string `json:"helpURL"`
 			} `json:"afterpay"`
-			SkuContextID            string `json:"skuContextId"`
-			SkuNumber               string `json:"skuNumber"`
-			Size                    string `json:"size"`
-			Color                   string `json:"color"`
-			Price                   int32  `json:"price"`
-			Msrp                    int32  `json:"msrp"`
-			PercentOff              int32  `json:"percentOff"`
-			ShowPercentOff          bool   `json:"showPercentOff"`
-			ShippingUpcharge        int32  `json:"shippingUpcharge"`
-			Inventory               int32  `json:"inventory"`
-			ShowLowInventoryWarning bool   `json:"showLowInventoryWarning"`
-			Features                string `json:"features"`
-			Highlights              string `json:"highlights"`
-			Terms                   string `json:"terms"`
+			SkuContextID            string  `json:"skuContextId"`
+			SkuNumber               string  `json:"skuNumber"`
+			Size                    string  `json:"size"`
+			Color                   string  `json:"color"`
+			Price                   float64 `json:"price"`
+			Msrp                    float64 `json:"msrp"`
+			PercentOff              float64 `json:"percentOff"`
+			ShowPercentOff          bool    `json:"showPercentOff"`
+			ShippingUpcharge        float64 `json:"shippingUpcharge"`
+			Inventory               int     `json:"inventory"`
+			ShowLowInventoryWarning bool    `json:"showLowInventoryWarning"`
+			Features                string  `json:"features"`
+			Highlights              string  `json:"highlights"`
+			Terms                   string  `json:"terms"`
 		} `json:"skus"`
 		Attributes struct {
 			Colors []struct {
@@ -461,14 +461,14 @@ func (c *_Crawler) parseProductJson(ctx context.Context, resp *http.Response, yi
 			Price: &pbItem.Price{
 				// 接口里返回的都是美元价格，页面上的结算价格是根据当前的IP来判断的
 				Currency:  regulation.Currency_USD,
-				Current:   u.Price,
-				Msrp:      u.Msrp,
-				Discount:  u.PercentOff,
+				Current:   int32(u.Price * 100),
+				Msrp:      int32(u.Msrp * 100),
+				Discount:  int32(u.PercentOff),
 				Discount1: 0,
 			},
 			Stock: &pbItem.Stock{
 				StockStatus: pbItem.Stock_OutOfStock,
-				StockCount:  u.Inventory,
+				StockCount:  int32(u.Inventory),
 			},
 		}
 		if u.Color != "" {

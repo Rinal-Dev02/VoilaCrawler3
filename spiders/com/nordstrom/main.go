@@ -296,34 +296,34 @@ type RawProductDetail struct {
 		} `json:"bySkuId"`
 		AllSkuIds []int `json:"allSkuIds"`
 		Style     struct {
-			AllSkusOnSale          bool   `json:"allSkusOnSale"`
-			CurrentMinPrice        int    `json:"currentMinPrice"`
-			CurrentMaxPrice        int    `json:"currentMaxPrice"`
-			CurrentPercentOff      string `json:"currentPercentOff"`
-			IsInternationalPricing bool   `json:"isInternationalPricing"`
-			IsOriginalPriceRange   bool   `json:"isOriginalPriceRange"`
-			IsRange                bool   `json:"isRange"`
-			OriginalPriceString    string `json:"originalPriceString"`
-			MaxPercentageOff       string `json:"maxPercentageOff"`
-			PreviousPriceString    string `json:"previousPriceString"`
-			PriceString            string `json:"priceString"`
-			SaleEndDate            string `json:"saleEndDate"`
-			SaleType               string `json:"saleType"`
-			ShowSoldOutMessage     bool   `json:"showSoldOutMessage"`
-			ShowUMapMessage        bool   `json:"showUMapMessage"`
-			ShowUMapPrice          bool   `json:"showUMapPrice"`
-			StyleID                int    `json:"styleId"`
-			ValueStatement         string `json:"valueStatement"`
+			AllSkusOnSale          bool    `json:"allSkusOnSale"`
+			CurrentMinPrice        float64 `json:"currentMinPrice"`
+			CurrentMaxPrice        float64 `json:"currentMaxPrice"`
+			CurrentPercentOff      string  `json:"currentPercentOff"`
+			IsInternationalPricing bool    `json:"isInternationalPricing"`
+			IsOriginalPriceRange   bool    `json:"isOriginalPriceRange"`
+			IsRange                bool    `json:"isRange"`
+			OriginalPriceString    string  `json:"originalPriceString"`
+			MaxPercentageOff       string  `json:"maxPercentageOff"`
+			PreviousPriceString    string  `json:"previousPriceString"`
+			PriceString            string  `json:"priceString"`
+			SaleEndDate            string  `json:"saleEndDate"`
+			SaleType               string  `json:"saleType"`
+			ShowSoldOutMessage     bool    `json:"showSoldOutMessage"`
+			ShowUMapMessage        bool    `json:"showUMapMessage"`
+			ShowUMapPrice          bool    `json:"showUMapPrice"`
+			StyleID                int     `json:"styleId"`
+			ValueStatement         string  `json:"valueStatement"`
 		} `json:"style"`
 	} `json:"price"`
 	Promotion struct {
-		PromoType               string `json:"promoType"`
-		StartDateTime           string `json:"startDateTime"`
-		EndDateTime             string `json:"endDateTime"`
-		MaximumPromotionalPrice int    `json:"maximumPromotionalPrice"`
-		MinimumPromotionalPrice int    `json:"minimumPromotionalPrice"`
-		MaximumPercentOff       int    `json:"maximumPercentOff"`
-		MinimumPercentOff       int    `json:"minimumPercentOff"`
+		PromoType               string  `json:"promoType"`
+		StartDateTime           string  `json:"startDateTime"`
+		EndDateTime             string  `json:"endDateTime"`
+		MaximumPromotionalPrice float64 `json:"maximumPromotionalPrice"`
+		MinimumPromotionalPrice float64 `json:"minimumPromotionalPrice"`
+		MaximumPercentOff       float64 `json:"maximumPercentOff"`
+		MinimumPercentOff       float64 `json:"minimumPercentOff"`
 	} `json:"promotion"`
 	PrimaryCategoryPathString string        `json:"primaryCategoryPathString"`
 	ProductName               string        `json:"productName"`
@@ -345,8 +345,8 @@ type RawProductDetail struct {
 			IsAvailable                  bool        `json:"isAvailable"`
 			IsBackOrder                  bool        `json:"isBackOrder"`
 			IsDefault                    bool        `json:"isDefault"`
-			LtsPrice                     int         `json:"ltsPrice"`
-			Price                        int         `json:"price"`
+			LtsPrice                     float64     `json:"ltsPrice"`
+			Price                        float64     `json:"price"`
 			SizeID                       string      `json:"sizeId"`
 			WidthID                      string      `json:"widthId"`
 			RmsSkuID                     int         `json:"rmsSkuId"`
