@@ -109,6 +109,8 @@ func (handler *nodeHanadler) IdleConcurrency() int32 {
 	return handler.node.GetIdleConcurrency()
 }
 
+var requestTypeUrl = protoutil.GetTypeUrl(&pbCrawl.Command_Request{})
+
 func (handler *nodeHanadler) Send(ctx context.Context, msg proto.Message) error {
 	if handler == nil {
 		return nil
@@ -124,8 +126,8 @@ func (handler *nodeHanadler) Send(ctx context.Context, msg proto.Message) error 
 	}
 
 	switch v := msg.(type) {
-	case *anypb.Any:
-		if v.GetTypeUrl() == protoutil.GetTypeUrl(&pbCrawl.Command_Request{}) {
+	case *pbCrawl.Command:
+		if v.GetData().GetTypeUrl() == requestTypeUrl {
 			atomic.AddInt32(&handler.node.IdleConcurrency, -1)
 		}
 	}

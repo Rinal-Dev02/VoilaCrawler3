@@ -321,5 +321,9 @@ func (ctrl *NodeController) NextNode() *nodeHanadler {
 		}
 		return true
 	})
+
+	if maxIdle == 0 {
+		return nil
+	}
 	return handler
 }

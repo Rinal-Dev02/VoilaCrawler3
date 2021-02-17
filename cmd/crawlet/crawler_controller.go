@@ -301,6 +301,10 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 									Options:       r.Options,
 									SharingData:   r.SharingData,
 								}
+								if subreq.SharingData == nil {
+									subreq.SharingData = map[string]string{}
+								}
+
 								if val.Body != nil {
 									defer val.Body.Close()
 									if data, err := ioutil.ReadAll(val.Body); err != nil {

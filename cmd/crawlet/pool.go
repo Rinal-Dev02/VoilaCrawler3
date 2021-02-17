@@ -28,7 +28,7 @@ func NewGPool(ctx context.Context, cap int32, logger glog.Log) (*GPool, error) {
 		var delaySeconds time.Duration
 		for {
 			if p.currentConcurrency >= p.maxConcurrency {
-				delaySeconds += 500
+				delaySeconds += 500 * time.Millisecond
 				time.Sleep(delaySeconds)
 				continue
 			}
@@ -45,8 +45,7 @@ func NewGPool(ctx context.Context, cap int32, logger glog.Log) (*GPool, error) {
 					atomic.AddInt32(&p.currentConcurrency, 1)
 					defer func() {
 						if r := recover(); r != nil {
-							// p.logger.Error(r)
-							panic(r)
+							p.logger.Error(r)
 						}
 						atomic.AddInt32(&p.currentConcurrency, -1)
 					}()
