@@ -292,10 +292,11 @@ func (handler *nodeHanadler) Run() error {
 					return pbError.ErrInvalidArgument.New(err)
 				}
 				if req, err = handler.ctrl.requestManager.Create(handler.ctx, session, req); err != nil {
-					logger.Errorf("save request failed, error=%s", err)
-					return err
-				}
-				if err = handler.ctrl.PublishRequest(handler.ctx, req); err != nil {
+					if err != pbError.ErrAlreadyExists {
+						logger.Errorf("save request failed, error=%s", err)
+						return err
+					}
+				} else if err = handler.ctrl.PublishRequest(handler.ctx, req); err != nil {
 					logger.Errorf("publish request failed, error=%s", err)
 					return err
 				}

@@ -90,6 +90,7 @@ func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*
 		logger.Errorf("save request failed, error=%s", err)
 		return nil, err
 	}
+
 	if err = s.nodeCtrl.PublishRequest(ctx, r); err != nil {
 		logger.Error(err)
 		return nil, err

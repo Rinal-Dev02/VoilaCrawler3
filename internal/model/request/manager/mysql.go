@@ -2,12 +2,13 @@ package manager
 
 import (
 	"context"
+	"crypto/md5"
+	"fmt"
 	"time"
 
 	"github.com/voiladev/VoilaCrawl/internal/model/request"
 	"github.com/voiladev/VoilaCrawl/pkg/types"
 	"github.com/voiladev/go-framework/glog"
-	"github.com/voiladev/go-framework/randutil"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 	"xorm.io/xorm"
 )
@@ -103,12 +104,18 @@ func (m *RequestManager) Create(ctx context.Context, session *xorm.Session, req 
 	}
 	logger := m.logger.New("Create")
 
+	req.Id = fmt.Sprintf("%x", md5.Sum([]byte(req.GetJobId()+"-"+req.GetTracingId()+"-"+req.GetUrl())))
+	if oldReq, err := m.GetById(ctx, req.GetId()); err != nil {
+		return nil, err
+	} else if oldReq != nil {
+		return nil, pbError.ErrAlreadyExists
+	}
+
 	if session == nil {
 		session = m.engine.NewSession()
 		defer session.Close()
 	}
 
-	req.Id = randutil.MustNewRandomID()
 	req.Metadata = &types.Request_Metadata{
 		CreatedUtc: time.Now().Unix(),
 		UpdatedUtc: time.Now().Unix(),
