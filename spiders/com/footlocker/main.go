@@ -17,21 +17,21 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-	// "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
+    "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
-	//"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type _Crawler struct {
 	httpClient http.Client
 
-	categoryPathMatcher     *regexp.Regexp
-	productPathMatcher      *regexp.Regexp
+	categoryPathMatcher   *regexp.Regexp
+	productPathMatcher    *regexp.Regexp
 	imagePathMatcher      *regexp.Regexp
-	logger                  glog.Log
+	logger                 glog.Log
 }
 
 
@@ -47,7 +47,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 }
 // ID
 func (c *_Crawler) ID() string {
-	return "350d1122d8d2ae45b9e0dc3255f7102f"
+	return "8A8F9FE2E6014E87836E164B176EBFA5"
 }
 
 // Version
@@ -276,7 +276,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			} `json:"notFound"`
 	}
 
-	matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
+	//matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
 	if err = json.Unmarshal(matched[2], &r); err != nil {
 		c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
 		return err
@@ -504,9 +504,12 @@ type parseImageResponse struct {
 }
 
 var (
-	detailReg = regexp.MustCompile(`^(window.footlocker.STATE_FROM_SERVER)\s*=\s*([^~]+)$`)
-	detailReg1 = regexp.MustCompile(`(window.footlocker.STATE_FROM_SERVER)\s*=\s*([^^]+);`)
-	imageReg  = regexp.MustCompile(`(altset_)([a-zA-Z0-9(]+)([^);]+)`)
+	detailReg = regexp.MustCompile(`window.footlocker.STATE_FROM_SERVER\s*=\s*(.*);`)
+	//imageRegStart  = regexp.MustCompile(`(altset_)([a-zA-Z0-9(]+)`)
+	imageRegStart  = regexp.MustCompile(`\(([^;]+)`)
+	//imageRegEnd  = regexp.MustCompile(`(,)(?!.*\1)`)
+	
+
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -520,17 +523,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 	
+			// write the whole body at once
+			err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\output_p.html", respBody, 0644)
+			if err != nil {
+				panic(err)
+			}			
+
 	matched := detailReg.FindSubmatch(respBody)
-	if matched == nil {
-		matched = detailReg1.FindSubmatch(respBody)
-
-		splitjson := bytes.Split(matched[2], []byte("window.digitalData")) 
-		splitjson[0] = bytes.TrimSpace(splitjson[0])		
-		splitjson[0] = bytes.TrimSuffix(splitjson[0], []byte(";"))		
-		splitjson[0] = bytes.ReplaceAll(bytes.ReplaceAll(splitjson[0], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
-
-		matched[2] = splitjson[0]				
-	}
 	if len(matched) <= 1 {
 		c.logger.Debugf("data %s", respBody)
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
@@ -538,11 +537,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	
 	var (
 		i      parseProductResponse
+		q	   parseImageResponse
 	)
 
-	matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
+	//matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
 
-	if err = json.Unmarshal(matched[2], &i); err != nil {
+	if err = json.Unmarshal(matched[1], &i); err != nil {
 		c.logger.Error(err)
 		return err
 	}
@@ -601,9 +601,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				item.SkuItems = append(item.SkuItems, &sku)
 			}
 
+			Skud := ",\"" + Sku + "\""
+
 			imgUrl := "https://images.footlocker.com/is/image/EBFL2/"+ Sku + "/?req=set,json&id="+ Sku +"&handler=altset_" + Sku
-			imgreq, _ := http.NewRequest(http.MethodGet, imgUrl, nil)
+			//imgreq, _ := c.httpClient.Do(ctx, imgUrl)
 			
+			req, err := http.NewRequest(http.MethodGet, imgUrl, nil); 
+			
+			imgreq, err := c.httpClient.Do(ctx, req)
+			if err != nil {
+				panic(err)
+			}
+			defer imgreq.Body.Close()
+
 			respBodyImg, err := ioutil.ReadAll(imgreq.Body)
 			if err != nil {
 				c.logger.Error(err)
@@ -611,33 +621,48 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			
 			// // write the whole body at once
-			// err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\output_p.html", respBodyImg, 0644)
-			// if err != nil {
-			// 	panic(err)
-			// }			
+			err = ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\output_p.html", respBodyImg, 0644)
+			if err != nil {
+				panic(err)
+			}			
 			
-			matched := imageReg.FindSubmatch(respBodyImg)
+			matched := imageRegStart.FindSubmatch(respBodyImg)
 			if len(matched) <= 1 {
-				c.logger.Debugf("data %s", respBody)
+				c.logger.Debugf("data %s", respBodyImg)
 				return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
 			}
 
-			//isDefault:= true
-			// for _, img := range i.ProductViewModel.Images.Main {
-			// 	if img.Index > 1 {			
-			// 		isDefault = false
-			// 	}
-			// 	itemImg, _ := anypb.New(&media.Media_Image{  // ask?
-			// 		OriginalUrl: strings.ReplaceAll(img.Zoom, "_1000.jpg", ""),
-			// 		LargeUrl:    img.Zoom, // $S$, $XXL$
-			// 		MediumUrl:   strings.ReplaceAll(img.Zoom, "_1000.jpg", "_600.jpg"),
-			// 		SmallUrl:    strings.ReplaceAll(img.Zoom, "_1000.jpg", "_400.jpg"),
-			// 	})
-			// 	item.Medias = append(item.Medias, &media.Media{
-			// 		Detail:    itemImg,			
-			// 		IsDefault: isDefault,			
-			// 	})
-			// }
+			
+			matched = bytes.Split(matched[1], []byte(Skud)) 
+			if len(matched) <= 1 {
+				c.logger.Debugf("data %s", respBodyImg)
+				return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
+			}
+
+			if err = json.Unmarshal(matched[0], &q); err != nil {
+				c.logger.Debugf("parse %s failed, error=%s", matched[2], err)
+				return err
+			}
+
+			isDefault:= true
+			for key, img := range q.Set.Item {
+				if key > 0 {
+					isDefault = false
+				}
+				if strings.Contains(img.I.N, "Image_Not") {			
+					continue
+				}
+				itemImg, _ := anypb.New(&media.Media_Image{  // ask?
+					OriginalUrl: "https://images.footlocker.com/is/image/" + img.I.N,
+					LargeUrl:    "https://images.footlocker.com/is/image/" + img.I.N + "?wid=1000&hei=1333&fmt=png-alpha",
+					MediumUrl:   "https://images.footlocker.com/is/image/" + img.I.N + "?wid=600&hei=800&fmt=png-alpha",
+					SmallUrl:    "https://images.footlocker.com/is/image/" + img.I.N + "?wid=495&hei=660&fmt=png-alpha",
+				})
+				item.Medias = append(item.Medias, &media.Media{
+					Detail:    itemImg,			
+					IsDefault: isDefault,			
+				})
+			}
 
 			//fmt.Println(&item)
 
@@ -653,8 +678,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		//"https://www.footlocker.com/category/womens/clothing.html?query=Clothing+Womens%3Arelevance%3Aproducttype%3AClothing%3Agender%3AWomen%27s%3Aclothstyle%3AJackets",
-		"https://www.footlocker.com/product/a/U5544702.html",
+		"https://www.footlocker.com/category/womens/clothing.html?query=Clothing+Womens%3Arelevance%3Aproducttype%3AClothing%3Agender%3AWomen%27s%3Aclothstyle%3AJackets",
+		// "https://www.footlocker.com/product/jordan-true-flight-mens/42964062.html",
 		//"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
@@ -679,6 +704,11 @@ func main() {
 		apiToken = os.Getenv("PC_API_TOKEN")
 		jsToken  = os.Getenv("PC_JS_TOKEN")
 	)
+	apiToken = "C1hwEn7zzYhHptBUoZFisQ"
+	jsToken = "YOhYOQ6Ppd17eK9ACA54cw"
+
+	// apiToken = "1"
+	// jsToken = "1"
 
 	if apiToken == "" || jsToken == "" {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
@@ -686,8 +716,8 @@ func main() {
 
 	logger := glog.New(glog.LogLevelDebug)
 	client, err := proxy.NewProxyClient(
-		cookiejar.New(), logger,
-		proxy.Options{APIToken: apiToken, JSToken: jsToken},
+		cookiejar.New(), logger, 
+		proxy.Options{APIToken: apiToken, JSToken: jsToken, Proxy: nil},
 	)
 	if err != nil {
 		panic(err)
