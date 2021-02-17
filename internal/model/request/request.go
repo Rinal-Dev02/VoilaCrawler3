@@ -56,12 +56,6 @@ func NewRequest(req interface{}) (*Request, error) {
 			MaxRetryCount:    i.GetOptions().GetMaxRetryCount(),
 			MaxRequestDepth:  i.GetOptions().GetMaxRequestDepth(),
 		}
-		if r.Options.MaxRequestDepth <= 0 {
-			r.Options.MaxRequestDepth = 6
-		}
-		if r.Options.MaxRetryCount <= 0 {
-			r.Options.MaxRetryCount = 3
-		}
 	case *pbCrawl.FetchRequest:
 		r.TracingId = randutil.MustNewRandomID()
 		r.JobId = i.GetJobId()
@@ -88,18 +82,22 @@ func NewRequest(req interface{}) (*Request, error) {
 			MaxRetryCount:    i.GetOptions().GetMaxRetryCount(),
 			MaxRequestDepth:  i.GetOptions().GetMaxRequestDepth(),
 		}
-		if r.Options.MaxRequestDepth <= 0 {
-			r.Options.MaxRequestDepth = 6
-		}
-		if r.Options.MaxRetryCount <= 0 {
-			r.Options.MaxRetryCount = 3
-		}
 	default:
 		return nil, errors.New("unsupported request load type")
 	}
 
 	if r.GetTracingId() == "" {
 		r.TracingId = r.GetJobId()
+	}
+	if r.Options.MaxRequestDepth <= 0 {
+		r.Options.MaxRequestDepth = 6
+	}
+	if r.Options.MaxRetryCount <= 0 {
+		r.Options.MaxRetryCount = 3
+	}
+	if r.Options.MaxTtlPerRequest == 0 {
+		// 10mins for one request
+		r.Options.MaxTtlPerRequest = 10 * 60
 	}
 	return &r, nil
 }

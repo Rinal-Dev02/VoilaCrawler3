@@ -59,19 +59,21 @@ message Request {
     // 配置参数
     RequestOptions options = 50 [(gogoproto.moretags) = "xorm:\"extends\""];
     // RetryCount
-    int32  retryCount    = 51 [(gogoproto.moretags) = "xorm:\"status_retry_count\""];
+    int32  retryCount    = 51 [(gogoproto.moretags) = "xorm:\"status_retry_count index\""];
     // RequestDepth
     int32  requestDepth  = 52 [(gogoproto.moretags) = "xorm:\"status_request_depth\""];
     // StartUtc
     int64  startUtc      = 53 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
     // EndUtc
     int64  endUtc        = 54 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
+    // Status 1-queued, 2-inprocess, 3-processed
+    int32  status        = 61 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
     // IsSucceed
-    bool   isSucceed     = 61 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
+    bool   isSucceed     = 62 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
     // Duration
-    int64  duration      = 62 [(gogoproto.moretags) = "xorm:\"default(0)\""];
+    int64  duration      = 63 [(gogoproto.moretags) = "xorm:\"default(0)\""];
     // ErrMsg
-    string errMsg        = 63 [(gogoproto.moretags) = "xorm:\"text\""];
+    string errMsg        = 64 [(gogoproto.moretags) = "xorm:\"text\""];
 
     // Metadata
     Metadata metadata    = 101 [(gogoproto.moretags) = "xorm:\"extends\""];

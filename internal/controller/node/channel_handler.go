@@ -156,6 +156,9 @@ func (handler *nodeHanadler) Run() error {
 	}
 	logger := handler.logger.New("Run")
 
+	session := handler.ctrl.engine.NewSession()
+	defer session.Close()
+
 	for {
 		if isConnectionClosed(handler.ctx) {
 			return handler.ctx.Err()
@@ -247,48 +250,27 @@ func (handler *nodeHanadler) Run() error {
 					return pbError.ErrInvalidArgument.New("missing reqId for error")
 				}
 
-				session := handler.ctrl.engine.NewSession()
-				defer session.Close()
-
-				if err := session.Begin(); err != nil {
-					logger.Errorf("begin tx failed, error=%s", err)
-					return pbError.ErrInternal.New(err)
-				}
-
 				req, err := handler.ctrl.requestManager.GetById(handler.ctx, data.GetReqId())
 				if err != nil {
 					logger.Errorf("get request failed, error=%s", err)
-					session.Rollback()
 					return err
 				}
 				if req == nil {
 					return pbError.ErrDataLoss.New(fmt.Errorf("request %s not found", data.GetReqId()))
 				}
 
-				if err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, session,
-					req.GetId(), data.GetDuration(), data.GetIsSucceed(), data.GetErrMsg()); err != nil {
+				if _, err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, session,
+					req.GetId(), 3, data.GetDuration(), data.GetIsSucceed(), data.GetErrMsg()); err != nil {
 
-					session.Rollback()
 					logger.Errorf("update status failed, error=%s", err)
 					return err
 				}
 
-				if !data.GetIsSucceed() && req.GetOptions().GetMaxRetryCount() > 1 {
-					// repipe
-					if updated, err := handler.ctrl.requestManager.UpdateRetry(handler.ctx, session, req.GetId()); err != nil {
-						logger.Errorf("update retry info failed, error=%s", err)
+				if !data.GetIsSucceed() && req.GetOptions().GetMaxRetryCount() > req.GetRetryCount() {
+					if err = handler.ctrl.PublishRequest(handler.ctx, req); err != nil {
+						logger.Errorf("publish request failed, error=%s", err)
 						return err
-					} else if updated {
-						if err = handler.ctrl.PublishRequest(handler.ctx, req); err != nil {
-							session.Rollback()
-							logger.Errorf("publish request failed, error=%s", err)
-							return err
-						}
 					}
-				}
-				if err := session.Commit(); err != nil {
-					logger.Errorf("commit tx failed, error=%s", err)
-					return pbError.ErrInternal.New(err)
 				}
 			case commandRequestTypeUrl:
 				var data pbCrawl.Command_Request
@@ -299,6 +281,7 @@ func (handler *nodeHanadler) Run() error {
 				if data.GetParent() != nil {
 					data.TracingId = data.GetParent().GetTracingId()
 					data.JobId = data.GetParent().GetJobId()
+					data.Options = data.GetParent().GetOptions()
 				}
 
 				req, err := request.NewRequest(&data)
@@ -306,7 +289,7 @@ func (handler *nodeHanadler) Run() error {
 					logger.Errorf("load request failed, error=%s", err)
 					return pbError.ErrInvalidArgument.New(err)
 				}
-				if req, err = handler.ctrl.requestManager.Create(handler.ctx, nil, req); err != nil {
+				if req, err = handler.ctrl.requestManager.Create(handler.ctx, session, req); err != nil {
 					logger.Errorf("save request failed, error=%s", err)
 					return err
 				}

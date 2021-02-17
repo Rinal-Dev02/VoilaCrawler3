@@ -141,21 +141,46 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 	}
 	logger := ctrl.logger.New("PublishRequest")
 
+	session := ctrl.engine.NewSession()
+	defer session.Close()
+
+	if err := session.Begin(); err != nil {
+		logger.Errorf("begin tx failed, error=%s", err)
+		return pbError.ErrInternal.New(err)
+	}
+
+	if updated, err := ctrl.requestManager.UpdateStatus(ctx, session, req.GetId(), 1, 0, false, ""); err != nil {
+		logger.Errorf("update request status failed, error=%s", err)
+		session.Rollback()
+		return err
+	} else if !updated {
+		logger.Warnf("can't publish request %s", req.GetId())
+		return nil
+	}
+
 	var cmdReq pbCrawl.Command_Request
 	if err := req.Unmarshal(&cmdReq); err != nil {
 		logger.Errorf("unmarshal command request failed, error=%s", err)
+		session.Rollback()
 		return pbError.ErrInternal.New(err)
 	}
 
 	reqData, err := protojson.Marshal(&cmdReq)
 	if err != nil {
 		logger.Errorf("marshal Command_Request failed, error=%s", err)
+		session.Rollback()
 		return pbError.ErrInternal.New(err)
 	}
 
 	if _, err := ctrl.redisClient.Do("LPUSH", config.CrawlRequestQueue, reqData); err != nil {
 		logger.Errorf("lpush request failed, error=%s", err)
+		session.Rollback()
 		return pbError.ErrDatabase.New(err)
+	}
+
+	if err := session.Commit(); err != nil {
+		logger.Errorf("commit tx failed, error=%s", err)
+		return pbError.ErrInternal.New(err)
 	}
 	return nil
 }
