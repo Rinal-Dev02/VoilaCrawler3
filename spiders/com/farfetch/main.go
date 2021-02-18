@@ -1,7 +1,7 @@
 package main
 
 import (
-	//"bytes"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -110,7 +110,7 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")) + 1)
 }
 
-var prodDataExtraReg1 = regexp.MustCompile(`(window\['__initialState__']) = "([^;)]+)";`)
+var prodDataExtraReg1 = regexp.MustCompile(`(window\['__initialState__'\])\s*=\s*"(.*)";</script>`)
 var prodDataExtraReg = regexp.MustCompile(`(window\['__initialState_portal-slices-listing__'\])\s*=\s*({.*})?</script>`)
 
 // parseCategoryProducts parse api url from web page url
@@ -127,49 +127,17 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	// next page
 	matched := prodDataExtraReg.FindSubmatch(respBody)
 	 if matched == nil {
+		matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte(`\"`), []byte(`"`)), []byte(`\\"`), []byte(`\\\"`))
 		matched = prodDataExtraReg1.FindSubmatch(respBody) //__initialState__
 	 }
 	if len(matched) <= 1 {
 		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
 	}
-	var r struct {
-		
+	var r struct {		
 		ListingItems struct {
 			Items []struct {
-				ID               int    `json:"id"`
-				ShortDescription string `json:"shortDescription"`
-				MerchantID       int    `json:"merchantId"`
-				Brand            struct {
-					ID   int    `json:"id"`
-					Name string `json:"name"`
-				} `json:"brand"`
-				Gender string `json:"gender"`
-				Images struct {
-					CutOut string      `json:"cutOut"`
-					Model  string      `json:"model"`
-					All    interface{} `json:"all"`
-				} `json:"images"`
-				PriceInfo struct {
-					FormattedFinalPrice   string      `json:"formattedFinalPrice"`
-					FormattedInitialPrice string      `json:"formattedInitialPrice"`
-					FinalPrice            int         `json:"finalPrice"`
-					InitialPrice          int         `json:"initialPrice"`
-					CurrencyCode          string      `json:"currencyCode"`
-					IsOnSale              bool        `json:"isOnSale"`
-					DiscountLabel         interface{} `json:"discountLabel"`
-					InstallmentsLabel     interface{} `json:"installmentsLabel"`
-				} `json:"priceInfo"`
-				MerchandiseLabel      interface{} `json:"merchandiseLabel"`
-				MerchandiseLabelField string      `json:"merchandiseLabelField"`
-				IsCustomizable        bool        `json:"isCustomizable"`
-				AvailableSizes        interface{} `json:"availableSizes"`
-				StockTotal            int         `json:"stockTotal"`
-				HasSimilarProducts    bool        `json:"hasSimilarProducts"`
-				URL                   string      `json:"url"`
-				HeroProductType       interface{} `json:"heroProductType"`
-				Type                  string      `json:"type"`
-				Properties            struct {
-				} `json:"properties"`
+				ID	int	`json:"id"`
+				URL	string	`json:"url"`				
 			} `json:"items"`
 		} `json:"listingItems"`
 		ListingPagination struct {
@@ -178,96 +146,10 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			TotalItems           int    `json:"totalItems"`
 			TotalPages           int    `json:"totalPages"`
 			NormalizedTotalItems string `json:"normalizedTotalItems"`
-		} `json:"listingPagination"`
-		ListingFilters struct {
-			Facets struct {
-				Category struct {
-					Values []struct {
-						URLToken    string `json:"urlToken"`
-						URL         string `json:"url"`
-						Value       string `json:"value"`
-						Description string `json:"description"`
-						Count       int    `json:"count"`
-						Deep        int    `json:"deep"`
-					} `json:"values"`
-					Description           string `json:"description"`
-					Filter                string `json:"filter"`
-					IsServerSideRendering bool   `json:"isServerSideRendering"`
-				} `json:"category"`
-				Designer struct {
-					Values []struct {
-						URLToken    string `json:"urlToken"`
-						URL         string `json:"url"`
-						Value       string `json:"value"`
-						Description string `json:"description"`
-						Count       int    `json:"count"`
-						Deep        int    `json:"deep"`
-					} `json:"values"`
-					Description           string `json:"description"`
-					Filter                string `json:"filter"`
-					IsServerSideRendering bool   `json:"isServerSideRendering"`
-				} `json:"designer"`
-				Size struct {
-					Values []struct {
-						Category     string      `json:"category"`
-						Dependencies interface{} `json:"dependencies"`
-						Value        string      `json:"value"`
-						Description  string      `json:"description"`
-						Count        int         `json:"count"`
-						Deep         int         `json:"deep"`
-					} `json:"values"`
-					Description           string      `json:"description"`
-					Filter                interface{} `json:"filter"`
-					IsServerSideRendering bool        `json:"isServerSideRendering"`
-				} `json:"size"`
-				Colour struct {
-					Values []struct {
-						Value       string `json:"value"`
-						Description string `json:"description"`
-						Count       int    `json:"count"`
-						Deep        int    `json:"deep"`
-					} `json:"values"`
-					Description           string      `json:"description"`
-					Filter                interface{} `json:"filter"`
-					IsServerSideRendering bool        `json:"isServerSideRendering"`
-				} `json:"colour"`
-				Discount struct {
-					Values                []interface{} `json:"values"`
-					Description           string        `json:"description"`
-					Filter                interface{}   `json:"filter"`
-					IsServerSideRendering bool          `json:"isServerSideRendering"`
-				} `json:"discount"`
-				Price struct {
-					Max                   int         `json:"max"`
-					MaxBoundary           int         `json:"maxBoundary"`
-					MinBoundary           int         `json:"minBoundary"`
-					Description           string      `json:"description"`
-					Filter                interface{} `json:"filter"`
-					IsServerSideRendering bool        `json:"isServerSideRendering"`
-				} `json:"price"`
-				Labels struct {
-					Values []struct {
-						Value       string `json:"value"`
-						Description string `json:"description"`
-						Count       int    `json:"count"`
-						Deep        int    `json:"deep"`
-					} `json:"values"`
-					Description           string `json:"description"`
-					Filter                string `json:"filter"`
-					IsServerSideRendering bool   `json:"isServerSideRendering"`
-				} `json:"labels"`
-			} `json:"facets"`
-			Filters struct {
-			} `json:"filters"`
-			Scale struct {
-				Values        []interface{} `json:"values"`
-				DefaultScale  int           `json:"defaultScale"`
-				SelectedScale int           `json:"selectedScale"`
-			} `json:"scale"`
-		} `json:"listingFilters"`
+		} `json:"listingPagination"`		
 	}
 
-	//matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
+	// matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
 	// rawData, err := strconv.Unquote(string(matched[1]))
 	//if err != nil {
 	//	c.logger.Errorf("unquote raw string failed, error=%s", err)
@@ -277,45 +159,48 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
 		return err
 	}
-
-	cid := r.ListingPagination.Index
-	nctx := context.WithValue(ctx, "page", cid)
+	
 	lastIndex := nextIndex(ctx)
 	for _, prod := range r.ListingItems.Items {
-		rawurl := fmt.Sprintf("%s://%s/us/%s", resp.Request.URL.Scheme, resp.Request.URL.Host, prod.URL)
+		rawurl := fmt.Sprintf("%s://%s/us%s", resp.Request.URL.Scheme, resp.Request.URL.Host, prod.URL)
 		if strings.HasPrefix(prod.URL, "http:") || strings.HasPrefix(prod.URL, "https:") {
 			rawurl = prod.URL
 		}
-
+		
 		if req, err := http.NewRequest(http.MethodGet, rawurl, nil); err != nil {
 			c.logger.Debug(err)
 			return err
 		} else {
-			nnctx := context.WithValue(nctx, "item.index", lastIndex+1)
+			nctx := context.WithValue(ctx, "item.index", lastIndex+1)
 			lastIndex += 1
-			if err = yield(nnctx, req); err != nil {
+			if err = yield(nctx, req); err != nil {
 				return err
 			}
 		}
 	}
 
-	u := *resp.Request.URL
-	// u.Path = fmt.Sprintf("/api/product/search/v2/categories/%v", cid)
-	 vals := url.Values{}
-	// for key, val := range r.SliceListing.ListingPagination {
-	// 	if key == "cid" || key == "page" {
-	// 		continue
-	// 	}
-	// 	vals.Set(key, fmt.Sprintf("%v", val))
-	// }
-	// vals.Set("offset", strconv.Format(len(r.Search.Products)))
-	 vals.Set("page", strconv.Format((r.ListingPagination.Index + 1)))
-	 u.RawQuery = vals.Encode()
+	// get current page number
+	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("page"))
+	if page == 0 {
+		page = 1
+	}
+	// check if this is the last page
+	if len(r.ListingItems.Items) >= r.ListingPagination.TotalItems ||
+		page >= int64(r.ListingPagination.TotalPages) {
+		return nil
+	}
 
-	 fmt.Println(u.String())
+	// set pagination
+	u := *resp.Request.URL
+	vals := u.Query()
+	vals.Set("page", strconv.Format(page+1))
+	vals.Set("view", strconv.Format(r.ListingPagination.View))
+	u.RawQuery = vals.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-	return yield(context.WithValue(nctx, "item.index", lastIndex), req)
+	// update the index of last page
+	nctx := context.WithValue(ctx, "item.index", lastIndex)
+	return yield(nctx, req)
 }
 
 type parseProductResponse struct {
@@ -1053,9 +938,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		//"https://www.farfetch.com/ae/shopping/women/gucci/items.aspx",		
+		"https://www.farfetch.com/shopping/women/denim-1/items.aspx",		
 		//"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
-		"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
+		//"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -1079,7 +964,8 @@ func main() {
 		apiToken = os.Getenv("PC_API_TOKEN")
 		jsToken  = os.Getenv("PC_JS_TOKEN")
 	)
-	
+	apiToken = "1"
+	jsToken = "1"
 	if apiToken == "" || jsToken == "" {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
 	}
