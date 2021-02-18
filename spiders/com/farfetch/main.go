@@ -45,7 +45,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 }
 // ID
 func (c *_Crawler) ID() string {
-	return "350d1122d8d2ae45b9e0dc3255f7102f"
+	return "c0458359a95c408b9cb70d11c92f9ec7"
 }
 
 // Version
@@ -964,8 +964,7 @@ func main() {
 		apiToken = os.Getenv("PC_API_TOKEN")
 		jsToken  = os.Getenv("PC_JS_TOKEN")
 	)
-	apiToken = "1"
-	jsToken = "1"
+	
 	if apiToken == "" || jsToken == "" {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
 	}
