@@ -293,31 +293,8 @@ type parseProductResponse struct {
 
 type parseProductData struct {
 	UtagData struct {
-		IsResponsivePdp            string        `json:"is_responsive_pdp"`
-		EligibleAttributeCount     string        `json:"eligible_attribute_count"`
-		PageType                   string        `json:"page_type"`
-		TCategoryID                []string      `json:"t_category_id"`
-		TCategoryName              []string      `json:"t_category_name"`
-		IsBigTicket                []string      `json:"is_big_ticket"`
-		IsBigTicketV2C             []string      `json:"is_big_ticket_v2c"`
-		ProductID                  []string      `json:"product_id"`
-		ProductLowAvailability     []string      `json:"product_low_availability"`
-		ProductAvailabilityMessage []string      `json:"product_availability_message"`
-		ProductName                []string      `json:"product_name"`
-		ProductType                []string      `json:"product_type"`
-		ProductOriginalPrice       []string      `json:"product_original_price"`
-		ProductPrice               []string      `json:"product_price"`
-		ProductPricingState        []string      `json:"product_pricing_state"`
 		ProductRating              []string      `json:"product_rating"`
-		ProductReviews             []string      `json:"product_reviews"`
-		ProductVideo               []string      `json:"product_video"`
-		ProductGwpAvailable        []interface{} `json:"product_gwp_available"`
-		ProductPwpAvailable        []interface{} `json:"product_pwp_available"`
-		TrueFitEligible            []string      `json:"true_fit_eligible"`
-		FindationEligible          []string      `json:"findation_eligible"`
-		ProductBrand               []string      `json:"product_brand"`
-		ConsolidatedProduct        string        `json:"consolidated_product"`
-		GdpEligible                string        `json:"gdp_eligible"`
+		ProductReviews             []string      `json:"product_reviews"`		
 	} `json:"utagData"`
 	Product struct {
 		ID         int `json:"id"`
@@ -774,22 +751,30 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	reviewCount, _ := strconv.ParseFloat(pd.UtagData.ProductReviews[0])
+	rating, _ := strconv.ParseFloat(pd.UtagData.ProductRating[0])
+
+	item := pbItem.Product{
+		Source: &pbItem.Source{
+			Id:       strconv.Format(pd.Product.ID),
+			CrawlUrl: resp.Request.URL.String(),
+		},
+		Title:        pd.Product.Detail.Name,
+		Description:  pd.Product.Detail.Description,
+		BrandName:    pd.Product.Detail.Brand.Name,
+		//CrowdType:    i.Details.GenderName,  // ASK ?
+		Price: &pbItem.Price{
+			Currency: regulation.Currency_USD,
+		},
+		
+		Stats: &pbItem.Stats{	
+			ReviewCount: int32(reviewCount),
+			Rating:      float32(rating),
+		},
+	}
+
 	for _, p := range pd.Product.Traits.Colors.ColorMap {
-			
-			item := pbItem.Product{
-				Source: &pbItem.Source{
-					Id:       strconv.Format(p.ID),
-					CrawlUrl: resp.Request.URL.String(),
-				},
-				Title:        pd.Product.Detail.Name,
-				Description:  pd.Product.Detail.Description,
-				BrandName:    pd.Product.Detail.Brand.Name,
-				//CrowdType:    i.Details.GenderName,  // ASK ?
-				Price: &pbItem.Price{
-					Currency: regulation.Currency_USD,
-				},
-			}
-			
+									
 			current, _ := strconv.ParseFloat(p.Pricing.Price.FinalPrice.Values[0].Value)
 			msrp, _ := strconv.ParseFloat(p.Pricing.Price.TieredPrice[1].Values[0].Value)
 			// discount := strconv.ParseFloat(p.Pricing.Price.TieredPrice[1].Values[0])
@@ -799,11 +784,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				
 				sizeID := strconv.Format(rawSize)
 				sku := pbItem.Sku{
-					SourceId: strconv.Format(rawSize),
+					SourceId: strconv.Format(p.ID) + "_" + strconv.Format(rawSize),
 					Price: &pbItem.Price{
 						Currency: regulation.Currency_USD,
-						Current:  int32(current),
-						Msrp:     int32(msrp),
+						Current:  int32(current * 100),
+						Msrp:     int32(msrp * 100),
 						Discount: int32(discount),
 					},
 					Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
@@ -847,12 +832,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				})
 			}
 
-			fmt.Println(&item)
+					
+	}
+	fmt.Println(&item)
 
-			// yield item result
-			if err = yield(ctx, &item); err != nil {
-				return err
-			}		
+	// yield item result
+	if err = yield(ctx, &item); err != nil {
+		return err
 	}
 	return nil
 }
@@ -886,9 +872,6 @@ func main() {
 		apiToken = os.Getenv("PC_API_TOKEN")
 		jsToken  = os.Getenv("PC_JS_TOKEN")
 	)
-
-	apiToken= "1"
-	jsToken= "1"
 
 	if apiToken == "" || jsToken == "" {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
