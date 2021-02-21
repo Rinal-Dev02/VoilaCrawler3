@@ -617,25 +617,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	var (
-		// get ProxyCrawl's API Token from you run environment
-		apiToken = os.Getenv("PC_API_TOKEN")
-		// get ProxyCrawl's Javascript Token from you run environment
-		jsToken = os.Getenv("PC_JS_TOKEN")
-	)
-	if apiToken == "" || jsToken == "" {
-		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
-	}
-
-	// build a logger object.
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
-	client, err := proxy.NewProxyClient(
-		// cookie jar used for auto cookie management.
-		cookiejar.New(),
-		logger,
-		proxy.Options{APIToken: apiToken, JSToken: jsToken},
-	)
+	// get proxy's microservice address from env
+	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
@@ -690,7 +675,7 @@ func main() {
 				EnableHeadless:    false,
 				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
 				KeepSession:       spider.CrawlOptions().KeepSession,
-				ProxyLevel:        http.ProxyLevelReliable,
+				Reliability:       2,
 			})
 			if err != nil {
 				panic(err)

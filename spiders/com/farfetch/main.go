@@ -17,9 +17,9 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-	 "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
-	 "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
-	 pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
+	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
+	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -28,21 +28,21 @@ import (
 type _Crawler struct {
 	httpClient http.Client
 
-	categoryPathMatcher     *regexp.Regexp
-	productPathMatcher      *regexp.Regexp
-	logger                  glog.Log
+	categoryPathMatcher *regexp.Regexp
+	productPathMatcher  *regexp.Regexp
+	logger              glog.Log
 }
-
 
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
-		httpClient:              client,
-		categoryPathMatcher:     regexp.MustCompile(`^(/[a-z0-9_-]+)?/shopping/(women|men)([/a-z0-9_-]+)items.aspx$`),
-		productPathMatcher:      regexp.MustCompile(`^(/[a-z0-9_-]+)+(/[a-z0-9_-]+)-item-[0-9]+.aspx$`),
-		logger:                  logger.New("_Crawler"),
+		httpClient:          client,
+		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9_-]+)?/shopping/(women|men)([/a-z0-9_-]+)items.aspx$`),
+		productPathMatcher:  regexp.MustCompile(`^(/[a-z0-9_-]+)+(/[a-z0-9_-]+)-item-[0-9]+.aspx$`),
+		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
 }
+
 // ID
 func (c *_Crawler) ID() string {
 	return "c0458359a95c408b9cb70d11c92f9ec7"
@@ -59,15 +59,14 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options.EnableHeadless = false
 	options.LoginRequired = false
 	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
-	options.MustCookies = append(options.MustCookies,
-		//&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
-		// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
-		// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
-		// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
-		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-		// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
-	)
+	options.MustCookies = append(options.MustCookies) //&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
+	// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
+	// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
+	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
+
 	return options
 }
 
@@ -99,9 +98,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseProduct(ctx, resp, yield)		
+		return c.parseProduct(ctx, resp, yield)
 	}
-	
+
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
 
@@ -126,18 +125,18 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	// next page
 	matched := prodDataExtraReg.FindSubmatch(respBody)
-	 if matched == nil {
+	if matched == nil {
 		matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte(`\"`), []byte(`"`)), []byte(`\\"`), []byte(`\\\"`))
 		matched = prodDataExtraReg1.FindSubmatch(respBody) //__initialState__
-	 }
+	}
 	if len(matched) <= 1 {
 		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
 	}
-	var r struct {		
+	var r struct {
 		ListingItems struct {
 			Items []struct {
-				ID	int	`json:"id"`
-				URL	string	`json:"url"`				
+				ID  int    `json:"id"`
+				URL string `json:"url"`
 			} `json:"items"`
 		} `json:"listingItems"`
 		ListingPagination struct {
@@ -146,7 +145,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			TotalItems           int    `json:"totalItems"`
 			TotalPages           int    `json:"totalPages"`
 			NormalizedTotalItems string `json:"normalizedTotalItems"`
-		} `json:"listingPagination"`		
+		} `json:"listingPagination"`
 	}
 
 	// matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
@@ -159,14 +158,14 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
 		return err
 	}
-	
+
 	lastIndex := nextIndex(ctx)
 	for _, prod := range r.ListingItems.Items {
 		rawurl := fmt.Sprintf("%s://%s/us%s", resp.Request.URL.Scheme, resp.Request.URL.Host, prod.URL)
 		if strings.HasPrefix(prod.URL, "http:") || strings.HasPrefix(prod.URL, "https:") {
 			rawurl = prod.URL
 		}
-		
+
 		if req, err := http.NewRequest(http.MethodGet, rawurl, nil); err != nil {
 			c.logger.Debug(err)
 			return err
@@ -687,16 +686,16 @@ type parseProductResponse struct {
 		} `json:"measurements"`
 		PriceInfo struct {
 			Default struct {
-				CurrencyCode                  string `json:"currencyCode"`
+				CurrencyCode                  string  `json:"currencyCode"`
 				FinalPrice                    float32 `json:"finalPrice"`
-				FormattedFinalPrice           string `json:"formattedFinalPrice"`
-				FormattedFinalPriceInternal   string `json:"formattedFinalPriceInternal"`
-				FormattedInitialPrice         string `json:"formattedInitialPrice"`
-				FormattedInitialPriceInternal string `json:"formattedInitialPriceInternal"`
-				InitialPrice                  float32  `json:"initialPrice"`
-				IsOnSale                      bool   `json:"isOnSale"`
+				FormattedFinalPrice           string  `json:"formattedFinalPrice"`
+				FormattedFinalPriceInternal   string  `json:"formattedFinalPriceInternal"`
+				FormattedInitialPrice         string  `json:"formattedInitialPrice"`
+				FormattedInitialPriceInternal string  `json:"formattedInitialPriceInternal"`
+				InitialPrice                  float32 `json:"initialPrice"`
+				IsOnSale                      bool    `json:"isOnSale"`
 				Labels                        struct {
-					Duties string `json:"duties"`
+					Duties   string `json:"duties"`
 					Discount string `json:"discount"`
 				} `json:"labels"`
 				PriceTags []string `json:"priceTags"`
@@ -714,44 +713,42 @@ type parseProductResponse struct {
 			} `json:"socialIcons"`
 		} `json:"share"`
 		ShippingInformations struct {
-			Details  map[string]struct {
-				
-					CityID                      int64       `json:"cityId"`
-					CountryCode                 string      `json:"countryCode"`
-					DeliveryBefore              interface{} `json:"deliveryBefore"`
-					DeliveryBy                  interface{} `json:"deliveryBy"`
-					DeliveryCityMessage         interface{} `json:"deliveryCityMessage"`
-					DeliveryGreetingsMessage    interface{} `json:"deliveryGreetingsMessage"`
-					DeliveryIn                  interface{} `json:"deliveryIn"`
-					DeliveryType                interface{} `json:"deliveryType"`
-					EndTime                     interface{} `json:"endTime"`
-					FarfetchOwned               interface{} `json:"farfetchOwned"`
-					IsFromEurasianCustomsUnion  bool        `json:"isFromEurasianCustomsUnion"`
-					IsLocalStock                bool        `json:"isLocalStock"`
-					LocalStockCountry           interface{} `json:"localStockCountry"`
-					MerchandiseLabel            string      `json:"merchandiseLabel"`
-					OrderTimeFrame              interface{} `json:"orderTimeFrame"`
-					PostCodesMessage            interface{} `json:"postCodesMessage"`
-					ShippingAndFreeReturns      interface{} `json:"shippingAndFreeReturns"`
-					ShippingAndFreeReturnsTitle interface{} `json:"shippingAndFreeReturnsTitle"`
-					ShippingContactUs           interface{} `json:"shippingContactUs"`
-					ShippingFromMessage         string      `json:"shippingFromMessage"`
-					ShippingMarketplaceSeller   string      `json:"shippingMarketplaceSeller"`
-					ShippingTitle               interface{} `json:"shippingTitle"`
-					StartTime                   interface{} `json:"startTime"`
-				
+			Details map[string]struct {
+				CityID                      int64       `json:"cityId"`
+				CountryCode                 string      `json:"countryCode"`
+				DeliveryBefore              interface{} `json:"deliveryBefore"`
+				DeliveryBy                  interface{} `json:"deliveryBy"`
+				DeliveryCityMessage         interface{} `json:"deliveryCityMessage"`
+				DeliveryGreetingsMessage    interface{} `json:"deliveryGreetingsMessage"`
+				DeliveryIn                  interface{} `json:"deliveryIn"`
+				DeliveryType                interface{} `json:"deliveryType"`
+				EndTime                     interface{} `json:"endTime"`
+				FarfetchOwned               interface{} `json:"farfetchOwned"`
+				IsFromEurasianCustomsUnion  bool        `json:"isFromEurasianCustomsUnion"`
+				IsLocalStock                bool        `json:"isLocalStock"`
+				LocalStockCountry           interface{} `json:"localStockCountry"`
+				MerchandiseLabel            string      `json:"merchandiseLabel"`
+				OrderTimeFrame              interface{} `json:"orderTimeFrame"`
+				PostCodesMessage            interface{} `json:"postCodesMessage"`
+				ShippingAndFreeReturns      interface{} `json:"shippingAndFreeReturns"`
+				ShippingAndFreeReturnsTitle interface{} `json:"shippingAndFreeReturnsTitle"`
+				ShippingContactUs           interface{} `json:"shippingContactUs"`
+				ShippingFromMessage         string      `json:"shippingFromMessage"`
+				ShippingMarketplaceSeller   string      `json:"shippingMarketplaceSeller"`
+				ShippingTitle               interface{} `json:"shippingTitle"`
+				StartTime                   interface{} `json:"startTime"`
 			} `json:"details"`
 			VisibleOnDetails bool `json:"visibleOnDetails"`
 		} `json:"shippingInformations"`
 		SimilarProducts interface{} `json:"similarProducts"`
 		Sizes           struct {
-			Available map[string]struct {				
+			Available map[string]struct {
 				Description string `json:"description"`
 				LastInStock bool   `json:"lastInStock"`
 				Quantity    int64  `json:"quantity"`
 				SizeID      int64  `json:"sizeId"`
 				StoreID     int64  `json:"storeId"`
-				VariantID   string `json:"variantId"`				
+				VariantID   string `json:"variantId"`
 			} `json:"available"`
 			CleanScaleDescription string      `json:"cleanScaleDescription"`
 			ConvertedScaleID      interface{} `json:"convertedScaleId"`
@@ -831,7 +828,7 @@ type parseProductResponse struct {
 }
 
 var (
-	detailReg = regexp.MustCompile(`(window\['__initialState_slice-pdp__'\])\s*=\s*([^;]+)<\/script>`)
+	detailReg  = regexp.MustCompile(`(window\['__initialState_slice-pdp__'\])\s*=\s*([^;]+)<\/script>`)
 	detailReg1 = regexp.MustCompile(`(window\['__initialState__']) = "([^;)]+)";`)
 )
 
@@ -848,15 +845,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	matched := detailReg.FindSubmatch(respBody)
 	if matched == nil {
-		matched = detailReg1.FindSubmatch(respBody)	
+		matched = detailReg1.FindSubmatch(respBody)
 	}
 	if len(matched) <= 1 {
 		c.logger.Debugf("data %s", respBody)
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
 	}
-	
+
 	var (
-		i      parseProductResponse
+		i parseProductResponse
 	)
 
 	if err = json.Unmarshal(matched[2], &i); err != nil {
@@ -869,10 +866,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Id:       strconv.Format(i.ProductViewModel.Details.ProductID),
 			CrawlUrl: resp.Request.URL.String(),
 		},
-		Title:        i.ProductViewModel.Details.ShortDescription,
-		Description:  i.ProductViewModel.Details.Description,
-		BrandName:    i.ProductViewModel.DesignerDetails.Name,
-		CrowdType:    i.ProductViewModel.Details.GenderName,
+		Title:       i.ProductViewModel.Details.ShortDescription,
+		Description: i.ProductViewModel.Details.Description,
+		BrandName:   i.ProductViewModel.DesignerDetails.Name,
+		CrowdType:   i.ProductViewModel.Details.GenderName,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
@@ -884,7 +881,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	for _, rawSize := range i.ProductViewModel.Sizes.Available {
 		sku := pbItem.Sku{
-			SourceId: strconv.Format(rawSize.SizeID),		
+			SourceId: strconv.Format(rawSize.SizeID),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(current),
@@ -908,9 +905,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
-	isDefault:= true
+	isDefault := true
 	for _, img := range i.ProductViewModel.Images.Main {
-		if img.Index > 1 {			
+		if img.Index > 1 {
 			isDefault = false
 		}
 		itemImg, _ := anypb.New(&media.Media_Image{
@@ -920,8 +917,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			SmallUrl:    strings.ReplaceAll(img.Zoom, "_1000.jpg", "_400.jpg"),
 		})
 		item.Medias = append(item.Medias, &media.Media{
-			Detail:    itemImg,			
-			IsDefault: isDefault,			
+			Detail:    itemImg,
+			IsDefault: isDefault,
 		})
 	}
 
@@ -935,10 +932,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
-
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.farfetch.com/shopping/women/denim-1/items.aspx",		
+		"https://www.farfetch.com/shopping/women/denim-1/items.aspx",
 		//"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
 		//"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
 	} {
@@ -957,23 +953,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-
 // local test
 func main() {
-	var (
-		apiToken = os.Getenv("PC_API_TOKEN")
-		jsToken  = os.Getenv("PC_JS_TOKEN")
-	)
-	
-	if apiToken == "" || jsToken == "" {
-		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
-	}
-
 	logger := glog.New(glog.LogLevelDebug)
-	client, err := proxy.NewProxyClient(
-		cookiejar.New(), logger,
-		proxy.Options{APIToken: apiToken, JSToken: jsToken},
-	)
+	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
@@ -1010,7 +993,7 @@ func main() {
 			}
 			defer resp.Body.Close()
 
-			return spider.Parse(ctx, resp, callback)		
+			return spider.Parse(ctx, resp, callback)
 		default:
 			data, err := json.Marshal(i)
 			if err != nil {

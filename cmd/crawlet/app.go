@@ -59,14 +59,8 @@ func (app *App) Run(args []string) {
 			Usage: "session server grpc address",
 		},
 		&cli.StringFlag{
-			Name:    "proxy-api-token",
-			Usage:   "proxy api token",
-			EnvVars: []string{"PC_API_TOKEN"},
-		},
-		&cli.StringFlag{
-			Name:    "proxy-js-token",
-			Usage:   "proxy js api token",
-			EnvVars: []string{"PC_JS_TOKEN"},
+			Name:  "proxy-addr",
+			Usage: "proxy server address",
 		},
 		&cli.BoolFlag{
 			Name:    "debug",
@@ -94,14 +88,7 @@ func (app *App) Run(args []string) {
 			return cli.NewExitError(err, 1)
 		}
 
-		httpClient, err := proxy.NewProxyClient(
-			jar,
-			logger,
-			proxy.Options{
-				APIToken: c.String("proxy-api-token"),
-				JSToken:  c.String("proxy-js-token"),
-			},
-		)
+		httpClient, err := proxy.NewProxyClient(c.String("proxy-address"), jar, logger)
 		if err != nil {
 			logger.Error(err)
 			return cli.NewExitError(err, 1)

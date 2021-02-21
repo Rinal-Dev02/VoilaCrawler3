@@ -1,34 +1,26 @@
 package proxy
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
-	"crypto/tls"
 	"errors"
-	"io/ioutil"
+	"fmt"
+	"io"
 	rhttp "net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
-	// "golang.org/x/time/rate"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
+	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
-)
-
-type __disableHttpRedirect__ struct{}
-
-var disableHttpRedirect __disableHttpRedirect__
-
-const (
-	gatewayAddr = "https://api.proxycrawl.com/"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type Options struct {
-	APIToken string
-	JSToken  string
-	Proxy    *url.URL
+	ProxyAddr string
 }
 
 // proxyClient
@@ -42,37 +34,25 @@ type proxyClient struct {
 
 // NewProxyClient returns a http client which support native http.Client and
 // supports Proxy Backconnect proxy, Crawling API.
-func NewProxyClient(cookieJar http.CookieJar, logger glog.Log, opts Options) (http.Client, error) {
-	if opts.APIToken == "" && opts.JSToken == "" {
-		return nil, errors.New("missing proxy api access token")
+func NewProxyClient(proxyAddr string, cookieJar http.CookieJar, logger glog.Log) (http.Client, error) {
+	if _, err := url.Parse(proxyAddr); err != nil {
+		return nil, errors.New("invalid proxy http address")
 	}
-	if opts.Proxy == nil {
-		opts.Proxy = &url.URL{Host: "proxy.proxycrawl.com:9000"}
+	if cookieJar == nil {
+		return nil, errors.New("invalid cookiejar")
+	}
+	if logger == nil {
+		return nil, errors.New("invaild logger")
+	}
+	client := proxyClient{
+		jar:        cookieJar,
+		httpClient: &rhttp.Client{},
+		options: Options{
+			ProxyAddr: proxyAddr,
+		},
+		logger: logger,
 	}
 
-	client := proxyClient{
-		jar:     cookieJar,
-		options: opts,
-		logger:  logger,
-	}
-	client.httpClient = &rhttp.Client{
-		Transport: &rhttp.Transport{
-			MaxIdleConns:        100,
-			MaxIdleConnsPerHost: 5,
-			IdleConnTimeout:     time.Second * 30,
-		},
-		CheckRedirect: client.checkRedirect,
-	}
-	client.httpProxyClient = &rhttp.Client{
-		Transport: &rhttp.Transport{
-			// MaxIdleConns:      100,
-			// DisableKeepAlives: true,
-			IdleConnTimeout: time.Second,
-			TLSNextProto:    map[string]func(string, *tls.Conn) rhttp.RoundTripper{}, // disable http2
-			Proxy:           rhttp.ProxyURL(opts.Proxy),
-		},
-		CheckRedirect: client.checkRedirect,
-	}
 	return &client, nil
 }
 
@@ -94,259 +74,137 @@ func (c *proxyClient) Do(ctx context.Context, r *http.Request) (*http.Response, 
 // If proxy is enabled, the client will try backconnect proxy for at most twice.
 // If all the two try failed, then this proxy will try crawling api.
 // To remember that timeout is controlled by ctx
-func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts http.Options) (*http.Response, error) {
+func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts http.Options) (resp *http.Response, err error) {
 	if c == nil || r == nil {
 		return nil, nil
 	}
 
-	if opts.DisableRedirect {
-		ctx = context.WithValue(ctx, disableHttpRedirect, true)
-	}
-
-	if c.jar != nil {
-		if cookies, err := c.jar.Cookies(ctx, r.URL); err != nil {
-			c.logger.Warnf("get cookies failed, error=%s", err)
-		} else if len(cookies) > 0 {
-			for _, cookie := range cookies {
-				r.AddCookie(cookie)
-			}
-		} else if opts.EnableSessionInit {
-			opts.EnableHeadless = true
-		}
-	} else if opts.EnableSessionInit || opts.KeepSession {
-		return nil, errors.New("not cookie jar set")
-	}
-
-	if opts.EnableHeadless {
-		opts.EnableProxy = true
-		opts.ProxyLevel = http.ProxyLevelReliable
-	}
-
-	var tracingId string
-	if opts.KeepSession {
-		v := ctx.Value("tracing_id")
-		if v != nil {
-			tracingId = v.(string)
-		}
-		if tracingId == "" {
-			c.logger.Warnf("no tracing_id found in context")
+	var body []byte
+	if r.Body != nil {
+		body, err = io.ReadAll(r.Body)
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	var (
-		err   error
-		req   *http.Request = r
-		resp  *http.Response
-		level = opts.ProxyLevel
-	)
-
-	if req.Header.Get("User-Agent") == "" {
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.74 Safari/537.36 Edg/79.0.309.43")
+	req := pbProxy.Request{
+		Method:  r.Method,
+		Url:     r.URL.String(),
+		Body:    body,
+		Headers: make(map[string]*pbHttp.ListValue),
+		Options: &pbProxy.Request_Options{
+			EnableProxy:       opts.EnableProxy,
+			Reliability:       opts.Reliability,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableSessionInit,
+			KeepSession:       opts.KeepSession,
+			MaxTtlPerRequest:  10 * 60, // 10mins
+			DisableRedirect:   opts.DisableRedirect,
+		},
+	}
+	// set ttl per request according to deadline
+	if deadline, ok := ctx.Deadline(); ok {
+		timeRemain := deadline.Unix() - time.Now().Unix()
+		if timeRemain > 0 {
+			req.Options.MaxTtlPerRequest = timeRemain
+		}
 	}
 
-	if opts.EnableProxy {
-		if level <= http.ProxyLevelSharing {
-			level += 1
+	if ctx.Value("tracing_id") != nil {
+		req.TracingId = ctx.Value("tracing_id").(string)
+	}
+	if ctx.Value("job_id") != nil {
+		req.JobId = ctx.Value("job_id").(string)
+	}
+	if ctx.Value("req_id") != nil {
+		req.ReqId = ctx.Value("req_id").(string)
+	}
+	for key, vals := range r.Header {
+		req.Headers[key] = &pbHttp.ListValue{Values: vals}
+	}
 
-			retryCount := 5
-			for i := 0; i < retryCount; i++ {
-				creq := req.Clone(ctx)
+	data, _ := protojson.Marshal(&req)
+	proxyReq, err := rhttp.NewRequest(rhttp.MethodPost, c.options.ProxyAddr, bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	proxyReq = proxyReq.WithContext(ctx)
 
-				if resp, err = c.httpProxyClient.Do(creq); err != nil {
-					c.logger.Debugf("do http request failed, error=%s", err)
-					time.Sleep(time.Millisecond * 200)
-					continue
-				} else if resp.StatusCode == http.StatusRequestTimeout ||
-					resp.StatusCode == http.StatusInternalServerError ||
-					resp.StatusCode == http.StatusServiceUnavailable {
-					c.logger.Debugf("do http request with status %v, retry...", resp.StatusCode)
-					time.Sleep(time.Millisecond * 200)
-					continue
-				} else if resp.StatusCode == http.StatusForbidden {
-					c.logger.Debugf("do http request with status %v, retry...", resp.StatusCode)
-					retryCount = 10
-					time.Sleep(time.Millisecond * 5000)
-					continue
+	proxyResp, err := c.httpClient.Do(proxyReq)
+	if err != nil {
+		return nil, err
+	}
+	defer proxyResp.Body.Close()
+
+	if proxyResp.StatusCode != 200 {
+		return nil, fmt.Errorf("do http request failed with status %d %s", proxyResp.StatusCode, proxyResp.Status)
+	}
+
+	var proxyRespBody pbProxy.Response
+	if respBody, err := io.ReadAll(proxyResp.Body); err != nil {
+		return nil, err
+	} else if err := protojson.Unmarshal(respBody, &proxyRespBody); err != nil {
+		return nil, err
+	}
+	if proxyRespBody.GetStatusCode() == -1 {
+		return nil, errors.New(proxyRespBody.Status)
+	}
+
+	var buildResponse func(res *pbProxy.Response, isSub bool) (*http.Response, error)
+	buildResponse = func(res *pbProxy.Response, isSub bool) (*http.Response, error) {
+		if res == nil {
+			return nil, nil
+		}
+		resp := http.Response{
+			StatusCode: int(res.GetStatusCode()),
+			Status:     res.GetStatus(),
+			Proto:      res.GetProto(),
+			ProtoMajor: int(res.GetProtoMajor()),
+			ProtoMinor: int(res.GetProtoMinor()),
+			Header:     http.Header{},
+		}
+		for k, lv := range res.Headers {
+			resp.Header[k] = lv.Values
+		}
+		if !isSub && len(res.Body) > 0 {
+			// try to uncompress ziped data
+			if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
+				if reader, err := gzip.NewReader(bytes.NewReader(res.Body)); err == nil {
+					if data, err := io.ReadAll(reader); err == nil {
+						resp.Body = http.NewReader(data)
+						resp.Header.Del("Content-Encoding")
+						resp.Header.Del("Content-Length")
+						resp.ContentLength = -1
+						resp.Uncompressed = true
+					}
+				} else {
+					resp.ContentLength = int64(len(res.Body))
+					resp.Body = http.NewReader(res.GetBody())
 				}
-				break
-			}
-		}
-
-		// TODO: add more proxy level support
-		if resp == nil {
-			u, _ := url.Parse(gatewayAddr)
-			// Set params
-			vals := u.Query()
-			if opts.EnableHeadless {
-				vals.Set("token", c.options.JSToken)
-				vals.Set("page_wait", "1000")
-				vals.Set("ajax_wait", "false")
 			} else {
-				vals.Set("token", c.options.APIToken)
+				resp.ContentLength = int64(len(res.Body))
+				resp.Uncompressed = true
+				resp.Body = http.NewReader(res.GetBody())
 			}
-			if opts.KeepSession {
-				vals.Set("proxy_session", tracingId)
-			}
-			vals.Set("url", r.URL.String())
+		}
 
-			if len(r.Header) > 0 {
-				var header string
-				for k := range r.Header {
-					if k == "Cookie" {
-						vals.Set("cookies", r.Header.Get(k))
-					} else if k == "User-Agent" {
-						// ignore user-agent
-						continue
-					} else {
-						if header == "" {
-							header = k + ":" + r.Header.Get(k)
-						} else {
-							header = header + "|" + k + ":" + r.Header.Get(k)
-						}
-					}
-				}
-				vals.Set("request_headers", header)
+		if res.Request != nil {
+			r := res.Request
+			u, _ := url.Parse(r.GetUrl())
+			resp.Request = &http.Request{
+				Method: r.Method,
+				URL:    u,
+				Header: http.Header{},
 			}
-			vals.Set("get_headers", "true")
-			vals.Set("get_cookies", "true")
-			// vals.Set("proxy_session", "1234567890")
-			// Set this param for we develop almost all crawler on desktop
-			vals.Set("device", "desktop")
-
-			u.RawQuery = vals.Encode()
-			if req, err = http.NewRequest(http.MethodGet, u.String(), r.Body); err != nil {
-				return nil, err
-			}
-			req = req.WithContext(ctx)
-
-			for i := 0; i < 3; i++ {
-				if resp, err = c.httpClient.Do(req); err != nil {
-					c.logger.Debugf("access %s failed, error=%s", err)
-					time.Sleep(time.Millisecond * 100)
-					continue
-				} else if resp.StatusCode == http.StatusRequestTimeout ||
-					resp.StatusCode == http.StatusInternalServerError ||
-					resp.StatusCode == http.StatusServiceUnavailable {
-					time.Sleep(time.Millisecond * 100)
-					continue
-				}
-				break
-			}
-			if err != nil {
-				return nil, err
+			for k, lv := range r.Headers {
+				resp.Request.Header[k] = lv.Values
 			}
 
-			for key := range resp.Header {
-				key := strings.ToLower(key)
-				if key == "original_status" {
-					code, _ := strconv.ParseInt(resp.Header.Get("original_status"), 10, 32)
-					resp.StatusCode = int(code)
-					resp.Header.Del(key)
-				} else if strings.HasPrefix(key, "original_") {
-					// TODO: there may exists header with underline
-					realKey := strings.Replace(strings.TrimPrefix(key, "original_"), "_", "-", -1)
-					for _, v := range resp.Header.Values(key) {
-						resp.Header.Add(realKey, v)
-					}
-					resp.Header.Del(key)
-				} else if key == "pc_status" {
-					resp.Header.Del(key)
-				}
+			if res.Request.Response != nil {
+				resp.Request.Response, _ = buildResponse(res.Request.Response, true)
 			}
-			resp.Request = r
 		}
-	} else {
-		retryCount := 2
-		for i := 0; i < retryCount; i++ {
-			creq := req.Clone(ctx)
-			if resp, err = c.httpClient.Do(creq); err != nil {
-				c.logger.Debugf("access %s failed, error=%s", err)
-				time.Sleep(time.Millisecond * 100)
-				continue
-			} else if resp.StatusCode == http.StatusRequestTimeout ||
-				resp.StatusCode == http.StatusInternalServerError ||
-				resp.StatusCode == http.StatusServiceUnavailable {
-
-				time.Sleep(time.Millisecond * 100)
-				continue
-			} else if resp.StatusCode == http.StatusForbidden {
-				c.logger.Debugf("do http request with status %v, retry...", resp.StatusCode)
-				time.Sleep(time.Millisecond * 5000)
-				retryCount = 5
-				continue
-			}
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
+		return &resp, nil
 	}
-	defer resp.Body.Close()
-
-	if c.jar != nil {
-		cookies := resp.Cookies()
-		if len(cookies) > 0 {
-			c.jar.SetCookies(ctx, resp.Request.URL, cookies)
-		}
-	}
-
-	if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") && !resp.Uncompressed {
-		reader, err := gzip.NewReader(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		data, err := ioutil.ReadAll(reader)
-		if err != nil {
-			return nil, err
-		}
-		resp.Body = http.NewReader(data)
-
-		resp.Header.Del("Content-Encoding")
-		resp.Header.Del("Content-Length")
-		resp.ContentLength = -1
-		resp.Uncompressed = true
-	} else {
-		data, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		resp.Body = http.NewReader(data)
-	}
-	return resp, nil
-}
-
-// checkRedirect
-func (c *proxyClient) checkRedirect(req *rhttp.Request, via []*rhttp.Request) error {
-	if c == nil {
-		return nil
-	}
-
-	var (
-		ctx             = req.Context()
-		disableRedirect bool
-	)
-	disableRedirectVal := ctx.Value(disableHttpRedirect)
-	if disableRedirectVal != nil {
-		disableRedirect = disableRedirectVal.(bool)
-	}
-	if disableRedirect {
-		return rhttp.ErrUseLastResponse
-	}
-
-	if req.Response != nil && c.jar != nil {
-		cookies := req.Response.Cookies()
-		if len(cookies) > 0 {
-			c.jar.SetCookies(ctx, req.Response.Request.URL, cookies)
-		}
-	}
-
-	// init cookies
-	if cookies, err := c.jar.Cookies(ctx, req.URL); err != nil {
-		return err
-	} else {
-		for _, c := range cookies {
-			req.AddCookie(c)
-		}
-	}
-	return nil
+	return buildResponse(&proxyRespBody, false)
 }

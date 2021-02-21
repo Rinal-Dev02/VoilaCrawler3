@@ -33,6 +33,14 @@ spec:
         with_grpc_gateway: true
         output_path: protoc-gen-go/
     - path: ""
+      name: chameleon.smelter.v1.crawl.proxy
+      version: "1.0"
+      files:
+      - '*.proto'
+      targets:
+      - type: go
+        output_path: protoc-gen-go/
+    - path: ""
       name: chameleon.api.event
       version: "1.0"
       files:

@@ -680,26 +680,8 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // local test
 func main() {
-
-	var (
-		apiToken = os.Getenv("PC_API_TOKEN")
-		jsToken  = os.Getenv("PC_JS_TOKEN")
-	)
-	apiToken = "C1hwEn7zzYhHptBUoZFisQ"
-	jsToken = "YOhYOQ6Ppd17eK9ACA54cw"
-
-	// apiToken = "1"
-	// jsToken = "1"
-
-	if apiToken == "" || jsToken == "" {
-		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
-	}
-
 	logger := glog.New(glog.LogLevelDebug)
-	client, err := proxy.NewProxyClient(
-		cookiejar.New(), logger,
-		proxy.Options{APIToken: apiToken, JSToken: jsToken, Proxy: nil},
-	)
+	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}

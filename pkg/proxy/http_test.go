@@ -20,10 +20,7 @@ func Test_proxyClient_DoWithOptions(t *testing.T) {
 	}
 
 	logger := glog.New(glog.LogLevelDebug)
-	client, err := NewProxyClient(
-		cookiejar.New(), logger,
-		Options{APIToken: apiToken, JSToken: jsToken},
-	)
+	client, err := NewProxyClient("http://127.0.0.1:6152", cookiejar.New(), logger)
 	if err != nil {
 		t.Fatal(err)
 	}

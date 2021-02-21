@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 )
 
 const (
@@ -57,8 +59,8 @@ type Options struct {
 	// DisableRedirect disable http redirect when do http request
 	DisableRedirect bool
 
-	// ProxyLevel proxies will try from low level to high level
-	ProxyLevel ProxyLevel
+	// Reliability proxies will try from low level to high level
+	Reliability pbProxy.ProxyReliability
 }
 
 type Client interface {
