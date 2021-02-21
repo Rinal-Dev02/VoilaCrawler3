@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 )
 
@@ -26,6 +27,9 @@ type CrawlOptions struct {
 	// SessionTTL if not set, will set session ttl according to last cookie expires
 	SessionTtl int32 `json:"sessionTtl"`
 
+	// DisableRedirect
+	DisableRedirect bool `json:"disableRedirect"`
+
 	// (TODO) LoginRequired indicates that this website needs login before crawl
 	// there must be an login subsystem with manages all the robot accounts
 	// and cache the cookies after signin.
@@ -36,6 +40,9 @@ type CrawlOptions struct {
 
 	// MustCookies specify the musted cookies
 	MustCookies []*http.Cookie `json:"mustCookies"`
+
+	// ProxyReliability
+	Reliability proxy.ProxyReliability
 }
 
 func NewCrawlOptions() *CrawlOptions {

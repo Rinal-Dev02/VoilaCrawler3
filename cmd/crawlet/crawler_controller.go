@@ -270,6 +270,8 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 							EnableHeadless:    crawler.CrawlOptions().EnableHeadless,
 							EnableSessionInit: crawler.CrawlOptions().EnableSessionInit,
 							KeepSession:       crawler.CrawlOptions().KeepSession,
+							DisableRedirect:   crawler.CrawlOptions().DisableRedirect,
+							Reliability:       crawler.CrawlOptions().Reliability,
 						})
 						duration := (time.Now().UnixNano() - startTime.UnixNano()) / 1000000 // in millseconds
 						if err != nil {
