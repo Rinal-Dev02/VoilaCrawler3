@@ -252,6 +252,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					duration, err = func(crawler *Crawler) (int64, error) {
 						req, err := NewRequest(r)
 						if err != nil {
+							logger.Debug(err)
 							return 0, err
 						}
 						req = crawler.SetHeader(req)
@@ -272,6 +273,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 						})
 						duration := (time.Now().UnixNano() - startTime.UnixNano()) / 1000000 // in millseconds
 						if err != nil {
+							logger.Debug(err)
 							return duration, err
 						}
 						defer resp.Body.Close()

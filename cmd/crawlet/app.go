@@ -41,8 +41,9 @@ func (app *App) Run(args []string) {
 			Value: NodeId(),
 		},
 		&cli.StringFlag{
-			Name:  "crawl-addr",
-			Usage: "Crawl server grpc address",
+			Name:     "crawl-addr",
+			Usage:    "Crawl server grpc address",
+			Required: true,
 		},
 		&cli.IntFlag{
 			Name:  "max-currency",
@@ -55,12 +56,14 @@ func (app *App) Run(args []string) {
 			Value: "./plugins",
 		},
 		&cli.StringFlag{
-			Name:  "session-addr",
-			Usage: "session server grpc address",
+			Name:     "session-addr",
+			Usage:    "session server grpc address",
+			Required: true,
 		},
 		&cli.StringFlag{
-			Name:  "proxy-addr",
-			Usage: "proxy server address",
+			Name:     "proxy-addr",
+			Usage:    "proxy server address",
+			Required: true,
 		},
 		&cli.BoolFlag{
 			Name:    "debug",
@@ -88,7 +91,7 @@ func (app *App) Run(args []string) {
 			return cli.NewExitError(err, 1)
 		}
 
-		httpClient, err := proxy.NewProxyClient(c.String("proxy-address"), jar, logger)
+		httpClient, err := proxy.NewProxyClient(c.String("proxy-addr"), jar, logger)
 		if err != nil {
 			logger.Error(err)
 			return cli.NewExitError(err, 1)

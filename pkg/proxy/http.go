@@ -83,6 +83,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	if r.Body != nil {
 		body, err = io.ReadAll(r.Body)
 		if err != nil {
+			c.logger.Debug(err)
 			return nil, err
 		}
 	}
@@ -128,6 +129,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	data, _ := protojson.Marshal(&req)
 	proxyReq, err := rhttp.NewRequest(rhttp.MethodPost, c.options.ProxyAddr, bytes.NewReader(data))
 	if err != nil {
+		c.logger.Debug(err)
 		return nil, err
 	}
 	proxyReq = proxyReq.WithContext(ctx)
