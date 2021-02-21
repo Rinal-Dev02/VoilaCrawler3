@@ -675,7 +675,7 @@ func main() {
 				EnableHeadless:    false,
 				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
 				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       2,
+				Reliability:       1,
 			})
 			if err != nil {
 				panic(err)

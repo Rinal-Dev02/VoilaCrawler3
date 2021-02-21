@@ -118,6 +118,8 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	}
 	if ctx.Value("req_id") != nil {
 		req.ReqId = ctx.Value("req_id").(string)
+	} else {
+		req.ReqId = fmt.Sprintf("req_%d", time.Now().UnixNano())
 	}
 	for key, vals := range r.Header {
 		req.Headers[key] = &pbHttp.ListValue{Values: vals}
