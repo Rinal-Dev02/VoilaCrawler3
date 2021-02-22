@@ -610,8 +610,6 @@ func main() {
 		apiToken = os.Getenv("PC_API_TOKEN")
 		jsToken  = os.Getenv("PC_JS_TOKEN")
 	)
-	apiToken = "1";
-	jsToken= "1";
 
 	if apiToken == "" || jsToken == "" {
 		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
