@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/url"
+	//"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -17,18 +17,19 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-	//"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
+	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
-	//"google.golang.org/protobuf/types/known/anypb"
 )
 
 type _Crawler struct {
 	httpClient http.Client
 
 	categoryPathMatcher     *regexp.Regexp
+	categoryPathMatcher1     *regexp.Regexp
+
 	productPathMatcher      *regexp.Regexp
 	logger                  glog.Log
 }
@@ -36,8 +37,10 @@ type _Crawler struct {
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:              client,
-		categoryPathMatcher:     regexp.MustCompile(`^(/[^.]+)?/(category)(.*)$`),
-		productPathMatcher:      regexp.MustCompile(`^(/[^.]+)?/(product)(.*)$`),
+		categoryPathMatcher:     regexp.MustCompile(`^((\?!products).)*`),
+		categoryPathMatcher1:    regexp.MustCompile(`(/[^.]+)?/(api)(.*)`),
+
+		productPathMatcher:      regexp.MustCompile(`(/[^.]+)?/(products)(.*)$`),
 		logger:                  logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -75,32 +78,16 @@ func (c *_Crawler) AllowedDomains() []string {
 	return []string{"www.dsw.com"}
 }
 
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
-	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.categoryPathMatcher,
-		c.productPathMatcher,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
-		}
-	}
-	return false
-}
-
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)	
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
-	}
+	}else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yield) 	
+	} 
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
 
@@ -121,18 +108,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		c.logger.Debug(err)
 		return err
 	}
-
-	// extract html content
-	// doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	// if err != nil {
-	// 	return err
-	// }
-	// doc.Find(`div[data-auto-id="productList"]>section>article[data-auto-id="productTile"]>a`).Each(func(i int, s *goquery.Selection) {
-	// 	if u, exists := s.Attr("href"); exists {
-	// 		req, _ := http.NewRequest(http.MethodGet, u, nil)
-	// 		yield(ctx, req)
-	// 	}
-	// })
 
 	// next page
 	matched := prodDataExtraReg.FindSubmatch(respBody)
@@ -267,20 +242,13 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 							NavigationState string `json:"navigationState"`
 						} `json:"pagingActionTemplate"`
 						TotalNumRecs int `json:"totalNumRecs"`
+						RecsPerPage int `json:"recsPerPage"`
 					} `json:"contents"`
 				} `json:"mainContent"`
 				MappedURL string `json:"mappedUrl"`
 			} `json:"contents"`
 		} `json:"pageContentItem"`
 	}
-
-	//matched[1] = bytes.ReplaceAll(bytes.ReplaceAll(matched[1], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
-	
-	// rawData, err := strconv.Unquote(string(matched[1]))
-	//if err != nil {
-	//	c.logger.Errorf("unquote raw string failed, error=%s", err)
-	//	return err
-	//}
 	
 	if err = json.Unmarshal(matched[0], &r); err != nil {
 		c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
@@ -289,7 +257,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	lastrecordno := 0
 	totalrecords := 0
-	nexturl := ""
+	nrpp := 0
+	//nexturl := ""
 	lastIndex := nextIndex(ctx)
 	for _, prod := range r.PageContentItem.Contents[0].MainContent {
 		if prod.Name != "ResultList Zone" {
@@ -298,50 +267,48 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 		lastrecordno = int(prod.Contents[0].LastRecNum)
 		totalrecords = int(prod.Contents[0].TotalNumRecs)
-		nexturl = prod.Contents[0].PagingActionTemplate.SiteState.ContentPath
+		nrpp = int(prod.Contents[0].RecsPerPage)
+		//nexturl = prod.Contents[0].PagingActionTemplate.SiteState.ContentPath
 		for _, result := range prod.Contents[0].Records {
+			
+			if  result.Records == nil {
+				continue
+			} else if len(result.Attributes.ProductOriginalStyleID) == 0 {
+				continue
+			}
 
-		
-		rawurl := fmt.Sprintf("%s://%s/us/%s", resp.Request.URL.Scheme, resp.Request.URL.Host, result.Attributes.ProductOriginalStyleID)
-		
-		fmt.Println(result.Attributes.ProductDisplayName, rawurl)
-		
-		
-			// if req, err := http.NewRequest(http.MethodGet, rawurl, nil); err != nil {
-			// 	c.logger.Debug(err)
-			// 	return err
-			// } else {
-			// 	nnctx := context.WithValue(nctx, "item.index", lastIndex+1)
-			// 	lastIndex += 1
-			// 	if err = yield(nnctx, req); err != nil {
-			// 		return err
-			// 	}
-			// }
+			rawurl := fmt.Sprintf("%s://%s/api/v1/products/%s?locale=en_US&pushSite=DSW", resp.Request.URL.Scheme, resp.Request.URL.Host, result.Attributes.ProductOriginalStyleID[0])
+					
+			req, err := http.NewRequest(http.MethodGet, rawurl, nil)
+			if err != nil {
+				c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
+				return err
+			}
+
+			lastIndex += 1
+			// set the index of the product crawled in the sub response
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			// yield sub request
+			if err := yield(nctx, req); err != nil {
+				return err
+			}			
 		}
 	}
 
-	// get current page number
-	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("Pageindex"))
-	if page == 0 {
-		page = 1
-	}
-
 	// check if this is the last page
-
 	if lastIndex >= int(totalrecords) {
 		return nil
 	}
 
 	// set pagination
-	// u := *resp.Request.URL
-	// vals := u.Query()
-	// vals.Set("Pageindex", strconv.Format(page+1))
-	// u.RawQuery = vals.Encode()
+	u := *resp.Request.URL
+	vals := u.Query()
+	vals.Set("No", strconv.Format(lastrecordno))
+	vals.Set("Nrpp", strconv.Format(nrpp))
+	u.RawQuery = vals.Encode()
 
-	u := fmt.Sprintf("%s://%s%s%s%v", resp.Request.URL.Scheme, resp.Request.URL.Host, nexturl, "?pagePath=/pages/DSW/category&skipHeaderFooterContent=true&locale=en_US&pushSite=DSW&tier=GUEST&No=", lastrecordno)
-		
-	fmt.Println("new url", u)
-	req, _ := http.NewRequest(http.MethodGet, u, nil)
+	fmt.Println("new url",  u.String())
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 	// update the index of last page
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
@@ -470,9 +437,22 @@ type parseProductResponse struct {
 	} `json:"Response"`
 }
 
+type parseProductImageResponse struct {
+	Set struct {
+		Item []struct {
+			I struct {
+				IsDefault string `json:"isDefault"`
+				N         string `json:"n"`
+			} `json:"i,omitempty"`
+		} `json:"item"`
+	} `json:"set"`
+}
+
 var (
 	productsExtractReg  = regexp.MustCompile(`(.*)`)
+	imageRegStart  = regexp.MustCompile(`({.*})`)
 	viewData parseProductResponse
+	q parseProductImageResponse
 )
 
 // parseProduct
@@ -498,11 +478,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	req_product_id := strconv.Format(viewData.Response.Product.ID)
 	//Prepare product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
 			Id:       strconv.Format(viewData.Response.Product.ID),
-			CrawlUrl: resp.Request.URL.String(),
+			//CrawlUrl: resp.Request.URL.String(),
+			CrawlUrl: "https://www.dsw.com/en/us/product/a/" + strconv.Format(viewData.Response.Product.ID),
 		},
 		BrandName:   viewData.Response.Product.DswBrand.DisplayNameDefault,
 		Title:       viewData.Response.Product.DisplayName,
@@ -516,17 +498,20 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 	}
 
-	for _, rawSku := range viewData.Response.Product.ChildSKUs {
+	for ki, rawSku := range viewData.Response.Product.ChildSKUs {
 		currentPrice, _ := strconv.ParseFloat(rawSku.OriginalPrice)
 		originalPrice, _ := strconv.ParseFloat(rawSku.NonMemberPrice)
-		//discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.DisplayPercentOff, "%"))
+		discount := (originalPrice - originalPrice) * 100 / originalPrice
+		
+		web_Product_ID := strconv.Format(rawSku.Color.ColorCode)
+
 		sku := pbItem.Sku{
 			SourceId: strconv.Format(rawSku.Upc),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(currentPrice * 100),
 				Msrp:     int32(originalPrice * 100),
-				//Discount: int32(discount),
+				Discount: int32(discount),
 			},
 			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
@@ -554,28 +539,72 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Value: rawSku.Size.DisplayName,
 			})
 
+			isCollectImage := true
+			
+			if ki > 0 {
+				if viewData.Response.Product.ChildSKUs[ki-1].Color.ColorCode == web_Product_ID {
+					isCollectImage = false
+				}
+			}
+			
+			if isCollectImage  {
+
+			imgrequest := "https://images.dsw.com/is/image/DSWShoes/?imageset={id}_{code}_ss_01,{id}_{code}_ss_02,{id}_{code}_ss_03,{id}_{code}_ss_04,{id}_{code}_ss_05,{id}_{code}_ss_06,{id}_{code}_ss_07,{id}_{code}_ss_08,{id}_{code}_ss_09,{id}_{code}_ss_010&req=set,json&handler=ng_jsonp_callback_0"
+			imgUrl := strings.ReplaceAll((strings.ReplaceAll(imgrequest,"{id}", req_product_id)),"{code}", web_Product_ID)
+
+			req, err := http.NewRequest(http.MethodGet, imgUrl, nil); 
+			
+			imgreq, err := c.httpClient.Do(ctx, req)
+			if err != nil {
+				panic(err)
+			}
+			defer imgreq.Body.Close()
+
+			respBodyImg, err := ioutil.ReadAll(imgreq.Body)
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			
+			matched := imageRegStart.FindSubmatch(respBodyImg)
+			if len(matched) <= 1 {
+				c.logger.Debugf("data %s", respBodyImg)
+				return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
+			}
 		
-				// for _, mid := range color.StyleMediaIds {
-				// 	m := p.StyleMedia.ByID[strconv.Format(mid)]
-				// 	if m.MediaType == "Image" {
-				// 		sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-				// 			strconv.Format(m.ID),
-				// 			m.ImageMediaURI.MaxLargeDesktop,
-				// 			m.ImageMediaURI.SmallZoom,
-				// 			m.ImageMediaURI.MobileLarge,
-				// 			m.ImageMediaURI.MobileMedium,
-				// 			"",
-				// 			m.IsDefault,
-				// 		))
-				// 	} else if m.MediaType == "Video" {
-				// 		// TODO
-				// 	}
-				// }
+			if err = json.Unmarshal(matched[0], &q); err != nil {
+				c.logger.Debugf("parse %s failed, error=%s", matched[2], err)
+				return err
+			}
 
-			item.SkuItems = append(item.SkuItems, &sku)
-	
-	}
+			isDefault:= true
+			for key, img := range q.Set.Item {
+				if key > 0 {
+					isDefault = false
+				}
+				if strings.Contains(img.I.N, "Image_Not") || strings.Contains(img.I.N, "_video") {			
+					continue
+				}
+				imgURLDefault := "https://images.dsw.com/is/image/" + img.I.N
+				
+				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
+					strconv.Format(req_product_id + web_Product_ID),
+					imgURLDefault,
+					imgURLDefault + "?scl=1.4&qlt=70&fmt=jpeg&wid=1000&hei=1200&op_sharpen=1",
+					imgURLDefault + "?scl=2.1&qlt=70&fmt=jpeg&wid=690&hei=810&op_sharpen=1",
+					imgURLDefault + "?scl=2.45&qlt=70&fmt=jpeg&wid=590&hei=700&op_sharpen=1",
+					"",
+					isDefault,
+				))
+			}
 
+		}
+		
+		item.SkuItems = append(item.SkuItems, &sku)
+		
+		}
+
+		
 	// yield item result
 	if err = yield(ctx, &item); err != nil {
 		return err
@@ -587,7 +616,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		"https://www.dsw.com/api/v1/content/pages/_/N-1z141hwZ1z128ujZ1z141ju?pagePath=/pages/DSW/category&skipHeaderFooterContent=true&No=0&locale=en_US&pushSite=DSW&tier=GUEST",
-		
+		//"https://www.dsw.com/api/v1/products/499002?locale=en_US&pushSite=DSW",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -650,7 +679,8 @@ func main() {
 			}
 		}
 
-		resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: true})
+		//resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: true})
+		resp, err := client.DoWithOptions(ctx, req, http.Options{})
 		if err != nil {
 			panic(err)
 		}
