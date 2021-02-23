@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -39,8 +40,8 @@ type _Crawler struct {
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
-		categoryPathMatcher: regexp.MustCompile(`^/c/([a-z0-9]+\-){1,}cat[0-9]+$`),
-		productPathMatcher:  regexp.MustCompile(`^/p/([a-z0-9]+\-){1,}prod[0-9]+$`),
+		categoryPathMatcher: regexp.MustCompile(`^(/en-[a-z]+)?/c/([a-z0-9]+\-){1,}cat[0-9]+$`),
+		productPathMatcher:  regexp.MustCompile(`^(/en-[a-z]+)?/p/([a-z0-9]+\-){1,}prod[0-9]+$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -61,9 +62,10 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
+	options.Reliability = 2
 	// NOTE: no need to set useragent here for user agent is dynamic
 	// options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
-	options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
+	// options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
 	options.MustCookies = append(options.MustCookies)
 	return options
 }
@@ -89,9 +91,17 @@ const defaultCategoryProductsPageSize = 120
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if resp.StatusCode == http.StatusForbidden {
+		return errors.New("access denied")
+	}
+	c.logger.Debugf("parse %s", resp.Request.URL)
+
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
+	}
+	if !bytes.Contains(respBody, []byte("product-list ")) {
+		return errors.New("products not found")
 	}
 
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
@@ -101,9 +111,11 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	lastIndex := nextIndex(ctx)
 	sel := doc.Find(`.product-list>.product-thumbnail>a`)
+	c.logger.Debugf("nodes %d", len(sel.Nodes))
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 		if href, _ := node.Attr("href"); href != "" {
+			c.logger.Debugf("yield %s", href)
 			req, err := http.NewRequest(http.MethodGet, href, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -404,13 +416,24 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if c == nil || yield == nil {
 		return nil
 	}
+	if resp.StatusCode == http.StatusForbidden {
+		return errors.New("access denied")
+	}
+
 	respbody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
+	c.logger.Debugf("############ \n%s", respbody)
+
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respbody))
+	if err != nil {
+		return err
+	}
+
 	var productDetail productDetail
-	if err := json.Unmarshal(respbody, &productDetail); err != nil {
+	if err := json.Unmarshal([]byte(doc.Find("#state").Text()), &productDetail); err != nil {
 		c.logger.Debugf("%s", respbody)
 		return err
 	}
@@ -622,7 +645,7 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "www.nordstrom.com"
+				i.URL.Host = "www.neimanmarcus.com"
 			}
 
 			// do http requests here.
