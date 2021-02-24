@@ -63,7 +63,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.Reliability = 2
+	options.Reliability = 1
 	// NOTE: no need to set useragent here for user agent is dynamic
 	// options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
 	// options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
