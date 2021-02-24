@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -214,73 +215,52 @@ type productMedia struct {
 	} `json:"alternate"`
 }
 
+type linkedData struct {
+	Context     string `json:"@context"`
+	Type        string `json:"@type"`
+	Name        string `json:"name"`
+	Brand       string `json:"brand"`
+	Image       string `json:"image"`
+	Description string `json:"description"`
+	URL         string `json:"url"`
+	Offers      struct {
+		Type          string `json:"@type"`
+		PriceCurrency string `json:"priceCurrency"`
+		Offers        []struct {
+			Type          string `json:"@type"`
+			PriceCurrency string `json:"priceCurrency"`
+			Availability  string `json:"availability"`
+			Price         string `json:"price"`
+			Sku           string `json:"sku"`
+			ItemOffered   struct {
+				Type  string `json:"@type"`
+				Color string `json:"color"`
+			} `json:"itemOffered"`
+		} `json:"offers"`
+		LowPrice  string `json:"lowPrice"`
+		HighPrice string `json:"highPrice"`
+	} `json:"offers"`
+}
+
 type productDetail struct {
-	Quantity         int `json:"quantity"`
-	ActiveMediaIndex int `json:"activeMediaIndex"`
-	LinkedData       struct {
-		Context     string `json:"@context"`
-		Type        string `json:"@type"`
-		Name        string `json:"name"`
-		Brand       string `json:"brand"`
-		Image       string `json:"image"`
-		Description string `json:"description"`
-		URL         string `json:"url"`
-		Offers      struct {
-			Type          string `json:"@type"`
-			PriceCurrency string `json:"priceCurrency"`
-			Offers        []struct {
-				Type          string `json:"@type"`
-				PriceCurrency string `json:"priceCurrency"`
-				Availability  string `json:"availability"`
-				Price         string `json:"price"`
-				Sku           string `json:"sku"`
-				ItemOffered   struct {
-					Type  string `json:"@type"`
-					Color string `json:"color"`
-				} `json:"itemOffered"`
-			} `json:"offers"`
-			LowPrice  string `json:"lowPrice"`
-			HighPrice string `json:"highPrice"`
-		} `json:"offers"`
-	} `json:"linkedData"`
-	LinkedDataWithAllProdsAndSKUs struct {
-		Context     string `json:"@context"`
-		Type        string `json:"@type"`
-		Name        string `json:"name"`
-		Brand       string `json:"brand"`
-		Image       string `json:"image"`
-		Description string `json:"description"`
-		URL         string `json:"url"`
-		Offers      struct {
-			Type          string `json:"@type"`
-			PriceCurrency string `json:"priceCurrency"`
-			Offers        []struct {
-				Type          string `json:"@type"`
-				PriceCurrency string `json:"priceCurrency"`
-				Name          string `json:"name"`
-				Price         string `json:"price"`
-				Sku           string `json:"sku"`
-			} `json:"offers"`
-			LowPrice     string `json:"lowPrice"`
-			HighPrice    string `json:"highPrice"`
-			Availability string `json:"availability"`
-		} `json:"offers"`
-		Category string `json:"category"`
-	} `json:"linkedDataWithAllProdsAndSKUs"`
-	VideoActive               bool                       `json:"videoActive"`
-	ActivePDPTab              int                        `json:"activePDPTab"`
-	DeliveryDate              string                     `json:"deliveryDate"`
-	VendorRestrictedDates     []interface{}              `json:"vendorRestrictedDates"`
-	BopsErrorForReplenishment bool                       `json:"bopsErrorForReplenishment"`
-	FavAddRemoveStatus        string                     `json:"favAddRemoveStatus"`
-	IsPersonalizationSelected bool                       `json:"isPersonalizationSelected"`
-	AddToBagError             string                     `json:"addToBagError"`
-	BopsError                 string                     `json:"bopsError"`
-	IsChanel                  bool                       `json:"isChanel"`
-	IsZeroDollarProduct       bool                       `json:"isZeroDollarProduct"`
-	IsGroup                   bool                       `json:"isGroup"`
-	ChildProducts             map[string]json.RawMessage `json:"childProducts"`
-	Options                   struct {
+	Quantity                      int                        `json:"quantity"`
+	ActiveMediaIndex              int                        `json:"activeMediaIndex"`
+	LinkedData                    *linkedData                `json:"linkedData"`
+	LinkedDataWithAllProdsAndSKUs *linkedData                `json:"linkedDataWithAllProdsAndSKUs"`
+	VideoActive                   bool                       `json:"videoActive"`
+	ActivePDPTab                  int                        `json:"activePDPTab"`
+	DeliveryDate                  string                     `json:"deliveryDate"`
+	VendorRestrictedDates         []interface{}              `json:"vendorRestrictedDates"`
+	BopsErrorForReplenishment     bool                       `json:"bopsErrorForReplenishment"`
+	FavAddRemoveStatus            string                     `json:"favAddRemoveStatus"`
+	IsPersonalizationSelected     bool                       `json:"isPersonalizationSelected"`
+	AddToBagError                 string                     `json:"addToBagError"`
+	BopsError                     string                     `json:"bopsError"`
+	IsChanel                      bool                       `json:"isChanel"`
+	IsZeroDollarProduct           bool                       `json:"isZeroDollarProduct"`
+	IsGroup                       bool                       `json:"isGroup"`
+	ChildProducts                 map[string]json.RawMessage `json:"childProducts"`
+	Options                       struct {
 		SelectedColorIndex int `json:"selectedColorIndex"`
 		ProductOptions     []struct {
 			Label  string `json:"label"`
@@ -561,6 +541,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return errors.New("robot check page")
 	}
 
+	c.logger.Debugf("%s", respbody)
+
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respbody))
 	if err != nil {
 		return err
@@ -636,18 +618,34 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			// Default product image some product only exists the main image
+			var mediumUrl = i.Media.Main.Large.URL
+			if u, _ := url.Parse(i.Media.Main.Large.URL); u != nil {
+				vals := u.Query()
+				vals.Set("wid", "600")
+				vals.Set("height", "750")
+				u.RawQuery = vals.Encode()
+				mediumUrl = u.String()
+			}
 			item.Medias = append(item.Medias,
 				media.NewImageMedia("",
 					i.Media.Main.Large.URL,
 					i.Media.Main.Large.URL,
-					i.Media.Main.Medium.URL,
+					mediumUrl,
 					i.Media.Main.Medium.URL, "", true))
 			for _, m := range i.Media.Alternate {
+				mediumUrl = i.Media.Main.Large.URL
+				if u, _ := url.Parse(i.Media.Main.Large.URL); u != nil {
+					vals := u.Query()
+					vals.Set("wid", "600")
+					vals.Set("height", "750")
+					u.RawQuery = vals.Encode()
+					mediumUrl = u.String()
+				}
 				item.Medias = append(item.Medias,
 					media.NewImageMedia("",
 						m.Large.URL,
 						m.Large.URL,
-						m.Medium.URL,
+						mediumUrl,
 						m.Medium.URL, "", false))
 			}
 
@@ -679,19 +677,35 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 						}
 
 						if val.Media != nil {
+							var mediumUrl = val.Media.Main.Large.URL
+							if u, _ := url.Parse(val.Media.Main.Large.URL); u != nil {
+								vals := u.Query()
+								vals.Set("wid", "600")
+								vals.Set("height", "750")
+								u.RawQuery = vals.Encode()
+								mediumUrl = u.String()
+							}
 							// not all color got images
 							colorMedias[val.Key] = append(colorMedias[val.Key],
 								media.NewImageMedia("",
 									val.Media.Main.Large.URL,
 									val.Media.Main.Large.URL,
-									val.Media.Main.Medium.URL,
+									mediumUrl,
 									val.Media.Main.Medium.URL, "", true))
 							for _, m := range val.Media.Alternate {
+								mediumUrl = val.Media.Main.Large.URL
+								if u, _ := url.Parse(val.Media.Main.Large.URL); u != nil {
+									vals := u.Query()
+									vals.Set("wid", "600")
+									vals.Set("height", "750")
+									u.RawQuery = vals.Encode()
+									mediumUrl = u.String()
+								}
 								colorMedias[val.Key] = append(colorMedias[val.Key],
 									media.NewImageMedia("",
 										m.Large.URL,
 										m.Large.URL,
-										m.Medium.URL, // medium may small
+										mediumUrl,
 										m.Medium.URL, "", false))
 							}
 						}
@@ -738,14 +752,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	} else {
 		// NOTE: see page https://www.neimanmarcus.com/p/veronica-beard-jacket-dickey-prod194270044
+		itemId, exists := doc.Find(`input[name="itemId"]`).Attr("value")
+		if !exists {
+			return fmt.Errorf("item product id not found for %s", resp.Request.URL)
+		}
 
-		reqData := fmt.Sprintf(`{"ProductSizeAndColor":{"productIds":"%s"}}`, "")
-		req, _ := http.NewRequest(http.MethodPost, "https://www.neimanmarcus.com/product.service", bytes.NewReader([]byte(reqData)))
-		sresp, err := c.httpClient.Do(ctx, req)
+		prodId, exists := doc.Find(`input#prod0`).Attr("value")
+		if !exists {
+			return fmt.Errorf("product id not found for %s", resp.Request.URL)
+		}
+
+		u := strings.Replace(resp.Request.URL.String(), itemId, prodId, -1)
+		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
 			return err
 		}
-		defer sresp.Body.Close()
+		return yield(ctx, req)
 	}
 	return nil
 }
@@ -753,6 +775,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
+		// "https://www.neimanmarcus.com/p/veronica-beard-jacket-dickey-prod194270044",
 		"https://www.neimanmarcus.com/c/womens-clothing-clothing-coats-jackets-cat77190754?navpath=cat000000_cat000001_cat58290731_cat77190754",
 		// "https://www.neimanmarcus.com/p/moncler-hermine-hooded-puffer-jacket-prod197621217?childItemId=NMTS7Q4_41&navpath=cat000000_cat000001_cat58290731_cat77190754&page=0&position=0",
 		// "https://www.neimanmarcus.com/p/moncler-moka-shiny-fitted-puffer-coat-with-hood-and-matching-items-prod213210002?childItemId=NMTA8BE_&focusProductId=prod180340224&navpath=cat000000_cat000001_cat58290731_cat77190754&page=0&position=27",
