@@ -561,185 +561,191 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return errors.New("robot check page")
 	}
 
-	// c.logger.Debugf("############ \n%s", respbody)
-
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respbody))
 	if err != nil {
 		return err
 	}
 
+	stateContext := strings.TrimSpace(doc.Find("#state").Text())
 	var pageData productDetailPage
-	if err := json.Unmarshal([]byte(doc.Find("#state").Text()), &pageData); err != nil {
-		c.logger.Debugf("%s", respbody)
-		return err
-	}
-
-	{
-		d, _ := json.MarshalIndent(&pageData, "", " ")
-		c.logger.Debugf("%s", d)
-	}
-
-	var prods []*productDetail
-	if !pageData.ProductCatalog.Product.IsGroup {
-		prods = append(prods, pageData.ProductCatalog.Product)
-	} else {
-		for key, val := range pageData.ProductCatalog.Group.ChildProducts {
-			if key == "productIds" || !strings.HasPrefix(key, "prod") {
-				continue
-			}
-			var prod productDetail
-			data, _ := val.MarshalJSON()
-			if err := json.Unmarshal(data, &prod); err != nil {
-				c.logger.Debugf("unmarshal child prod failed, error=%s", err)
-				continue
-			}
-			prods = append(prods, &prod)
-		}
-	}
-	c.logger.Debugf("found %d", len(prods))
-
-	for _, i := range prods {
-		item := pbItem.Product{
-			Source: &pbItem.Source{
-				Id:       i.ID,
-				CrawlUrl: resp.Request.URL.String(),
-			},
-			Title:       i.Name,
-			Description: i.LinkedData.Description,
-			BrandName:   i.LinkedData.Brand,
-			CrowdType:   "",
-			Price: &pbItem.Price{
-				Currency: regulation.Currency_USD,
-			},
-		}
-		if len(pageData.Navigation.Breadcrumbs) >= 1 {
-			item.Category = pageData.Navigation.Breadcrumbs[0].Name
-		}
-		if len(pageData.Navigation.Breadcrumbs) >= 2 {
-			item.SubCategory = pageData.Navigation.Breadcrumbs[1].Name
-		}
-		if len(pageData.Navigation.Breadcrumbs) >= 3 {
-			item.SubCategory2 = pageData.Navigation.Breadcrumbs[2].Name
-		}
-		for _, v := range []string{"woman", "women", "female"} {
-			if strings.Contains(strings.ToLower(item.Category), v) {
-				item.CrowdType = "women"
-				break
-			}
-		}
-		for _, v := range []string{"man", "men", "male"} {
-			if strings.Contains(strings.ToLower(item.Category), v) {
-				item.CrowdType = "men"
-				break
-			}
-		}
-		for _, v := range []string{"kid", "child", "girl", "boy"} {
-			if strings.Contains(strings.ToLower(item.Category), v) {
-				item.CrowdType = "kids"
-				break
-			}
+	if stateContext != "" {
+		if err := json.Unmarshal([]byte(stateContext), &pageData); err != nil {
+			c.logger.Debugf("%s", respbody)
+			return err
 		}
 
-		// Default product image some product only exists the main image
-		item.Medias = append(item.Medias,
-			media.NewImageMedia("",
-				i.Media.Main.Large.URL,
-				i.Media.Main.Large.URL,
-				i.Media.Main.Medium.URL,
-				i.Media.Main.Medium.URL, "", true))
-		for _, m := range i.Media.Alternate {
+		var prods []*productDetail
+		if !pageData.ProductCatalog.Product.IsGroup {
+			prods = append(prods, pageData.ProductCatalog.Product)
+		} else {
+			for key, val := range pageData.ProductCatalog.Group.ChildProducts {
+				if key == "productIds" || !strings.HasPrefix(key, "prod") {
+					continue
+				}
+				var prod productDetail
+				data, _ := val.MarshalJSON()
+				if err := json.Unmarshal(data, &prod); err != nil {
+					c.logger.Debugf("unmarshal child prod failed, error=%s", err)
+					continue
+				}
+				prods = append(prods, &prod)
+			}
+		}
+		c.logger.Debugf("found %d", len(prods))
+
+		for _, i := range prods {
+			item := pbItem.Product{
+				Source: &pbItem.Source{
+					Id:       i.ID,
+					CrawlUrl: resp.Request.URL.String(),
+				},
+				Title:       i.Name,
+				Description: i.LinkedData.Description,
+				BrandName:   i.LinkedData.Brand,
+				CrowdType:   "",
+				Price: &pbItem.Price{
+					Currency: regulation.Currency_USD,
+				},
+			}
+			if len(pageData.Navigation.Breadcrumbs) >= 1 {
+				item.Category = pageData.Navigation.Breadcrumbs[0].Name
+			}
+			if len(pageData.Navigation.Breadcrumbs) >= 2 {
+				item.SubCategory = pageData.Navigation.Breadcrumbs[1].Name
+			}
+			if len(pageData.Navigation.Breadcrumbs) >= 3 {
+				item.SubCategory2 = pageData.Navigation.Breadcrumbs[2].Name
+			}
+			for _, v := range []string{"woman", "women", "female"} {
+				if strings.Contains(strings.ToLower(item.Category), v) {
+					item.CrowdType = "women"
+					break
+				}
+			}
+			for _, v := range []string{"man", "men", "male"} {
+				if strings.Contains(strings.ToLower(item.Category), v) {
+					item.CrowdType = "men"
+					break
+				}
+			}
+			for _, v := range []string{"kid", "child", "girl", "boy"} {
+				if strings.Contains(strings.ToLower(item.Category), v) {
+					item.CrowdType = "kids"
+					break
+				}
+			}
+
+			// Default product image some product only exists the main image
 			item.Medias = append(item.Medias,
 				media.NewImageMedia("",
-					m.Large.URL,
-					m.Large.URL,
-					m.Medium.URL,
-					m.Medium.URL, "", false))
-		}
+					i.Media.Main.Large.URL,
+					i.Media.Main.Large.URL,
+					i.Media.Main.Medium.URL,
+					i.Media.Main.Medium.URL, "", true))
+			for _, m := range i.Media.Alternate {
+				item.Medias = append(item.Medias,
+					media.NewImageMedia("",
+						m.Large.URL,
+						m.Large.URL,
+						m.Medium.URL,
+						m.Medium.URL, "", false))
+			}
 
-		var (
-			skuSpecOptions = map[string]*pbItem.SkuSpecOption{}
-			colorMedias    = map[string][]*media.Media{}
-		)
-		for _, opt := range i.Options.ProductOptions {
-			switch opt.Label {
-			case "size":
-				for i, val := range opt.Values {
-					skuSpecOptions[val.Key] = &pbItem.SkuSpecOption{
-						Type:  pbItem.SkuSpecType_SkuSpecSize,
-						Id:    val.Key,
-						Name:  val.Name,
-						Value: val.Key,
-						Index: int32(i),
+			var (
+				skuSpecOptions = map[string]*pbItem.SkuSpecOption{}
+				colorMedias    = map[string][]*media.Media{}
+			)
+			for _, opt := range i.Options.ProductOptions {
+				switch opt.Label {
+				case "size":
+					for i, val := range opt.Values {
+						skuSpecOptions[val.Key] = &pbItem.SkuSpecOption{
+							Type:  pbItem.SkuSpecType_SkuSpecSize,
+							Id:    val.Key,
+							Name:  val.Name,
+							Value: val.Key,
+							Index: int32(i),
+						}
 					}
-				}
-			case "color", "colour":
-				for i, val := range opt.Values {
-					skuSpecOptions[val.Key] = &pbItem.SkuSpecOption{
-						Type:  pbItem.SkuSpecType_SkuSpecColor,
-						Id:    val.Key,
-						Name:  val.Name,
-						Value: val.Key,
-						Index: int32(i),
-						Icon:  val.Url,
-					}
+				case "color", "colour":
+					for i, val := range opt.Values {
+						skuSpecOptions[val.Key] = &pbItem.SkuSpecOption{
+							Type:  pbItem.SkuSpecType_SkuSpecColor,
+							Id:    val.Key,
+							Name:  val.Name,
+							Value: val.Key,
+							Index: int32(i),
+							Icon:  val.Url,
+						}
 
-					if val.Media != nil {
-						// not all color got images
-						colorMedias[val.Key] = append(colorMedias[val.Key],
-							media.NewImageMedia("",
-								val.Media.Main.Large.URL,
-								val.Media.Main.Large.URL,
-								val.Media.Main.Medium.URL,
-								val.Media.Main.Medium.URL, "", true))
-						for _, m := range val.Media.Alternate {
+						if val.Media != nil {
+							// not all color got images
 							colorMedias[val.Key] = append(colorMedias[val.Key],
 								media.NewImageMedia("",
-									m.Large.URL,
-									m.Large.URL,
-									m.Medium.URL, // medium may small
-									m.Medium.URL, "", false))
+									val.Media.Main.Large.URL,
+									val.Media.Main.Large.URL,
+									val.Media.Main.Medium.URL,
+									val.Media.Main.Medium.URL, "", true))
+							for _, m := range val.Media.Alternate {
+								colorMedias[val.Key] = append(colorMedias[val.Key],
+									media.NewImageMedia("",
+										m.Large.URL,
+										m.Large.URL,
+										m.Medium.URL, // medium may small
+										m.Medium.URL, "", false))
+							}
 						}
 					}
 				}
 			}
+			prices := map[string]*pbItem.Price{}
+			for _, offer := range i.LinkedData.Offers.Offers {
+				val, _ := strconv.ParseFloat(offer.Price)
+				p := pbItem.Price{
+					Currency: regulation.Currency_USD,
+					Current:  int32(val * 100),
+				}
+				prices[offer.Sku] = &p
+			}
+			for _, rawSku := range i.Skus {
+				sku := pbItem.Sku{
+					SourceId: rawSku.ID,
+					Price:    prices[rawSku.ID],
+					Stock: &pbItem.Stock{
+						StockCount: int32(rawSku.StockLevel),
+					},
+					Stats: &pbItem.Stats{},
+				}
+				if rawSku.InStock {
+					sku.Stock.StockStatus = pbItem.Stock_InStock
+				} else {
+					sku.Stock.StockStatus = pbItem.Stock_OutOfStock
+				}
+				if opt := skuSpecOptions[rawSku.Color.Key]; opt != nil {
+					sku.Specs = append(sku.Specs, opt)
+				}
+				if opt := skuSpecOptions[rawSku.Size.Key]; opt != nil {
+					sku.Specs = append(sku.Specs, opt)
+				}
+				if medias := colorMedias[rawSku.Color.Key]; medias != nil {
+					sku.Medias = medias
+				}
+				item.SkuItems = append(item.SkuItems, &sku)
+			}
+			if err := yield(ctx, &item); err != nil {
+				return err
+			}
 		}
-		prices := map[string]*pbItem.Price{}
-		for _, offer := range i.LinkedData.Offers.Offers {
-			val, _ := strconv.ParseFloat(offer.Price)
-			p := pbItem.Price{
-				Currency: regulation.Currency_USD,
-				Current:  int32(val * 100),
-			}
-			prices[offer.Sku] = &p
-		}
-		for _, rawSku := range i.Skus {
-			sku := pbItem.Sku{
-				SourceId: rawSku.ID,
-				Price:    prices[rawSku.ID],
-				Stock: &pbItem.Stock{
-					StockCount: int32(rawSku.StockLevel),
-				},
-				Stats: &pbItem.Stats{},
-			}
-			if rawSku.InStock {
-				sku.Stock.StockStatus = pbItem.Stock_InStock
-			} else {
-				sku.Stock.StockStatus = pbItem.Stock_OutOfStock
-			}
-			if opt := skuSpecOptions[rawSku.Color.Key]; opt != nil {
-				sku.Specs = append(sku.Specs, opt)
-			}
-			if opt := skuSpecOptions[rawSku.Size.Key]; opt != nil {
-				sku.Specs = append(sku.Specs, opt)
-			}
-			if medias := colorMedias[rawSku.Color.Key]; medias != nil {
-				sku.Medias = medias
-			}
-			item.SkuItems = append(item.SkuItems, &sku)
-		}
-		if err := yield(ctx, &item); err != nil {
+	} else {
+		// NOTE: see page https://www.neimanmarcus.com/p/veronica-beard-jacket-dickey-prod194270044
+
+		reqData := fmt.Sprintf(`{"ProductSizeAndColor":{"productIds":"%s"}}`, "")
+		req, _ := http.NewRequest(http.MethodPost, "https://www.neimanmarcus.com/product.service", bytes.NewReader([]byte(reqData)))
+		sresp, err := c.httpClient.Do(ctx, req)
+		if err != nil {
 			return err
 		}
+		defer sresp.Body.Close()
 	}
 	return nil
 }
