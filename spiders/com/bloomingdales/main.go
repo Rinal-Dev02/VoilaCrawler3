@@ -699,7 +699,7 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 // local test
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
-	// build a http client
+	// build a http client.
 	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
