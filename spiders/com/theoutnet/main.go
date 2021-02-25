@@ -99,9 +99,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
-	}	else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	}  
+	}
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
 
@@ -115,30 +115,29 @@ func nextIndex(ctx context.Context) int {
 // if you get the raw json data of the website,
 // then you can use https://mholt.github.io/json-to-go/ to convert it to a golang struct
 
-
-type CategoryView struct {	
-		Plp struct {
-			Listing struct {
-				VisibleProducts []struct {
-					Products []struct {						
-						Seo struct {
-							SeoURLKeyword string `json:"seoURLKeyword"`
-						} `json:"seo"`
-					} `json:"products"`					
-				} `json:"visibleProducts"`
-				Response struct {
-					Body struct {
-						RecordSetTotal int `json:"recordSetTotal"`						
-						TotalPages   int         `json:"totalPages"`
-					} `json:"body"`					
-				} `json:"response"`				
-			} `json:"listing"`			
-		} `json:"plp"`		
+type CategoryView struct {
+	Plp struct {
+		Listing struct {
+			VisibleProducts []struct {
+				Products []struct {
+					Seo struct {
+						SeoURLKeyword string `json:"seoURLKeyword"`
+					} `json:"seo"`
+				} `json:"products"`
+			} `json:"visibleProducts"`
+			Response struct {
+				Body struct {
+					RecordSetTotal int `json:"recordSetTotal"`
+					TotalPages     int `json:"totalPages"`
+				} `json:"body"`
+			} `json:"response"`
+		} `json:"listing"`
+	} `json:"plp"`
 }
 
 // used to extract embaded json data in website page.
 // more about golang regulation see here https://golang.org/pkg/regexp/syntax/
-var productsExtractReg = regexp.MustCompile(`window.state=({.*})</script>`)
+var productsExtractReg = regexp.MustCompile(`(?U)window.state=({.*})</script>`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -167,23 +166,23 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	lastIndex := nextIndex(ctx)
 	for _, idv := range viewData.Plp.Listing.VisibleProducts[0].Products {
-		
-		rawurl := fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.Seo.SeoURLKeyword)
-		
-		fmt.Println(rawurl)
-		// req, err := http.NewRequest(http.MethodGet, rawurl, nil)
-		// if err != nil {
-		// 	c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
-		// 	return err
-		// }
 
-		// lastIndex += 1
-		// // set the index of the product crawled in the sub response
-		// nctx := context.WithValue(ctx, "item.index", lastIndex)
-		// // yield sub request
-		// if err := yield(nctx, req); err != nil {
-		// 	return err
-		// }
+		rawurl := fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.Seo.SeoURLKeyword)
+
+		//fmt.Println(rawurl)
+		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
+		if err != nil {
+			c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
+			return err
+		}
+
+		lastIndex += 1
+		// set the index of the product crawled in the sub response
+		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		// yield sub request
+		if err := yield(nctx, req); err != nil {
+			return err
+		}
 	}
 
 	// get current page number
@@ -210,12 +209,11 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 }
 
 type parseProductResponse struct {
-	
 	Pdp struct {
 		DetailsState struct {
 			Response struct {
-				Body struct {					
-					Products	[]struct {
+				Body struct {
+					Products []struct {
 						Dynamic     bool `json:"dynamic"`
 						Visible     bool `json:"visible"`
 						DesignerSeo struct {
@@ -576,12 +574,10 @@ type parseProductResponse struct {
 							Identifier string `json:"identifier"`
 						} `json:"salesCategories"`
 					} `json:"products"`
-					
-				} `json:"body"`				
-			} `json:"response"`			
-		} `json:"detailsState"`		
+				} `json:"body"`
+			} `json:"response"`
+		} `json:"detailsState"`
 	} `json:"pdp"`
-
 }
 
 // parseProduct
@@ -625,11 +621,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Description: p.TechnicalDescription,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-			},			
+			},
 		}
 
 		for key, rawSku := range p.SKUs {
-			originalPrice, _ := strconv.ParseFloat(rawSku.Price.WasPrice.Amount)  //  / 100
+			originalPrice, _ := strconv.ParseFloat(rawSku.Price.WasPrice.Amount) //  / 100
 			currentPrice, _ := strconv.ParseFloat(rawSku.Price.SellingPrice.Amount)
 			discount, _ := strconv.ParseFloat(rawSku.Price.Discount.Amount)
 			sku := pbItem.Sku{
@@ -647,46 +643,44 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				//sku.Stock.StockCount = int32(rawSku.TotalQuantityAvailable)
 			}
 
-			// color			
-				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecColor,
-					Id:    strconv.Format(p.PartNumber),
-					Name:  p.Label,
-					Value: p.Label,
-					//Icon:  color.SwatchMedia.Mobile,
-				})				
-			
+			// color
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
+				Id:    strconv.Format(p.PartNumber),
+				Name:  p.Label,
+				Value: p.Label,
+				//Icon:  color.SwatchMedia.Mobile,
+			})
 
-			// size			
-				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecSize,
-					Id:    rawSku.PartNumber,
-					Name:  rawSku.Size.LabelSize,
-					Value: rawSku.Size.LabelSize,
-				})
-			
+			// size
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Id:    rawSku.PartNumber,
+				Name:  rawSku.Size.LabelSize,
+				Value: rawSku.Size.LabelSize,
+			})
 
-			if key == 0	{
+			if key == 0 {
 				// image  // please check
 				isDefault := true
 				for ki, mid := range p.ImageViews {
-					if ki > 0{
+					if ki > 0 {
 						isDefault = false
 					}
-					imgTemplate := strings.ReplaceAll(p.ImageTemplate,"{view}",mid)
+					imgTemplate := strings.ReplaceAll(p.ImageTemplate, "{view}", mid)
 					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
 						strconv.Format(mid),
-						strings.ReplaceAll(imgTemplate, "{width}","920"),
-						strings.ReplaceAll(imgTemplate, "{width}","920"),
-						strings.ReplaceAll(imgTemplate, "{width}","600"),
-						strings.ReplaceAll(imgTemplate, "{width}","400"),
+						strings.ReplaceAll(imgTemplate, "{width}", "920"),
+						strings.ReplaceAll(imgTemplate, "{width}", "920"),
+						strings.ReplaceAll(imgTemplate, "{width}", "600"),
+						strings.ReplaceAll(imgTemplate, "{width}", "400"),
 						"",
 						isDefault,
 					))
 				}
-			}		
+			}
 
-			item.SkuItems = append(item.SkuItems, &sku)			
+			item.SkuItems = append(item.SkuItems, &sku)
 		}
 
 		fmt.Println(&item)
@@ -725,28 +719,13 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
+// local test
 func main() {
-	var (
-		// get ProxyCrawl's API Token from you run environment
-		apiToken = os.Getenv("PC_API_TOKEN")
-		// get ProxyCrawl's Javascript Token from you run environment
-		jsToken = os.Getenv("PC_JS_TOKEN")
-	)
-
-	if apiToken == "" || jsToken == "" {
-		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
-	}
-
-	// build a logger object.
 	logger := glog.New(glog.LogLevelDebug)
-	// build a http client
-	client, err := proxy.NewProxyClient(
-		// cookie jar used for auto cookie management.
-		cookiejar.New(),
-		logger,
-		proxy.Options{APIToken: apiToken, JSToken: jsToken},
-	)
+	// build a http client.
+	// get proxy's microservice address from env
+
+	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
@@ -790,18 +769,18 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "www.nordstrom.com"
+				i.URL.Host = "www.theoutnet.com"
 			}
 
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
-				EnableProxy:       true,
+				EnableProxy:       false,
 				EnableHeadless:    false,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
+				EnableSessionInit: false,
 				KeepSession:       spider.CrawlOptions().KeepSession,
-				ProxyLevel:        http.ProxyLevelReliable,
+				Reliability:       spider.CrawlOptions().Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -820,7 +799,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", "nordstrom_123456")
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
