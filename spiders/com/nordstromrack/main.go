@@ -30,7 +30,7 @@ type _Crawler struct {
 	httpClient          http.Client
 	categoryPathMatcher *regexp.Regexp
 	productPathMatcher  *regexp.Regexp
-	productPathMatcher1  *regexp.Regexp
+	productPathMatcher1 *regexp.Regexp
 	// logger is the log tool
 	logger glog.Log
 }
@@ -44,9 +44,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 		// this regular used to match category page url path
 		categoryPathMatcher: regexp.MustCompile(`^((\?!product).)*`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`(/[a-z0-9_-]+)?/product([/a-z0-9_-]+)`),
+		productPathMatcher:  regexp.MustCompile(`(/[a-z0-9_-]+)?/product([/a-z0-9_-]+)`),
 		productPathMatcher1: regexp.MustCompile(`/s([/a-z0-9_-]+)`),
-		logger:             logger.New("_Crawler"),
+		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
 }
@@ -104,9 +104,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.productPathMatcher1.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
-	}else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} 
+	}
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
 
@@ -120,104 +120,101 @@ func nextIndex(ctx context.Context) int {
 // if you get the raw json data of the website,
 // then you can use https://mholt.github.io/json-to-go/ to convert it to a golang struct
 
-
 type CategoryView struct {
+	Catalog struct {
+		HasFilters bool `json:"hasFilters"`
+		Filters    struct {
+			Brands            []interface{} `json:"brands"`
+			Categories        []interface{} `json:"categories"`
+			Class             string        `json:"class"`
+			Colors            []interface{} `json:"colors"`
+			Context           interface{}   `json:"context"`
+			Department        string        `json:"department"`
+			Division          string        `json:"division"`
+			IncludeFlash      bool          `json:"includeFlash"`
+			IncludePersistent bool          `json:"includePersistent"`
+			Limit             int           `json:"limit"`
+			Page              int           `json:"page"`
+			PriceRanges       []interface{} `json:"priceRanges"`
+			Query             interface{}   `json:"query"`
+			Shops             []interface{} `json:"shops"`
+			Sizes             []interface{} `json:"sizes"`
+			Sort              string        `json:"sort"`
+			Subclass          interface{}   `json:"subclass"`
+			NestedColors      bool          `json:"nestedColors"`
+		} `json:"filters"`
+		CatalogURLBase         string `json:"catalogUrlBase"`
+		CurrentLoadedRowIndex  int    `json:"currentLoadedRowIndex"`
+		IsBrandSearch          bool   `json:"isBrandSearch"`
+		IsCustomCategorySearch bool   `json:"isCustomCategorySearch"`
+		IsClearanceSearch      bool   `json:"isClearanceSearch"`
+		IsLandingPage          bool   `json:"isLandingPage"`
+		IsQuerySearch          bool   `json:"isQuerySearch"`
+		IsQuickLookInProgress  bool   `json:"isQuickLookInProgress"`
+		IsQuickLookVisible     bool   `json:"isQuickLookVisible"`
+		IsShopsSearch          bool   `json:"isShopsSearch"`
 
-		Catalog struct {
-			HasFilters bool `json:"hasFilters"`
-			Filters    struct {
-				Brands            []interface{} `json:"brands"`
-				Categories        []interface{} `json:"categories"`
-				Class             string        `json:"class"`
-				Colors            []interface{} `json:"colors"`
-				Context           interface{}   `json:"context"`
-				Department        string        `json:"department"`
-				Division          string        `json:"division"`
-				IncludeFlash      bool          `json:"includeFlash"`
-				IncludePersistent bool          `json:"includePersistent"`
-				Limit             int           `json:"limit"`
-				Page              int           `json:"page"`
-				PriceRanges       []interface{} `json:"priceRanges"`
-				Query             interface{}   `json:"query"`
-				Shops             []interface{} `json:"shops"`
-				Sizes             []interface{} `json:"sizes"`
-				Sort              string        `json:"sort"`
-				Subclass          interface{}   `json:"subclass"`
-				NestedColors      bool          `json:"nestedColors"`
-			} `json:"filters"`
-			CatalogURLBase         string `json:"catalogUrlBase"`
-			CurrentLoadedRowIndex  int    `json:"currentLoadedRowIndex"`
-			IsBrandSearch          bool   `json:"isBrandSearch"`
-			IsCustomCategorySearch bool   `json:"isCustomCategorySearch"`
-			IsClearanceSearch      bool   `json:"isClearanceSearch"`
-			IsLandingPage          bool   `json:"isLandingPage"`
-			IsQuerySearch          bool   `json:"isQuerySearch"`
-			IsQuickLookInProgress  bool   `json:"isQuickLookInProgress"`
-			IsQuickLookVisible     bool   `json:"isQuickLookVisible"`
-			IsShopsSearch          bool   `json:"isShopsSearch"`
-			
-			PageBase        string `json:"pageBase"`
-			PageTitle       string `json:"pageTitle"`
-			PageDescription string `json:"pageDescription"`
-			Pages           []struct {
-				Href       string `json:"href,omitempty"`
-				IsCurrent  bool   `json:"isCurrent"`
-				Label      string `json:"label"`
-				PageNumber int    `json:"pageNumber,omitempty"`
-			} `json:"pages"`
-			Products []struct {
-				AltImageSrc         string      `json:"altImageSrc,omitempty"`
-				Brand               string      `json:"brand"`
-				Color               string      `json:"color"`
-				CustomerChoiceID    string      `json:"customerChoiceId"`
-				EventID             interface{} `json:"eventId"`
-				InitialImageSrc     string      `json:"initialImageSrc"`
-				InventoryLevelLabel interface{} `json:"inventoryLevelLabel"`
-				IsClearance         bool        `json:"isClearance"`
-				IsInventoryLow      bool        `json:"isInventoryLow"`
-				IsOnHold            bool        `json:"isOnHold"`
-				IsSoldOut           bool        `json:"isSoldOut"`
-				IsOnSale            bool        `json:"isOnSale"`
-				IsClearTheRack      bool        `json:"isClearTheRack"`
-				IsPriceVisible      bool        `json:"isPriceVisible"`
-				ProductHref         string      `json:"productHref"`
-				Source              string      `json:"source"`
-				StyleID             int         `json:"styleId"`
-				Title               string      `json:"title"`
-				WebStyleID          interface{} `json:"webStyleId"`
-				Prices              struct {
-					Retail struct {
-						Min float64 `json:"min"`
-						Max float64 `json:"max"`
-					} `json:"retail"`
-					Regular struct {
-						Min float64 `json:"min"`
-						Max float64 `json:"max"`
-					} `json:"regular"`
-					Sale struct {
-						Min float64 `json:"min"`
-						Max float64 `json:"max"`
-					} `json:"sale"`
-				} `json:"prices"`
-				Discounts struct {
-					RetailToRegular struct {
-						Min float64 `json:"min"`
-						Max float64 `json:"max"`
-					} `json:"retailToRegular"`
-					RegularToSale struct {
-						Min float64 `json:"min"`
-						Max float64 `json:"max"`
-					} `json:"regularToSale"`
-					RetailToSale struct {
-						Min float64 `json:"min"`
-						Max float64 `json:"max"`
-					} `json:"retailToSale"`
-				} `json:"discounts"`
-			} `json:"products"`
-			QuickLookIndex int `json:"quickLookIndex"`			
-			Total         int `json:"total"`			
-		} `json:"catalog"`	
-	
+		PageBase        string `json:"pageBase"`
+		PageTitle       string `json:"pageTitle"`
+		PageDescription string `json:"pageDescription"`
+		Pages           []struct {
+			Href       string `json:"href,omitempty"`
+			IsCurrent  bool   `json:"isCurrent"`
+			Label      string `json:"label"`
+			PageNumber int    `json:"pageNumber,omitempty"`
+		} `json:"pages"`
+		Products []struct {
+			AltImageSrc         string      `json:"altImageSrc,omitempty"`
+			Brand               string      `json:"brand"`
+			Color               string      `json:"color"`
+			CustomerChoiceID    string      `json:"customerChoiceId"`
+			EventID             interface{} `json:"eventId"`
+			InitialImageSrc     string      `json:"initialImageSrc"`
+			InventoryLevelLabel interface{} `json:"inventoryLevelLabel"`
+			IsClearance         bool        `json:"isClearance"`
+			IsInventoryLow      bool        `json:"isInventoryLow"`
+			IsOnHold            bool        `json:"isOnHold"`
+			IsSoldOut           bool        `json:"isSoldOut"`
+			IsOnSale            bool        `json:"isOnSale"`
+			IsClearTheRack      bool        `json:"isClearTheRack"`
+			IsPriceVisible      bool        `json:"isPriceVisible"`
+			ProductHref         string      `json:"productHref"`
+			Source              string      `json:"source"`
+			StyleID             int         `json:"styleId"`
+			Title               string      `json:"title"`
+			WebStyleID          interface{} `json:"webStyleId"`
+			Prices              struct {
+				Retail struct {
+					Min float64 `json:"min"`
+					Max float64 `json:"max"`
+				} `json:"retail"`
+				Regular struct {
+					Min float64 `json:"min"`
+					Max float64 `json:"max"`
+				} `json:"regular"`
+				Sale struct {
+					Min float64 `json:"min"`
+					Max float64 `json:"max"`
+				} `json:"sale"`
+			} `json:"prices"`
+			Discounts struct {
+				RetailToRegular struct {
+					Min float64 `json:"min"`
+					Max float64 `json:"max"`
+				} `json:"retailToRegular"`
+				RegularToSale struct {
+					Min float64 `json:"min"`
+					Max float64 `json:"max"`
+				} `json:"regularToSale"`
+				RetailToSale struct {
+					Min float64 `json:"min"`
+					Max float64 `json:"max"`
+				} `json:"retailToSale"`
+			} `json:"discounts"`
+		} `json:"products"`
+		QuickLookIndex int `json:"quickLookIndex"`
+		Total          int `json:"total"`
+	} `json:"catalog"`
 }
 
 // used to extract embaded json data in website page.
@@ -246,7 +243,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	var viewData CategoryView
 	s := [][]byte{matched[1], []byte("}}")}
 	bytesResult := bytes.Join(s, []byte(""))
-	
+
 	if err := json.Unmarshal(bytesResult, &viewData); err != nil {
 		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
 		return err
@@ -277,7 +274,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	lastPageNo := len(viewData.Catalog.Pages)
-	lastPageNo = viewData.Catalog.Pages[lastPageNo - 2].PageNumber
+	lastPageNo = viewData.Catalog.Pages[lastPageNo-2].PageNumber
 	// check if this is the last page
 	if len(viewData.Catalog.Products) > viewData.Catalog.Total ||
 		page >= int64(lastPageNo) {
@@ -296,10 +293,9 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	return yield(nctx, req)
 }
 
-
 type parseProductResponse struct {
-	ProductPage struct {		
-		Product                       struct {
+	ProductPage struct {
+		Product struct {
 			AdditionalDetails     string `json:"additionalDetails"`
 			AdditionalInformation string `json:"additionalInformation"`
 			Availability          string `json:"availability"`
@@ -336,8 +332,8 @@ type parseProductResponse struct {
 					LowQuantity    int    `json:"lowQuantity"`
 					Color          string `json:"color"`
 					Prices         struct {
-						Retail  float64     `json:"retail"`
-						Regular float64     `json:"regular"`
+						Retail  float64 `json:"retail"`
+						Regular float64 `json:"regular"`
 						Sale    float64 `json:"sale"`
 					} `json:"prices"`
 					Discounts struct {
@@ -490,9 +486,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		// },
 	}
 
-		for _, rawSkuColor := range viewData.ProductPage.Product.Colors {
+	for _, rawSkuColor := range viewData.ProductPage.Product.Colors {
 
-			for k, rawSku := range rawSkuColor.Sizes {
+		for k, rawSku := range rawSkuColor.Sizes {
 
 			currentPrice, _ := strconv.ParseFloat(rawSku.Prices.Sale)
 			originalPrice, _ := strconv.ParseFloat(rawSku.Prices.Regular)
@@ -513,53 +509,48 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			// color
-			
-				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecColor,
-					Id:    strconv.Format(rawSku.RmsSku),
-					Name:  rawSku.Color,
-					Value: rawSku.Color,
-					Icon:  rawSkuColor.Swatch,
-				})
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
+				Id:    strconv.Format(rawSku.RmsSku),
+				Name:  rawSku.Color,
+				Value: rawSku.Color,
+				Icon:  rawSkuColor.Swatch,
+			})
 
-				if k == 0 {
-					// img based on color	
-					isDefault := true			
-					for ki, mid := range rawSkuColor.OriginalImageTemplates {
-							if ki > 0 {
-								isDefault = false
-							}
-
-							sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-								strconv.Format(rawSku.RmsSku + ki),
-								mid,
-								mid + "?height=1300&width=868",
-								mid + "?height=750&width=500",
-								mid + "?height=600&width=400",
-								"",
-								isDefault,
-							))						
+			if k == 0 {
+				// img based on color
+				isDefault := true
+				for ki, mid := range rawSkuColor.OriginalImageTemplates {
+					if ki > 0 {
+						isDefault = false
 					}
+
+					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
+						strconv.Format(rawSku.RmsSku+ki),
+						mid,
+						mid+"?height=1300&width=868",
+						mid+"?height=750&width=500",
+						mid+"?height=600&width=400",
+						"",
+						isDefault,
+					))
 				}
+			}
 
 			// size
-				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecSize,
-					Id:    strconv.Format(rawSku.Sku),
-					Name:  rawSku.Value,
-					Value: rawSku.Value,
-				})
-			
-			item.SkuItems = append(item.SkuItems, &sku)
-			}
-		}
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Id:    strconv.Format(rawSku.Sku),
+				Name:  rawSku.Value,
+				Value: rawSku.Value,
+			})
 
-		// yield item result
-		if err = yield(ctx, &item); err != nil {
-			return err
+			item.SkuItems = append(item.SkuItems, &sku)
 		}
-	
-	return nil
+	}
+
+	// yield item result
+	return yield(ctx, &item)
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
@@ -589,28 +580,13 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
+// local test
 func main() {
-	var (
-		// get ProxyCrawl's API Token from you run environment
-		apiToken = os.Getenv("PC_API_TOKEN")
-		// get ProxyCrawl's Javascript Token from you run environment
-		jsToken = os.Getenv("PC_JS_TOKEN")
-	)
-
-	if apiToken == "" || jsToken == "" {
-		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
-	}
-
-	// build a logger object.
 	logger := glog.New(glog.LogLevelDebug)
-	// build a http client
-	client, err := proxy.NewProxyClient(
-		// cookie jar used for auto cookie management.
-		cookiejar.New(),
-		logger,
-		proxy.Options{APIToken: apiToken, JSToken: jsToken},
-	)
+	// build a http client.
+	// get proxy's microservice address from env
+
+	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
@@ -654,18 +630,18 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "www.nordstrom.com"
+				i.URL.Host = "www.nordstromrack.com"
 			}
 
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
-				EnableProxy:       true,
+				EnableProxy:       false,
 				EnableHeadless:    false,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
+				EnableSessionInit: false,
 				KeepSession:       spider.CrawlOptions().KeepSession,
-				ProxyLevel:        http.ProxyLevelReliable,
+				Reliability:       spider.CrawlOptions().Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -684,7 +660,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", "nordstrom_123456")
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
