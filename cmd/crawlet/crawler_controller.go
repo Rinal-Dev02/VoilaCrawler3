@@ -12,7 +12,6 @@ import (
 	ctxUtil "github.com/voiladev/VoilaCrawl/pkg/context"
 	crawlerSpec "github.com/voiladev/VoilaCrawl/pkg/crawler"
 	http "github.com/voiladev/VoilaCrawl/pkg/net/http"
-	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
