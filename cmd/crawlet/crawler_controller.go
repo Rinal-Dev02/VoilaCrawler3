@@ -331,25 +331,26 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 									subreq.CustomHeaders[k] = v
 								}
 
-								now := time.Now()
-								for _, cookie := range resp.Cookies() {
-									if cookie.MaxAge < 0 || (cookie.MaxAge == 0 && cookie.Expires.Before(now)) {
-										continue
-									}
-									var expiresAt int64
-									if !cookie.Expires.IsZero() {
-										expiresAt = cookie.Expires.Unix()
-									} else {
-										expiresAt = now.Unix() + int64(cookie.MaxAge)
-									}
+								// ignore cookies to use cookiejar manage cookie
+								// now := time.Now()
+								// for _, cookie := range resp.Cookies() {
+								// 	if cookie.MaxAge < 0 || (cookie.MaxAge == 0 && cookie.Expires.Before(now)) {
+								// 		continue
+								// 	}
+								// 	var expiresAt int64
+								// 	if !cookie.Expires.IsZero() {
+								// 		expiresAt = cookie.Expires.Unix()
+								// 	} else {
+								// 		expiresAt = now.Unix() + int64(cookie.MaxAge)
+								// 	}
 
-									subreq.CustomCookies = append(subreq.CustomCookies, &pbHttp.Cookie{
-										Name:    cookie.Name,
-										Value:   cookie.Value,
-										Path:    cookie.Path,
-										Expires: expiresAt,
-									})
-								}
+								// 	subreq.CustomCookies = append(subreq.CustomCookies, &pbHttp.Cookie{
+								// 		Name:    cookie.Name,
+								// 		Value:   cookie.Value,
+								// 		Path:    cookie.Path,
+								// 		Expires: expiresAt,
+								// 	})
+								// }
 
 								for k, v := range sharingData {
 									key, ok := k.(string)
