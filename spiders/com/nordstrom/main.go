@@ -517,11 +517,29 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
+			Stock: &pbItem.Stock{
+				StockStatus: pbItem.Stock_OutOfStock,
+			},
 			Stats: &pbItem.Stats{
 				ReviewCount: int32(p.NumberOfReviews),
 				Rating:      float32(p.ReviewAverageRating / 5.0),
 			},
 		}
+		for _, mid := range p.DefaultGalleryMedia.StyleMediaIds {
+			m := p.StyleMedia.ByID[strconv.Format(mid)]
+			if m.MediaType == "Image" {
+				item.Medias = append(item.Medias, pbMedia.NewImageMedia(
+					strconv.Format(m.ID),
+					m.ImageMediaURI.MaxLargeDesktop,
+					m.ImageMediaURI.SmallZoom,
+					m.ImageMediaURI.MobileLarge,
+					m.ImageMediaURI.MobileMedium,
+					"",
+					m.IsDefault && m.IsSelected,
+				))
+			}
+		}
+
 		for _, rawSku := range p.Skus.ByID {
 			originalPrice, _ := strconv.ParseFloat(rawSku.DisplayOriginalPrice)
 			discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.DisplayPercentOff, "%"))
@@ -560,7 +578,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 							m.ImageMediaURI.MobileLarge,
 							m.ImageMediaURI.MobileMedium,
 							"",
-							m.IsDefault,
+							m.IsDefault && m.IsSelected,
 						))
 					} else if m.MediaType == "Video" {
 						// TODO
