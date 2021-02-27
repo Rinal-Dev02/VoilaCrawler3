@@ -142,22 +142,6 @@ type RawProductDetails struct {
 		RatingValue float64 `json:"ratingValue"`
 		ReviewCount int     `json:"reviewCount"`
 	} `json:"aggregateRating"`
-	Review []struct {
-		Type   string `json:"@type"`
-		Author struct {
-			Type string `json:"@type"`
-			Name string `json:"name"`
-		} `json:"author"`
-		DatePublished time.Time `json:"datePublished"`
-		Description   string    `json:"description"`
-		Name          string    `json:"name"`
-		ReviewRating  struct {
-			Type        string `json:"@type"`
-			BestRating  string `json:"bestRating"`
-			RatingValue int    `json:"ratingValue"`
-			WorstRating string `json:"worstRating"`
-		} `json:"reviewRating"`
-	} `json:"review"`
 }
 
 type RawProductVariationDetails []struct {
