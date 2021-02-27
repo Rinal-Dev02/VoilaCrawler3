@@ -463,7 +463,7 @@ func main() {
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-	os.Setenv("VOILA_PROXY_URL", "http://3.239.93.53:30216")
+
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
