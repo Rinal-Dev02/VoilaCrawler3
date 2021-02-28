@@ -69,7 +69,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
 		// Reliability high match to crawl api, and log match to backconnect
-		Reliability: pbProxy.ProxyReliability_ReliabilityLow,
+		Reliability: pbProxy.ProxyReliability_ReliabilityHigh,
 	}
 }
 
