@@ -262,7 +262,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 						if r.Options.MaxTtlPerRequest > 0 {
 							maxTtlPerRequest = r.Options.MaxTtlPerRequest
 						}
-						requestCtx, cancel := context.WithTimeout(shareCtx, time.Duration(maxTtlPerRequest)*time.Second)
+						requestCtx, cancel := context.WithTimeout(shareCtx, time.Duration(maxTtlPerRequest*2)*time.Second)
 						defer cancel()
 
 						startTime := time.Now()
