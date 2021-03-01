@@ -13,9 +13,9 @@ import (
 	crawlerSpec "github.com/voiladev/VoilaCrawl/pkg/crawler"
 	http "github.com/voiladev/VoilaCrawl/pkg/net/http"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
-	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -73,6 +73,7 @@ func NewCrawlerController(
 
 				if handler, err = ctrl.conn.NewChannelHandler(ctx, &ctrl); err != nil {
 					ctrl.logger.Errorf("new channel handler failed, error=%s", err)
+
 					tryDuration += time.Second
 					if tryDuration > time.Minute {
 						tryDuration = time.Second * 10
@@ -99,11 +100,17 @@ func NewCrawlerController(
 				go func() {
 					defer cancel()
 
+					timeTicker := time.NewTicker(time.Second * 10)
 					for {
 						select {
 						case <-ctx.Done():
 							ctrl.logger.Debugf("done")
 							return
+						case <-timeTicker.C:
+							logger.Infof("send heartbeta max: %d, idle: %d",
+								handler.ctrl.gpool.MaxConcurrency(),
+								handler.ctrl.gpool.MaxConcurrency()-handler.ctrl.gpool.CurrentConcurrency(),
+							)
 						case <-handler.heartbeatTicker.C:
 							msg := pbCrawl.Heartbeat_Ping{
 								Timestamp:       time.Now().UnixNano(),
@@ -115,9 +122,6 @@ func NewCrawlerController(
 							if err := handler.client.Send(anydata); err != nil {
 								logger.Errorf("send heartbeat failed, error=%s", err)
 								return
-							}
-							if time.Now().Unix()%10 == 0 {
-								logger.Debugf("send heartbeta max: %d, idle: %d", msg.GetMaxConcurrency(), msg.GetIdleConcurrency())
 							}
 						case msg, ok := <-handler.conn.msgBuffer:
 							if !ok {
@@ -262,7 +266,8 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 						if r.Options.MaxTtlPerRequest > 0 {
 							maxTtlPerRequest = r.Options.MaxTtlPerRequest
 						}
-						requestCtx, cancel := context.WithTimeout(shareCtx, time.Duration(maxTtlPerRequest*2)*time.Second)
+
+						requestCtx, cancel := context.WithTimeout(shareCtx, time.Duration(maxTtlPerRequest)*time.Second+time.Minute*10)
 						defer cancel()
 
 						startTime := time.Now()
@@ -276,9 +281,10 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 						})
 						duration := (time.Now().UnixNano() - startTime.UnixNano()) / 1000000 // in millseconds
 						if err != nil {
-							logger.Debug(err)
+							logger.Infof("Access %s error=%s", req.URL.String(), err)
 							return duration, err
 						}
+						logger.Infof("Access %s %d", req.URL.String(), resp.StatusCode)
 						defer resp.Body.Close()
 
 						return duration, crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
@@ -288,8 +294,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 								if val.URL.Host == "" {
 									val.URL.Scheme = req.URL.Scheme
 									val.URL.Host = req.URL.Host
-								}
-								if val.URL.Scheme == "http" && req.URL.Scheme == "https" {
+								} else if val.URL.Scheme != "http" && req.URL.Scheme != "https" {
 									val.URL.Scheme = req.URL.Scheme
 								}
 
@@ -301,10 +306,13 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 									Url:           val.URL.String(),
 									Method:        val.Method,
 									Parent:        r,
-									CustomHeaders: map[string]string{},
+									CustomHeaders: r.CustomHeaders,
 									CustomCookies: r.CustomCookies,
 									Options:       r.Options,
 									SharingData:   r.SharingData,
+								}
+								if subreq.CustomHeaders == nil {
+									subreq.CustomHeaders = make(map[string]string)
 								}
 								if subreq.SharingData == nil {
 									subreq.SharingData = map[string]string{}
@@ -319,37 +327,9 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 									}
 								}
 
-								// over write header
 								for k := range val.Header {
 									subreq.CustomHeaders[k] = val.Header.Get(k)
 								}
-								for k, v := range r.CustomHeaders {
-									if _, ok := subreq.CustomHeaders[k]; ok {
-										continue
-									}
-									subreq.CustomHeaders[k] = v
-								}
-
-								// ignore cookies to use cookiejar manage cookie
-								// now := time.Now()
-								// for _, cookie := range resp.Cookies() {
-								// 	if cookie.MaxAge < 0 || (cookie.MaxAge == 0 && cookie.Expires.Before(now)) {
-								// 		continue
-								// 	}
-								// 	var expiresAt int64
-								// 	if !cookie.Expires.IsZero() {
-								// 		expiresAt = cookie.Expires.Unix()
-								// 	} else {
-								// 		expiresAt = now.Unix() + int64(cookie.MaxAge)
-								// 	}
-
-								// 	subreq.CustomCookies = append(subreq.CustomCookies, &pbHttp.Cookie{
-								// 		Name:    cookie.Name,
-								// 		Value:   cookie.Value,
-								// 		Path:    cookie.Path,
-								// 		Expires: expiresAt,
-								// 	})
-								// }
 
 								for k, v := range sharingData {
 									key, ok := k.(string)
@@ -367,11 +347,14 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 								}
 								cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
 								cmd.Data, _ = anypb.New(&subreq)
-								ctrl.Send(shareCtx, &cmd)
-							case *pbItem.Product:
+								return ctrl.Send(shareCtx, &cmd)
+							default:
+								msg, ok := i.(proto.Message)
+								if !ok {
+									return errors.New("unsupported response data type")
+								}
 								var index int64
 								if indexVal, ok := sharingData["item.index"]; ok && indexVal != nil {
-									ctrl.logger.Errorf("%v", indexVal)
 									index = strconv.MustParseInt(indexVal)
 								}
 								item := pbCrawl.Item{
@@ -382,13 +365,10 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 									ReqId:     r.GetReqId(),
 									Index:     int32(index),
 								}
-								item.Data, _ = anypb.New(val)
+								item.Data, _ = anypb.New(msg)
 
-								ctrl.Send(shareCtx, &item)
-							default:
-								return errors.New("unsupported response data type")
+								return ctrl.Send(shareCtx, &item)
 							}
-							return nil
 						})
 					}(crawler)
 					if err != crawlerSpec.ErrNotSupportedPath {

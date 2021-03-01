@@ -62,6 +62,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
+	options.EnableSessionInit = true
 	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
@@ -76,25 +77,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.asos.com"}
-}
-
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
-	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.categoryPathMatcher,
-		c.categoryJsonPathMatcher,
-		c.productGroupPathMatcher,
-		c.productPathMatcher,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
-		}
-	}
-	return false
+	return []string{"*.asos.com"}
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -547,7 +530,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			req.Header.Set(k, opts.MustHeader.Get(k))
 		}
 		req.Header.Set("Referer", resp.Request.URL.String())
-		req.Header.Set("User-Agent", resp.Request.Header.Get("User-Agent"))
+		// req.Header.Set("User-Agent", resp.Request.Header.Get("User-Agent"))
 		req.Header.Set("asos-c-name", "asos-web-productpage")
 		req.Header.Set("asos-c-version", string(matched[1]))
 
@@ -745,7 +728,7 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "www.nordstrom.com"
+				i.URL.Host = "www.asos.com"
 			}
 
 			// do http requests here.
@@ -775,7 +758,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("nordstrom_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {

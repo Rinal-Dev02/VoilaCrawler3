@@ -25,11 +25,9 @@ func NewGPool(ctx context.Context, cap int32, logger glog.Log) (*GPool, error) {
 	}
 
 	go func() {
-		var delaySeconds time.Duration
 		for {
-			if p.currentConcurrency >= p.maxConcurrency {
-				delaySeconds += 500 * time.Millisecond
-				time.Sleep(delaySeconds)
+			if p.CurrentConcurrency() >= p.MaxConcurrency() {
+				time.Sleep(300 * time.Millisecond)
 				continue
 			}
 
@@ -49,7 +47,6 @@ func NewGPool(ctx context.Context, cap int32, logger glog.Log) (*GPool, error) {
 						}
 						atomic.AddInt32(&p.currentConcurrency, -1)
 					}()
-
 					jobFunc()
 				}()
 			}
@@ -63,14 +60,14 @@ func (p *GPool) MaxConcurrency() int32 {
 	if p == nil {
 		return 0
 	}
-	return p.maxConcurrency
+	return atomic.LoadInt32(&p.maxConcurrency)
 }
 
 func (p *GPool) CurrentConcurrency() int32 {
 	if p == nil {
 		return 0
 	}
-	return p.currentConcurrency
+	return atomic.LoadInt32(&p.currentConcurrency)
 }
 
 func (p *GPool) DoJob(jobFunc func()) error {
