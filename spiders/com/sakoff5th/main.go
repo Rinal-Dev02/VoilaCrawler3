@@ -606,9 +606,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
 					strconv.Format(ki),
 					template,
-					strings.ReplaceAll(template, "", ""),
-					strings.ReplaceAll(template, "", ""),
-					strings.ReplaceAll(template, "", ""),
+					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=1000&hei=1333&"),
+					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=600&hei=800&"),
+					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=495&hei=660&"),
 					"",
 					isDefault,
 				))
