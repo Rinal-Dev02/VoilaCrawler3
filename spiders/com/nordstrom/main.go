@@ -612,7 +612,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		// "https://www.nordstrom.com/browse/activewear/women-clothing?breadcrumb=Home%2FWomen%2FClothing%2FActivewear&origin=topnav",
-		"https://www.nordstrom.com/s/the-north-face-mountain-water-repellent-hooded-jacket/5500919",
+		// "https://www.nordstrom.com/s/the-north-face-mountain-water-repellent-hooded-jacket/5500919",
+		// "https://www.nordstrom.com/s/anastasia-beverly-hills-liquid-liner/5369732",
+		"https://www.nordstrom.com/s/chanel-le-crayon-khol-intense-eye-pencil/2826730",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {

@@ -298,6 +298,10 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 									val.URL.Scheme = req.URL.Scheme
 								}
 
+								if val.Header.Get("Referer") == "" && resp.Request != nil {
+									val.Header.Set("Referer", resp.Request.URL.String())
+								}
+
 								// convert http.Request to pbCrawl.Command_Request and forward
 								subreq := pbCrawl.Command_Request{
 									TracingId:     r.GetTracingId(),

@@ -63,16 +63,16 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options.EnableHeadless = false
 	options.LoginRequired = false
 	options.EnableSessionInit = true
-	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
-		// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
-		// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
-		// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
-		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-		// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
 	)
+	// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
+	// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
+	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
+
 	return options
 }
 
@@ -162,15 +162,15 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			rawurl = prod.Url
 		}
 
-		if req, err := http.NewRequest(http.MethodGet, rawurl, nil); err != nil {
+		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
+		if err != nil {
 			c.logger.Debug(err)
 			return err
-		} else {
-			nnctx := context.WithValue(nctx, "item.index", lastIndex+1)
-			lastIndex += 1
-			if err = yield(nnctx, req); err != nil {
-				return err
-			}
+		}
+		nnctx := context.WithValue(nctx, "item.index", lastIndex+1)
+		lastIndex += 1
+		if err = yield(nnctx, req); err != nil {
+			return err
 		}
 	}
 
@@ -187,6 +187,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	vals.Set("limit", strconv.Format(len(r.Search.Products)))
 	u.RawQuery = vals.Encode()
 
+	nctx = context.WithValue(nctx, "referer", resp.Request.URL.String())
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 	return yield(context.WithValue(nctx, "item.index", lastIndex), req)
 }
@@ -250,7 +251,14 @@ func (c *_Crawler) parseCategoryProductsJson(ctx context.Context, resp *http.Res
 	u.RawQuery = vals.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-	req.Header.Set("Referer", resp.Request.Header.Get("Referer"))
+	if val := ctx.Value("referer"); val != nil {
+		if referer, _ := val.(string); referer != "" {
+			req.Header.Set("Referer", referer)
+		}
+	}
+	if req.Header.Get("Referer") == "" && resp.Request.Header.Get("Referer") != "" {
+		req.Header.Set("Referer", resp.Request.Header.Get("Referer"))
+	}
 	return yield(context.WithValue(ctx, "item.index", lastIndex), req)
 }
 
