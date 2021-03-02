@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -471,11 +472,11 @@ type parseProductRatingResponse struct {
 }
 
 var (
-	detailReg     = regexp.MustCompile(`window\.asos\.pdp\.config\.product\s*=\s*({[^;]+});`)
-	stockPriceReg = regexp.MustCompile(`window\.asos\.pdp\.config\.stockPriceApiUrl\s*=\s*'(/api/product/catalogue/[^;]+)'\s*;`)
-	appVersionReg = regexp.MustCompile(`window\.asos\.pdp\.config\.appVersion\s*=\s*'([a-z0-9-.]+)';`)
-	ratingReg     = regexp.MustCompile(`window\.asos\.pdp\.config\.ratings\s*=\s*([^;]*);`)
-	descReg       = regexp.MustCompile(`<script\s+id="split\-structured\-data"\s+type="application/ld\+json">(.*)</script>`)
+	detailReg     = regexp.MustCompile(`(?U)window\.asos\.pdp\.config\.product\s*=\s*({[^;]+});`)
+	stockPriceReg = regexp.MustCompile(`(?U)window\.asos\.pdp\.config\.stockPriceApiUrl\s*=\s*'(/api/product/catalogue/[^;]+)'\s*;`)
+	appVersionReg = regexp.MustCompile(`(?U)window\.asos\.pdp\.config\.appVersion\s*=\s*'([a-z0-9-.]+)';`)
+	ratingReg     = regexp.MustCompile(`(?U)window\.asos\.pdp\.config\.ratings\s*=\s*({.*});`)
+	descReg       = regexp.MustCompile(`(?U)<script\s+id="split\-structured\-data"\s+type="application/ld\+json">(.*)</script>`)
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -513,9 +514,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Error(err)
 		return err
 	}
-	if err = json.Unmarshal(matchedRating[1], &rating); err != nil {
-		c.logger.Error(err)
-		return err
+	if len(matchedRating) > 1 {
+		if err = json.Unmarshal(matchedRating[1], &rating); err != nil {
+			c.logger.Errorf("%s, error=%s", matchedRating[1], err)
+			return err
+		}
 	}
 	if len(matchedDesc) > 1 {
 		if err = json.Unmarshal(matchedDesc[1], &desc); err != nil {
@@ -537,8 +540,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		for k := range opts.MustHeader {
 			req.Header.Set(k, opts.MustHeader.Get(k))
 		}
+		req.Header.Set("accept-encoding", "gzip, deflate, br")
+		req.Header.Set("accept", "*/*")
 		req.Header.Set("Referer", resp.Request.URL.String())
-		// req.Header.Set("User-Agent", resp.Request.Header.Get("User-Agent"))
+		req.Header.Set("User-Agent", resp.Request.Header.Get("User-Agent"))
 		req.Header.Set("asos-c-name", "asos-web-productpage")
 		req.Header.Set("asos-c-version", string(matched[1]))
 
@@ -556,6 +561,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 			EnableProxy:    true,
 			EnableHeadless: c.CrawlOptions().EnableHeadless,
+			Reliability:    c.CrawlOptions().Reliability,
 		})
 		if err != nil {
 			c.logger.Error(err)
@@ -568,9 +574,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			return fmt.Errorf(resp.Status)
 		}
 
-		var stockPrices []*parseProductStockPrice
-		if err := json.NewDecoder(resp.Body).Decode(&stockPrices); err != nil {
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
 			c.logger.Error(err)
+			return err
+		}
+
+		var stockPrices []*parseProductStockPrice
+		if err := json.Unmarshal(data, &stockPrices); err != nil {
+			c.logger.Errorf("%s, error=%s", data, err)
 			return err
 		}
 		if len(stockPrices) > 0 {
@@ -667,10 +679,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.asos.com/us/women/new-in/new-in-clothing/cat/?cid=2623&nlid=ww%7Cclothing%7Cshop%20by%20product&page=1",
-		"https://www.asos.com/api/product/search/v2/categories/2623?channel=desktop-web&country=US&currency=USD&keyStoreDataversion=3pmn72e-27&lang=en-US&limit=72&nlid=ww%7Cclothing%7Cshop+by+product&offset=72&rowlength=4&store=US",
-		"https://www.asos.com/us/missguided-plus/missguided-plus-oversized-long-sleeve-t-shirt-in-gray-snake-tie-dye/prd/23385813?colourwayid=60477943&SearchQuery=&cid=4169",
-		"https://www.asos.com/us/asos-design/asos-design-tie-front-maxi-beach-set-in-black/grp/33060?colourwayid=60343707#22019820&SearchQuery=&cid=2623",
+		"https://www.asos.com/us/olivia-burton/olivia-burton-white-dial-midi-mesh-watch-in-rose-gold/prd/22313628?colourwayid=60389207&cid=5088",
+		// "https://www.asos.com/us/women/new-in/new-in-clothing/cat/?cid=2623&nlid=ww%7Cclothing%7Cshop%20by%20product&page=1",
+		// "https://www.asos.com/api/product/search/v2/categories/2623?channel=desktop-web&country=US&currency=USD&keyStoreDataversion=3pmn72e-27&lang=en-US&limit=72&nlid=ww%7Cclothing%7Cshop+by+product&offset=72&rowlength=4&store=US",
+		// "https://www.asos.com/us/missguided-plus/missguided-plus-oversized-long-sleeve-t-shirt-in-gray-snake-tie-dye/prd/23385813?colourwayid=60477943&SearchQuery=&cid=4169",
+		// "https://www.asos.com/us/asos-design/asos-design-tie-front-maxi-beach-set-in-black/grp/33060?colourwayid=60343707#22019820&SearchQuery=&cid=2623",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
