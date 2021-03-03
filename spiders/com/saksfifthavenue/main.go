@@ -434,8 +434,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(viewData.Product.MasterProductID),
-			CrawlUrl: resp.Request.URL.String(),
+			Id: strconv.Format(viewData.Product.MasterProductID),
+			//CrawlUrl: resp.Request.URL.String(),
+			CrawlUrl: strings.ReplaceAll(resp.Request.URL.String(), "https://www.saksfifthavenue.com/on/demandware.store/Sites-SaksFifthAvenue-Site/en_US/Product-Variation?", ("https://www.saksfifthavenue.com/product/" + viewData.Product.MasterProductID + ".html?")),
 		},
 		BrandName:   viewData.Product.Brand.Name,
 		Title:       viewData.Product.ProductName,
@@ -549,7 +550,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.saksfifthavenue.com/c/women-s-accessories/hair-accessories",
-		"https://www.saksoff5th.com/on/demandware.store/Sites-SaksOff5th-Site/en_US/Product-Variation?pid=0400013436117&dwvar_0400013436117_color=BLACK&quantity=1",
+		"https://www.saksfifthavenue.com/on/demandware.store/Sites-SaksFifthAvenue-Site/en_US/Product-Variation?pid=0400013970412&dwvar_0400013970412_color=PURE%20CASHMERE&quantity=1",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -630,7 +631,7 @@ func main() {
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
-				EnableHeadless:    true,
+				EnableHeadless:    false,
 				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
 				KeepSession:       spider.CrawlOptions().KeepSession,
 				Reliability:       spider.CrawlOptions().Reliability,
