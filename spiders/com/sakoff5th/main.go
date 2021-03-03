@@ -112,6 +112,7 @@ func isRobotCheckPage(respBody []byte) bool {
 	return bytes.Contains(respBody, []byte("we believe you are using automation tools to browse the website")) ||
 		bytes.Contains(respBody, []byte("Javascript is disabled or blocked by an extension")) ||
 		bytes.Contains(respBody, []byte("Access Denied")) ||
+		bytes.Contains(respBody, []byte("Request failed, with status codes original_status: 504 and pc_status")) ||
 		bytes.Contains(respBody, []byte("Your browser does not support cookies"))
 }
 func TrimSpaceNewlineInString(s []byte) []byte {
@@ -129,7 +130,6 @@ func nextIndex(ctx context.Context) int {
 
 // used to extract embaded json data in website page.
 // more about golang regulation see here https://golang.org/pkg/regexp/syntax/
-var productsExtractReg = regexp.MustCompile(`(?U)pageDataObj\s*=\s*({.*});?\s*</script>`)
 var productsExtractOtherDetailReg = regexp.MustCompile(`({.*})`)
 
 // parseCategoryProducts parse api url from web page url
@@ -146,7 +146,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if isRobotCheckPage(respBody) {
 		return errors.New("robot check page")
 	}
-	// c.logger.Debugf("%s", respBody)
 
 	if !bytes.Contains(respBody, []byte("product bfx-disable-product standard")) {
 		return errors.New("products not found")
@@ -171,16 +170,16 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 				if href, _ := nodeV.Attr("data-valueurl"); href != "" {
 					c.logger.Debugf("yield %s", href)
-					// req, err := http.NewRequest(http.MethodGet, href, nil)
-					// if err != nil {
-					// 	c.logger.Error(err)
-					// 	continue
-					// }
-					// lastIndex += 1
-					// nctx := context.WithValue(ctx, "item.index", lastIndex)
-					// if err := yield(nctx, req); err != nil {
-					// 	return err
-					// }
+					req, err := http.NewRequest(http.MethodGet, href, nil)
+					if err != nil {
+						c.logger.Error(err)
+						continue
+					}
+					lastIndex += 1
+					nctx := context.WithValue(ctx, "item.index", lastIndex)
+					if err := yield(nctx, req); err != nil {
+						return err
+					}
 				}
 			}
 		} else {
@@ -189,16 +188,16 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 			if colorSwatches != "" {
 				c.logger.Debugf("yield %s", href)
-				// req, err := http.NewRequest(http.MethodGet, href, nil)
-				// if err != nil {
-				// 	c.logger.Error(err)
-				// 	continue
-				// }
-				// lastIndex += 1
-				// nctx := context.WithValue(ctx, "item.index", lastIndex)
-				// if err := yield(nctx, req); err != nil {
-				// 	return err
-				// }
+				req, err := http.NewRequest(http.MethodGet, href, nil)
+				if err != nil {
+					c.logger.Error(err)
+					continue
+				}
+				lastIndex += 1
+				nctx := context.WithValue(ctx, "item.index", lastIndex)
+				if err := yield(nctx, req); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -236,58 +235,8 @@ var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
 // below are the golang json data struct of raw website.
 // if you get the raw json data of the website,
 // then you can use https://mholt.github.io/json-to-go/ to convert it to a golang struct
-
-type RawProductDetail struct {
-	Products []struct {
-		AverageRating string `json:"average_rating"`
-		Brand         string `json:"brand"`
-		Code          string `json:"code"`
-		Name          string `json:"name"`
-		OriginalPrice string `json:"original_price"`
-		Price         string `json:"price"`
-		Skus          []struct {
-			AvailableDc string `json:"available_dc"`
-			Sku         string `json:"sku"`
-		} `json:"skus"`
-		Tags struct {
-			FeatureType    string `json:"feature_type"`
-			InventoryLabel string `json:"inventory_label"`
-			PipText        string `json:"pip_text"`
-			PriceType      string `json:"price_type"`
-			PublishDate    string `json:"publish_date"`
-			Returnable     string `json:"returnable"`
-		} `json:"tags"`
-		TotalReviews string `json:"total_reviews"`
-	} `json:"products"`
-}
-
-type OtherProductDetail struct {
-	Context     string `json:"@context"`
-	Type        string `json:"@type"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Mpn         string `json:"mpn"`
-	Sku         string `json:"sku"`
-	Gtin13      string `json:"gtin13"`
-	Brand       struct {
-		Type string `json:"@type"`
-		Name string `json:"name"`
-	} `json:"brand"`
-	Image  []string `json:"image"`
-	Offers struct {
-		URL           string `json:"url"`
-		Type          string `json:"@type"`
-		PriceCurrency string `json:"priceCurrency"`
-		Price         string `json:"price"`
-		Availability  string `json:"availability"`
-	} `json:"offers"`
-}
-
 type ProductDataJson struct {
-	Action      string `json:"action"`
-	QueryString string `json:"queryString"`
-	Locale      string `json:"locale"`
-	Product     struct {
+	Product struct {
 		MasterProductID string `json:"masterProductID"`
 		Brand           struct {
 			Name string `json:"name"`
@@ -426,17 +375,9 @@ type ProductDataJson struct {
 		} `json:"variationAttributes"`
 		LongDescription  string      `json:"longDescription"`
 		ShortDescription interface{} `json:"shortDescription"`
-		Rating           int         `json:"rating"`
+		Rating           float64     `json:"rating"`
 		Promotions       interface{} `json:"promotions"`
-		Attributes       []struct {
-			ID         string `json:"ID"`
-			Name       string `json:"name"`
-			Attributes []struct {
-				Label string   `json:"label"`
-				Value []string `json:"value"`
-			} `json:"attributes"`
-		} `json:"attributes"`
-		Availability struct {
+		Availability     struct {
 			Messages                 []interface{} `json:"messages"`
 			ButtonName               string        `json:"buttonName"`
 			IsInPurchaselimit        bool          `json:"isInPurchaselimit"`
@@ -447,63 +388,23 @@ type ProductDataJson struct {
 			Outofstockmessage string      `json:"outofstockmessage"`
 			InStockDate       interface{} `json:"inStockDate"`
 		} `json:"availability"`
-		Available                   bool          `json:"available"`
-		OrderableNotInPurchaselimit bool          `json:"orderableNotInPurchaselimit"`
-		Options                     []interface{} `json:"options"`
-		Quantities                  []struct {
-			Value    string `json:"value"`
-			Selected bool   `json:"selected"`
-			URL      string `json:"url"`
-		} `json:"quantities"`
-		SizeChartID        interface{} `json:"sizeChartId"`
-		SelectedProductURL string      `json:"selectedProductUrl"`
-		ReadyToOrder       bool        `json:"readyToOrder"`
-		ReadyToOrderMsg    string      `json:"readyToOrderMsg"`
-		Online             bool        `json:"online"`
-		PageTitle          interface{} `json:"pageTitle"`
-		PageDescription    interface{} `json:"pageDescription"`
-		PageKeywords       interface{} `json:"pageKeywords"`
-		PageMetaTags       []struct {
-		} `json:"pageMetaTags"`
-		Template                  interface{} `json:"template"`
-		SearchableIfUnavailable   bool        `json:"searchableIfUnavailable"`
-		HbcProductType            string      `json:"hbcProductType"`
-		Waitlistable              bool        `json:"waitlistable"`
-		DropShipInd               bool        `json:"dropShipInd"`
-		DiscountAppliedInCheckout bool        `json:"discountAppliedInCheckout"`
-		HudsonPoint               int         `json:"hudsonPoint"`
-		SpdCollectionName         string      `json:"spdCollectionName"`
-		IsAvailableForInstore     bool        `json:"isAvailableForInstore"`
-		IsReveiwable              bool        `json:"isReveiwable"`
-		TurntoReviewCount         int         `json:"turntoReviewCount"`
-		PromotionalPricing        struct {
+		TurntoReviewCount  int `json:"turntoReviewCount"`
+		PromotionalPricing struct {
 			IsPromotionalPrice bool   `json:"isPromotionalPrice"`
 			PromoMessage       string `json:"promoMessage"`
 			PriceHTML          string `json:"priceHtml"`
 		} `json:"promotionalPricing"`
-		GwpButtonCopy               interface{} `json:"gwpButtonCopy"`
-		GwpLink                     interface{} `json:"gwpLink"`
-		AllAvailableProductsSoldOut bool        `json:"allAvailableProductsSoldOut"`
+
+		AllAvailableProductsSoldOut bool `json:"allAvailableProductsSoldOut"`
 		AllAvailableProducts        []struct {
 			AvailableDc string `json:"available_dc"`
 			Sku         string `json:"sku"`
 		} `json:"allAvailableProducts"`
-		StarRating     string    `json:"starRating"`
-		AttributesHTML time.Time `json:"attributesHtml"`
-		PromotionsHTML string    `json:"promotionsHtml"`
-		FinalSaleHTML  string    `json:"finalSaleHtml"`
+		StarRating string `json:"starRating"`
+		//AttributesHTML string `json:"attributesHtml"`
+		PromotionsHTML string `json:"promotionsHtml"`
+		FinalSaleHTML  string `json:"finalSaleHtml"`
 	} `json:"product"`
-	Resources struct {
-		InfoSelectforstock    string `json:"info_selectforstock"`
-		AssistiveSelectedText string `json:"assistiveSelectedText"`
-		Soldout               string `json:"soldout"`
-		Addtocart             string `json:"addtocart"`
-		LimitedInventory      string `json:"limitedInventory"`
-		Movetobag             string `json:"movetobag"`
-		Addtobag              string `json:"addtobag"`
-	} `json:"resources"`
-	AvailabilityURL        string `json:"availabilityUrl"`
-	AvailabilityPromptText string `json:"availabilityPromptText"`
 }
 
 // parseProduct
@@ -536,8 +437,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(viewData.Product.MasterProductID),
-			CrawlUrl: resp.Request.URL.String(),
+			Id: strconv.Format(viewData.Product.MasterProductID),
+			//CrawlUrl: resp.Request.URL.String(),
+			CrawlUrl: strings.ReplaceAll(resp.Request.URL.String(), "https://www.saksoff5th.com/on/demandware.store/Sites-SaksOff5th-Site/en_US/Product-Variation?", ("https://www.saksoff5th.com/product/" + viewData.Product.MasterProductID + ".html?")),
 		},
 		BrandName:   viewData.Product.Brand.Name,
 		Title:       viewData.Product.ProductName,
@@ -565,8 +467,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			colorIndex = kv
 		}
 	}
+	loopIndex := 0
+	if sizeIndex > -1 {
+		loopIndex = sizeIndex
+	}
 
-	for kv, rawSku := range viewData.Product.VariationAttributes[sizeIndex].Values {
+	for kv, rawSku := range viewData.Product.VariationAttributes[loopIndex].Values {
+
+		if sizeIndex == -1 { // size not available
+			if kv > 0 {
+				break
+			}
+		}
 
 		sku := pbItem.Sku{
 			SourceId: strconv.Format(rawSku.ID),
