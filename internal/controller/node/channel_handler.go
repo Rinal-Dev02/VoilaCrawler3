@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -252,6 +253,12 @@ func (handler *nodeHanadler) Run() error {
 					return pbError.ErrInvalidArgument.New("missing reqId for error")
 				}
 
+				isUnlock := false
+				if data.GetHost() != "" {
+					handler.ctrl.threadCtrl.Unlock(handler.ctx, data.GetHost(), data.GetReqId())
+					isUnlock = true
+				}
+
 				req, err := handler.ctrl.requestManager.GetById(handler.ctx, data.GetReqId())
 				if err != nil {
 					logger.Errorf("get request failed, error=%s", err)
@@ -259,6 +266,11 @@ func (handler *nodeHanadler) Run() error {
 				}
 				if req == nil {
 					return pbError.ErrDataLoss.New(fmt.Errorf("request %s not found", data.GetReqId()))
+				}
+				if !isUnlock {
+					if u, _ := url.Parse(req.GetUrl()); u != nil && u.Hostname() != "" {
+						handler.ctrl.threadCtrl.Unlock(handler.ctx, u.Hostname(), data.GetReqId())
+					}
 				}
 
 				if _, err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, session,

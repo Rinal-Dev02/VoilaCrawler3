@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nsqio/go-nsq"
+	threadCtrl "github.com/voiladev/VoilaCrawl/internal/controller/thread"
 	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
 	nodeManager "github.com/voiladev/VoilaCrawl/internal/model/node/manager"
 	"github.com/voiladev/VoilaCrawl/internal/model/request"
@@ -36,6 +37,7 @@ type NodeControllerOptions struct {
 type NodeController struct {
 	ctx            context.Context
 	engine         *xorm.Engine
+	threadCtrl     *threadCtrl.ThreadController
 	nodeManager    *nodeManager.NodeManager
 	crawlerManager *crawlerManager.CrawlerManager
 	requestManager *reqManager.RequestManager
@@ -50,6 +52,7 @@ type NodeController struct {
 func NewNodeController(
 	ctx context.Context,
 	engine *xorm.Engine,
+	threadCtrl *threadCtrl.ThreadController,
 	nodeManager *nodeManager.NodeManager,
 	crawlerManager *crawlerManager.CrawlerManager,
 	requestManager *reqManager.RequestManager,
@@ -59,6 +62,9 @@ func NewNodeController(
 ) (*NodeController, error) {
 	if engine == nil {
 		return nil, errors.New("invalid engine")
+	}
+	if threadCtrl == nil {
+		return nil, errors.New("invalid thread controller")
 	}
 	if nodeManager == nil {
 		return nil, errors.New("invalid node manager")
@@ -84,6 +90,7 @@ func NewNodeController(
 	c := NodeController{
 		ctx:            ctx,
 		engine:         engine,
+		threadCtrl:     threadCtrl,
 		nodeManager:    nodeManager,
 		crawlerManager: crawlerManager,
 		requestManager: requestManager,
@@ -141,6 +148,18 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 	}
 	logger := ctrl.logger.New("PublishRequest")
 
+	var cmdReq pbCrawl.Command_Request
+	if err := req.Unmarshal(&cmdReq); err != nil {
+		logger.Errorf("unmarshal command request failed, error=%s", err)
+		return pbError.ErrInternal.New(err)
+	}
+
+	reqData, err := protojson.Marshal(&cmdReq)
+	if err != nil {
+		logger.Errorf("marshal Command_Request failed, error=%s", err)
+		return pbError.ErrInternal.New(err)
+	}
+
 	session := ctrl.engine.NewSession()
 	defer session.Close()
 
@@ -156,20 +175,6 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 	} else if !updated {
 		logger.Warnf("can't publish request %s", req.GetId())
 		return nil
-	}
-
-	var cmdReq pbCrawl.Command_Request
-	if err := req.Unmarshal(&cmdReq); err != nil {
-		logger.Errorf("unmarshal command request failed, error=%s", err)
-		session.Rollback()
-		return pbError.ErrInternal.New(err)
-	}
-
-	reqData, err := protojson.Marshal(&cmdReq)
-	if err != nil {
-		logger.Errorf("marshal Command_Request failed, error=%s", err)
-		session.Rollback()
-		return pbError.ErrInternal.New(err)
 	}
 
 	if _, err := ctrl.redisClient.Do("LPUSH", config.CrawlRequestQueue, reqData); err != nil {
@@ -256,6 +261,7 @@ func (ctrl *NodeController) broadcast(ctx context.Context, msg protoreflect.Prot
 	return nil
 }
 
+/*
 // Send
 func (ctrl *NodeController) Send(ctx context.Context, msg protoreflect.ProtoMessage, broadcast bool) error {
 	if ctrl == nil {
@@ -298,6 +304,7 @@ func (ctrl *NodeController) Send(ctx context.Context, msg protoreflect.ProtoMess
 		}
 	}
 }
+*/
 
 // NextNode
 func (ctrl *NodeController) NextNode() *nodeHanadler {

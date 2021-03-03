@@ -80,7 +80,7 @@ func (m *RequestManager) List(ctx context.Context, session *xorm.Session, req Li
 	if req.ExpireStatus == 1 {
 		// TODO
 	} else if req.ExpireStatus == 2 {
-		const retryPaddingInterval = 180
+		const retryPaddingInterval = 360
 		handler = handler.And("(is_succeed=0 and start_utc+option_max_ttl_per_request<?)", time.Now().Unix()-retryPaddingInterval)
 	} else if req.ExpireStatus != 0 {
 		return nil, pbError.ErrInvalidArgument.New("invalid expire status")
