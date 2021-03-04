@@ -69,7 +69,6 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 	}
 
 	var (
-		err   error
 		timer = time.NewTimer(defaultCheckTimeoutRequestInterval)
 		data  []byte
 		msg   pbCrawl.Command_Request
@@ -104,7 +103,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			}
 
 			// 根据连接数情况缓存
-			data, err = redis.Bytes(ctrl.redisClient.Do("BRPOP", config.CrawlRequestQueue, 0))
+			items, err := redis.ByteSlices(ctrl.redisClient.Do("BRPOP", config.CrawlRequestQueue, 0))
 			if err == redis.ErrNil || err == redis.ErrTimeout {
 				continue
 			} else if err != nil {
@@ -112,6 +111,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 				time.Sleep(time.Millisecond * 200)
 				continue
 			}
+			data = items[1]
 
 			msg.Reset()
 			if err = protojson.Unmarshal(data, &msg); err != nil {
