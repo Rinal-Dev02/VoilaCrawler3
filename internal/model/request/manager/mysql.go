@@ -50,8 +50,6 @@ type ListRequest struct {
 	Retryable bool
 }
 
-const retryPaddingInterval = 1800 // 30mins
-
 func (m *RequestManager) List(ctx context.Context, session *xorm.Session, req ListRequest) ([]*request.Request, error) {
 	if m == nil {
 		return nil, nil
@@ -77,7 +75,8 @@ func (m *RequestManager) List(ctx context.Context, session *xorm.Session, req Li
 	if req.Retryable {
 		t := time.Now().Unix()
 		handler = handler.And("status_retry_count < option_max_retry_count").
-			And("(is_succeed=0 and start_utc+option_max_ttl_per_request<?)", t-retryPaddingInterval)
+			And("((status!=1 and is_succeed=0 and start_utc+option_max_ttl_per_request<?) OR (status=1 and is_succeed=0 and start_utc<?))",
+				t-120, t-3600)
 	}
 
 	var reqs []*types.Request
