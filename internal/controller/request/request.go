@@ -82,8 +82,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			timer.Reset(defaultCheckTimeoutRequestInterval)
 
 			reqs, err := ctrl.requestManager.List(ctx, nil, reqManager.ListRequest{
-				Page: 1, Count: 200,
-				ExpireStatus: 2, Retryable: true,
+				Page: 1, Count: 200, Retryable: true,
 			})
 			if err != nil {
 				ctrl.logger.Errorf("list request failed, error=%s", err)
