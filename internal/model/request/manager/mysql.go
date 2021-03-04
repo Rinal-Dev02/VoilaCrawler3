@@ -143,7 +143,7 @@ func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session
 	switch status {
 	case 1:
 		sql = `update request set status=1,status_retry_count=status_retry_count+1,start_utc=?,end_utc=0 where id=? and option_max_retry_count>status_retry_count`
-		vals = append(vals, id, t)
+		vals = append(vals, t, id)
 	case 2:
 		sql = `update request set status=2,start_utc=?,end_utc=0 where id=? and status=1`
 		vals = append(vals, t, id)
