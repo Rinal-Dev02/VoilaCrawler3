@@ -175,8 +175,6 @@ func (handler *nodeHanadler) Run() error {
 			return err
 		}
 
-		handler.logger.Debugf("message %s", anyData.GetTypeUrl())
-
 		now := time.Now()
 		switch anyData.GetTypeUrl() {
 		case joinPingTypeUrl:
