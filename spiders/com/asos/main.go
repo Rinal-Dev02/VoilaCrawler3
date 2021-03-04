@@ -64,7 +64,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.EnableSessionInit = true
+	options.EnableSessionInit = false
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
 		&http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
@@ -574,7 +574,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		})
 		req.AddCookie(&http.Cookie{
 			Name: "asos",
-			Value: fmt.Sprintf("PreferredSite=&currencyid=2&currencylabel=USD&topcatid=1000&customerguid=%s",
+			Value: fmt.Sprintf("PreferredSite=&currencyid=2&currencylabel=USD&topcatid=1000&customerguid=%x",
 				md5.Sum([]byte("guid"+strconv.Format(time.Now().Unix()/1000)))),
 		})
 		req.AddCookie(&http.Cookie{Name: "_s_fpv", Value: "true"})
@@ -701,7 +701,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.asos.com/us/olivia-burton/olivia-burton-white-dial-midi-mesh-watch-in-rose-gold/prd/22313628?colourwayid=60389207&cid=5088",
+		"https://www.asos.com/us/catch/catch-exclusive-ribbed-tie-cardigan-set-in-beige/grp/34104?colourwayid=60431494&cid=2623",
+		// "https://www.asos.com/us/olivia-burton/olivia-burton-white-dial-midi-mesh-watch-in-rose-gold/prd/22313628?colourwayid=60389207&cid=5088",
 		// "https://www.asos.com/us/women/new-in/new-in-clothing/cat/?cid=2623&nlid=ww%7Cclothing%7Cshop%20by%20product&page=1",
 		// "https://www.asos.com/api/product/search/v2/categories/2623?channel=desktop-web&country=US&currency=USD&keyStoreDataversion=3pmn72e-27&lang=en-US&limit=72&nlid=ww%7Cclothing%7Cshop+by+product&offset=72&rowlength=4&store=US",
 		// "https://www.asos.com/us/missguided-plus/missguided-plus-oversized-long-sleeve-t-shirt-in-gray-snake-tie-dye/prd/23385813?colourwayid=60477943&SearchQuery=&cid=4169",
