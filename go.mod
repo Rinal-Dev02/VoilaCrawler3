@@ -9,10 +9,11 @@ require (
 	github.com/google/martian v2.1.0+incompatible
 	github.com/gosimple/slug v1.9.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1
+	github.com/jteeuwen/go-bindata v3.0.7+incompatible // indirect
 	github.com/nsqio/go-nsq v1.0.8
 	github.com/satori/go.uuid v1.2.0
 	github.com/urfave/cli/v2 v2.3.0
-	github.com/voiladev/go-framework v0.0.0-20210131163501-2bf7fef9cb75
+	github.com/voiladev/go-framework v1.0.0-release
 	github.com/voiladev/protobuf v0.0.0-20210118020030-24eac5fdaed4
 	go.uber.org/fx v1.13.1
 	golang.org/x/net v0.0.0-20201216054612-986b41b23924

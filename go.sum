@@ -128,6 +128,8 @@ github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db/go.mod h1:/XxbfmMg8l
 github.com/golang/snappy v0.0.1/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
 github.com/golang/snappy v0.0.2 h1:aeE13tS0IiQgFjYdoL8qN3K1N2bXXtI6Vi51/y7BpMw=
 github.com/golang/snappy v0.0.2/go.mod h1:/XxbfmMg8lxefKM7IXC3fBNl/7bRcc72aCRzEWrmP2Q=
+github.com/gomodule/redigo v1.8.4 h1:Z5JUg94HMTR1XpwBaSH4vq3+PNSIykBLxMdglbw10gg=
+github.com/gomodule/redigo v1.8.4/go.mod h1:P9dn9mFrCBvWhGE1wpxx6fgq7BAeLBk+UUUzlpkBYO0=
 github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
 github.com/google/btree v1.0.0/go.mod h1:lNA+9X1NB3Zf8V7Ke586lFgjr2dZNuvo3lPJSGZ5JPQ=
 github.com/google/go-cmp v0.2.0/go.mod h1:oXzfMopK8JAjlY9xF4vHSVASa0yLyX7SntLO5aqRK0M=
@@ -235,6 +237,8 @@ github.com/urfave/cli/v2 v2.3.0/go.mod h1:LJmUH05zAU44vOAcrfzZQKsZbVcdbOG8rtL3/X
 github.com/voiladev/go-framework v0.0.0-20201201025401-5626a361162b/go.mod h1:JXw0q8GLsRmwmxYsYQzYZiu/mbwZHfHu1c7GvNcT8Bo=
 github.com/voiladev/go-framework v0.0.0-20210131163501-2bf7fef9cb75 h1:lVb6k4DafhaRHDsqNgqGqiLawAXbFj5sOcINxjravcw=
 github.com/voiladev/go-framework v0.0.0-20210131163501-2bf7fef9cb75/go.mod h1:xUetvL2JmFeIglWCnqRsCLD3/7vXbHMSnHJnvYxO1oI=
+github.com/voiladev/go-framework v1.0.0-release h1:sO+XC4TDgBnqUZ737X5Jsovt7L0Qp6dhMIuBGo0C74s=
+github.com/voiladev/go-framework v1.0.0-release/go.mod h1:p8AEmX4CS/Ch23kd/erKOvVAAdiMe9NE0+BG32ABeIE=
 github.com/voiladev/jwt-go v0.0.0-20170303134508-47b9a396ed4f h1:YP+zHDPRbLYdXMeQJt6F37CBUdIy5FuFY0PqLx/F39g=
 github.com/voiladev/jwt-go v0.0.0-20170303134508-47b9a396ed4f/go.mod h1:UyKQJIGSqJj9/H1IX44modZj+5GDWyZT1d1VnMgyVvc=
 github.com/voiladev/protobuf v0.0.0-20201218014802-0eebbb757eca h1:85iZskAcKWWDMPt/hgoglBOWXImp9mzYxFQlj73YjVE=

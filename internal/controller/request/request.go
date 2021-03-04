@@ -105,8 +105,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 
 			// 根据连接数情况缓存
 			data, err = redis.Bytes(ctrl.redisClient.Do("BRPOP", config.CrawlRequestQueue, 0))
-			if err == redis.ErrNil {
-				time.Sleep(time.Millisecond * 100)
+			if err == redis.ErrNil || err == redis.ErrTimeout {
 				continue
 			} else if err != nil {
 				ctrl.logger.Errorf("pop data from %s failed, error=%s", config.CrawlRequestQueue, err)
