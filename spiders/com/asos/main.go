@@ -63,7 +63,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.EnableSessionInit = false
+	options.EnableSessionInit = true
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
 		// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
