@@ -117,6 +117,9 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	if ctx.Value("job_id") != nil {
 		req.JobId = ctx.Value("job_id").(string)
 	}
+	if ctx.Value("req_id") != nil {
+		req.ReqId = ctx.Value("req_id").(string)
+	}
 	for key, vals := range r.Header {
 		req.Headers[key] = &pbHttp.ListValue{Values: vals}
 	}
