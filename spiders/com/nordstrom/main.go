@@ -65,7 +65,7 @@ func (c *_Crawler) Version() int32 {
 // for the means of every options please see the definition.
 func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	return &crawler.CrawlOptions{
-		EnableHeadless: true,
+		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
 		// Reliability high match to crawl api, and log match to backconnect
