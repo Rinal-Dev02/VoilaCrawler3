@@ -16,6 +16,7 @@ import (
 	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -119,6 +120,8 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	}
 	if ctx.Value("req_id") != nil {
 		req.ReqId = ctx.Value("req_id").(string)
+	} else {
+		req.ReqId = fmt.Sprintf("req_%s", randutil.MustNewRandomID())
 	}
 	for key, vals := range r.Header {
 		req.Headers[key] = &pbHttp.ListValue{Values: vals}

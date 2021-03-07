@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	//"github.com/gosimple/slug"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -58,7 +57,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
+	options.EnableSessionInit = true
 	options.MustCookies = append(options.MustCookies) //&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
 	// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
 	// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
@@ -71,7 +70,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.farfetch.com"}
+	return []string{"*.farfetch.com"}
 }
 
 func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
@@ -117,6 +116,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if c == nil || yield == nil {
 		return nil
 	}
+
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Debug(err)
@@ -161,12 +161,11 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	lastIndex := nextIndex(ctx)
 	for _, prod := range r.ListingItems.Items {
-		rawurl := fmt.Sprintf("%s://%s/us%s", resp.Request.URL.Scheme, resp.Request.URL.Host, prod.URL)
-		if strings.HasPrefix(prod.URL, "http:") || strings.HasPrefix(prod.URL, "https:") {
-			rawurl = prod.URL
+		if prod.URL == "" {
+			continue
 		}
 
-		if req, err := http.NewRequest(http.MethodGet, rawurl, nil); err != nil {
+		if req, err := http.NewRequest(http.MethodGet, prod.URL, nil); err != nil {
 			c.logger.Debug(err)
 			return err
 		} else {
@@ -184,8 +183,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		page = 1
 	}
 	// check if this is the last page
-	if len(r.ListingItems.Items) >= r.ListingPagination.TotalItems ||
-		page >= int64(r.ListingPagination.TotalPages) {
+	if page >= int64(r.ListingPagination.TotalPages) {
 		return nil
 	}
 
@@ -922,8 +920,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		})
 	}
 
-	fmt.Println(&item)
-
 	// yield item result
 	if err = yield(ctx, &item); err != nil {
 		return err
@@ -953,29 +949,38 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
+	// build a http client
+	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
 
+	// instance the spider locally
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)
 	}
 	opts := spider.CrawlOptions()
 
+	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
 
+			// process logic of sub request
+
+			// init custom headers
 			for k := range opts.MustHeader {
 				i.Header.Set(k, opts.MustHeader.Get(k))
 			}
+
+			// init custom cookies
 			for _, c := range opts.MustCookies {
 				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
 					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
@@ -987,7 +992,25 @@ func main() {
 				}
 			}
 
-			resp, err := client.DoWithOptions(ctx, i, http.Options{EnableProxy: false})
+			// set scheme,host for sub requests. for the product url in category page is just the path without hosts info.
+			// here is just the test logic. when run the spider online, the controller will process automatically
+			if i.URL.Scheme == "" {
+				i.URL.Scheme = "https"
+			}
+			if i.URL.Host == "" {
+				i.URL.Host = "www.farfetch.com"
+			}
+
+			// do http requests here.
+			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+			defer cancel()
+			resp, err := client.DoWithOptions(nctx, i, http.Options{
+				EnableProxy:       true,
+				EnableHeadless:    false,
+				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
+				KeepSession:       spider.CrawlOptions().KeepSession,
+				Reliability:       spider.CrawlOptions().Reliability,
+			})
 			if err != nil {
 				panic(err)
 			}
@@ -995,19 +1018,20 @@ func main() {
 
 			return spider.Parse(ctx, resp, callback)
 		default:
-			data, err := json.Marshal(i)
-			if err != nil {
-				return err
-			}
-			logger.Infof("data: %s", data)
+			// output the result
+			// data, err := json.Marshal(i)
+			// if err != nil {
+			// 	return err
+			// }
+			// logger.Infof("data: %s", data)
+			// logger.Debugf("OK")
 		}
 		return nil
 	}
 
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-		defer cancel()
-
 		if err := callback(ctx, req); err != nil {
 			logger.Fatal(err)
 		}

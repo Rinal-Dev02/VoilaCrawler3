@@ -514,54 +514,90 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
+	// build a http client
+	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
+	// instance the spider locally
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)
 	}
 	opts := spider.CrawlOptions()
 
-	for _, req := range spider.NewTestRequest(ctx) {
-		for k := range opts.MustHeader {
-			req.Header.Set(k, opts.MustHeader.Get(k))
-		}
-		for _, c := range opts.MustCookies {
-			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
-				val := fmt.Sprintf("%s=%s", c.Name, c.Value)
-				if c := req.Header.Get("Cookie"); c != "" {
-					req.Header.Set("Cookie", c+"; "+val)
-				} else {
-					req.Header.Set("Cookie", val)
+	// this callback func is used to do recursion call of sub requests.
+	var callback func(ctx context.Context, val interface{}) error
+	callback = func(ctx context.Context, val interface{}) error {
+		switch i := val.(type) {
+		case *http.Request:
+			logger.Debugf("Access %s", i.URL)
+
+			// process logic of sub request
+
+			// init custom headers
+			for k := range opts.MustHeader {
+				i.Header.Set(k, opts.MustHeader.Get(k))
+			}
+
+			// init custom cookies
+			for _, c := range opts.MustCookies {
+				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
+					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+					if c := i.Header.Get("Cookie"); c != "" {
+						i.Header.Set("Cookie", c+"; "+val)
+					} else {
+						i.Header.Set("Cookie", val)
+					}
 				}
 			}
-		}
 
-		resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: true})
-		if err != nil {
-			panic(err)
-		}
-		defer resp.Body.Close()
+			// set scheme,host for sub requests. for the product url in category page is just the path without hosts info.
+			// here is just the test logic. when run the spider online, the controller will process automatically
+			if i.URL.Scheme == "" {
+				i.URL.Scheme = "https"
+			}
+			if i.URL.Host == "" {
+				i.URL.Host = "www.ruelala.com"
+			}
 
-		if err := spider.Parse(ctx, resp, func(ctx context.Context, val interface{}) error {
-			data, err := json.Marshal(val)
+			// do http requests here.
+			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+			defer cancel()
+			resp, err := client.DoWithOptions(nctx, i, http.Options{
+				EnableProxy:       true,
+				EnableHeadless:    false,
+				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
+				KeepSession:       spider.CrawlOptions().KeepSession,
+				Reliability:       spider.CrawlOptions().Reliability,
+			})
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
+
+			return spider.Parse(ctx, resp, callback)
+		default:
+			// output the result
+			data, err := json.Marshal(i)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%s\n", data)
+			logger.Infof("data: %s", data)
+		}
+		return nil
+	}
 
-			return nil
-		}); err != nil {
-			panic(err)
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("ruelala_%d", time.Now().UnixNano()))
+	// start the crawl request
+	for _, req := range spider.NewTestRequest(context.Background()) {
+		if err := callback(ctx, req); err != nil {
+			logger.Fatal(err)
 		}
 	}
 }

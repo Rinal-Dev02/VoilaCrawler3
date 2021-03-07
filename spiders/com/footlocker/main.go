@@ -47,7 +47,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 
 // ID
 func (c *_Crawler) ID() string {
-	return "8A8F9FE2E6014E87836E164B176EBFA5"
+	return "8a8f9fe2e6014e87836e164b176ebfa5"
 }
 
 // Version
@@ -60,7 +60,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
+	options.EnableSessionInit = true
 	options.MustCookies = append(options.MustCookies) //&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
 	// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
 	// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
@@ -73,7 +73,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.footlocker.com"}
+	return []string{"*.footlocker.com"}
 }
 
 func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
@@ -283,9 +283,10 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	lastIndex := nextIndex(ctx)
 	for _, idv := range r.Search.Products {
-
+		if idv.URL == "" {
+			continue
+		}
 		rawurl := fmt.Sprintf("%s://%s/product/a/%s.html", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.URL)
-		fmt.Println(rawurl, " :: ", idv.Name)
 		// prod page
 		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 		if err != nil {
@@ -678,29 +679,38 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
+	// build a http client
+	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
 
+	// instance the spider locally
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)
 	}
 	opts := spider.CrawlOptions()
 
+	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
 
+			// process logic of sub request
+
+			// init custom headers
 			for k := range opts.MustHeader {
 				i.Header.Set(k, opts.MustHeader.Get(k))
 			}
+
+			// init custom cookies
 			for _, c := range opts.MustCookies {
 				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
 					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
@@ -712,7 +722,25 @@ func main() {
 				}
 			}
 
-			resp, err := client.DoWithOptions(ctx, i, http.Options{EnableProxy: false})
+			// set scheme,host for sub requests. for the product url in category page is just the path without hosts info.
+			// here is just the test logic. when run the spider online, the controller will process automatically
+			if i.URL.Scheme == "" {
+				i.URL.Scheme = "https"
+			}
+			if i.URL.Host == "" {
+				i.URL.Host = "www.footlocker.com"
+			}
+
+			// do http requests here.
+			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+			defer cancel()
+			resp, err := client.DoWithOptions(nctx, i, http.Options{
+				EnableProxy:       true,
+				EnableHeadless:    false,
+				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
+				KeepSession:       spider.CrawlOptions().KeepSession,
+				Reliability:       spider.CrawlOptions().Reliability,
+			})
 			if err != nil {
 				panic(err)
 			}
@@ -720,6 +748,7 @@ func main() {
 
 			return spider.Parse(ctx, resp, callback)
 		default:
+			// output the result
 			data, err := json.Marshal(i)
 			if err != nil {
 				return err
@@ -729,10 +758,9 @@ func main() {
 		return nil
 	}
 
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-		defer cancel()
-
 		if err := callback(ctx, req); err != nil {
 			logger.Fatal(err)
 		}
