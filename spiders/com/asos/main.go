@@ -67,13 +67,13 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options.EnableSessionInit = false
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
-		&http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
-		&http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
-		&http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
-		&http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-		&http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-		&http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
-		&http.Cookie{Name: "currency", Value: "2", Path: "/"},
+		// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
+		// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
+		// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
+		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+		// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
+		// &http.Cookie{Name: "currency", Value: "2", Path: "/"},
 	)
 
 	return options
@@ -564,22 +564,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 			}
 		}
-		req.AddCookie(&http.Cookie{
-			Name:  "keyStoreDataversion",
-			Value: vals.Get("keyStoreDataversion"),
-		})
-		req.AddCookie(&http.Cookie{
-			Name:  "siteChromeVersion",
-			Value: "au=11&com=11&de=11&dk=11&es=11&fr=11&it=11&nl=11&pl=11&roe=11&row=11&ru=11&se=11&us=11",
-		})
-		req.AddCookie(&http.Cookie{
-			Name: "asos",
-			Value: fmt.Sprintf("PreferredSite=&currencyid=2&currencylabel=USD&topcatid=1000&customerguid=%x",
-				md5.Sum([]byte("guid"+strconv.Format(time.Now().Unix()/1000)))),
-		})
-		req.AddCookie(&http.Cookie{Name: "_s_fpv", Value: "true"})
-		req.AddCookie(&http.Cookie{Name: "s_cc", Value: "true"})
-		req.AddCookie(&http.Cookie{Name: "floor", Value: "1000"})
+
 		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 			EnableProxy:    true,
 			EnableHeadless: c.CrawlOptions().EnableHeadless,

@@ -207,6 +207,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
+					Host:      r.GetHost(),
 					ErrMsg:    err.Error(),
 				})
 				continue
@@ -219,6 +220,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
+					Host:      r.GetHost(),
 					ErrMsg:    err.Error(),
 				})
 				continue
@@ -230,6 +232,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
+					Host:      r.GetHost(),
 					ErrMsg:    fmt.Sprintf("0/%d crawler found", count),
 				})
 				continue
@@ -391,6 +394,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
+					Host:      r.GetHost(),
 					Duration:  duration,
 					IsSucceed: err == nil,
 					ErrMsg:    errMsg,

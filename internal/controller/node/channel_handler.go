@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -266,9 +265,7 @@ func (handler *nodeHanadler) Run() error {
 					return pbError.ErrDataLoss.New(fmt.Errorf("request %s not found", data.GetReqId()))
 				}
 				if !isUnlock {
-					if u, _ := url.Parse(req.GetUrl()); u != nil && u.Hostname() != "" {
-						handler.ctrl.threadCtrl.Unlock(handler.ctx, u.Hostname(), data.GetReqId())
-					}
+					handler.ctrl.threadCtrl.Unlock(handler.ctx, req.Host(), data.GetReqId())
 				}
 
 				if _, err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, session,

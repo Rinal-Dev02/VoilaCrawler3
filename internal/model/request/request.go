@@ -9,7 +9,6 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/types"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/randutil"
-	"golang.org/x/net/publicsuffix"
 )
 
 type Request struct {
@@ -125,6 +124,17 @@ func (r *Request) Validate() error {
 	return nil
 }
 
+func (r *Request) Host() string {
+	if r == nil {
+		return ""
+	}
+	u, err := url.Parse(r.GetUrl())
+	if err != nil {
+		return ""
+	}
+	return u.Host
+}
+
 func (r *Request) Unmarshal(ret interface{}) error {
 	if r == nil {
 		return errors.New("empty")
@@ -138,12 +148,7 @@ func (r *Request) Unmarshal(ret interface{}) error {
 		val.TracingId = r.GetTracingId()
 		val.JobId = r.GetJobId()
 		val.ReqId = r.GetId()
-		u, err := url.Parse(val.GetUrl())
-		if err != nil {
-			return err
-		}
-		val.Host, _ = publicsuffix.PublicSuffix(u.Hostname())
-
+		val.Host = r.Host()
 		val.Method = r.GetMethod()
 		val.Url = r.GetUrl()
 		val.Body = r.GetBody()

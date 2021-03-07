@@ -146,7 +146,7 @@ func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session
 		sql = `update request set status=2,start_utc=?,end_utc=0 where id=? and status=1`
 		vals = append(vals, t, id)
 	case 3:
-		sql = `update request set status=3,end_utc=?,duration=?,is_succeed=?,err_msg=? where id=?`
+		sql = `update request set status=3,end_utc=?,duration=?,is_succeed=?,err_msg=? where id=? and is_succeed=0`
 		vals = append(vals, t, duration, isSucceed, msg, id)
 	default:
 		return false, pbError.ErrInvalidArgument.New("invalid status")

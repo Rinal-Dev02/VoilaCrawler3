@@ -177,10 +177,19 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 		return nil
 	}
 
-	if _, err := ctrl.redisClient.Do("LPUSH", config.CrawlRequestQueue, reqData); err != nil {
-		logger.Errorf("lpush request failed, error=%s", err)
-		session.Rollback()
-		return pbError.ErrDatabase.New(err)
+	if exists, err := redis.Bool(ctrl.redisClient.Do("SISMEMBER", config.CrawlRequestQueueSet, req.GetId())); err != nil {
+		logger.Errorf("check req queue status fialed, error=%s", err)
+		return pbError.ErrInternal.New(err)
+	} else if !exists {
+		if _, err := ctrl.redisClient.Do("LPUSH", config.CrawlRequestQueue, reqData); err != nil {
+			logger.Errorf("lpush request failed, error=%s", err)
+			session.Rollback()
+			return pbError.ErrDatabase.New(err)
+		}
+		if _, err := ctrl.redisClient.Do("SADD", config.CrawlRequestQueueSet, req.GetId()); err != nil {
+			logger.Errorf("set request cache status failed, error=%s", err)
+			return pbError.ErrInternal.New(err)
+		}
 	}
 
 	if err := session.Commit(); err != nil {

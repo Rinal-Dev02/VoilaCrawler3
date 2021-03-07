@@ -74,26 +74,37 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 		msg   pbCrawl.Command_Request
 	)
 
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				reqs, err := ctrl.requestManager.List(ctx, nil, reqManager.ListRequest{
+					Page: 1, Count: 200, Retryable: true,
+				})
+				if err != nil {
+					ctrl.logger.Errorf("list request failed, error=%s", err)
+					timer.Reset(defaultCheckTimeoutRequestInterval)
+					continue
+				}
+				ctrl.logger.Debugf("got %d requests", len(reqs))
+
+				for _, req := range reqs {
+					if err := ctrl.nodeCtrl.PublishRequest(ctx, req); err != nil {
+						ctrl.logger.Errorf("publish request failed, error=%s", err)
+					}
+				}
+				timer.Reset(defaultCheckTimeoutRequestInterval)
+			}
+		}
+	}()
+
 	for {
 		select {
 		case <-ctx.Done():
+			ctrl.logger.Error(ctx.Err())
 			return ctx.Err()
-		case <-timer.C:
-			timer.Reset(defaultCheckTimeoutRequestInterval)
-
-			reqs, err := ctrl.requestManager.List(ctx, nil, reqManager.ListRequest{
-				Page: 1, Count: 200, Retryable: true,
-			})
-			if err != nil {
-				ctrl.logger.Errorf("list request failed, error=%s", err)
-				continue
-			}
-
-			for _, req := range reqs {
-				if err := ctrl.nodeCtrl.PublishRequest(ctx, req); err != nil {
-					ctrl.logger.Errorf("publish request failed, error=%s", err)
-				}
-			}
 		default:
 			node := ctrl.nodeCtrl.NextNode()
 			if node == nil {
@@ -119,7 +130,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			}
 
 			// lock at most 15mins
-			if ctrl.threadCtrl.Lock(ctrl.ctx, msg.GetHost(), msg.GetReqId(), 15*60) {
+			if ctrl.threadCtrl.Lock(ctrl.ctx, msg.GetHost(), msg.GetReqId(), int64(msg.GetOptions().GetMaxTtlPerRequest())) {
 				cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano()}
 				cmd.Data, _ = anypb.New(&msg)
 
@@ -130,13 +141,14 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 					ctrl.logger.Errorf("send msg failed, error=%s", err)
 					continue
 				}
-
 				if _, err := ctrl.requestManager.UpdateStatus(ctx, nil, msg.GetReqId(), 2, 0, false, ""); err != nil {
 					ctrl.logger.Errorf("update status of request %s failed, error=%s", msg.GetReqId(), err)
 				}
 			} else if _, err = ctrl.redisClient.Do("LPUSH", config.CrawlRequestQueue, data); err != nil {
 				ctrl.logger.Errorf("requeue request %s failed, error=%s", msg.GetReqId(), err)
 				time.Sleep(time.Millisecond * 200)
+			} else if _, err = ctrl.redisClient.Do("SREM", config.CrawlRequestQueueSet, msg.GetReqId()); err != nil {
+				ctrl.logger.Errorf("remove req cache key failed, error=%s", err)
 			}
 		}
 	}

@@ -67,7 +67,9 @@ func NewThreadController(ctx context.Context, theadPerHost int32, logger glog.Lo
 					}
 					for _, id := range invalidReqs {
 						delete(status.Requests, id)
+						atomic.AddInt32(&status.Count, -1)
 					}
+					ctrl.logger.Debugf("thread %s %d", key, status.Count)
 					return true
 				})
 			}
@@ -81,7 +83,7 @@ func (ctrl *ThreadController) Lock(ctx context.Context, host string, reqId strin
 		return false
 	}
 	if ttl == 0 {
-		ttl = 15 * 60
+		ttl = 6 * 60
 	}
 
 	val, _ := ctrl.hostStatus.LoadOrStore(host, &hostConcurrencyStatus{
@@ -92,11 +94,16 @@ func (ctrl *ThreadController) Lock(ctx context.Context, host string, reqId strin
 	})
 	status := val.(*hostConcurrencyStatus)
 
+	status.Mutex.Lock()
 	if status.Count < ctrl.threadPerHost {
+		ctrl.logger.Debugf("set lock %s %s %v", host, reqId, ttl)
+
 		atomic.AddInt32(&status.Count, 1)
 		status.Requests[reqId] = time.Now().Unix() + ttl
+		status.Mutex.Unlock()
 		return true
 	}
+	status.Mutex.Unlock()
 	return false
 }
 
@@ -104,6 +111,8 @@ func (ctrl *ThreadController) Unlock(ctx context.Context, host string, reqId str
 	if ctrl == nil {
 		return
 	}
+
+	ctrl.logger.Debugf("unlock %s, %s", host, reqId)
 
 	if val, ok := ctrl.hostStatus.Load(host); ok {
 		status := val.(*hostConcurrencyStatus)
