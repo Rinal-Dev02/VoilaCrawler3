@@ -429,10 +429,10 @@ type parseProductStockPrice struct {
 			ConversionID string  `json:"conversionId"`
 		} `json:"previous"`
 		Rrp struct {
-			Value        interface{} `json:"value"`
-			Text         interface{} `json:"text"`
-			VersionID    string      `json:"versionId"`
-			ConversionID string      `json:"conversionId"`
+			Value        float64 `json:"value"`
+			Text         string  `json:"text"`
+			VersionID    string  `json:"versionId"`
+			ConversionID string  `json:"conversionId"`
 		} `json:"rrp"`
 		Xrp struct {
 			Value        float64 `json:"value"`
@@ -658,6 +658,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				// 接口里返回的都是美元价格，请求的页面path有个 /us 前缀
 				Currency: regulation.Currency_USD,
 				Current:  int32(vv.Price.Current.Value * 100),
+				Msrp:     int32(vv.Price.Previous.Value * 100),
 			},
 			Stock: &pbItem.Stock{
 				StockStatus: pbItem.Stock_OutOfStock,
@@ -677,6 +678,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 		if vv.IsInStock {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
+		}
+		if item.Price.Msrp == 0 {
+			item.Price.Msrp = sku.Price.Msrp
 		}
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
