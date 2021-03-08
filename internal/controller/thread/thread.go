@@ -67,7 +67,9 @@ func NewThreadController(ctx context.Context, theadPerHost int32, logger glog.Lo
 					}
 					for _, id := range invalidReqs {
 						delete(status.Requests, id)
-						atomic.AddInt32(&status.Count, -1)
+						if status.Count > 0 {
+							atomic.AddInt32(&status.Count, -1)
+						}
 					}
 					ctrl.logger.Debugf("thread %s %d", key, status.Count)
 					return true
@@ -120,7 +122,9 @@ func (ctrl *ThreadController) Unlock(ctx context.Context, host string, reqId str
 		status.Mutex.Lock()
 		if _, ok := status.Requests[reqId]; ok {
 			delete(status.Requests, reqId)
-			atomic.AddInt32(&status.Count, -1)
+			if status.Count > 0 {
+				atomic.AddInt32(&status.Count, -1)
+			}
 		}
 		status.Mutex.Unlock()
 	}
