@@ -130,13 +130,13 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			}
 
 			// lock at most 15mins
-			if ctrl.threadCtrl.Lock(ctrl.ctx, msg.GetHost(), msg.GetReqId(), int64(msg.GetOptions().GetMaxTtlPerRequest())) {
+			if ctrl.threadCtrl.Lock(ctrl.ctx, msg.GetStoreId(), msg.GetReqId(), int64(msg.GetOptions().GetMaxTtlPerRequest())) {
 				cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano()}
 				cmd.Data, _ = anypb.New(&msg)
 
 				ctrl.logger.Debugf("%s %s", msg.GetMethod(), msg.GetUrl())
 				if err = node.Send(ctx, &cmd); err != nil {
-					ctrl.threadCtrl.Unlock(ctrl.ctx, msg.GetHost(), msg.GetReqId())
+					ctrl.threadCtrl.Unlock(ctrl.ctx, msg.GetStoreId(), msg.GetReqId())
 
 					ctrl.logger.Errorf("send msg failed, error=%s", err)
 					continue

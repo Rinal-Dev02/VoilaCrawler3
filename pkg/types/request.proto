@@ -39,8 +39,10 @@ message Request {
     string tracingId  = 2 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
     // JobId
     string jobId      = 3 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
+    // StoreId
+    string storeId    = 4 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
     // ParentId
-    string parentId   = 4 [(gogoproto.moretags) = "xorm:\"varchar(64)\""];
+    string parentId   = 5 [(gogoproto.moretags) = "xorm:\"varchar(64)\""];
 
     // Method
     string method        = 12 [(gogoproto.moretags) = "xorm:\"varchar(16)\""];

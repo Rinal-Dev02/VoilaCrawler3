@@ -251,8 +251,8 @@ func (handler *nodeHanadler) Run() error {
 				}
 
 				isUnlock := false
-				if data.GetHost() != "" {
-					handler.ctrl.threadCtrl.Unlock(handler.ctx, data.GetHost(), data.GetReqId())
+				if data.GetStoreId() != "" {
+					handler.ctrl.threadCtrl.Unlock(handler.ctx, data.GetStoreId(), data.GetReqId())
 					isUnlock = true
 				}
 
@@ -265,7 +265,7 @@ func (handler *nodeHanadler) Run() error {
 					return pbError.ErrDataLoss.New(fmt.Errorf("request %s not found", data.GetReqId()))
 				}
 				if !isUnlock {
-					handler.ctrl.threadCtrl.Unlock(handler.ctx, req.Host(), data.GetReqId())
+					handler.ctrl.threadCtrl.Unlock(handler.ctx, req.GetStoreId(), data.GetReqId())
 				}
 
 				if _, err := handler.ctrl.requestManager.UpdateStatus(handler.ctx, session,

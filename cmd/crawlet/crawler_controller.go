@@ -207,7 +207,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
-					Host:      r.GetHost(),
+					StoreId:   r.GetStoreId(),
 					ErrMsg:    err.Error(),
 				})
 				continue
@@ -220,7 +220,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
-					Host:      r.GetHost(),
+					StoreId:   r.GetStoreId(),
 					ErrMsg:    err.Error(),
 				})
 				continue
@@ -232,7 +232,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
-					Host:      r.GetHost(),
+					StoreId:   r.GetStoreId(),
 					ErrMsg:    fmt.Sprintf("0/%d crawler found", count),
 				})
 				continue
@@ -249,6 +249,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					"tracing_id", r.TracingId,
 					"job_id", r.JobId,
 					"req_id", r.ReqId,
+					"store_id", r.StoreId,
 				)
 				for k, v := range r.SharingData {
 					sharingData = append(sharingData, k, v)
@@ -310,6 +311,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 									TracingId:     r.GetTracingId(),
 									JobId:         r.GetJobId(),
 									ReqId:         r.GetReqId(),
+									StoreId:       r.GetStoreId(),
 									Url:           val.URL.String(),
 									Method:        val.Method,
 									Parent:        r,
@@ -347,7 +349,8 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 
 									if strings.HasSuffix(key, "tracing_id") ||
 										strings.HasSuffix(key, "job_id") ||
-										strings.HasSuffix(key, "req_id") {
+										strings.HasSuffix(key, "req_id") ||
+										strings.HasSuffix(key, "store_id") {
 										continue
 									}
 									subreq.SharingData[key] = val
@@ -394,7 +397,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 					TracingId: r.GetTracingId(),
 					JobId:     r.GetJobId(),
 					ReqId:     r.GetReqId(),
-					Host:      r.GetHost(),
+					StoreId:   r.GetStoreId(),
 					Duration:  duration,
 					IsSucceed: err == nil,
 					ErrMsg:    errMsg,
