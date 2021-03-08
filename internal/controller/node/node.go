@@ -142,6 +142,17 @@ func (ctrl *NodeController) Unregister(ctx context.Context, id string) error {
 	return nil
 }
 
+// KEY[1]-Stores, KEY[2]-SET, KEY[3]-StoreQueue
+// ARGV[1]-reqId, ARGV[2]-req
+const requestPushScript = `local ret = redis.call("SADD", KEY[2], ARGV[1])
+if ret == 1 then
+    redis.call("LPUSH", KEY[3], ARGV[2])
+    local count = redis.call("LLEN", KEY[3])
+    redis.call("ZADD", KEY[1], count, KEY[3])
+    return 1
+end
+return 0`
+
 func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Request) error {
 	if ctrl == nil || req == nil {
 		return nil
@@ -160,41 +171,24 @@ func (ctrl *NodeController) PublishRequest(ctx context.Context, req *request.Req
 		return pbError.ErrInternal.New(err)
 	}
 
-	session := ctrl.engine.NewSession()
-	defer session.Close()
-
-	if err := session.Begin(); err != nil {
-		logger.Errorf("begin tx failed, error=%s", err)
+	key := fmt.Sprintf(config.CrawlRequestStoreQueue, cmdReq.GetStoreId())
+	if added, err := redis.Bool(ctrl.redisClient.Do("EVAL", requestPushScript, 3,
+		config.CrawlStoreList, config.CrawlRequestQueueSet, key,
+		cmdReq.GetReqId(), reqData,
+	)); err != nil {
+		logger.Errorf("set request cache status failed, error=%s", err)
 		return pbError.ErrInternal.New(err)
-	}
-
-	if updated, err := ctrl.requestManager.UpdateStatus(ctx, session, req.GetId(), 1, 0, false, ""); err != nil {
-		logger.Errorf("update request status failed, error=%s", err)
-		session.Rollback()
-		return err
-	} else if !updated {
-		logger.Warnf("can't publish request %s", req.GetId())
-		return nil
-	}
-
-	if exists, err := redis.Bool(ctrl.redisClient.Do("SISMEMBER", config.CrawlRequestQueueSet, req.GetId())); err != nil {
-		logger.Errorf("check req queue status fialed, error=%s", err)
-		return pbError.ErrInternal.New(err)
-	} else if !exists {
-		if _, err := ctrl.redisClient.Do("LPUSH", config.CrawlRequestQueue, reqData); err != nil {
-			logger.Errorf("lpush request failed, error=%s", err)
-			session.Rollback()
-			return pbError.ErrDatabase.New(err)
+	} else if added {
+		if _, err := ctrl.requestManager.UpdateStatus(ctx, nil, req.GetId(), 1, 0, false, ""); err != nil {
+			logger.Errorf("update request status failed, error=%s", err)
+			return err
 		}
-		if _, err := ctrl.redisClient.Do("SADD", config.CrawlRequestQueueSet, req.GetId()); err != nil {
-			logger.Errorf("set request cache status failed, error=%s", err)
-			return pbError.ErrInternal.New(err)
+	} else {
+		// just update timestamp
+		if _, err := ctrl.requestManager.UpdateStatus(ctx, nil, req.GetId(), -1, 0, false, ""); err != nil {
+			logger.Errorf("update request timestamp failed, error=%s", err)
+			return nil
 		}
-	}
-
-	if err := session.Commit(); err != nil {
-		logger.Errorf("commit tx failed, error=%s", err)
-		return pbError.ErrInternal.New(err)
 	}
 	return nil
 }

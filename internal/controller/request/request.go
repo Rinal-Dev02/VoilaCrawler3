@@ -57,7 +57,26 @@ func NewRequestController(
 	return &ctrl, nil
 }
 
-const defaultCheckTimeoutRequestInterval = time.Second * 5
+const (
+	defaultCheckTimeoutRequestInterval = time.Second * 5
+
+	// KEY[1]-Stores, KEY[2]-StoreQueue
+	// ARGV[1]-reqId, ARGV[2]-req
+	requestPushScript = `local ret = redis.call("LPUSH", KEY[2], ARGV[2])
+local count = redis.call("LLEN", KEY[2])
+redis.call("ZADD", KEY[1], count, KEY[2])
+return ret`
+
+	// KEY[1]-Stores, KEY[2]-StoreQueue
+	requestPopScript = `local ret = redis.call("RPOP", KEY[2])
+local count = redis.call("LLEN", KEY[2])
+if count == nil or count == 0 then
+    redis.call("ZREM", KEY[1], KEY[2])
+else
+    redis.call("ZADD", KEY[1], count, KEY[2])
+end
+return ret`
+)
 
 func (ctrl *RequestController) Run(ctx context.Context) error {
 	if ctrl == nil {
@@ -70,7 +89,6 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 
 	var (
 		timer = time.NewTimer(defaultCheckTimeoutRequestInterval)
-		data  []byte
 		msg   pbCrawl.Command_Request
 	)
 
@@ -88,7 +106,6 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 					timer.Reset(defaultCheckTimeoutRequestInterval)
 					continue
 				}
-				ctrl.logger.Debugf("got %d requests", len(reqs))
 
 				for _, req := range reqs {
 					if err := ctrl.nodeCtrl.PublishRequest(ctx, req); err != nil {
@@ -112,43 +129,64 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 				continue
 			}
 
-			// 根据连接数情况缓存
-			items, err := redis.ByteSlices(ctrl.redisClient.Do("BRPOP", config.CrawlRequestQueue, 0))
-			if err == redis.ErrNil || err == redis.ErrTimeout {
-				continue
-			} else if err != nil {
-				ctrl.logger.Errorf("pop data from %s failed, error=%s", config.CrawlRequestQueue, err)
-				time.Sleep(time.Millisecond * 200)
-				continue
-			}
-			data = items[1]
-
-			msg.Reset()
-			if err = protojson.Unmarshal(data, &msg); err != nil {
-				ctrl.logger.Errorf("unmarshal data failed, error=%s", err)
+			stores, err := redis.Strings(ctrl.redisClient.Do("ZRANGE", config.CrawlStoreList, 0, -1))
+			if err != nil {
+				ctrl.logger.Errorf("get queues failed, error=%s", err)
 				continue
 			}
 
-			// lock at most 15mins
-			if ctrl.threadCtrl.Lock(ctrl.ctx, msg.GetStoreId(), msg.GetReqId(), int64(msg.GetOptions().GetMaxTtlPerRequest())) {
-				cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano()}
-				cmd.Data, _ = anypb.New(&msg)
+			isSend := false
+			for _, key := range stores {
+				for i := 0; i < 3; i++ {
+					data, err := redis.Bytes(ctrl.redisClient.Do("EVAL", requestPopScript, 2, config.CrawlStoreList, key))
+					if err == redis.ErrNil {
+						break
+					} else if err != nil {
+						ctrl.logger.Errorf("pop data from %s failed, error=%s", key, err)
+						continue
+					}
 
-				ctrl.logger.Debugf("%s %s", msg.GetMethod(), msg.GetUrl())
-				if err = node.Send(ctx, &cmd); err != nil {
-					ctrl.threadCtrl.Unlock(ctrl.ctx, msg.GetStoreId(), msg.GetReqId())
+					msg.Reset()
+					if err = protojson.Unmarshal(data, &msg); err != nil {
+						ctrl.logger.Errorf("unmarshal data failed, error=%s", err)
+						continue
+					}
 
-					ctrl.logger.Errorf("send msg failed, error=%s", err)
-					continue
+					// lock at most 5mins
+					if ctrl.threadCtrl.Lock(ctrl.ctx, msg.GetStoreId(), msg.GetReqId(), int64(msg.GetOptions().GetMaxTtlPerRequest())) {
+						ctrl.logger.Debugf("%s %s", msg.GetMethod(), msg.GetUrl())
+
+						cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano()}
+						cmd.Data, _ = anypb.New(&msg)
+						if err = node.Send(ctx, &cmd); err != nil {
+							ctrl.threadCtrl.Unlock(ctrl.ctx, msg.GetStoreId(), msg.GetReqId())
+
+							ctrl.logger.Errorf("send msg failed, error=%s", err)
+
+							if _, err := ctrl.redisClient.Do("EVAL", requestPushScript, 2,
+								config.CrawlStoreList, key, msg.GetReqId(), data); err != nil {
+								ctrl.logger.Errorf("requeue request %s failed, error=%s", msg.GetReqId(), err)
+							}
+							continue
+						}
+						isSend = true
+
+						if _, err := ctrl.redisClient.Do("SREM", config.CrawlRequestQueueSet, msg.GetReqId()); err != nil {
+							ctrl.logger.Errorf("remove req cache key failed, error=%s", err)
+						}
+						if _, err := ctrl.requestManager.UpdateStatus(ctx, nil, msg.GetReqId(), 2, 0, false, ""); err != nil {
+							ctrl.logger.Errorf("update status of request %s failed, error=%s", msg.GetReqId(), err)
+						}
+
+						break
+					} else if _, err := ctrl.redisClient.Do("EVAL", requestPushScript, 2,
+						config.CrawlStoreList, key, msg.GetReqId(), data); err != nil {
+						ctrl.logger.Errorf("requeue request %s failed, error=%s", msg.GetReqId(), err)
+					}
 				}
-				if _, err := ctrl.requestManager.UpdateStatus(ctx, nil, msg.GetReqId(), 2, 0, false, ""); err != nil {
-					ctrl.logger.Errorf("update status of request %s failed, error=%s", msg.GetReqId(), err)
+				if isSend {
+					break
 				}
-			} else if _, err = ctrl.redisClient.Do("LPUSH", config.CrawlRequestQueue, data); err != nil {
-				ctrl.logger.Errorf("requeue request %s failed, error=%s", msg.GetReqId(), err)
-				time.Sleep(time.Millisecond * 200)
-			} else if _, err = ctrl.redisClient.Do("SREM", config.CrawlRequestQueueSet, msg.GetReqId()); err != nil {
-				ctrl.logger.Errorf("remove req cache key failed, error=%s", err)
 			}
 		}
 	}

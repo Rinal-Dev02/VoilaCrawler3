@@ -80,12 +80,32 @@ func NewThreadController(ctx context.Context, theadPerHost int32, logger glog.Lo
 	return &ctrl, nil
 }
 
+func (ctrl *ThreadController) TryLock(ctx context.Context, host string) bool {
+	if ctrl == nil {
+		return false
+	}
+
+	val, _ := ctrl.hostStatus.LoadOrStore(host, &hostConcurrencyStatus{
+		Host:      host,
+		Count:     0,
+		Requests:  map[string]int64{},
+		Timestamp: time.Now().Unix(),
+	})
+	status := val.(*hostConcurrencyStatus)
+
+	status.Mutex.Lock()
+	flag := status.Count < ctrl.threadPerHost
+	status.Mutex.Unlock()
+
+	return flag
+}
+
 func (ctrl *ThreadController) Lock(ctx context.Context, host string, reqId string, ttl int64) bool {
 	if ctrl == nil {
 		return false
 	}
-	if ttl == 0 {
-		ttl = 6 * 60
+	if ttl == 0 || ttl > 5*60 {
+		ttl = 5 * 60
 	}
 
 	val, _ := ctrl.hostStatus.LoadOrStore(host, &hostConcurrencyStatus{
