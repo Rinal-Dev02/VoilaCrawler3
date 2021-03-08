@@ -142,13 +142,13 @@ func (ctrl *NodeController) Unregister(ctx context.Context, id string) error {
 	return nil
 }
 
-// KEY[1]-Stores, KEY[2]-SET, KEY[3]-StoreQueue
+// KEYS[1]-Stores, KEYS[2]-SET, KEYS[3]-StoreQueue
 // ARGV[1]-reqId, ARGV[2]-req
-const requestPushScript = `local ret = redis.call("SADD", KEY[2], ARGV[1])
+const requestPushScript = `local ret = redis.call("SADD", KEYS[2], ARGV[1])
 if ret == 1 then
-    redis.call("LPUSH", KEY[3], ARGV[2])
-    local count = redis.call("LLEN", KEY[3])
-    redis.call("ZADD", KEY[1], count, KEY[3])
+    redis.call("LPUSH", KEYS[3], ARGV[2])
+    local count = redis.call("LLEN", KEYS[3])
+    redis.call("ZADD", KEYS[1], count, KEYS[3])
     return 1
 end
 return 0`

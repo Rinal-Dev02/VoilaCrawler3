@@ -60,20 +60,20 @@ func NewRequestController(
 const (
 	defaultCheckTimeoutRequestInterval = time.Second * 5
 
-	// KEY[1]-Stores, KEY[2]-StoreQueue
+	// KEYS[1]-Stores, KEYS[2]-StoreQueue
 	// ARGV[1]-reqId, ARGV[2]-req
-	requestPushScript = `local ret = redis.call("LPUSH", KEY[2], ARGV[2])
-local count = redis.call("LLEN", KEY[2])
-redis.call("ZADD", KEY[1], count, KEY[2])
+	requestPushScript = `local ret = redis.call("LPUSH", KEYS[2], ARGV[2])
+local count = redis.call("LLEN", KEYS[2])
+redis.call("ZADD", KEYS[1], count, KEYS[2])
 return ret`
 
-	// KEY[1]-Stores, KEY[2]-StoreQueue
-	requestPopScript = `local ret = redis.call("RPOP", KEY[2])
-local count = redis.call("LLEN", KEY[2])
+	// KEYS[1]-Stores, KEYS[2]-StoreQueue
+	requestPopScript = `local ret = redis.call("RPOP", KEYS[2])
+local count = redis.call("LLEN", KEYS[2])
 if count == nil or count == 0 then
-    redis.call("ZREM", KEY[1], KEY[2])
+    redis.call("ZREM", KEYS[1], KEYS[2])
 else
-    redis.call("ZADD", KEY[1], count, KEY[2])
+    redis.call("ZADD", KEYS[1], count, KEYS[2])
 end
 return ret`
 )
