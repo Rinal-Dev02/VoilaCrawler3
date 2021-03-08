@@ -132,6 +132,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			stores, err := redis.Strings(ctrl.redisClient.Do("ZRANGE", config.CrawlStoreList, 0, -1))
 			if err != nil {
 				ctrl.logger.Errorf("get queues failed, error=%s", err)
+				time.Sleep(time.Millisecond * 200)
 				continue
 			}
 
@@ -187,6 +188,10 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 				if isSend {
 					break
 				}
+			}
+
+			if len(stores) == 0 {
+				time.Sleep(time.Millisecond * 100)
 			}
 		}
 	}
