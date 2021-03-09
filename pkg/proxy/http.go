@@ -100,14 +100,14 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			EnableHeadless:    opts.EnableHeadless,
 			EnableSessionInit: opts.EnableSessionInit,
 			KeepSession:       opts.KeepSession,
-			MaxTtlPerRequest:  10 * 60, // 10mins
+			MaxTtlPerRequest:  5 * 60, // 5mins
 			DisableRedirect:   opts.DisableRedirect,
 		},
 	}
 	// set ttl per request according to deadline
 	if deadline, ok := ctx.Deadline(); ok {
 		timeRemain := deadline.Unix() - time.Now().Unix()
-		if timeRemain > 0 {
+		if timeRemain > 30 {
 			req.Options.MaxTtlPerRequest = timeRemain
 		}
 	}

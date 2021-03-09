@@ -241,22 +241,23 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 			}
 
 			jobFunc := func() {
+				logger.Infof("%s %s", r.Method, r.Url)
 				var (
+					// share context is used to share data between crawlers
 					shareCtx    context.Context
 					sharingData []string
 					duration    int64
 					err         error
 				)
+				for k, v := range r.SharingData {
+					sharingData = append(sharingData, k, v)
+				}
 				sharingData = append(sharingData,
 					"tracing_id", r.TracingId,
 					"job_id", r.JobId,
 					"req_id", r.ReqId,
 					"store_id", r.StoreId,
 				)
-				for k, v := range r.SharingData {
-					sharingData = append(sharingData, k, v)
-				}
-				// share context is used to share data between crawlers
 				shareCtx = ctxUtil.WithValues(ctx, sharingData...)
 
 				for _, crawler := range crawlers {
@@ -273,7 +274,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 							maxTtlPerRequest = r.Options.MaxTtlPerRequest
 						}
 
-						requestCtx, cancel := context.WithTimeout(shareCtx, time.Duration(maxTtlPerRequest)*time.Second+time.Minute*10)
+						requestCtx, cancel := context.WithTimeout(shareCtx, time.Duration(maxTtlPerRequest)*time.Second)
 						defer cancel()
 
 						startTime := time.Now()
