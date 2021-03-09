@@ -10,6 +10,7 @@ import (
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/protoutil"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -34,7 +35,14 @@ func NewConnection(ctx context.Context, addr string, logger glog.Log) (*Connecti
 	defer cancel()
 
 	var err error
-	c.conn, err = grpc.DialContext(timeoutCtx, addr, grpc.WithInsecure())
+	c.conn, err = grpc.DialContext(timeoutCtx, addr,
+		grpc.WithInsecure(),
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:    time.Second * 30,
+			Timeout: time.Second * 20,
+		}),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)), // 100Mi
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +65,6 @@ func (conn *Connection) NewChannelHandler(ctx context.Context, ctrl *CrawlerCont
 		conn.logger.Errorf("connect channel failed, error=%s", err)
 		return nil, err
 	}
-
 	return &handler, nil
 }
 
@@ -115,10 +122,8 @@ func (handler *ChannelHandler) Watch(ctx context.Context, callback func(context.
 
 	for {
 		anydata, err := handler.client.Recv()
-		if err == io.EOF {
-			return nil
-		} else if err != nil {
-			logger.Errorf("receive err failed, error=%s", err)
+		if err != nil {
+			logger.Error(err)
 			return err
 		}
 

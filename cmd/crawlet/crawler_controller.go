@@ -65,6 +65,7 @@ func NewCrawlerController(
 		)
 		for {
 			// reconnect after failed
+			logger.Infof("reconnect after %s", tryDuration)
 			time.Sleep(tryDuration)
 
 			func() {
@@ -78,7 +79,6 @@ func NewCrawlerController(
 					if tryDuration > time.Minute {
 						tryDuration = time.Second * 10
 					}
-					logger.Infof("reconnect after %s", tryDuration)
 					return
 				}
 				tryDuration = time.Second
@@ -121,6 +121,7 @@ func NewCrawlerController(
 							anydata, _ := anypb.New(&msg)
 							if err := handler.client.Send(anydata); err != nil {
 								logger.Errorf("send heartbeat failed, error=%s", err)
+								// TODO: end
 								return
 							}
 						case msg, ok := <-handler.conn.msgBuffer:
@@ -129,6 +130,7 @@ func NewCrawlerController(
 							}
 							if err := handler.client.Send(msg); err != nil {
 								logger.Errorf("send msg failed, error=%s", err)
+								return
 							}
 						}
 					}
