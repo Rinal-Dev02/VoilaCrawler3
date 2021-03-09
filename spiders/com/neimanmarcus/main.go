@@ -25,6 +25,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 )
@@ -65,14 +66,15 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options.EnableHeadless = false
 	options.LoginRequired = false
 	options.EnableSessionInit = true
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+
 	// NOTE: no need to set useragent here for user agent is dynamic
-	// options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
 	// options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
-	// options.MustCookies = append(options.MustCookies, &http.Cookie{
-	// 	Name:  "profile_data",
-	// 	Value: "%7B%22firstName%22%3A%22%22%2C%22currencyPreference%22%3A%22USD%22%2C%22countryPreference%22%3A%22US%22%2C%22securityStatus%22%3A%22Anonymous%22%2C%22cartItemCount%22%3A0%7D",
-	// 	Path:  "/",
-	// })
+	options.MustCookies = append(options.MustCookies, &http.Cookie{
+		Name:  "profile_data",
+		Value: "%7B%22firstName%22%3A%22%22%2C%22currencyPreference%22%3A%22USD%22%2C%22countryPreference%22%3A%22US%22%2C%22securityStatus%22%3A%22Anonymous%22%2C%22cartItemCount%22%3A0%7D",
+		Path:  "/",
+	})
 	return options
 }
 
