@@ -245,7 +245,12 @@ func (app *App) newGrpcServer(c *cli.Context) func(fx.Lifecycle, glog.Log) (grpc
 					invocation.NewWithAuthController(invocation.NewOpenapiProjectionAuthController()),
 				})
 		}
-		server := grpc.NewServer(grpc.UnaryInterceptor(interceptor.UnaryInterceptor), grpc.StreamInterceptor(interceptor.StreamInterceptor))
+		server := grpc.NewServer(
+			grpc.UnaryInterceptor(interceptor.UnaryInterceptor),
+			grpc.StreamInterceptor(interceptor.StreamInterceptor),
+			grpc.MaxRecvMsgSize(100*1024*1024),
+			grpc.MaxSendMsgSize(100*1024*1024),
+		)
 
 		lc.Append(fx.Hook{
 			OnStart: func(ctx context.Context) error {
@@ -279,7 +284,12 @@ func (app *App) newGrpcClient(c *cli.Context) func(logger glog.Log) (conn *grpc.
 		for {
 			select {
 			case <-timer.C:
-				conn, err = grpc.Dial(grpcAddr, grpc.WithInsecure(), grpc.WithBackoffMaxDelay(time.Second))
+				conn, err = grpc.Dial(grpcAddr,
+					grpc.WithInsecure(),
+					grpc.WithBackoffMaxDelay(time.Second),
+					grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)),
+					grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(100*1024*1024)),
+				)
 				if err != nil {
 					logger.Errorf("connect to grpc server failed, try...")
 					timer.Reset(time.Millisecond * 100)

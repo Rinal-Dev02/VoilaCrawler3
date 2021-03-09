@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"io"
 	"sync/atomic"
 	"time"
 
@@ -42,6 +41,7 @@ func NewConnection(ctx context.Context, addr string, logger glog.Log) (*Connecti
 			Timeout: time.Second * 20,
 		}),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)), // 100Mi
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(100*1024*1024)), // 100Mi
 	)
 	if err != nil {
 		return nil, err
