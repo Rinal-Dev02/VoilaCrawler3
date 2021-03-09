@@ -418,7 +418,9 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
+		if err := c.httpClient.Jar().Clear(ctx, resp.Request.URL); err != nil {
+			c.logger.Errorf("clear cookie for %s failed, error=%s", resp.Request.URL, err)
+		}
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
 	}
 	// c.logger.Debugf("data: %s", matched[1])
@@ -490,7 +492,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
+		// clean cookie
+		if err := c.httpClient.Jar().Clear(ctx, resp.Request.URL); err != nil {
+			c.logger.Errorf("clear cookie for %s failed, error=%s", resp.Request.URL, err)
+		}
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
 	}
 	// c.logger.Debugf("data: %s", matched[1])
