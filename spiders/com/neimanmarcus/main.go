@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/url"
 	"os"
 	"regexp"
@@ -309,8 +310,13 @@ type productDetail struct {
 	} `json:"metadata"`
 	Media *productMedia `json:"media"`
 	Price struct {
-		CurrencyCode string `json:"currencyCode"`
-		RetailPrice  string `json:"retailPrice"`
+		CurrencyCode     string `json:"currencyCode"`
+		RetailPrice      string `json:"retailPrice"`
+		PromotionalPrice string `json:"promotionalPrice"`
+		Adornments       []struct {
+			Label string `json:"label"`
+			Price string `json:"price"`
+		} `json:"adornments"`
 	} `json:"price"`
 	PreOrder     bool `json:"preOrder"`
 	ProductFlags struct {
@@ -436,8 +442,13 @@ type productGroupDetail struct {
 	} `json:"metadata"`
 	Media *productMedia `json:"media"`
 	Price struct {
-		CurrencyCode string `json:"currencyCode"`
-		RetailPrice  string `json:"retailPrice"`
+		CurrencyCode     string `json:"currencyCode"`
+		RetailPrice      string `json:"retailPrice"`
+		PromotionalPrice string `json:"promotionalPrice"`
+		Adornments       []struct {
+			Label string `json:"label"`
+			Price string `json:"price"`
+		} `json:"adornments"`
 	} `json:"price"`
 	PreOrder     bool `json:"preOrder"`
 	ProductFlags struct {
@@ -712,11 +723,30 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 			}
 			prices := map[string]*pbItem.Price{}
+			var (
+				retailPrice, _      = strconv.ParseFloat(i.Price.RetailPrice)
+				promotionalPrice, _ = strconv.ParseFloat(i.Price.PromotionalPrice)
+				originalPrice       float64
+			)
+			for _, p := range i.Price.Adornments {
+				if strings.ToLower(p.Label) == "original" {
+					originalPrice, _ = strconv.ParseFloat(p.Price)
+					break
+				}
+			}
+
 			for _, offer := range i.LinkedData.Offers.Offers {
 				val, _ := strconv.ParseFloat(offer.Price)
-				p := pbItem.Price{
-					Currency: regulation.Currency_USD,
-					Current:  int32(val * 100),
+				p := pbItem.Price{Currency: regulation.Currency_USD}
+				if i.Price.RetailPrice == offer.Price {
+					p.Current = int32(val * 100)
+					p.Msrp = int32(val * 100)
+				} else if originalPrice > 0 {
+					p.Current = int32(retailPrice * 100)
+					p.Msrp = int32(originalPrice * 100)
+				}
+				if promotionalPrice > 0 {
+					p.Discount = int32(math.Ceil(100 * promotionalPrice / retailPrice))
 				}
 				prices[offer.Sku] = &p
 			}
@@ -774,8 +804,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
+		"https://www.neimanmarcus.com/p/herno-satin-long-fitted-removable-hood-coat-prod235050477",
 		// "https://www.neimanmarcus.com/p/veronica-beard-jacket-dickey-prod194270044",
-		"https://www.neimanmarcus.com/c/womens-clothing-clothing-coats-jackets-cat77190754?navpath=cat000000_cat000001_cat58290731_cat77190754",
+		// "https://www.neimanmarcus.com/c/womens-clothing-clothing-coats-jackets-cat77190754?navpath=cat000000_cat000001_cat58290731_cat77190754",
 		// "https://www.neimanmarcus.com/p/moncler-hermine-hooded-puffer-jacket-prod197621217?childItemId=NMTS7Q4_41&navpath=cat000000_cat000001_cat58290731_cat77190754&page=0&position=0",
 		// "https://www.neimanmarcus.com/p/moncler-moka-shiny-fitted-puffer-coat-with-hood-and-matching-items-prod213210002?childItemId=NMTA8BE_&focusProductId=prod180340224&navpath=cat000000_cat000001_cat58290731_cat77190754&page=0&position=27",
 	} {
