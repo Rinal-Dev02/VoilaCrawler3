@@ -112,6 +112,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 	if isRobotCheckPage(respBody) {
+		c.httpClient.Jar().Clear(ctx, resp.Request.URL)
 		return errors.New("robot check page")
 	}
 	// c.logger.Debugf("%s", respBody)
@@ -538,6 +539,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 	if isRobotCheckPage(respbody) {
+		c.httpClient.Jar().Clear(ctx, resp.Request.URL)
 		return errors.New("robot check page")
 	}
 
