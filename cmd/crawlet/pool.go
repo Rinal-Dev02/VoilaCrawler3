@@ -20,7 +20,7 @@ func NewGPool(ctx context.Context, cap int32, logger glog.Log) (*GPool, error) {
 	p := GPool{
 		ctx:            ctx,
 		maxConcurrency: cap,
-		jobQueue:       make(chan func(), 10),
+		jobQueue:       make(chan func()),
 		logger:         logger.New("GPool"),
 	}
 
@@ -30,9 +30,12 @@ func NewGPool(ctx context.Context, cap int32, logger glog.Log) (*GPool, error) {
 				time.Sleep(300 * time.Millisecond)
 				continue
 			}
+			// FIX: lock before run
+			atomic.AddInt32(&p.currentConcurrency, 1)
 
 			select {
 			case <-p.ctx.Done():
+				atomic.StoreInt32(&p.currentConcurrency, 0)
 				return
 			case jobFunc, ok := <-p.jobQueue:
 				if !ok {
@@ -40,7 +43,6 @@ func NewGPool(ctx context.Context, cap int32, logger glog.Log) (*GPool, error) {
 				}
 
 				go func() {
-					atomic.AddInt32(&p.currentConcurrency, 1)
 					defer func() {
 						if r := recover(); r != nil {
 							p.logger.Error(r)

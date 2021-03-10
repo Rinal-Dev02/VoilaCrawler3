@@ -294,7 +294,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 						logger.Infof("Access %s %d", req.URL.String(), resp.StatusCode)
 						defer resp.Body.Close()
 
-						return duration, crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
+						return duration, crawler.Parse(requestCtx, resp, func(c context.Context, i interface{}) error {
 							sharingData := ctxUtil.RetrieveAllValues(c)
 							switch val := i.(type) {
 							case *http.Request:
@@ -360,7 +360,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 								}
 								cmd := pbCrawl.Command{Timestamp: time.Now().UnixNano(), NodeId: NodeId()}
 								cmd.Data, _ = anypb.New(&subreq)
-								return ctrl.Send(shareCtx, &cmd)
+								return ctrl.Send(requestCtx, &cmd)
 							default:
 								msg, ok := i.(proto.Message)
 								if !ok {
@@ -380,7 +380,7 @@ func (ctrl *CrawlerController) Run(ctx context.Context) error {
 								}
 								item.Data, _ = anypb.New(msg)
 
-								return ctrl.Send(shareCtx, &item)
+								return ctrl.Send(requestCtx, &item)
 							}
 						})
 					}(crawler)
