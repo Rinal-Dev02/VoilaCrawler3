@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
 	"github.com/voiladev/VoilaCrawl/pkg/types"
+	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/randutil"
 )
 
@@ -166,6 +169,51 @@ func (r *Request) Unmarshal(ret interface{}) error {
 			MaxTtlPerRequest: r.GetOptions().GetMaxTtlPerRequest(),
 			MaxRetryCount:    r.GetOptions().GetMaxRetryCount(),
 			MaxRequestDepth:  r.GetOptions().GetMaxRequestDepth(),
+		}
+	case *pbProxy.Request:
+		val.TracingId = r.GetTracingId()
+		val.JobId = r.GetJobId()
+		val.ReqId = r.GetId()
+		val.Method = r.GetMethod()
+		val.Url = r.GetUrl()
+		val.Body = []byte(r.GetBody())
+		val.Headers = map[string]*pbHttp.ListValue{}
+		val.Options = &pbProxy.Request_Options{
+			EnableProxy:      !r.GetOptions().GetDisableProxy(),
+			MaxTtlPerRequest: r.GetOptions().MaxTtlPerRequest,
+		}
+		if val.Options.MaxTtlPerRequest == 0 {
+			val.Options.MaxTtlPerRequest = config.DefaultTtlPerRequest
+		}
+
+		var cookie string
+		if r.GetCustomCookies() != "" {
+			var cookies []*pbHttp.Cookie
+			if err := json.Unmarshal([]byte(r.GetCustomCookies()), &cookies); err != nil {
+				return err
+			}
+			for _, c := range cookies {
+				if cookie == "" {
+					cookie = c.Name + "=" + c.Value
+				} else {
+					cookie = "; " + c.Name + "=" + c.Value
+				}
+			}
+		}
+		if r.GetCustomHeaders() != "" {
+			headers := map[string]string{}
+			if err := json.Unmarshal([]byte(r.GetCustomHeaders()), &headers); err != nil {
+				return err
+			}
+			for k, v := range headers {
+				if k == "Cookie" {
+					if cookie != "" {
+						cookie = cookie + "; "
+					}
+					v = cookie + v
+				}
+				val.Headers[k] = &pbHttp.ListValue{Values: []string{v}}
+			}
 		}
 	default:
 		return errors.New("unsupported unmarshal type")

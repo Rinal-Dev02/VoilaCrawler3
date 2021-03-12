@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
 	"github.com/voiladev/go-framework/glog"
 )
 
@@ -45,7 +46,7 @@ func NewThreadController(ctx context.Context, theadPerHost int32, logger glog.Lo
 
 	go func() {
 		var (
-			ticker      = time.NewTicker(time.Second)
+			ticker      = time.NewTicker(time.Second * 3)
 			invalidReqs []string
 		)
 		for {
@@ -80,7 +81,7 @@ func NewThreadController(ctx context.Context, theadPerHost int32, logger glog.Lo
 	return &ctrl, nil
 }
 
-func (ctrl *ThreadController) TryLock(ctx context.Context, host string) bool {
+func (ctrl *ThreadController) TryLock(host string) bool {
 	if ctrl == nil {
 		return false
 	}
@@ -100,12 +101,12 @@ func (ctrl *ThreadController) TryLock(ctx context.Context, host string) bool {
 	return flag
 }
 
-func (ctrl *ThreadController) Lock(ctx context.Context, host string, reqId string, ttl int64) bool {
+func (ctrl *ThreadController) Lock(host string, reqId string, ttl int32) bool {
 	if ctrl == nil {
 		return false
 	}
-	if ttl == 0 || ttl > 5*60 {
-		ttl = 5 * 60
+	if ttl <= 0 {
+		ttl = config.DefaultTtlPerRequest
 	}
 
 	val, _ := ctrl.hostStatus.LoadOrStore(host, &hostConcurrencyStatus{
@@ -118,10 +119,10 @@ func (ctrl *ThreadController) Lock(ctx context.Context, host string, reqId strin
 
 	status.Mutex.Lock()
 	if status.Count < ctrl.threadPerHost {
-		ctrl.logger.Debugf("set lock %s %s %v", host, reqId, ttl)
+		ctrl.logger.Debugf("set lock %s %s", host, reqId)
 
 		atomic.AddInt32(&status.Count, 1)
-		status.Requests[reqId] = time.Now().Unix() + ttl
+		status.Requests[reqId] = time.Now().Unix() + int64(ttl)
 		status.Mutex.Unlock()
 		return true
 	}
@@ -129,7 +130,7 @@ func (ctrl *ThreadController) Lock(ctx context.Context, host string, reqId strin
 	return false
 }
 
-func (ctrl *ThreadController) Unlock(ctx context.Context, host string, reqId string) {
+func (ctrl *ThreadController) Unlock(host string, reqId string) {
 	if ctrl == nil {
 		return
 	}
