@@ -183,7 +183,6 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				continue
 				reqs, err := ctrl.requestManager.List(ctx, nil, reqManager.ListRequest{
 					Page: 1, Count: 200, Retryable: true,
 				})
