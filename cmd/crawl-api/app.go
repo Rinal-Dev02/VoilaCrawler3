@@ -114,11 +114,6 @@ func (app *App) Run(args []string) {
 			Usage: "nsqd tcp address",
 			Value: "voiladev.com:4150",
 		},
-		&cli.StringSliceFlag{
-			Name:  "nsqlookupd-http-addr",
-			Usage: "nsqlookupd http address",
-			Value: cli.NewStringSlice("voiladev.com:4161"),
-		},
 		&cli.StringFlag{
 			Name:  "crawlet-addr",
 			Usage: "crawlet grpc address",

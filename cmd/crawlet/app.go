@@ -169,8 +169,14 @@ func (app *App) Run(args []string) {
 				return httpClient, nil
 			}),
 
+			// Controller
+			fx.Provide(NewCrawlerController),
+
+			// Register services
+			fx.Provide(NewCrawlerServer),
+
 			// load plugins
-			fx.Provide(func(httpClient chttp.Client, crawlerManager CrawlerManager) error {
+			fx.Invoke(func(httpClient chttp.Client, crawlerManager *CrawlerManager) error {
 				// load plugins
 				var loadedPlugintCount int
 				if err := filepath.Walk(c.String("plugins"), func(p string, info os.FileInfo, err error) error {
@@ -195,12 +201,6 @@ func (app *App) Run(args []string) {
 				}
 				return nil
 			}),
-
-			// Controller
-			fx.Provide(NewCrawlerController),
-
-			// Register services
-			fx.Provide(NewCrawlerServer),
 
 			// Register grpc handler
 			fx.Invoke(pbCrawl.RegisterCrawlerManagerServer),

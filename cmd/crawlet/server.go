@@ -24,7 +24,10 @@ type CrawlerServer struct {
 	logger         glog.Log
 }
 
-func NewCrawlerServer(crawlerCtrl *CrawlerController, crawlerManager *CrawlerManager, logger glog.Log) (pbCrawl.CrawlerManagerServer, error) {
+func NewCrawlerServer(producer *nsq.Producer, crawlerCtrl *CrawlerController, crawlerManager *CrawlerManager, logger glog.Log) (pbCrawl.CrawlerManagerServer, error) {
+	if producer == nil {
+		return nil, errors.New("invalid producer")
+	}
 	if crawlerCtrl == nil {
 		return nil, errors.New("invalid crawler controller")
 	}
@@ -35,6 +38,7 @@ func NewCrawlerServer(crawlerCtrl *CrawlerController, crawlerManager *CrawlerMan
 		return nil, errors.New("invalid logger")
 	}
 	s := CrawlerServer{
+		producer:       producer,
 		crawlerCtrl:    crawlerCtrl,
 		crawlerManager: crawlerManager,
 		logger:         logger,
@@ -43,9 +47,13 @@ func NewCrawlerServer(crawlerCtrl *CrawlerController, crawlerManager *CrawlerMan
 }
 
 func (s *CrawlerServer) GetCrawlers(ctx context.Context, req *pbCrawl.GetCrawlersRequest) (*pbCrawl.GetCrawlersResponse, error) {
-	if req.GetHost() != "" {
+	if s == nil {
+		return nil, nil
+	}
+	if req.GetHost() == "" {
 		return nil, pbError.ErrInvalidArgument
 	}
+	s.logger.Debugf("get crawlers of %s", req.GetHost())
 
 	crawlers, err := s.crawlerManager.GetByHost(ctx, req.GetHost())
 	if err != nil {
@@ -140,7 +148,7 @@ func (s *CrawlerServer) Parse(ctx context.Context, req *pbCrawl.ParseRequest) (*
 		}
 		return nil
 	}); err != nil {
-		logger.Errorf("parse response from %s failed, error=%s", req.GetRequest().GetUrl(), err)
+		logger.Errorf("parse response from %s failed, error=%v", req.GetRequest().GetUrl(), err)
 		return nil, pbError.ErrInternal.New(err.Error())
 	}
 	return &pbCrawl.ParseResponse{Data: ret}, nil

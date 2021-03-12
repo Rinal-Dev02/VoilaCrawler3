@@ -34,12 +34,16 @@ func (ctrl *CrawlerController) GetCrawlerByUrl(ctx context.Context, rawUrl strin
 	if ctrl == nil {
 		return nil, nil
 	}
+	logger := ctrl.logger.New("GetCrawlerByUrl")
+
 	u, err := url.Parse(rawUrl)
 	if err != nil {
+		logger.Error(err)
 		return nil, err
 	}
 	resp, err := ctrl.crawlerClient.GetCrawlers(ctx, &pbCrawl.GetCrawlersRequest{Host: u.Host})
 	if err != nil {
+		logger.Error(err)
 		return nil, err
 	}
 	return resp.GetData(), nil

@@ -177,6 +177,7 @@ func (r *Request) Unmarshal(ret interface{}) error {
 		val.Method = r.GetMethod()
 		val.Url = r.GetUrl()
 		val.Body = []byte(r.GetBody())
+		val.Headers = map[string]*pbHttp.ListValue{}
 		val.Options = &pbProxy.Request_Options{
 			EnableProxy:      !r.GetOptions().GetDisableProxy(),
 			MaxTtlPerRequest: r.GetOptions().MaxTtlPerRequest,

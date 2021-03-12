@@ -46,6 +46,7 @@ func NewRequestController(
 	engine *xorm.Engine,
 	threadCtrl *threadCtrl.ThreadController,
 	historyCtrl *historyCtrl.RequestHistoryController,
+	crawlerCtrl *crawlerCtrl.CrawlerController,
 	requestManager *reqManager.RequestManager,
 	redisClient *redis.RedisClient,
 	pigate *pigate.PigateClient,
@@ -60,6 +61,9 @@ func NewRequestController(
 	}
 	if historyCtrl == nil {
 		return nil, errors.New("invalid history controller")
+	}
+	if crawlerCtrl == nil {
+		return nil, errors.New("invalid crawler controller")
 	}
 	if requestManager == nil {
 		return nil, errors.New("invalid requestManager")
@@ -79,6 +83,7 @@ func NewRequestController(
 		engine:         engine,
 		threadCtrl:     threadCtrl,
 		historyCtrl:    historyCtrl,
+		crawlerCtrl:    crawlerCtrl,
 		requestManager: requestManager,
 		redisClient:    redisClient,
 		pigate:         pigate,
@@ -178,6 +183,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
+				continue
 				reqs, err := ctrl.requestManager.List(ctx, nil, reqManager.ListRequest{
 					Page: 1, Count: 200, Retryable: true,
 				})
@@ -213,7 +219,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 
 			for _, key := range stores {
 				host := strings.TrimPrefix(key, config.CrawlRequestStoreQueuePrefix)
-				if !ctrl.threadCtrl.TryLock(ctx, host) {
+				if !ctrl.threadCtrl.TryLock(host) {
 					continue
 				}
 
@@ -225,20 +231,19 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 					continue
 				}
 
-				var req *request.Request
-				if err := func() error {
+				req, err := func() (*request.Request, error) {
 					req, err := ctrl.requestManager.GetById(ctx, reqId)
 					if err != nil {
 						ctrl.logger.Errorf("get request %s failed, error=%s", reqId, err)
-						return err
+						return nil, err
 					}
 					if req == nil {
-						return ctrl.logger.Errorf("request %s not found", reqId).ToError()
+						return nil, ctrl.logger.Errorf("request %s not found", reqId).ToError()
 					}
-					return nil
-				}(); err != nil {
+					return req, nil
+				}()
+				if err != nil {
 					ctrl.historyCtrl.Publish(ctx, reqId, 0, 0, err.Error())
-
 					if _, err := ctrl.redisClient.Do("SREM", config.CrawlRequestQueueSet, reqId); err != nil {
 						ctrl.logger.Errorf("remove req %s cache set failed, error=%s", reqId, err)
 					}
@@ -246,16 +251,14 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 				}
 
 				// lock at most 5mins
-				if ctrl.threadCtrl.Lock(ctx, req.GetStoreId(), req.GetId(),
-					int64(req.GetOptions().GetMaxTtlPerRequest())) {
-
+				if ctrl.threadCtrl.Lock(req.GetStoreId(), req.GetId(), req.GetOptions().GetMaxTtlPerRequest()) {
 					// get crawl options
 					// TODO: check crawl options
 					go func(ctx context.Context, req *request.Request) {
 						defer func() {
-							ctrl.threadCtrl.Unlock(ctrl.ctx, req.GetStoreId(), req.GetId())
+							ctrl.threadCtrl.Unlock(req.GetStoreId(), req.GetId())
 						}()
-						ctrl.logger.Info("%s %s", req.GetMethod(), req.GetUrl())
+						ctrl.logger.Infof("%s %s", req.GetMethod(), req.GetUrl())
 
 						if _, err := ctrl.requestManager.UpdateStatus(ctx, nil, reqId, 2, false); err != nil {
 							ctrl.logger.Errorf("update request status failed, error=%s", err)
@@ -270,7 +273,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							}
 							if len(crawlers) == 0 {
 								ctrl.logger.Warnf("not crawler found for %s", req.GetUrl())
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, err.Error())
+								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, "no useable crawler")
 								return err
 							}
 							options := crawlers[0].GetOptions()
@@ -293,8 +296,11 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							reqCtx = context.WithValue(reqCtx, "job_id", req.GetJobId())
 							reqCtx = context.WithValue(reqCtx, "req_id", req.GetId())
 
-							reqCtx, cancelFunc := context.WithTimeout(reqCtx, time.Duration(proxyReq.GetOptions().GetMaxTtlPerRequest()))
+							reqCtx, cancelFunc := context.WithTimeout(reqCtx,
+								time.Duration(proxyReq.GetOptions().GetMaxTtlPerRequest())*time.Second)
 							defer cancelFunc()
+							dead, _ := reqCtx.Deadline()
+							ctrl.logger.Errorf("%s", dead)
 
 							startTimestamp := time.Now().UnixNano()
 							proxyResp, err := ctrl.pigate.Do(reqCtx, &proxyReq)
@@ -306,12 +312,18 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							}
 							ctrl.historyCtrl.Publish(ctx, req.GetId(), duration, proxyResp.StatusCode, "")
 
+							if proxyResp.GetStatusCode() == -1 {
+								return errors.New(proxyResp.GetStatus())
+							}
 							if proxyResp.GetStatusCode() == http.StatusForbidden {
 								// clean cached cookie
 
 								// TODO: upgrade relibility
 								// Requeue again
 								return errors.New("access forbidden")
+							}
+							if proxyResp.GetRequest() == nil {
+								return fmt.Errorf("request info missing for %s", req.GetUrl())
 							}
 
 							// parse respose, if failed, queue the request again
@@ -358,6 +370,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			if len(stores) == 0 {
 				time.Sleep(time.Millisecond * 100)
 			}
+			time.Sleep(time.Minute)
 		}
 	}
 }
