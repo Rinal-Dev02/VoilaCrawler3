@@ -124,22 +124,19 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 		if href, _ := node.Attr("href"); href != "" {
-			c.logger.Debugf("yield %w%s", lastIndex, href)
-			// req, err := http.NewRequest(http.MethodGet, href, nil)
-			// if err != nil {
-			// 	c.logger.Error(err)
-			// 	continue
-			// }
+			//c.logger.Debugf("yield %w%s", lastIndex, href)
+			req, err := http.NewRequest(http.MethodGet, href, nil)
+			if err != nil {
+				c.logger.Error(err)
+				continue
+			}
 			lastIndex += 1
-			// nctx := context.WithValue(ctx, "item.index", lastIndex)
-			// if err := yield(nctx, req); err != nil {
-			// 	return err
-			// }
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			if err := yield(nctx, req); err != nil {
+				return err
+			}
 		}
 	}
-	// if len(sel.Nodes) < defaultCategoryProductsPageSize {
-	// 	return nil
-	// }
 
 	// get current page number
 	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("pageNum"))
