@@ -121,7 +121,7 @@ func (m *RequestManager) Create(ctx context.Context, session *xorm.Session, req 
 }
 
 // UpdateStatus  status: 1-queued, 2-inprocess, 3-processed
-func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session, id string, status int32, duration int64, isSucceed bool, msg string) (bool, error) {
+func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session, id string, status int32, isSucceed bool) (bool, error) {
 	if m == nil {
 		return false, nil
 	}
@@ -146,8 +146,8 @@ func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session
 		sql = `update request set status=2,start_utc=?,end_utc=0 where id=? and status=1`
 		vals = append(vals, t, id)
 	case 3:
-		sql = `update request set status=3,end_utc=?,duration=?,is_succeed=?,err_msg=? where id=? and is_succeed=0`
-		vals = append(vals, t, duration, isSucceed, msg, id)
+		sql = `update request set status=3,end_utc=?,is_succeed=? where id=? and is_succeed=0`
+		vals = append(vals, t, isSucceed, id)
 	case -1:
 		sql = `update request set start_utc=? where id=? and status=1`
 		vals = append(vals, t, id)

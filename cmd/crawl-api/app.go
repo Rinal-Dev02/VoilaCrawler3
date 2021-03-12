@@ -8,18 +8,21 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	"github.com/nsqio/go-nsq"
 	"github.com/urfave/cli/v2"
 	svcGateway "github.com/voiladev/VoilaCrawl/internal/api/gateway/v1"
 	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
-	nodeCtrl "github.com/voiladev/VoilaCrawl/internal/controller/node"
 	reqCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request"
+	"github.com/voiladev/VoilaCrawl/internal/controller/request/history"
+	historyCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request/history"
 	threadCtrl "github.com/voiladev/VoilaCrawl/internal/controller/thread"
-	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
-	nodeManager "github.com/voiladev/VoilaCrawl/internal/model/node/manager"
+	historyManager "github.com/voiladev/VoilaCrawl/internal/model/request/history/manager"
 	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
+	"github.com/voiladev/VoilaCrawl/pkg/pigate"
 	"github.com/voiladev/VoilaCrawl/pkg/types"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
@@ -30,6 +33,15 @@ import (
 	pbDesc "github.com/voiladev/protobuf/protoc-gen-go/protobuf"
 	"go.uber.org/fx"
 	grpc "google.golang.org/grpc"
+)
+
+var (
+	buildBranch string
+	buildCommit string
+	buildTime   string
+
+	// Version The version string
+	Version = fmt.Sprintf("Branch [%s] Commit [%s] Build Time [%s]", buildBranch, buildCommit, buildTime)
 )
 
 var _ServiceDescs = map[string]*pbDesc.ServiceDesc{}
@@ -92,6 +104,11 @@ func (app *App) Run(args []string) {
 			Usage: "redis server address",
 			Value: "127.0.0.1:6379",
 		},
+		&cli.StringSliceFlag{
+			Name:  "nsqlookupd-http-addr",
+			Usage: "nsqlookupd http address",
+			Value: cli.NewStringSlice("voiladev.com:4161"),
+		},
 		&cli.StringFlag{
 			Name:  "nsqd-tcp-addr",
 			Usage: "nsqd tcp address",
@@ -101,6 +118,14 @@ func (app *App) Run(args []string) {
 			Name:  "nsqlookupd-http-addr",
 			Usage: "nsqlookupd http address",
 			Value: cli.NewStringSlice("voiladev.com:4161"),
+		},
+		&cli.StringFlag{
+			Name:  "crawlet-addr",
+			Usage: "crawlet grpc address",
+		},
+		&cli.StringFlag{
+			Name:  "pigate-addr",
+			Usage: "pigate server addresss",
 		},
 		&cli.IntFlag{
 			Name:  "host-concurrency",
@@ -145,20 +170,51 @@ func (app *App) Run(args []string) {
 			fx.Provide(app.newHttpServer(c)),
 
 			// Managers
-			fx.Provide(crawlerManager.NewCrawlerManager),
-			fx.Provide(nodeManager.NewNodeManager),
 			fx.Provide(reqManager.NewRequestManager),
+			fx.Provide(historyManager.NewHistoryManager),
 
 			// Controller
-			fx.Provide(crawlerCtrl.NewCrawlerController),
-			fx.Provide(func() *nodeCtrl.NodeControllerOptions {
-				return &nodeCtrl.NodeControllerOptions{
-					HeartbeatInternal: 100,
-					NsqdAddr:          c.String("nsqd-tcp-addr"),
+			fx.Provide(func() (pbCrawl.CrawlerManagerClient, error) {
+				crawletAddr := c.String("crawlet-addr")
+				if crawletAddr == "" {
+					return nil, errors.New("invalid crawlet address")
 				}
+				conn, err := grpc.DialContext(app.ctx, crawletAddr,
+					grpc.WithInsecure(),
+					grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)),
+					grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(100*1024*1024)),
+				)
+				if err != nil {
+					return nil, err
+				}
+				return pbCrawl.NewCrawlerManagerClient(conn), nil
 			}),
-			fx.Provide(nodeCtrl.NewNodeController),
+			fx.Provide(crawlerCtrl.NewCrawlerController),
+			fx.Provide(func(logger glog.Log) (*pigate.PigateClient, error) {
+				pigateAddr := c.String("pigate-addr")
+				if pigateAddr == "" {
+					return nil, errors.New("invalid pigate addr")
+				}
+				return pigate.NewPigateClient(pigateAddr, logger)
+			}),
+
+			fx.Provide(func() (*nsq.Producer, error) {
+				nsqdAddr := c.String("nsqd-tcp-addr")
+				if nsqdAddr == "" {
+					return nil, errors.New("invalid nsqd address")
+				}
+				return nsq.NewProducer(nsqdAddr, nsq.NewConfig())
+			}),
+			fx.Provide(func() historyCtrl.RequestHistoryControllerOptions {
+				return historyCtrl.RequestHistoryControllerOptions{NsqLookupdAddresses: c.StringSlice("nsqlookupd-http-addr")}
+			}),
+			fx.Provide(history.NewRequestHistoryController),
+
+			fx.Provide(func() reqCtrl.RequestControllerOptions {
+				return reqCtrl.RequestControllerOptions{NsqLookupdAddresses: c.StringSlice("nsqlookupd-http-addr")}
+			}),
 			fx.Provide(reqCtrl.NewRequestController),
+
 			fx.Provide(func() (*threadCtrl.ThreadController, error) {
 				return threadCtrl.NewThreadController(app.ctx, int32(c.Int("host-concurrency")), logger)
 			}),
@@ -328,4 +384,11 @@ func (app *App) newHttpServer(c *cli.Context) func(fx.Lifecycle, *grpc.ClientCon
 		})
 		return mux, nil
 	}
+}
+
+func main() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+
+	NewApp(c).Run(os.Args)
 }

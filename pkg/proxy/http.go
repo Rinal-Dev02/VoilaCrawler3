@@ -108,7 +108,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	if deadline, ok := ctx.Deadline(); ok {
 		timeRemain := deadline.Unix() - time.Now().Unix()
 		if timeRemain > 30 {
-			req.Options.MaxTtlPerRequest = timeRemain
+			req.Options.MaxTtlPerRequest = int32(timeRemain)
 		}
 	}
 
