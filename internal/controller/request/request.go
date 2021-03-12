@@ -298,8 +298,6 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							reqCtx, cancelFunc := context.WithTimeout(reqCtx,
 								time.Duration(proxyReq.GetOptions().GetMaxTtlPerRequest())*time.Second)
 							defer cancelFunc()
-							dead, _ := reqCtx.Deadline()
-							ctrl.logger.Errorf("%s", dead)
 
 							startTimestamp := time.Now().UnixNano()
 							proxyResp, err := ctrl.pigate.Do(reqCtx, &proxyReq)
@@ -369,7 +367,6 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			if len(stores) == 0 {
 				time.Sleep(time.Millisecond * 100)
 			}
-			time.Sleep(time.Minute)
 		}
 	}
 }
