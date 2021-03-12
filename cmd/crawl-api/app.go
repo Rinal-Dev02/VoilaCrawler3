@@ -259,6 +259,7 @@ func (app *App) loadBackends(c *cli.Context) (opts []fx.Option, err error) {
 		mysql.WithMysqlInstallerMaxOpenConnsOption(100),
 		mysql.WithMysqlInstallerTablesOption(
 			&types.Request{},
+			&types.RequestHistory{},
 		),
 	); err != nil {
 		return nil, err
