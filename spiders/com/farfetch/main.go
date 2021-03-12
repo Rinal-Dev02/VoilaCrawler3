@@ -58,14 +58,9 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options.EnableHeadless = false
 	options.LoginRequired = false
 	options.EnableSessionInit = true
-	options.MustCookies = append(options.MustCookies) //&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
-	// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
-	// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
-	// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
-	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-	// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
-
+	options.MustCookies = append(options.MustCookies,
+		&http.Cookie{Name: "ckm-ctx-sf", Value: `%2F`, Path: "/"},
+	)
 	return options
 }
 
@@ -130,6 +125,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		matched = prodDataExtraReg1.FindSubmatch(respBody) //__initialState__
 	}
 	if len(matched) <= 1 {
+		c.httpClient.Jar().Clear(ctx, resp.Request.URL)
 		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
 	}
 	var r struct {
@@ -846,7 +842,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		matched = detailReg1.FindSubmatch(respBody)
 	}
 	if len(matched) <= 1 {
-		c.logger.Debugf("data %s", respBody)
+		c.httpClient.Jar().Clear(ctx, resp.Request.URL)
+
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
 	}
 
@@ -924,7 +921,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err = yield(ctx, &item); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -1024,12 +1020,12 @@ func main() {
 			// 	return err
 			// }
 			// logger.Infof("data: %s", data)
-			// logger.Debugf("OK")
+			logger.Debugf("got item")
 		}
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
