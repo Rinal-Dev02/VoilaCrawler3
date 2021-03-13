@@ -17,6 +17,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
 	"github.com/voiladev/VoilaCrawl/pkg/pigate"
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	pbSession "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/redis"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
@@ -36,6 +37,7 @@ type RequestController struct {
 	requestManager *reqManager.RequestManager
 	redisClient    *redis.RedisClient
 	pigate         *pigate.PigateClient
+	sessionManager pbSession.SessionManagerClient
 	nsqConsumer    *nsq.Consumer
 	options        RequestControllerOptions
 	logger         glog.Log
@@ -50,6 +52,7 @@ func NewRequestController(
 	requestManager *reqManager.RequestManager,
 	redisClient *redis.RedisClient,
 	pigate *pigate.PigateClient,
+	sessionManager pbSession.SessionManagerClient,
 	options RequestControllerOptions,
 	logger glog.Log) (*RequestController, error) {
 
@@ -74,6 +77,9 @@ func NewRequestController(
 	if pigate == nil {
 		return nil, errors.New("invalid pigate client")
 	}
+	if sessionManager == nil {
+		return nil, errors.New("invalid session manager")
+	}
 	if len(options.NsqLookupdAddresses) == 0 {
 		return nil, errors.New("invalid nsq lookupd address")
 	}
@@ -87,6 +93,7 @@ func NewRequestController(
 		requestManager: requestManager,
 		redisClient:    redisClient,
 		pigate:         pigate,
+		sessionManager: sessionManager,
 		options:        options,
 		logger:         logger.New("RequestController"),
 	}
@@ -185,7 +192,6 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
-				continue
 				reqs, err := ctrl.requestManager.List(ctx, nil, reqManager.ListRequest{
 					Page: 1, Count: 200, Retryable: true,
 				})
@@ -321,8 +327,13 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							if proxyResp.GetStatusCode() == http.StatusForbidden {
 								// clean cached cookie
 
-								// TODO: upgrade relibility
-								// Requeue again
+								if _, err := ctrl.sessionManager.ClearCookies(ctx, &pbSession.ClearCookiesRequest{
+									TracingId: req.GetTracingId(),
+									Url:       req.GetUrl(),
+								}); err != nil {
+									ctrl.logger.Errorf("clear cookie for %s failed, error=%s", req.GetUrl(), err)
+								}
+								// to requeue again
 								return errors.New("access forbidden")
 							}
 							if proxyResp.GetRequest() == nil {

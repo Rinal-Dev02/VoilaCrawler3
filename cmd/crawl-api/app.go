@@ -14,7 +14,6 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/nsqio/go-nsq"
 	"github.com/urfave/cli/v2"
-	pbSession "github.com/voiladev/Pigate/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	svcGateway "github.com/voiladev/VoilaCrawl/internal/api/gateway/v1"
 	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
 	reqCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request"
@@ -26,6 +25,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/pigate"
 	"github.com/voiladev/VoilaCrawl/pkg/types"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
+	pbSession "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/grpcutil"
 	"github.com/voiladev/go-framework/invocation"
@@ -117,11 +117,15 @@ func (app *App) Run(args []string) {
 		},
 		&cli.StringFlag{
 			Name:  "crawlet-addr",
-			Usage: "crawlet grpc address",
+			Usage: "crawlet server grpc address",
 		},
 		&cli.StringFlag{
 			Name:  "pigate-addr",
 			Usage: "pigate server addresss",
+		},
+		&cli.StringFlag{
+			Name:  "session-addr",
+			Usage: "session server grpc address",
 		},
 		&cli.IntFlag{
 			Name:  "host-concurrency",
@@ -169,15 +173,16 @@ func (app *App) Run(args []string) {
 			fx.Provide(reqManager.NewRequestManager),
 			fx.Provide(historyManager.NewHistoryManager),
 
-			fx.Provide(func() error {
+			fx.Provide(func() (pbSession.SessionManagerClient, error) {
 				if c.String("session-addr") == "" {
-					return cli.NewExitError("invalid session address", 1)
+					return nil, cli.NewExitError("invalid session address", 1)
 				}
 				conn, err := grpc.DialContext(app.ctx, c.String("session-addr"), grpc.WithInsecure())
 				if err != nil {
 					logger.Error(err)
-					return cli.NewExitError(err, 1)
+					return nil, cli.NewExitError(err, 1)
 				}
+				return pbSession.NewSessionManagerClient(conn), nil
 			}),
 
 			// Controller
