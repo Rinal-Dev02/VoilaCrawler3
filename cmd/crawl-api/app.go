@@ -14,6 +14,7 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/nsqio/go-nsq"
 	"github.com/urfave/cli/v2"
+	pbSession "github.com/voiladev/Pigate/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	svcGateway "github.com/voiladev/VoilaCrawl/internal/api/gateway/v1"
 	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
 	reqCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request"
@@ -167,6 +168,17 @@ func (app *App) Run(args []string) {
 			// Managers
 			fx.Provide(reqManager.NewRequestManager),
 			fx.Provide(historyManager.NewHistoryManager),
+
+			fx.Provide(func() error {
+				if c.String("session-addr") == "" {
+					return cli.NewExitError("invalid session address", 1)
+				}
+				conn, err := grpc.DialContext(app.ctx, c.String("session-addr"), grpc.WithInsecure())
+				if err != nil {
+					logger.Error(err)
+					return cli.NewExitError(err, 1)
+				}
+			}),
 
 			// Controller
 			fx.Provide(func() (pbCrawl.CrawlerManagerClient, error) {

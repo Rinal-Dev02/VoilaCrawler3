@@ -140,7 +140,8 @@ func (ctrl *RequestController) PublishRequest(ctx context.Context, session *xorm
 		return err
 	} else if succeed {
 		key := fmt.Sprintf(config.CrawlRequestStoreQueue, r.GetStoreId())
-		if _, err := ctrl.redisClient.Do("EVAL", requestPushScript, 2, config.CrawlStoreList, key, r.GetId()); err != nil {
+		if _, err := ctrl.redisClient.Do("EVAL", requestPushScript, 3,
+			config.CrawlStoreList, key, config.CrawlRequestQueueSet, r.GetId()); err != nil {
 			ctrl.logger.Errorf("requeue request %s failed, error=%s", r.GetId(), err)
 			return err
 		}
@@ -152,9 +153,10 @@ func (ctrl *RequestController) PublishRequest(ctx context.Context, session *xorm
 const (
 	defaultCheckTimeoutRequestInterval = time.Second * 5
 
-	// KEYS[1]-Stores, KEYS[2]-StoreQueue
+	// KEYS[1]-Stores, KEYS[2]-StoreQueue, KEYS[3]-Set
 	// ARGV[1]-reqId
 	requestPushScript = `local ret = redis.call("LPUSH", KEYS[2], ARGV[1])
+redis.call("SADD", KEYS[3], ARGV[1])
 local count = redis.call("LLEN", KEYS[2])
 redis.call("ZADD", KEYS[1], count, KEYS[2])
 return ret`
@@ -183,6 +185,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case <-timer.C:
+				continue
 				reqs, err := ctrl.requestManager.List(ctx, nil, reqManager.ListRequest{
 					Page: 1, Count: 200, Retryable: true,
 				})
@@ -251,11 +254,14 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 
 				// lock at most 5mins
 				if ctrl.threadCtrl.Lock(req.GetStoreId(), req.GetId(), req.GetOptions().GetMaxTtlPerRequest()) {
+					ctrl.logger.Debugf("locked %s %s", req.GetStoreId(), req.GetId())
+
 					// get crawl options
 					// TODO: check crawl options
 					go func(ctx context.Context, req *request.Request) {
 						defer func() {
 							ctrl.threadCtrl.Unlock(req.GetStoreId(), req.GetId())
+							ctrl.logger.Debugf("unlocked %s %s", req.GetStoreId(), req.GetId())
 						}()
 						ctrl.logger.Infof("%s %s", req.GetMethod(), req.GetUrl())
 
@@ -326,7 +332,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							// parse respose, if failed, queue the request again
 							if err = ctrl.crawlerCtrl.Parse(ctx, req, proxyResp); err != nil {
 								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, err.Error())
-								ctrl.logger.Errorf("parse response from %s failed, error=%s", err)
+								ctrl.logger.Errorf("parse response from %s failed, error=%s", req.GetUrl(), err)
 								return err
 							}
 							return nil
@@ -359,7 +365,8 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							}
 						}
 					}(ctx, req)
-				} else if _, err := ctrl.redisClient.Do("EVAL", requestPushScript, 2, config.CrawlStoreList, key, reqId); err != nil {
+				} else if _, err := ctrl.redisClient.Do("EVAL", requestPushScript, 3,
+					config.CrawlStoreList, key, config.CrawlRequestQueueSet, reqId); err != nil {
 					ctrl.logger.Errorf("requeue request %s failed, error=%s", reqId, err)
 					ctrl.historyCtrl.Publish(ctx, reqId, 0, 0, err.Error())
 				}
