@@ -77,15 +77,14 @@ func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*
 	session := s.engine.NewSession()
 	defer session.Close()
 
+	if r, err = s.requestManager.Create(ctx, session, r); err != nil && err != pbError.ErrAlreadyExists {
+		logger.Errorf("save request failed, error=%s", err)
+		return nil, err
+	}
+
 	if err := session.Begin(); err != nil {
 		logger.Errorf("begin tx failed, error=%s", err)
 		return nil, pbError.ErrDatabase.New("begin tx failed")
-	}
-
-	if r, err = s.requestManager.Create(ctx, session, r); err != nil && err != pbError.ErrAlreadyExists {
-		logger.Errorf("save request failed, error=%s", err)
-		session.Rollback()
-		return nil, err
 	}
 	if err := s.requestCtrl.PublishRequest(ctx, session, r, true); err != nil {
 		logger.Errorf("publish request failed, error=%s", err)

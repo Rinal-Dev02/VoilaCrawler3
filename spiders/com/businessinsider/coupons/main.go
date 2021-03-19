@@ -350,7 +350,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 			}
 			item.ApplyTargets = append(item.ApplyTargets, target)
 
-			if err := yield(ctx, &item); err != nil {
+			if err := yield(ctx, item); err != nil {
 				return err
 			}
 			delete(itemDict, id)
