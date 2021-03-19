@@ -273,9 +273,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 			item.Description = voucher.Description
 			if voucher.TermsAndConditions != "" {
-				item.Conditions = append(item.Conditions, &pbItem.PromoCode_Condition{
+				item.Condition = &pbItem.PromoCode_Condition{
 					RawCondition: voucher.TermsAndConditions,
-				})
+				}
 			}
 			item.Code = voucher.Code
 			item.Discount = &pbItem.PromoCode_Discount{
@@ -298,6 +298,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 			var targetUrl string
 			if affUrl.Path == "/deeplink" && affUrl.Query().Get("murl") != "" {
 				targetUrl, _ = url.QueryUnescape(affUrl.Query().Get("murl"))
+			} else {
+				// TODO: need more check
+				item.IsApplyToAll = true
 			}
 
 			if targetUrl == "" {
