@@ -19,6 +19,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -58,6 +59,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options.EnableHeadless = false
 	options.LoginRequired = false
 	options.EnableSessionInit = true
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "ckm-ctx-sf", Value: `%2F`, Path: "/"},
 	)
