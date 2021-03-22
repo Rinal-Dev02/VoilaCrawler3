@@ -66,92 +66,100 @@ func (ctrl *CrawlerController) Parse(ctx context.Context, rawResp *pbCrawl.Parse
 		return pbError.ErrNotFound.New("no usable crawler found")
 	}
 
-	return crawlers[0].Parse(ctx, resp, func(c context.Context, i interface{}) error {
-		sharingData := ctxUtil.RetrieveAllValues(c)
-		switch val := i.(type) {
-		case *http.Request:
-			if val.URL.Host == "" {
-				val.URL.Scheme = resp.Request.URL.Scheme
-				val.URL.Host = resp.Request.URL.Host
-			} else if val.URL.Scheme != "http" && val.URL.Scheme != "https" {
-				val.URL.Scheme = resp.Request.URL.Scheme
+	return func() (err error) {
+		defer func() {
+			if e := recover(); e != nil {
+				err = fmt.Errorf("%v", e)
 			}
+		}()
 
-			if val.Header.Get("Referer") == "" && resp.Request != nil {
-				val.Header.Set("Referer", resp.Request.URL.String())
-			}
-
-			// convert http.Request to pbCrawl.Command_Request and forward
-			subreq := pbCrawl.Command_Request{
-				TracingId:     rawResp.GetRequest().GetTracingId(),
-				JobId:         rawResp.GetRequest().GetJobId(),
-				ReqId:         rawResp.GetRequest().GetReqId(),
-				StoreId:       rawResp.GetRequest().GetStoreId(),
-				Url:           val.URL.String(),
-				Method:        val.Method,
-				Parent:        rawResp.GetRequest(),
-				CustomHeaders: rawResp.GetRequest().CustomHeaders,
-				CustomCookies: rawResp.GetRequest().CustomCookies,
-				Options:       rawResp.GetRequest().Options,
-				SharingData:   rawResp.GetRequest().SharingData,
-			}
-			if subreq.CustomHeaders == nil {
-				subreq.CustomHeaders = make(map[string]string)
-			}
-			if subreq.SharingData == nil {
-				subreq.SharingData = map[string]string{}
-			}
-
-			if val.Body != nil {
-				defer val.Body.Close()
-				if data, err := io.ReadAll(val.Body); err != nil {
-					return err
-				} else {
-					subreq.Body = fmt.Sprintf("%s", data)
+		return crawlers[0].Parse(ctx, resp, func(c context.Context, i interface{}) error {
+			sharingData := ctxUtil.RetrieveAllValues(c)
+			switch val := i.(type) {
+			case *http.Request:
+				if val.URL.Host == "" {
+					val.URL.Scheme = resp.Request.URL.Scheme
+					val.URL.Host = resp.Request.URL.Host
+				} else if val.URL.Scheme != "http" && val.URL.Scheme != "https" {
+					val.URL.Scheme = resp.Request.URL.Scheme
 				}
-			}
 
-			for k := range val.Header {
-				subreq.CustomHeaders[k] = val.Header.Get(k)
-			}
+				if val.Header.Get("Referer") == "" && resp.Request != nil {
+					val.Header.Set("Referer", resp.Request.URL.String())
+				}
 
-			for k, v := range sharingData {
-				key, ok := k.(string)
+				// convert http.Request to pbCrawl.Command_Request and forward
+				subreq := pbCrawl.Command_Request{
+					TracingId:     rawResp.GetRequest().GetTracingId(),
+					JobId:         rawResp.GetRequest().GetJobId(),
+					ReqId:         rawResp.GetRequest().GetReqId(),
+					StoreId:       rawResp.GetRequest().GetStoreId(),
+					Url:           val.URL.String(),
+					Method:        val.Method,
+					Parent:        rawResp.GetRequest(),
+					CustomHeaders: rawResp.GetRequest().CustomHeaders,
+					CustomCookies: rawResp.GetRequest().CustomCookies,
+					Options:       rawResp.GetRequest().Options,
+					SharingData:   rawResp.GetRequest().SharingData,
+				}
+				if subreq.CustomHeaders == nil {
+					subreq.CustomHeaders = make(map[string]string)
+				}
+				if subreq.SharingData == nil {
+					subreq.SharingData = map[string]string{}
+				}
+
+				if val.Body != nil {
+					defer val.Body.Close()
+					if data, err := io.ReadAll(val.Body); err != nil {
+						return err
+					} else {
+						subreq.Body = fmt.Sprintf("%s", data)
+					}
+				}
+
+				for k := range val.Header {
+					subreq.CustomHeaders[k] = val.Header.Get(k)
+				}
+
+				for k, v := range sharingData {
+					key, ok := k.(string)
+					if !ok {
+						continue
+					}
+					val := strconv.Format(v)
+
+					if strings.HasSuffix(key, "tracing_id") ||
+						strings.HasSuffix(key, "job_id") ||
+						strings.HasSuffix(key, "req_id") ||
+						strings.HasSuffix(key, "store_id") {
+						continue
+					}
+					subreq.SharingData[key] = val
+				}
+
+				return yield(ctx, &subreq)
+			default:
+				msg, ok := i.(proto.Message)
 				if !ok {
-					continue
+					return errors.New("unsupported response data type")
 				}
-				val := strconv.Format(v)
-
-				if strings.HasSuffix(key, "tracing_id") ||
-					strings.HasSuffix(key, "job_id") ||
-					strings.HasSuffix(key, "req_id") ||
-					strings.HasSuffix(key, "store_id") {
-					continue
+				var index int64
+				if indexVal, ok := sharingData["item.index"]; ok && indexVal != nil {
+					index = strconv.MustParseInt(indexVal)
 				}
-				subreq.SharingData[key] = val
+				item := pbCrawl.Item{
+					Timestamp: time.Now().UnixNano(),
+					TracingId: rawResp.GetRequest().GetTracingId(),
+					JobId:     rawResp.GetRequest().GetJobId(),
+					ReqId:     rawResp.GetRequest().GetReqId(),
+					Index:     int32(index),
+				}
+				item.Data, _ = anypb.New(msg)
+				return yield(ctx, &item)
 			}
-
-			return yield(ctx, &subreq)
-		default:
-			msg, ok := i.(proto.Message)
-			if !ok {
-				return errors.New("unsupported response data type")
-			}
-			var index int64
-			if indexVal, ok := sharingData["item.index"]; ok && indexVal != nil {
-				index = strconv.MustParseInt(indexVal)
-			}
-			item := pbCrawl.Item{
-				Timestamp: time.Now().UnixNano(),
-				TracingId: rawResp.GetRequest().GetTracingId(),
-				JobId:     rawResp.GetRequest().GetJobId(),
-				ReqId:     rawResp.GetRequest().GetReqId(),
-				Index:     int32(index),
-			}
-			item.Data, _ = anypb.New(msg)
-			return yield(ctx, &item)
-		}
-	})
+		})
+	}()
 }
 
 func buildResponse(res *pbProxy.Response, isSub bool) (*http.Response, error) {

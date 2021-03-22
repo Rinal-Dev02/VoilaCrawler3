@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -123,7 +122,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	// next page
 	matched := prodDataExtraReg.FindSubmatch(respBody)
 	if matched == nil {
-		matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte(`\"`), []byte(`"`)), []byte(`\\"`), []byte(`\\\"`))
+		// matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte(`\"`), []byte(`"`)), []byte(`\\"`), []byte(`\\\"`))
 		matched = prodDataExtraReg1.FindSubmatch(respBody) //__initialState__
 	}
 	if len(matched) <= 1 {
