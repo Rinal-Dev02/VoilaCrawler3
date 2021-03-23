@@ -27,6 +27,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -69,9 +70,10 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	// NOTE: no need to set useragent here for user agent is dynamic
-	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
-	options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
+	options.EnableSessionInit = true
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+
+	// options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{
 			Name:  "geolocation_data",
@@ -80,21 +82,21 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 		},
 		&http.Cookie{Name: "bfx.country", Value: "US", Path: "/"},
 		&http.Cookie{Name: "bfx.currency", Value: "USD", Path: "/"},
-		&http.Cookie{
-			Name:  "bfx.apiKey",
-			Value: "c9f2ab70-8028-11e6-bf37-d180220906db",
-			Path:  "/", /* TODO: check is this value changeable */
-		},
+		// &http.Cookie{
+		// 	Name:  "bfx.apiKey",
+		// 	Value: "c9f2ab70-8028-11e6-bf37-d180220906db",
+		// 	Path:  "/", /* TODO: check is this value changeable */
+		// },
 		&http.Cookie{Name: "bfx.env", Value: "PROD", Path: "/"},
 		&http.Cookie{Name: "bfx.logLevel", Value: "ERROR", Path: "/"},
 		&http.Cookie{Name: "bfx.language", Value: "en", Path: "/"},
-		&http.Cookie{Name: "bfx.sessionId", Value: "0076DDB9-BFE7-4882-BC40-F80853BA3B77", Path: "/"},
+		// &http.Cookie{Name: "bfx.sessionId", Value: "0076DDB9-BFE7-4882-BC40-F80853BA3B77", Path: "/"},
 	)
 	return options
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.ruelala.com"}
+	return []string{"*.ruelala.com"}
 }
 
 func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
@@ -175,6 +177,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	u.RawQuery = vals.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+
 	return yield(ctx, req)
 }
 
@@ -266,6 +270,7 @@ func (c *_Crawler) parseCategoryProductsJson(ctx context.Context, resp *http.Res
 
 		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 		req.Header.Set("Referer", fmt.Sprintf("%s://%s%s", u.Scheme, u.Host, item.ProductPage))
+		req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
 		lastIndex += 1
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
@@ -416,24 +421,32 @@ func (c *_Crawler) parseProductJson(ctx context.Context, resp *http.Response, yi
 
 	skuSpec := map[string]*pbItem.SkuSpecOption{}
 	medias := map[string][]*media.Media{}
-	for i, color := range i.Data.Attributes.Colors {
-		img := media.Media_Image{}
-		if len(color.ImagesZoom) > 0 { // 864x1080
-			img.OriginalUrl = urlutil.Format(color.ImagesZoom[0])
-		}
-		if len(color.ImagesDetail) > 0 { // 400x500
-			img.SmallUrl = urlutil.Format(color.ImagesDetail[0])
-		}
-		if len(color.ImagesTablet) > 0 { //528x660
-			img.MediumUrl = urlutil.Format(color.ImagesTablet[0])
-		}
-		if len(color.ImagesTabletHires) > 0 && img.OriginalUrl == "" { // 1056x1320
-			img.LargeUrl = urlutil.Format(color.ImagesTabletHires[0])
-		}
+	for _, color := range i.Data.Attributes.Colors {
+		for j := 0; ; j++ {
+			if len(color.ImagesZoom) <= j {
+				break
+			}
 
-		imgData, _ := anypb.New(&img)
-		m := media.Media{Detail: imgData, IsDefault: i == 0}
-		medias[fmt.Sprintf("%s-%v", pbItem.SkuSpecType_SkuSpecColor, strings.ToLower(color.DisplayValue))] = []*media.Media{&m}
+			img := media.Media_Image{}
+			if len(color.ImagesZoom) > j { // 864x1080
+				img.OriginalUrl = urlutil.Format(color.ImagesZoom[j])
+			}
+			if len(color.ImagesDetail) > j { // 400x500
+				img.SmallUrl = urlutil.Format(color.ImagesDetail[j])
+			}
+			if len(color.ImagesTablet) > j { //528x660
+				img.MediumUrl = urlutil.Format(color.ImagesTablet[j])
+			}
+			if len(color.ImagesTabletHires) > j && img.OriginalUrl == "" { // 1056x1320
+				img.LargeUrl = urlutil.Format(color.ImagesTabletHires[j])
+			}
+
+			imgData, _ := anypb.New(&img)
+			m := media.Media{Detail: imgData, IsDefault: j == 0}
+
+			key := fmt.Sprintf("%s-%v", pbItem.SkuSpecType_SkuSpecColor, strings.ToLower(color.DisplayValue))
+			medias[key] = append(medias[key], &m)
+		}
 
 		if color.DisplayValue != "" && color.InternalValue != "" {
 			spec := pbItem.SkuSpecOption{
@@ -461,8 +474,8 @@ func (c *_Crawler) parseProductJson(ctx context.Context, resp *http.Response, yi
 			Price: &pbItem.Price{
 				// 接口里返回的都是美元价格，页面上的结算价格是根据当前的IP来判断的
 				Currency:  regulation.Currency_USD,
-				Current:   int32(u.Price * 100),
-				Msrp:      int32(u.Msrp * 100),
+				Current:   int32(u.Price),
+				Msrp:      int32(u.Msrp),
 				Discount:  int32(u.PercentOff),
 				Discount1: 0,
 			},
@@ -498,11 +511,14 @@ func (c *_Crawler) parseProductJson(ctx context.Context, resp *http.Response, yi
 	return yield(ctx, &item)
 }
 
-func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
-	// req, _ := http.NewRequest(http.MethodGet, "https://www.ruelala.com/boutique/product/174603/119603536/?dsi=CAT-1267617049--4dee2f9b-246e-4f10-a0bc-dedfbf503be5&lsi=b09cfcbf-cdc7-41d1-81fe-0d48f800ada5&pos=17", nil)
-	req, _ := http.NewRequest(http.MethodGet, "https://www.ruelala.com/api/v3/products/119603585", nil)
-
-	return []*http.Request{req}
+func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
+	for _, u := range []string{
+		"https://www.ruelala.com/nav/women/clothing/dresses%20&%20skirts?dsi=CAT-1267617049--bdfc116b-6bba-4b4b-8a91-25c170e607ef&lsi=d8bf02ed-e287-4873-aab9-7aeb8f43ccd3",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, u, nil)
+		reqs = append(reqs, req)
+	}
+	return reqs
 }
 
 func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) error {
