@@ -907,7 +907,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			isDefault = false
 		}
 		itemImg, _ := anypb.New(&media.Media_Image{
-			OriginalUrl: strings.ReplaceAll(img.Zoom, "_1000.jpg", ""),
+			OriginalUrl: img.Zoom,
 			LargeUrl:    img.Zoom, // $S$, $XXL$
 			MediumUrl:   strings.ReplaceAll(img.Zoom, "_1000.jpg", "_600.jpg"),
 			SmallUrl:    strings.ReplaceAll(img.Zoom, "_1000.jpg", "_400.jpg"),
