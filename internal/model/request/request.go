@@ -180,10 +180,10 @@ func (r *Request) Unmarshal(ret interface{}) error {
 		val.Headers = map[string]*pbHttp.ListValue{}
 		val.Options = &pbProxy.Request_Options{
 			EnableProxy:      !r.GetOptions().GetDisableProxy(),
-			MaxTtlPerRequest: r.GetOptions().MaxTtlPerRequest,
+			MaxTtlPerRequest: int64(r.GetOptions().MaxTtlPerRequest),
 		}
 		if val.Options.MaxTtlPerRequest == 0 {
-			val.Options.MaxTtlPerRequest = config.DefaultTtlPerRequest
+			val.Options.MaxTtlPerRequest = int64(config.DefaultTtlPerRequest)
 		}
 
 		var cookie string
