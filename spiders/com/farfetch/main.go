@@ -880,8 +880,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			SourceId: strconv.Format(rawSize.SizeID),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(current),
-				Msrp:     int32(msrp),
+				Current:  int32(current * 100),
+				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
 			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
