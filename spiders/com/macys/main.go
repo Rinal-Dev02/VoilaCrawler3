@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/url"
 	"os"
 	"regexp"
@@ -23,6 +24,8 @@ import (
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -62,6 +65,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options.LoginRequired = false
 	options.EnableSessionInit = false
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+	options.MustHeader.Add("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.16; rv:85.0) Gecko/20100101 Firefox/85.0")
 
 	// options.MustCookies = append(options.MustCookies,
 	// 	&http.Cookie{Name: "shippingCountry", Value: "US", Path: "/"},
@@ -203,10 +207,6 @@ type parseProductData struct {
 			TopLevelCategoryID   string `json:"topLevelCategoryID"`
 			TopLevelCategoryName string `json:"topLevelCategoryName"`
 		} `json:"identifier"`
-		Messages struct {
-			Info []struct {
-			} `json:"info"`
-		} `json:"messages"`
 		Detail struct {
 			Name                 string `json:"name"`
 			Description          string `json:"description"`
@@ -365,10 +365,6 @@ type parseProductData struct {
 				SubClassCode  int    `json:"subClassCode"`
 				VendorCode    int    `json:"vendorCode"`
 				MarkStyleCode string `json:"markStyleCode"`
-				Messages      struct {
-					Info []struct {
-					} `json:"info"`
-				} `json:"messages"`
 				Relationships struct {
 				} `json:"relationships"`
 				Availability struct {
@@ -392,8 +388,6 @@ type parseProductData struct {
 				} `json:"traits"`
 				ProtectionPlans        []interface{} `json:"protectionPlans"`
 				HolidayMessageEligible bool          `json:"holidayMessageEligible"`
-				//} `json:"44742859"`
-
 			} `json:"upcs"`
 		} `json:"relationships"`
 		Imagery struct {
@@ -425,7 +419,6 @@ type parseProductData struct {
 			Colors struct {
 				SelectedColor int `json:"selectedColor"`
 				ColorMap      map[string]struct {
-					//Num6278243 struct {
 					ID          int    `json:"id"`
 					Name        string `json:"name"`
 					NormalName  string `json:"normalName"`
@@ -499,7 +492,6 @@ type parseProductData struct {
 						} `json:"price"`
 						BadgeIds []string `json:"badgeIds"`
 					} `json:"pricing"`
-					//} `json:"6278243"`
 				} `json:"colorMap"`
 				SwatchSprite struct {
 					SwatchSpriteUrls  []string `json:"swatchSpriteUrls"`
@@ -513,12 +505,10 @@ type parseProductData struct {
 				OrderedSizesBySeqNumber []int  `json:"orderedSizesBySeqNumber"`
 				SizeChartID             string `json:"sizeChartId"`
 				SizeMap                 map[string]struct {
-					//Num0 struct {
 					ID          int    `json:"id"`
 					Name        string `json:"name"`
 					DisplayName string `json:"displayName"`
 					Colors      []int  `json:"colors"`
-					//} `json:"0"`
 				} `json:"sizeMap"`
 			} `json:"sizes"`
 			TraitsMaps struct {
@@ -630,8 +620,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
 	}
 
-	c.logger.Debugf("json %s", matched[1])
-
 	var (
 		i  parseProductResponse
 		pd parseProductData
@@ -667,7 +655,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Title:       pd.Product.Detail.Name,
 		Description: pd.Product.Detail.Description,
 		BrandName:   pd.Product.Detail.Brand.Name,
-		// CrowdType:    i.Details.GenderName,  // ASK ?
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
@@ -676,67 +663,77 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Rating:      float32(rating),
 		},
 	}
-
-	for _, p := range pd.Product.Traits.Colors.ColorMap {
-		current, _ := strconv.ParseFloat(p.Pricing.Price.FinalPrice.Values[0].Value)
-		msrp, _ := strconv.ParseFloat(p.Pricing.Price.TieredPrice[1].Values[0].Value)
-		// discount := strconv.ParseFloat(p.Pricing.Price.TieredPrice[1].Values[0])
-		discount := (msrp - current) * 100 / msrp
-
-		for _, rawSize := range p.Sizes {
-
-			sizeID := strconv.Format(rawSize)
-			sku := pbItem.Sku{
-				SourceId: strconv.Format(p.ID) + "_" + strconv.Format(rawSize),
-				Price: &pbItem.Price{
-					Currency: regulation.Currency_USD,
-					Current:  int32(current * 100),
-					Msrp:     int32(msrp * 100),
-					Discount: int32(discount),
-				},
-				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
-			}
-			// if rawSize.StockLevelStatus == "inStock" {
-			// 	sku.Stock.StockStatus = pbItem.Stock_InStock
-			// 	//sku.Stock.StockCount = int32(rawSize.Quantity)
-			// }
-
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    sizeID,
-				Name:  pd.Product.Traits.Sizes.SizeMap[sizeID].Name,
-				Value: pd.Product.Traits.Sizes.SizeMap[sizeID].DisplayName,
-			})
-
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{ // color ASK
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    strconv.Format(p.ID),
-				Name:  p.NormalName,
-				Value: p.NormalName,
-			})
-
-			item.SkuItems = append(item.SkuItems, &sku)
-		}
-
-		isDefault := true
-		for key, img := range p.Imagery.Images {
-			if key > 1 {
-				isDefault = false
-			}
-			itemImg, _ := anypb.New(&media.Media_Image{ // ask?
-				OriginalUrl: "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath,
-				LargeUrl:    "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=1230&hei=1500&op_sharpen=1", // $S$, $XXL$
-				MediumUrl:   "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=640&hei=780&op_sharpen=1",
-				SmallUrl:    "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=500&hei=609&op_sharpen=1",
-			})
-			item.Medias = append(item.Medias, &media.Media{
-				Detail:    itemImg,
-				IsDefault: isDefault,
-			})
+	for i, cate := range pd.Product.Relationships.Taxonomy.Categories {
+		switch i {
+		case 0:
+			item.CrowdType = strings.ToLower(cate.Name)
+		case 1:
+			item.Category = cate.Name
+		case 2:
+			item.SubCategory = cate.Name
+		case 3:
+			item.SubCategory2 = cate.Name
 		}
 	}
 
-	// yield item result
+	colors := pd.Product.Traits.Colors
+	sizes := pd.Product.Traits.Sizes
+	for id, p := range pd.Product.Relationships.Upcs {
+
+		sku := pbItem.Sku{
+			SourceId: id,
+			Price:    &pbItem.Price{Currency: regulation.Currency_USD},
+			Stock:    &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+		}
+		if p.Availability.Available {
+			sku.Stock.StockStatus = pbItem.Stock_InStock
+		}
+
+		if color, ok := colors.ColorMap[strconv.Format(p.Traits.Colors.SelectedColor)]; ok {
+			// build color sku
+			spec := pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
+				Id:    strconv.Format(color.ID),
+				Name:  color.NormalName,
+				Value: color.Name,
+			}
+			sku.Specs = append(sku.Specs, &spec)
+
+			current := color.Pricing.Price.TieredPrice[1].Values[0].Value
+			msrp := color.Pricing.Price.TieredPrice[0].Values[0].Value
+			discount := math.Ceil((msrp - current) * 100 / msrp)
+			sku.Price.Current = int32(current * 100)
+			sku.Price.Msrp = int32(msrp * 100)
+			sku.Price.Discount = int32(discount)
+
+			for i, img := range color.Imagery.Images {
+				itemImg, _ := anypb.New(&media.Media_Image{
+					OriginalUrl: "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath,
+					LargeUrl:    "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=1230&hei=1500&op_sharpen=1", // $S$, $XXL$
+					MediumUrl:   "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=640&hei=780&op_sharpen=1",
+					SmallUrl:    "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=500&hei=609&op_sharpen=1",
+				})
+				sku.Medias = append(sku.Medias, &media.Media{
+					Detail:    itemImg,
+					IsDefault: i == 0,
+				})
+			}
+		}
+		if size, ok := sizes.SizeMap[strconv.Format(p.Traits.Sizes.SelectedSize)]; ok {
+			spec := pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Id:    strconv.Format(size.ID),
+				Name:  size.DisplayName,
+				Value: size.Name,
+			}
+			sku.Specs = append(sku.Specs, &spec)
+		}
+		if len(sku.Specs) == 0 {
+			return fmt.Errorf("got invalid sku, got no sku spec")
+		}
+		item.SkuItems = append(item.SkuItems, &sku)
+	}
+
 	if err = yield(ctx, &item); err != nil {
 		return err
 	}
@@ -745,8 +742,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		// "https://www.macys.com/shop/womens-clothing/womens-sale-clearance?id=10066",
-		"https://www.macys.com/shop/product/style-co-ribbed-hoodie-sweater-created-for-macys?ID=11393511&CategoryID=10066",
+		"https://www.macys.com/shop/womens-clothing/womens-sale-clearance?id=10066",
+		// "https://www.macys.com/shop/product/style-co-ribbed-hoodie-sweater-created-for-macys?ID=11393511&CategoryID=10066",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -817,7 +814,7 @@ func main() {
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
 
-			// nctx = context.WithValue(nctx, "tracing_id", randutil.MustNewRandomID())
+			// nctx = context.WithValue(nctx, "tracing_id", fmt.Sprintf("macy_%d", time.Now().UnixNano()))
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
@@ -833,7 +830,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
