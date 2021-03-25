@@ -102,13 +102,15 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			KeepSession:       opts.KeepSession,
 			MaxTtlPerRequest:  5 * 60, // 5mins
 			DisableRedirect:   opts.DisableRedirect,
+			RequestFilterKeys: opts.RequestFilterKeys,
+			JsWaitDuration:    opts.JsWaitDuration,
 		},
 	}
 	// set ttl per request according to deadline
 	if deadline, ok := ctx.Deadline(); ok {
 		timeRemain := deadline.Unix() - time.Now().Unix()
 		if timeRemain > 30 {
-			req.Options.MaxTtlPerRequest = int32(timeRemain)
+			req.Options.MaxTtlPerRequest = timeRemain
 		}
 	}
 
@@ -174,6 +176,8 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		if !isSub && len(res.Body) > 0 {
 			// try to uncompress ziped data
 			if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
+				c.logger.Errorf("decode gzip %s", res.Body)
+
 				if reader, err := gzip.NewReader(bytes.NewReader(res.Body)); err == nil {
 					if data, err := io.ReadAll(reader); err == nil {
 						resp.Body = http.NewReader(data)
@@ -181,12 +185,15 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 						resp.Header.Del("Content-Length")
 						resp.ContentLength = -1
 						resp.Uncompressed = true
+					} else {
+						c.logger.Errorf("decode failed, error=%s", err)
 					}
 				} else {
 					resp.ContentLength = int64(len(res.Body))
 					resp.Body = http.NewReader(res.GetBody())
 				}
 			} else {
+				c.logger.Errorf("un gzip")
 				resp.ContentLength = int64(len(res.Body))
 				resp.Uncompressed = true
 				resp.Body = http.NewReader(res.GetBody())
