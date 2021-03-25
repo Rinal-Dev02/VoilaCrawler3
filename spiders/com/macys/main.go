@@ -64,6 +64,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options.EnableHeadless = false
 	options.LoginRequired = false
 	options.EnableSessionInit = false
+	options.DisableCookieJar = true
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
 	options.MustHeader.Add("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.16; rv:85.0) Gecko/20100101 Firefox/85.0")
 
@@ -818,6 +819,7 @@ func main() {
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
+				DisableCookieJar:  spider.CrawlOptions().DisableCookieJar,
 				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
 				KeepSession:       spider.CrawlOptions().KeepSession,
 				Reliability:       spider.CrawlOptions().Reliability,

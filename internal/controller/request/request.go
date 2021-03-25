@@ -299,9 +299,12 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							// EnableProxy, MaxTtlPerRequest set in Unmarshal
 							proxyReq.Options.Reliability = options.Reliability
 							proxyReq.Options.EnableHeadless = options.EnableHeadless
+							proxyReq.Options.JsWaitDuration = options.JsWaitDuration
 							proxyReq.Options.EnableSessionInit = options.EnableSessionInit
 							proxyReq.Options.KeepSession = options.KeepSession
+							proxyReq.Options.DisableCookieJar = options.DisableCookieJar
 							proxyReq.Options.DisableRedirect = options.DisableRedirect
+							proxyReq.Options.RequestFilterKeys = options.RequestFilterKeys
 
 							reqCtx := context.WithValue(ctx, "tracing_id", req.GetTracingId())
 							reqCtx = context.WithValue(reqCtx, "job_id", req.GetJobId())

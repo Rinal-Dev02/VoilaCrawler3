@@ -57,6 +57,8 @@ type Options struct {
 	EnableSessionInit bool
 	// KeepSession
 	KeepSession bool
+	// DisableCookieJar
+	DisableCookieJar bool
 
 	// DisableRedirect disable http redirect when do http request
 	DisableRedirect bool

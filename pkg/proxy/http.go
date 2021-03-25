@@ -100,6 +100,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			EnableHeadless:    opts.EnableHeadless,
 			EnableSessionInit: opts.EnableSessionInit,
 			KeepSession:       opts.KeepSession,
+			DisableCookieJar:  opts.DisableCookieJar,
 			MaxTtlPerRequest:  5 * 60, // 5mins
 			DisableRedirect:   opts.DisableRedirect,
 			RequestFilterKeys: opts.RequestFilterKeys,
