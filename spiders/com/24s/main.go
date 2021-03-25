@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,13 +20,13 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -43,9 +46,10 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9_-]+)?/en-us/(women|men)(/[a-z0-9_-]+)+$`),
+		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9_-]+)?/en\-us/(women|men)(/[a-z0-9_\-]+)+$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^(.*)(\d)$`),
+		// /en-us/long-waterproof-cotton-coat-bottega-veneta_BOT84658YELWI04600
+		productPathMatcher: regexp.MustCompile(`^/en\-us/[a-z0-9\-]+_[A-Z0-9]+$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -201,6 +205,113 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	return yield(nctx, req)
 }
 
+type productDetail struct {
+	Upsell []struct {
+		PriceInclVat int         `json:"priceInclVat"`
+		PriceExclVat interface{} `json:"priceExclVat"`
+		Pictures     []struct {
+			Priority int    `json:"priority"`
+			Path     string `json:"path"`
+		} `json:"pictures"`
+		OfferID        string      `json:"offerId"`
+		New            bool        `json:"new"`
+		Name           string      `json:"name"`
+		Model          string      `json:"model"`
+		LongSKU        string      `json:"longSKU"`
+		Exclusive      bool        `json:"exclusive"`
+		DiscountPrice  interface{} `json:"discountPrice"`
+		DiscountAmount int         `json:"discountAmount"`
+		Brand          struct {
+			Slug string `json:"slug"`
+			Name string `json:"name"`
+		} `json:"brand"`
+		DiscountPriceInclVat int         `json:"discountPriceInclVat"`
+		DiscountPriceExclVat interface{} `json:"discountPriceExclVat"`
+	} `json:"upsell"`
+	SizeAvailable []*struct {
+		SizeCode      string `json:"sizeCode"`
+		LongSKU       string `json:"longSKU"`
+		HasOffer      bool   `json:"hasOffer"`
+		SellerSKU     string `json:"sellerSKU,omitempty"`
+		Stock         int    `json:"stock,omitempty"`
+		Replenishment bool   `json:"replenishment,omitempty"`
+	} `json:"sizeAvailable"`
+	ShippingExpress []struct {
+		PriceInclVat         int `json:"priceInclVat"`
+		DiscountAmount       int `json:"discountAmount"`
+		DiscountPriceInclVat int `json:"discountPriceInclVat"`
+	} `json:"shippingExpress"`
+	ProductInformation struct {
+		Year                string      `json:"year"`
+		SkinType            interface{} `json:"skinType"`
+		Season              string      `json:"season"`
+		ProductDetails      interface{} `json:"productDetails"`
+		ProductCode         string      `json:"productCode"`
+		Preview             bool        `json:"preview"`
+		PreferentialOrigin  interface{} `json:"preferentialOrigin"`
+		Packaging           interface{} `json:"packaging"`
+		ManufacturerID      string      `json:"manufacturerId"`
+		ManufacturerAddress interface{} `json:"manufacturerAddress"`
+		MadeInLabel         string      `json:"madeInLabel"`
+		MadeIn              string      `json:"madeIn"`
+		HeelSize            string      `json:"heelSize"`
+		FacetColorCode      string      `json:"facetColorCode"`
+		FacetColor          string      `json:"facetColor"`
+		DimensionsWidth     interface{} `json:"dimensionsWidth"`
+		DimensionsHeight    interface{} `json:"dimensionsHeight"`
+		DimensionsDepth     interface{} `json:"dimensionsDepth"`
+		Dimensions          string      `json:"dimensions"`
+		CompositionEn       string      `json:"compositionEn"`
+		Composition         interface{} `json:"composition"`
+		Collection          string      `json:"collection"`
+		CareInstructions    interface{} `json:"careInstructions"`
+		CapacityWeight      interface{} `json:"capacityWeight"`
+		CapacityLiter       interface{} `json:"capacityLiter"`
+		BrandInformation    string      `json:"brandInformation"`
+		BrandColorFront     interface{} `json:"brandColorFront"`
+		BrandColor          string      `json:"brandColor"`
+		Avacode             string      `json:"avacode"`
+		DisplayMadeIn       bool        `json:"displayMadeIn"`
+		Size                string      `json:"size"`
+		SizingChart         string      `json:"sizingChart"`
+	} `json:"productInformation"`
+	ProductFamily string `json:"productFamily"`
+	Pictures      []struct {
+		Priority int    `json:"priority"`
+		Path     string `json:"path"`
+	} `json:"pictures"`
+	OfferID             string `json:"offerId"`
+	Name                string `json:"name"`
+	MainCategoryBrand   string `json:"mainCategoryBrand"`
+	LongSKU             string `json:"longSKU"`
+	FacetColorAvailable []*struct {
+		Path            string      `json:"path"`
+		LongSKU         string      `json:"longSKU"`
+		HasOffer        bool        `json:"hasOffer"`
+		BrandColorFront interface{} `json:"brandColorFront"`
+		BrandColor      string      `json:"brandColor"`
+		Stock           int         `json:"stock"`
+		Replenishment   bool        `json:"replenishment"`
+	} `json:"facetColorAvailable"`
+	Destination      string   `json:"destination"`
+	Description      string   `json:"description"`
+	Cites            string   `json:"cites"`
+	CategoriesMaster []string `json:"categoriesMaster"`
+	CategoriesBrands []string `json:"categoriesBrands"`
+	Breadcrumbs      []struct {
+		Slug  string `json:"slug"`
+		Label string `json:"label"`
+	} `json:"breadcrumbs"`
+	Brand struct {
+		Slug string `json:"slug"`
+		Name string `json:"name"`
+	} `json:"brand"`
+	AvailableShippingMethod []string `json:"availableShippingMethod"`
+	HSCode                  string   `json:"HSCode"`
+	BulletPoints            []string `json:"bulletPoints"`
+	Timestamp               int64    `json:"timestamp"`
+}
+
 type parseProductResponse struct {
 	Props struct {
 		InitialState struct {
@@ -216,113 +327,46 @@ type parseProductResponse struct {
 						//} `json:"WI038"`
 					} `json:"mapping"`
 				} `json:"sizes"`
-				SelectedSize    interface{} `json:"selectedSize"`
-				SelectedColor   string      `json:"selectedColor"`
-				ProductFormated struct {
-					Upsell []struct {
-						PriceInclVat int         `json:"priceInclVat"`
-						PriceExclVat interface{} `json:"priceExclVat"`
-						Pictures     []struct {
-							Priority int    `json:"priority"`
-							Path     string `json:"path"`
-						} `json:"pictures"`
-						OfferID        string      `json:"offerId"`
-						New            bool        `json:"new"`
-						Name           string      `json:"name"`
-						Model          string      `json:"model"`
-						LongSKU        string      `json:"longSKU"`
-						Exclusive      bool        `json:"exclusive"`
-						DiscountPrice  interface{} `json:"discountPrice"`
-						DiscountAmount int         `json:"discountAmount"`
-						Brand          struct {
-							Slug string `json:"slug"`
-							Name string `json:"name"`
-						} `json:"brand"`
-						DiscountPriceInclVat int         `json:"discountPriceInclVat"`
-						DiscountPriceExclVat interface{} `json:"discountPriceExclVat"`
-					} `json:"upsell"`
-					SizeAvailable []struct {
-						SizeCode      string `json:"sizeCode"`
-						LongSKU       string `json:"longSKU"`
-						HasOffer      bool   `json:"hasOffer"`
-						SellerSKU     string `json:"sellerSKU,omitempty"`
-						Stock         int    `json:"stock,omitempty"`
-						Replenishment bool   `json:"replenishment,omitempty"`
-					} `json:"sizeAvailable"`
-					ShippingExpress []struct {
-						PriceInclVat         int `json:"priceInclVat"`
-						DiscountAmount       int `json:"discountAmount"`
-						DiscountPriceInclVat int `json:"discountPriceInclVat"`
-					} `json:"shippingExpress"`
-					ProductInformation struct {
-						Year                string      `json:"year"`
-						SkinType            interface{} `json:"skinType"`
-						Season              string      `json:"season"`
-						ProductDetails      interface{} `json:"productDetails"`
-						ProductCode         string      `json:"productCode"`
-						Preview             bool        `json:"preview"`
-						PreferentialOrigin  interface{} `json:"preferentialOrigin"`
-						Packaging           interface{} `json:"packaging"`
-						ManufacturerID      string      `json:"manufacturerId"`
-						ManufacturerAddress interface{} `json:"manufacturerAddress"`
-						MadeInLabel         string      `json:"madeInLabel"`
-						MadeIn              string      `json:"madeIn"`
-						HeelSize            string      `json:"heelSize"`
-						FacetColorCode      string      `json:"facetColorCode"`
-						FacetColor          string      `json:"facetColor"`
-						DimensionsWidth     interface{} `json:"dimensionsWidth"`
-						DimensionsHeight    interface{} `json:"dimensionsHeight"`
-						DimensionsDepth     interface{} `json:"dimensionsDepth"`
-						Dimensions          string      `json:"dimensions"`
-						CompositionEn       string      `json:"compositionEn"`
-						Composition         interface{} `json:"composition"`
-						Collection          string      `json:"collection"`
-						CareInstructions    interface{} `json:"careInstructions"`
-						CapacityWeight      interface{} `json:"capacityWeight"`
-						CapacityLiter       interface{} `json:"capacityLiter"`
-						BrandInformation    string      `json:"brandInformation"`
-						BrandColorFront     interface{} `json:"brandColorFront"`
-						BrandColor          string      `json:"brandColor"`
-						Avacode             string      `json:"avacode"`
-						DisplayMadeIn       bool        `json:"displayMadeIn"`
-						Size                string      `json:"size"`
-						SizingChart         string      `json:"sizingChart"`
-					} `json:"productInformation"`
-					ProductFamily string `json:"productFamily"`
-					Pictures      []struct {
-						Priority int    `json:"priority"`
-						Path     string `json:"path"`
-					} `json:"pictures"`
-					OfferID             string      `json:"offerId"`
-					Name                string      `json:"name"`
-					MainCategoryBrand   string      `json:"mainCategoryBrand"`
-					LongSKU             string      `json:"longSKU"`
-					FacetColorAvailable interface{} `json:"facetColorAvailable"`
-					Destination         string      `json:"destination"`
-					Description         string      `json:"description"`
-					Cites               string      `json:"cites"`
-					CategoriesMaster    []string    `json:"categoriesMaster"`
-					CategoriesBrands    []string    `json:"categoriesBrands"`
-					Breadcrumbs         []struct {
-						Slug  string `json:"slug"`
-						Label string `json:"label"`
-					} `json:"breadcrumbs"`
-					Brand struct {
-						Slug string `json:"slug"`
-						Name string `json:"name"`
-					} `json:"brand"`
-					AvailableShippingMethod []string `json:"availableShippingMethod"`
-					HSCode                  string   `json:"HSCode"`
-					BulletPoints            []string `json:"bulletPoints"`
-					Timestamp               int64    `json:"timestamp"`
-				} `json:"productFormated"`
+				SelectedSize    interface{}    `json:"selectedSize"`
+				SelectedColor   string         `json:"selectedColor"`
+				ProductFormated *productDetail `json:"productFormated"`
 			} `json:"pdp"`
 		} `json:"initialState"`
 	} `json:"props"`
+	RuntimeConfig struct {
+		NEXTPUBLICADYENORIGINKEY       string `json:"NEXT_PUBLIC_ADYEN_ORIGIN_KEY"`
+		NEXTPUBLICTHUMBORHOST          string `json:"NEXT_PUBLIC_THUMBOR_HOST"`
+		NEXTPUBLICBASEURL              string `json:"NEXT_PUBLIC_BASE_URL"`
+		NEXTPUBLICOFFERBASEURL         string `json:"NEXT_PUBLIC_OFFER_BASE_URL"`
+		NEXTPUBLICRECAPTCHA            string `json:"NEXT_PUBLIC_RECAPTCHA"`
+		NEXTPUBLICRISKIFIEDDOMAIN      string `json:"NEXT_PUBLIC_RISKIFIED_DOMAIN"`
+		NEXTPUBLICTHUMBORKEY           string `json:"NEXT_PUBLIC_THUMBOR_KEY"`
+		NEXTPUBLICOFFERAUTH            string `json:"NEXT_PUBLIC_OFFER_AUTH"`
+		NEXTPUBLICFRONTAUTH            string `json:"NEXT_PUBLIC_FRONT_AUTH"`
+		NEXTPUBLICSTRIPEKEYPUBLIC      string `json:"NEXT_PUBLIC_STRIPE_KEY_PUBLIC"`
+		NEXTPUBLICERRORBOUNDARIESDEBUG string `json:"NEXT_PUBLIC_ERROR_BOUNDARIES_DEBUG"`
+		NEXTPUBLICBABYLONEBASEURL      string `json:"NEXT_PUBLIC_BABYLONE_BASE_URL"`
+		NEXTPUBLICAPIGWBASEURL         string `json:"NEXT_PUBLIC_APIGW_BASE_URL"`
+	} `json:"runtimeConfig"`
 }
 
 // used to trim html labels in description
 var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+
+func generateImageUrl(host, key, size, path string) string {
+	if host == "" {
+		host = "https://img.zolaprod.babsta.net"
+	}
+	secret := "unsafe"
+	subpath := "fit-in/" + size + "/" + path
+
+	if key != "" {
+		mac := hmac.New(sha1.New, []byte(key))
+		mac.Write([]byte(subpath))
+		secret = base64.URLEncoding.WithPadding(base64.StdPadding).EncodeToString(mac.Sum(nil))
+	}
+	return host + "/" + secret + "/" + subpath
+}
 
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -346,47 +390,50 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		return err
-	}
-
-	p := viewData.Props.InitialState.Pdp.ProductFormated
-
-	description := ""
-
-	for _, rawDesc := range p.BulletPoints {
-		description = description + " " + rawDesc
-	}
-	if p.ProductInformation.CompositionEn != "" {
-		description = description + ", INGREDIENTS : " + p.ProductInformation.CompositionEn
-	}
-	if p.ProductInformation.HeelSize != "" {
-		description = description + ", HEEL HEIGHT : " + p.ProductInformation.HeelSize
-	}
+	var (
+		p        = viewData.Props.InitialState.Pdp.ProductFormated
+		colorSku *pbItem.SkuSpecOption
+	)
 	if p.ProductInformation.BrandColor != "" {
-		description = description + ", COLOR : " + p.ProductInformation.BrandColor
-	}
-	if p.ProductInformation.Dimensions != "" {
-		description = description + ", DIMENSIONS : " + p.ProductInformation.Dimensions
-	}
-	if p.ProductInformation.MadeIn != "" {
-		description = description + ", MADE IN : " + p.ProductInformation.MadeIn
+		colorSku = &pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecColor,
+			Id:    p.ProductInformation.BrandColor,
+			Name:  p.ProductInformation.BrandColor,
+			Value: p.ProductInformation.BrandColor,
+		}
 	}
 
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(viewData.Props.InitialState.Pdp.Product),
+			Id:       p.LongSKU,
 			CrawlUrl: resp.Request.URL.String(),
+			GroupId:  p.HSCode,
 		},
-		BrandName:   p.Brand.Name,
-		Title:       p.Name,
-		Description: htmlTrimRegp.ReplaceAllString(p.Description, ""),
+		BrandName: p.Brand.Name,
+		Title:     p.Name,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
 	}
+	if len(p.Breadcrumbs) > 0 {
+		item.CrowdType = p.Breadcrumbs[0].Label
+	}
+	if len(p.Breadcrumbs) > 1 {
+		item.Category = p.Breadcrumbs[1].Label
+	}
+	if len(p.Breadcrumbs) > 2 {
+		item.SubCategory = p.Breadcrumbs[2].Label
+	}
+	if len(p.Breadcrumbs) > 3 {
+		item.SubCategory2 = p.Breadcrumbs[3].Label
+	}
+
+	description := p.Description
+	for _, rawDesc := range p.BulletPoints {
+		description = description + rawDesc + ". "
+	}
+	item.Description = description
 
 	currentPrice := 0
 	if p.ShippingExpress[0].DiscountPriceInclVat > 0 {
@@ -395,11 +442,25 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		currentPrice = p.ShippingExpress[0].PriceInclVat
 	}
 
-	originalPrice := (p.ShippingExpress[0].PriceInclVat)
-	discount := p.ShippingExpress[0].DiscountAmount
+	var (
+		originalPrice = (p.ShippingExpress[0].PriceInclVat)
+		discount      = p.ShippingExpress[0].DiscountAmount
 
-	for i, rawSku := range p.SizeAvailable {
+		thumborHost = viewData.RuntimeConfig.NEXTPUBLICTHUMBORHOST
+		thumborKey  = viewData.RuntimeConfig.NEXTPUBLICTHUMBORKEY
+	)
 
+	for j, pic := range p.Pictures {
+		item.Medias = append(item.Medias, pbMedia.NewImageMedia(
+			pic.Path,
+			generateImageUrl(thumborHost, thumborKey, "", pic.Path),
+			generateImageUrl(thumborHost, thumborKey, "800x", pic.Path),
+			generateImageUrl(thumborHost, thumborKey, "600x", pic.Path),
+			generateImageUrl(thumborHost, thumborKey, "500x", pic.Path),
+			"", j == 0))
+	}
+
+	for _, rawSku := range p.SizeAvailable {
 		sku := pbItem.Sku{
 			SourceId: strconv.Format(rawSku.LongSKU),
 			Price: &pbItem.Price{
@@ -416,65 +477,61 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		// color
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecColor,
-			Id:    strconv.Format(p.ProductInformation.ProductCode),
-			Name:  p.ProductInformation.BrandColor,
-			Value: p.ProductInformation.BrandColor,
-			//Icon:  color.SwatchMedia.Mobile,
-		})
-
-		if i == 0 {
-
-			isDefault := true
-			for j := range p.Pictures {
-				if j > 0 {
-					isDefault = false
-				}
-
-				elementSelector := ".slick-slide[data-index=\"" + strconv.Format(j) + "\"]>div>picture>img"
-				mediumUrl, _ := doc.Find(elementSelector).Attr("src")
-
-				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-					strconv.Format(j),
-					mediumUrl,
-					mediumUrl,
-					mediumUrl,
-					mediumUrl,
-					"", isDefault))
-			}
+		if colorSku != nil {
+			sku.Specs = append(sku.Specs, colorSku)
 		}
 
 		// size
 		sizeStruct := viewData.Props.InitialState.Pdp.Sizes.Mapping[rawSku.SizeCode]
 		sizeVal := ""
 		for _, mid := range sizeStruct {
-			sizeVal = strings.Join([]string{sizeVal, mid.Label}, " / ")
+			if sizeVal == "" {
+				sizeVal = mid.Label
+			} else {
+				sizeVal = sizeVal + " / " + mid.Label
+			}
 		}
-
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecSize,
 			Id:    rawSku.SizeCode,
-			Name:  (strings.TrimPrefix(sizeVal, " / ")),
-			Value: (strings.TrimPrefix(sizeVal, " / ")),
+			Name:  sizeVal,
+			Value: sizeVal,
 		})
-
 		item.SkuItems = append(item.SkuItems, &sku)
-
 	}
 
 	// yield item result
 	if err = yield(ctx, &item); err != nil {
+		c.logger.Errorf("yield sub request failed, error=%s", err)
 		return err
 	}
 
+	// for other colors
+	for _, color := range p.FacetColorAvailable {
+		if strings.Replace(color.BrandColor, "_", " ", -1) == strings.Replace(p.ProductInformation.BrandColor, "_", " ", -1) {
+			continue
+		}
+		u := strings.Replace(resp.Request.URL.String(), "_"+p.LongSKU, "_"+color.LongSKU, -1)
+		req, err := http.NewRequest(http.MethodGet, u, nil)
+		if err != nil {
+			c.logger.Errorf("yield new color crawl failed, error=%s", err)
+			continue
+		}
+		req.Header.Set("Referer", resp.Request.Header.Get("Referer"))
+
+		if err := yield(ctx, req); err != nil {
+			c.logger.Errorf("yield sub request failed, error=%s", err)
+			return err
+		}
+	}
 	return nil
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.24s.com/en-us/women/ready-to-wear/coats",
+		"https://www.24s.com/en-us/nash-face-t-shirt-acne-studios_ACNDDJX8GRYMZZXS00",
+		//"https://www.24s.com/en-us/women/ready-to-wear/coats",
 		//"https://www.24s.com/en-us/long-coat-acne-studios_ACNEWD32BEIWD03800?color=camel-melange",
 		//"https://www.24s.com/en-us/jinn-85-pumps-jimmy-choo_JCHZK4R3GEESI39500?color=dark-moss",
 	} {
@@ -517,12 +574,18 @@ func main() {
 	}
 	opts := spider.CrawlOptions()
 
+	stop := false
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
+			if stop {
+				return nil
+			}
+			stop = true
 
 			// process logic of sub request
 
@@ -570,7 +633,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
