@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	//"github.com/gosimple/slug"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -20,6 +19,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -38,7 +38,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
 		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9_-]+)?/category/(women|men)([/a-z0-9_-]+).html$`),
-		productPathMatcher:  regexp.MustCompile(`^[/product/]+(/[a-zA-Z0-9-]+)+.html$`),
+		productPathMatcher:  regexp.MustCompile(`^/product(/[~a-zA-Z0-9\-]+)+.html$`),
 		imagePathMatcher:    regexp.MustCompile(`^(/[is/image/EBFL2/]+)(/[a-zA-Z0-9_-]+)([/?req=set,json&id=]+([A-Za-z0-9]+))$`),
 		logger:              logger.New("_Crawler"),
 	}
@@ -60,8 +60,10 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.EnableSessionInit = true
-	options.MustCookies = append(options.MustCookies) //&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
+	options.EnableSessionInit = false
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+	options.MustCookies = append(options.MustCookies)
+	// &http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
 	// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
 	// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
 	// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
@@ -130,6 +132,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	// next page
 	matched := prodDataExtraReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
+		c.logger.Debugf("html %s", respBody)
 		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
 	}
 	var r struct {
@@ -758,7 +761,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
