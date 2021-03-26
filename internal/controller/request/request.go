@@ -324,17 +324,19 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							}
 							ctrl.historyCtrl.Publish(ctx, req.GetId(), duration, proxyResp.StatusCode, "")
 
-							if proxyResp.GetStatusCode() == -1 {
-								return errors.New(proxyResp.GetStatus())
-							}
-							if proxyResp.GetStatusCode() == http.StatusForbidden {
-								// clean cached cookie
+							if proxyResp.GetStatusCode() == -1 ||
+								proxyResp.GetStatusCode() == http.StatusForbidden ||
+								proxyResp.GetStatusCode() == http.StatusTooManyRequests {
 
 								if _, err := ctrl.sessionManager.ClearCookies(ctx, &pbSession.ClearCookiesRequest{
 									TracingId: req.GetTracingId(),
 									Url:       req.GetUrl(),
 								}); err != nil {
 									ctrl.logger.Errorf("clear cookie for %s failed, error=%s", req.GetUrl(), err)
+								}
+
+								if proxyResp.GetStatusCode() == -1 {
+									return errors.New(proxyResp.GetStatus())
 								}
 								// to requeue again
 								return errors.New("access forbidden")

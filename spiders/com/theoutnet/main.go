@@ -14,6 +14,8 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
@@ -40,9 +42,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^((\?!product).)*`),
+		categoryPathMatcher: regexp.MustCompile(`^/en-us/shop(/[a-z0-9\-]+){1,6}/?$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`(/[a-z0-9_-]+)?/product([/a-z0-9_-]+)`),
+		productPathMatcher: regexp.MustCompile(`^/en-us/shop/product(/[a-z0-9_\-]+){1,6}/[0-9]+/?$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -65,11 +67,15 @@ func (c *_Crawler) Version() int32 {
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
 func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
-	return &crawler.CrawlOptions{
-		EnableHeadless: false,
-		// use js api to init session for the first request of the crawl
+	options := &crawler.CrawlOptions{
+		EnableHeadless:    false,
 		EnableSessionInit: true,
 	}
+	options.MustCookies = append(options.MustCookies,
+		&http.Cookie{Name: "country_iso", Value: "US"},
+		&http.Cookie{Name: "lang_iso", Value: "en"},
+	)
+	return options
 }
 
 // AllowedDomains return the domains this spider process will.
@@ -169,7 +175,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 		rawurl := fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.Seo.SeoURLKeyword)
 
-		//fmt.Println(rawurl)
 		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 		if err != nil {
 			c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
@@ -595,7 +600,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Debugf("%s", respBody)
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
 	}
-	// c.logger.Debugf("data: %s", matched[1])
 
 	var viewData parseProductResponse
 
@@ -605,29 +609,45 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	for _, p := range viewData.Pdp.DetailsState.Response.Body.Products[0].ProductColours {
-		// build product data
-
 		if !p.Visible {
 			continue
 		}
 
+		tracking := viewData.Pdp.DetailsState.Response.Body.Products[0].Tracking
 		item := pbItem.Product{
 			Source: &pbItem.Source{
 				Id:       strconv.Format(p.PartNumber),
 				CrawlUrl: resp.Request.URL.String(),
 			},
-			BrandName:   viewData.Pdp.DetailsState.Response.Body.Products[0].DesignerName,
-			Title:       p.ShortDescription,
-			Description: p.TechnicalDescription,
+			BrandName:    viewData.Pdp.DetailsState.Response.Body.Products[0].DesignerName,
+			Title:        p.ShortDescription,
+			Description:  p.TechnicalDescription,
+			Category:     tracking.PrimaryCategory.Label,
+			SubCategory:  tracking.PrimaryCategory.Child.Label,
+			SubCategory2: tracking.PrimaryCategory.Child.Child.Label,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
 		}
 
-		for key, rawSku := range p.SKUs {
-			originalPrice, _ := strconv.ParseFloat(rawSku.Price.WasPrice.Amount) //  / 100
+		for ki, mid := range p.ImageViews {
+			imgTemplate := strings.ReplaceAll(p.ImageTemplate, "{view}", mid)
+			item.Medias = append(item.Medias, pbMedia.NewImageMedia(
+				strconv.Format(mid),
+				strings.ReplaceAll(imgTemplate, "{width}", "920"),
+				strings.ReplaceAll(imgTemplate, "{width}", "920"),
+				strings.ReplaceAll(imgTemplate, "{width}", "600"),
+				strings.ReplaceAll(imgTemplate, "{width}", "400"),
+				"",
+				ki == 0,
+			))
+		}
+
+		for _, rawSku := range p.SKUs {
+			originalPrice, _ := strconv.ParseFloat(rawSku.Price.WasPrice.Amount)
 			currentPrice, _ := strconv.ParseFloat(rawSku.Price.SellingPrice.Amount)
 			discount, _ := strconv.ParseFloat(rawSku.Price.Discount.Amount)
+
 			sku := pbItem.Sku{
 				SourceId: strconv.Format(rawSku.PartNumber),
 				Price: &pbItem.Price{
@@ -638,9 +658,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				},
 				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
-			if rawSku.Selected {
+			if rawSku.Buyable {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
-				//sku.Stock.StockCount = int32(rawSku.TotalQuantityAvailable)
+				// sku.Stock.StockCount = int32(rawSku.TotalQuantityAvailable)
 			}
 
 			// color
@@ -649,41 +669,26 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Id:    strconv.Format(p.PartNumber),
 				Name:  p.Label,
 				Value: p.Label,
-				//Icon:  color.SwatchMedia.Mobile,
 			})
 
 			// size
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    rawSku.PartNumber,
-				Name:  rawSku.Size.LabelSize,
+				Type: pbItem.SkuSpecType_SkuSpecSize,
+				Id:   rawSku.PartNumber,
+				Name: func(names ...string) string {
+					for _, n := range names {
+						if n != "" {
+							return n
+						}
+					}
+					return ""
+				}(rawSku.Size.CentralSizeLabel, rawSku.Size.ScaleLabel, rawSku.Size.LabelSize),
 				Value: rawSku.Size.LabelSize,
 			})
-
-			if key == 0 {
-				// image  // please check
-				isDefault := true
-				for ki, mid := range p.ImageViews {
-					if ki > 0 {
-						isDefault = false
-					}
-					imgTemplate := strings.ReplaceAll(p.ImageTemplate, "{view}", mid)
-					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-						strconv.Format(mid),
-						strings.ReplaceAll(imgTemplate, "{width}", "920"),
-						strings.ReplaceAll(imgTemplate, "{width}", "920"),
-						strings.ReplaceAll(imgTemplate, "{width}", "600"),
-						strings.ReplaceAll(imgTemplate, "{width}", "400"),
-						"",
-						isDefault,
-					))
-				}
-			}
 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 
-		fmt.Println(&item)
 		// yield item result
 		if err = yield(ctx, &item); err != nil {
 			return err
@@ -697,6 +702,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.theoutnet.com/en-in/shop/clothing/jeans",
 		"https://www.theoutnet.com/en-us/shop/product/acne-studios/jeans/straight-leg-jeans/log-high-rise-straight-leg-jeans/17476499598965898",
+		// "https://www.theoutnet.com/en-us/shop/product/balmain/shoulder-bag/cross-body/disco-leather-trimmed-shearling-shoulder-bag/10163292708696549",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -776,7 +782,7 @@ func main() {
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
-				EnableProxy:       false,
+				EnableProxy:       true,
 				EnableHeadless:    false,
 				EnableSessionInit: false,
 				KeepSession:       spider.CrawlOptions().KeepSession,
@@ -790,7 +796,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
