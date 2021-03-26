@@ -15,6 +15,8 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
@@ -30,7 +32,6 @@ type _Crawler struct {
 	httpClient          http.Client
 	categoryPathMatcher *regexp.Regexp
 	productPathMatcher  *regexp.Regexp
-	productPathMatcher1 *regexp.Regexp
 	// logger is the log tool
 	logger glog.Log
 }
@@ -42,11 +43,11 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^((\?!product).)*`),
+		///shop/Women/Clothing/Tops
+		categoryPathMatcher: regexp.MustCompile(`^/(category|shop|c|events)(/[a-zA-Z0-9\-]+){1,6}$`),
 		// this regular used to match product page url path
-		productPathMatcher:  regexp.MustCompile(`(/[a-z0-9_-]+)?/product([/a-z0-9_-]+)`),
-		productPathMatcher1: regexp.MustCompile(`/s([/a-z0-9_-]+)`),
-		logger:              logger.New("_Crawler"),
+		productPathMatcher: regexp.MustCompile(`^/s([/a-z0-9_-]+){0,4}/n?\d+$`),
+		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
 }
@@ -71,7 +72,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	return &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
-		EnableSessionInit: true,
+		EnableSessionInit: false,
 	}
 }
 
@@ -101,8 +102,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseProduct(ctx, resp, yield)
-	} else if c.productPathMatcher1.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
@@ -354,12 +353,12 @@ type parseProductResponse struct {
 				OriginalImageTemplates []string `json:"originalImageTemplates"`
 				Prices                 struct {
 					Retail struct {
-						Min int `json:"min"`
-						Max int `json:"max"`
+						Min float64 `json:"min"`
+						Max float64 `json:"max"`
 					} `json:"retail"`
 					Regular struct {
-						Min int `json:"min"`
-						Max int `json:"max"`
+						Min float64 `json:"min"`
+						Max float64 `json:"max"`
 					} `json:"regular"`
 					Sale struct {
 						Min float64 `json:"min"`
@@ -440,6 +439,11 @@ type parseProductResponse struct {
 		SelectedAltImageIndex int           `json:"selectedAltImageIndex"`
 		SelectedColor         string        `json:"selectedColor"`
 		SelectedQuantity      interface{}   `json:"selectedQuantity"`
+		BreadcrumbLinks       []struct {
+			Href                  string   `json:"href"`
+			NavigationBreadcrumbs []string `json:"navigationBreadcrumbs"`
+			Text                  string   `json:"text"`
+		} `json:"breadcrumbLinks"`
 	} `json:"productPage"`
 }
 
@@ -485,11 +489,37 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		// 	Rating:      float32(p.ReviewAverageRating / 5.0),
 		// },
 	}
+	links := viewData.ProductPage.BreadcrumbLinks
+	crowdIndex := -1
+	for i, l := range links {
+		t := strings.ToLower(l.Text)
+		if t == "women" || t == "men" || t == "kids" {
+			item.CrowdType = t
+			crowdIndex = i
+			break
+		}
+	}
+	for i, l := range links {
+		if crowdIndex >= 0 && i < crowdIndex {
+			continue
+		}
+		j := i
+		if crowdIndex >= 0 {
+			j = i - crowdIndex - 1
+		}
+
+		switch j {
+		case 0:
+			item.Category = l.Text
+		case 1:
+			item.SubCategory = l.Text
+		case 2:
+			item.SubCategory2 = l.Text
+		}
+	}
 
 	for _, rawSkuColor := range viewData.ProductPage.Product.Colors {
-
 		for k, rawSku := range rawSkuColor.Sizes {
-
 			currentPrice, _ := strconv.ParseFloat(rawSku.Prices.Sale)
 			originalPrice, _ := strconv.ParseFloat(rawSku.Prices.Regular)
 			discount, _ := strconv.ParseFloat(rawSku.Discounts.RetailToSale)
@@ -556,8 +586,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.nordstromrack.com/s/free-people-riptide-tie-dye-print-t-shirt/n3327050?color=SEAFOAM%20COMBO",
-		//"https://www.nordstromrack.com/shop/Women/Clothing/Tops",
+		// "https://www.nordstromrack.com/s/free-people-riptide-tie-dye-print-t-shirt/n3327050?color=SEAFOAM%20COMBO",
+		// "https://www.nordstromrack.com/shop/Women/Clothing/Tops",
+		"https://www.nordstromrack.com/events/472159",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -637,7 +668,7 @@ func main() {
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
-				EnableProxy:       false,
+				EnableProxy:       true,
 				EnableHeadless:    false,
 				EnableSessionInit: false,
 				KeepSession:       spider.CrawlOptions().KeepSession,
@@ -651,7 +682,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
