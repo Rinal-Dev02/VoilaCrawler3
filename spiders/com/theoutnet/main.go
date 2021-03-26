@@ -172,9 +172,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	lastIndex := nextIndex(ctx)
 	for _, idv := range viewData.Plp.Listing.VisibleProducts[0].Products {
-
-		rawurl := fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.Seo.SeoURLKeyword)
-
+		rawurl := "/en-us/shop/product" + idv.Seo.SeoURLKeyword
 		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 		if err != nil {
 			c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
@@ -700,8 +698,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		//"https://www.theoutnet.com/en-in/shop/clothing/jeans",
-		"https://www.theoutnet.com/en-us/shop/product/acne-studios/jeans/straight-leg-jeans/log-high-rise-straight-leg-jeans/17476499598965898",
+		"https://www.theoutnet.com/en-us/shop/clothing/jeans",
+		// "https://www.theoutnet.com/en-us/shop/product/acne-studios/jeans/straight-leg-jeans/log-high-rise-straight-leg-jeans/17476499598965898",
 		// "https://www.theoutnet.com/en-us/shop/product/balmain/shoulder-bag/cross-body/disco-leather-trimmed-shearling-shoulder-bag/10163292708696549",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
