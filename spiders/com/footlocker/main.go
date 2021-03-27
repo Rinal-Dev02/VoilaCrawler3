@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	//"github.com/gosimple/slug"
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -20,8 +20,11 @@ import (
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -38,7 +41,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
 		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9_-]+)?/category/(women|men)([/a-z0-9_-]+).html$`),
-		productPathMatcher:  regexp.MustCompile(`^[/product/]+(/[a-zA-Z0-9-]+)+.html$`),
+		productPathMatcher:  regexp.MustCompile(`^/product(/[~a-zA-Z0-9\-]+)+.html$`),
 		imagePathMatcher:    regexp.MustCompile(`^(/[is/image/EBFL2/]+)(/[a-zA-Z0-9_-]+)([/?req=set,json&id=]+([A-Za-z0-9]+))$`),
 		logger:              logger.New("_Crawler"),
 	}
@@ -47,7 +50,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 
 // ID
 func (c *_Crawler) ID() string {
-	return "8A8F9FE2E6014E87836E164B176EBFA5"
+	return "8a8f9fe2e6014e87836e164b176ebfa5"
 }
 
 // Version
@@ -60,20 +63,17 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
-	options.MustCookies = append(options.MustCookies) //&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
-	// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
-	// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
-	// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
-	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-	// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
-
+	options.EnableSessionInit = false
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+	options.MustCookies = append(options.MustCookies,
+		&http.Cookie{Name: "at_check", Value: "false"},
+		&http.Cookie{Name: "s_sq", Value: "%5B%5BB%5D%5D"},
+	)
 	return options
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.footlocker.com"}
+	return []string{"*.footlocker.com"}
 }
 
 func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
@@ -121,193 +121,57 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if c == nil || yield == nil {
 		return nil
 	}
+
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Debug(err)
 		return err
 	}
 
-	// next page
-	matched := prodDataExtraReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
-	}
-	var r struct {
-		Error struct {
-		} `json:"error"`
-		Page struct {
-			PageInfo struct {
-			} `json:"pageInfo"`
-		} `json:"page"`
-		Order struct {
-		} `json:"order"`
-		Product struct {
-			Attributes struct {
-				Interactions struct {
-				} `json:"interactions"`
-			} `json:"attributes"`
-			ProductInfo struct {
-				Description string `json:"description"`
-				ProductName string `json:"productName"`
-				ProductID   string `json:"productId"`
-				Price       struct {
-					OriginalPrice float64 `json:"originalPrice"`
-					Value         float64 `json:"value"`
-				} `json:"price"`
-				SelectedStyle    string `json:"selectedStyle"`
-				ProductThumbnail string `json:"productThumbnail"`
-				ProductImage     string `json:"productImage"`
-				SizeVariants     []struct {
-					Size      string `json:"size"`
-					Available bool   `json:"available"`
-				} `json:"sizeVariants"`
-				StyleVariants []string `json:"styleVariants"`
-				Width         string   `json:"width"`
-			} `json:"productInfo"`
-		} `json:"product"`
-		Search struct {
-			Sorts []struct {
-				Code     string `json:"code"`
-				Name     string `json:"name"`
-				Selected bool   `json:"selected"`
-			} `json:"sorts"`
-			Facets []struct {
-				Name        string `json:"name"`
-				MultiSelect bool   `json:"multiSelect"`
-				Values      []struct {
-					Name     string `json:"name"`
-					Count    int    `json:"count"`
-					Selected bool   `json:"selected"`
-					Hide     bool   `json:"hide"`
-					Query    struct {
-						URL   string `json:"url"`
-						Query struct {
-							Value string `json:"value"`
-						} `json:"query"`
-					} `json:"query"`
-				} `json:"values"`
-				Visible       bool   `json:"visible"`
-				Category      bool   `json:"category"`
-				Priority      int    `json:"priority"`
-				Code          string `json:"code"`
-				SelectedCount int    `json:"selectedCount"`
-			} `json:"facets"`
-			QueryID  string `json:"queryID"`
-			MetaData struct {
-				Signal             string `json:"signal"`
-				SearchType         string `json:"searchType"`
-				StoreProductSearch bool   `json:"storeProductSearch"`
-				QpLatency          int    `json:"qpLatency"`
-			} `json:"metaData"`
-			Products []struct {
-				Badges struct {
-					IsNewProduct bool `json:"isNewProduct"`
-					IsSale       bool `json:"isSale"`
-				} `json:"badges"`
-				BaseOptions []struct {
-					Selected struct {
-						MapEnable bool   `json:"mapEnable"`
-						Style     string `json:"style"`
-					} `json:"selected"`
-				} `json:"baseOptions"`
-				BaseProduct string `json:"baseProduct"`
-				Images      []struct {
-					Format  string `json:"format"`
-					URL     string `json:"url"`
-					AltText string `json:"altText"`
-				} `json:"images"`
-				Name          string `json:"name"`
-				OriginalPrice struct {
-					Value          float64 `json:"value"`
-					FormattedValue string  `json:"formattedValue"`
-				} `json:"originalPrice"`
-				Price struct {
-					Value          float64 `json:"value"`
-					FormattedValue string  `json:"formattedValue"`
-				} `json:"price"`
-				Sku            string `json:"sku"`
-				URL            string `json:"url"`
-				ImageSku       string `json:"imageSku"`
-				VariantOptions []struct {
-					Images []struct {
-						Format  string `json:"format"`
-						URL     string `json:"url"`
-						AltText string `json:"altText"`
-					} `json:"images"`
-					Sku      string `json:"sku"`
-					ImageSku string `json:"imageSku"`
-				} `json:"variantOptions,omitempty"`
-				IsSaleProduct bool `json:"isSaleProduct"`
-				IsNewProduct  bool `json:"isNewProduct"`
-				LaunchProduct bool `json:"launchProduct"`
-			} `json:"products"`
-			Term    string `json:"term"`
-			Results int    `json:"results"`
-		} `json:"search"`
-		User struct {
-			Profile struct {
-			} `json:"profile"`
-		} `json:"user"`
-		Cart struct {
-			Items  []interface{} `json:"items"`
-			CartID string        `json:"cartID"`
-			Price  struct {
-			} `json:"price"`
-			Fulfillment struct {
-			} `json:"fulfillment"`
-		} `json:"cart"`
-		Transaction struct {
-			Items   []interface{} `json:"items"`
-			Profile struct {
-				ProfileInfo struct {
-				} `json:"profileInfo"`
-				Address struct {
-				} `json:"address"`
-				ShippingAddress struct {
-				} `json:"shippingAddress"`
-			} `json:"profile"`
-			Total struct {
-			} `json:"total"`
-			TransactionID string `json:"transactionID"`
-		} `json:"transaction"`
-		Events   []interface{} `json:"events"`
-		NotFound struct {
-		} `json:"notFound"`
-	}
-
-	//matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
-	if err = json.Unmarshal(matched[2], &r); err != nil {
-		c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
 		return err
 	}
 
 	lastIndex := nextIndex(ctx)
-	for _, idv := range r.Search.Products {
 
-		rawurl := fmt.Sprintf("%s://%s/product/a/%s.html", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.URL)
-		fmt.Println(rawurl, " :: ", idv.Name)
-		// prod page
-		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
-		if err != nil {
-			c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
-			return err
+	sel := dom.Find(`.product-container`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		u := node.Find(`.ProductCard .ProductCard-link`).AttrOr("href", "")
+		if u == "" {
+			continue
 		}
-
-		lastIndex += 1
-		// set the index of the product crawled in the sub response
+		req, err := http.NewRequest(http.MethodGet, u, nil)
+		if err != nil {
+			c.logger.Errorf("invlaud request url %s", u)
+			continue
+		}
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
-
-		// yield sub request
+		lastIndex += 1
 		if err := yield(nctx, req); err != nil {
 			return err
 		}
 	}
+	if len(sel.Nodes) == 0 {
+		c.logger.Errorf("no product found %s", respBody)
+		return fmt.Errorf("no product found")
+	}
 
 	// get current page number
+	href := dom.Find(`.Pagination-option--next>a[aria-label="Go to last page"]`).AttrOr("href", "")
+	if href == "" {
+		return nil
+	}
+	finalUrl, err := url.Parse(href)
+	if err != nil {
+		c.logger.Errorf("got invalud exit url %s", finalUrl)
+		return err
+	}
+	nextPage, _ := strconv.ParseInt(finalUrl.Query().Get("currentPage"))
 	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("currentPage"))
-
-	// check if this is the last page
-	if len(r.Search.Products) >= r.Search.Results || lastIndex >= r.Search.Results {
+	if page >= nextPage {
 		return nil
 	}
 
@@ -318,7 +182,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	u.RawQuery = vals.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-	// update the index of last page
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
 }
@@ -405,7 +268,6 @@ type parseProductResponse struct {
 			P566155CHTML bool `json:"/product/converse-all-star-lugged-hi-womens/566155C.html"`
 		} `json:"failed"`
 		Product map[string]struct {
-			//P566155CHTML struct {
 			Name       string `json:"name"`
 			Brand      string `json:"brand"`
 			Categories []struct {
@@ -423,7 +285,6 @@ type parseProductResponse struct {
 				Sizes []string `json:"sizes"`
 			} `json:"sizeChart"`
 			SizeMessage string `json:"sizeMessage"`
-			//} `json:"/product/converse-all-star-lugged-hi-womens/566155C.html"`
 		} `json:"product"`
 		Reviews struct {
 			P566155CHTML struct {
@@ -520,7 +381,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	matched := detailReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		c.logger.Debugf("data %s", respBody)
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
 	}
 
@@ -528,8 +388,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		i parseProductResponse
 		q parseImageResponse
 	)
-
-	//matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
 
 	if err = json.Unmarshal(matched[1], &i); err != nil {
 		c.logger.Error(err)
@@ -547,10 +405,25 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Title:       i.Details.Product[router].Name,
 			Description: i.Details.Product[router].Description,
 			BrandName:   i.Details.Product[router].Brand,
-			//CrowdType:    i.Details.GenderName,  // ASK ?
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
+		}
+		for j, cate := range i.Details.Product[router].Categories {
+			if strings.ToLower(cate.Name) == strings.ToLower(i.Details.Product[router].Brand) {
+				continue
+			}
+			switch j {
+			case 0:
+				item.CrowdType = strings.TrimSuffix(strings.ToLower(cate.Name), "'s")
+			case 1:
+				item.Category = cate.Name
+			case 2:
+				item.SubCategory = cate.Name
+			default:
+				item.SubCategory2 = cate.Name
+				break
+			}
 		}
 
 		for _, rawSize := range p.Products {
@@ -570,7 +443,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			if rawSize.StockLevelStatus == "inStock" {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
-				//sku.Stock.StockCount = int32(rawSize.Quantity)
 			}
 
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
@@ -678,29 +550,38 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
+	// build a http client
+	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
 
+	// instance the spider locally
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)
 	}
 	opts := spider.CrawlOptions()
 
+	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
 
+			// process logic of sub request
+
+			// init custom headers
 			for k := range opts.MustHeader {
 				i.Header.Set(k, opts.MustHeader.Get(k))
 			}
+
+			// init custom cookies
 			for _, c := range opts.MustCookies {
 				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
 					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
@@ -712,7 +593,27 @@ func main() {
 				}
 			}
 
-			resp, err := client.DoWithOptions(ctx, i, http.Options{EnableProxy: false})
+			// set scheme,host for sub requests. for the product url in category page is just the path without hosts info.
+			// here is just the test logic. when run the spider online, the controller will process automatically
+			if i.URL.Scheme == "" {
+				i.URL.Scheme = "https"
+			}
+			if i.URL.Host == "" {
+				i.URL.Host = "www.footlocker.com"
+			}
+
+			// do http requests here.
+			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+			defer cancel()
+
+			// nctx = context.WithValue(nctx, "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
+			resp, err := client.DoWithOptions(nctx, i, http.Options{
+				EnableProxy:       true,
+				EnableHeadless:    false,
+				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
+				KeepSession:       spider.CrawlOptions().KeepSession,
+				Reliability:       spider.CrawlOptions().Reliability,
+			})
 			if err != nil {
 				panic(err)
 			}
@@ -720,7 +621,8 @@ func main() {
 
 			return spider.Parse(ctx, resp, callback)
 		default:
-			data, err := json.Marshal(i)
+			// output the result
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
@@ -729,10 +631,9 @@ func main() {
 		return nil
 	}
 
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
+	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-		defer cancel()
-
 		if err := callback(ctx, req); err != nil {
 			logger.Fatal(err)
 		}

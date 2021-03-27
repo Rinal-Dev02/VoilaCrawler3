@@ -50,17 +50,24 @@ type Options struct {
 	EnableProxy bool
 	// EnableHeadless
 	EnableHeadless bool
+	// JSWaitDuration default 6 seconds
+	JsWaitDuration int64
 
 	// EnableSessionInit
 	EnableSessionInit bool
 	// KeepSession
 	KeepSession bool
+	// DisableCookieJar
+	DisableCookieJar bool
 
 	// DisableRedirect disable http redirect when do http request
 	DisableRedirect bool
 
 	// Reliability proxies will try from low level to high level
 	Reliability pbProxy.ProxyReliability
+
+	// RequestFilterKeys use to filter the response from multi request of the same url(for headless cached request)
+	RequestFilterKeys []string
 }
 
 type Client interface {

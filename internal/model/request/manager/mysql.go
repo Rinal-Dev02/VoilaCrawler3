@@ -43,12 +43,11 @@ func (m *RequestManager) GetById(ctx context.Context, id string) (*request.Reque
 }
 
 type ListRequest struct {
-	Page         int32
-	Count        int32
-	TracingId    string
-	JobId        string
-	ExpireStatus int32 // 0-all, 1-not expired, 2-expired
-	Retryable    bool
+	Page      int32
+	Count     int32
+	TracingId string
+	JobId     string
+	Retryable bool
 }
 
 func (m *RequestManager) List(ctx context.Context, session *xorm.Session, req ListRequest) ([]*request.Request, error) {
@@ -74,16 +73,10 @@ func (m *RequestManager) List(ctx context.Context, session *xorm.Session, req Li
 		handler = handler.And("job_id=?", req.JobId)
 	}
 	if req.Retryable {
-		handler = handler.And("status_retry_count < option_max_retry_count")
-	}
-
-	if req.ExpireStatus == 1 {
-		// TODO
-	} else if req.ExpireStatus == 2 {
-		const retryPaddingInterval = 180
-		handler = handler.And("(is_succeed=0 and start_utc+option_max_ttl_per_request<?)", time.Now().Unix()-retryPaddingInterval)
-	} else if req.ExpireStatus != 0 {
-		return nil, pbError.ErrInvalidArgument.New("invalid expire status")
+		t := time.Now().Unix()
+		handler = handler.And("status_retry_count < option_max_retry_count").
+			And("((status!=1 and is_succeed=0 and start_utc+option_max_ttl_per_request<?) OR (status=1 and is_succeed=0 and start_utc<?))",
+				t-120, t-86400)
 	}
 
 	var reqs []*types.Request
@@ -128,7 +121,7 @@ func (m *RequestManager) Create(ctx context.Context, session *xorm.Session, req 
 }
 
 // UpdateStatus  status: 1-queued, 2-inprocess, 3-processed
-func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session, id string, status int32, duration int64, isSucceed bool, msg string) (bool, error) {
+func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session, id string, status int32, isSucceed bool) (bool, error) {
 	if m == nil {
 		return false, nil
 	}
@@ -147,14 +140,17 @@ func (m *RequestManager) UpdateStatus(ctx context.Context, session *xorm.Session
 
 	switch status {
 	case 1:
-		sql = `update request set status=1,status_retry_count=status_retry_count+1,start_utc=0,end_utc=0 where id=? and option_max_retry_count>status_retry_count`
-		vals = append(vals, id)
+		sql = `update request set status=1,status_retry_count=status_retry_count+1,start_utc=?,end_utc=0 where id=? and option_max_retry_count>status_retry_count`
+		vals = append(vals, t, id)
 	case 2:
 		sql = `update request set status=2,start_utc=?,end_utc=0 where id=? and status=1`
 		vals = append(vals, t, id)
 	case 3:
-		sql = `update request set status=3,end_utc=?,duration=?,is_succeed=?,err_msg=? where id=?`
-		vals = append(vals, t, duration, isSucceed, msg, id)
+		sql = `update request set status=3,end_utc=?,is_succeed=? where id=? and is_succeed=0`
+		vals = append(vals, t, isSucceed, id)
+	case -1:
+		sql = `update request set start_utc=? where id=? and status=1`
+		vals = append(vals, t, id)
 	default:
 		return false, pbError.ErrInvalidArgument.New("invalid status")
 	}

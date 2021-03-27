@@ -69,7 +69,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
 		// Reliability high match to crawl api, and log match to backconnect
-		Reliability: pbProxy.ProxyReliability_ReliabilityHigh,
+		Reliability: pbProxy.ProxyReliability_ReliabilityMedium,
 	}
 }
 
@@ -418,7 +418,9 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
+		if err := c.httpClient.Jar().Clear(ctx, resp.Request.URL); err != nil {
+			c.logger.Errorf("clear cookie for %s failed, error=%s", resp.Request.URL, err)
+		}
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
 	}
 	// c.logger.Debugf("data: %s", matched[1])
@@ -490,7 +492,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
+		// clean cookie
+		if err := c.httpClient.Jar().Clear(ctx, resp.Request.URL); err != nil {
+			c.logger.Errorf("clear cookie for %s failed, error=%s", resp.Request.URL, err)
+		}
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
 	}
 	// c.logger.Debugf("data: %s", matched[1])
@@ -517,11 +522,29 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
+			Stock: &pbItem.Stock{
+				StockStatus: pbItem.Stock_OutOfStock,
+			},
 			Stats: &pbItem.Stats{
 				ReviewCount: int32(p.NumberOfReviews),
 				Rating:      float32(p.ReviewAverageRating / 5.0),
 			},
 		}
+		for _, mid := range p.DefaultGalleryMedia.StyleMediaIds {
+			m := p.StyleMedia.ByID[strconv.Format(mid)]
+			if m.MediaType == "Image" {
+				item.Medias = append(item.Medias, pbMedia.NewImageMedia(
+					strconv.Format(m.ID),
+					m.ImageMediaURI.MaxLargeDesktop,
+					m.ImageMediaURI.SmallZoom,
+					m.ImageMediaURI.MobileLarge,
+					m.ImageMediaURI.MobileMedium,
+					"",
+					m.IsDefault && m.IsSelected,
+				))
+			}
+		}
+
 		for _, rawSku := range p.Skus.ByID {
 			originalPrice, _ := strconv.ParseFloat(rawSku.DisplayOriginalPrice)
 			discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.DisplayPercentOff, "%"))
@@ -560,7 +583,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 							m.ImageMediaURI.MobileLarge,
 							m.ImageMediaURI.MobileMedium,
 							"",
-							m.IsDefault,
+							m.IsDefault && m.IsSelected,
 						))
 					} else if m.MediaType == "Video" {
 						// TODO
@@ -593,7 +616,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.nordstrom.com/browse/activewear/women-clothing?breadcrumb=Home%2FWomen%2FClothing%2FActivewear&origin=topnav",
+		// "https://www.nordstrom.com/browse/activewear/women-clothing?breadcrumb=Home%2FWomen%2FClothing%2FActivewear&origin=topnav",
+		// "https://www.nordstrom.com/s/the-north-face-mountain-water-repellent-hooded-jacket/5500919",
+		// "https://www.nordstrom.com/s/anastasia-beverly-hills-liquid-liner/5369732",
+		"https://www.nordstrom.com/s/chanel-le-crayon-khol-intense-eye-pencil/2826730",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
