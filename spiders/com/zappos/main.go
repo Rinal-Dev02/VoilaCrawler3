@@ -36,8 +36,9 @@ type _Crawler struct {
 
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
-		httpClient:          client,
-		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9\-]+){1,5}\.zso$`),
+		httpClient: client,
+		// /men-bags/COjWAcABAuICAgEY.zso
+		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9\-]+){1,5}/[a-zA-Z0-9]+\.zso$`),
 		productPathMatcher:  regexp.MustCompile(`^/p(/[a-z0-9_-]+)/product/\d+(/[a-z0-9]+/\d+)?$`),
 		logger:              logger.New("_Crawler"),
 	}
@@ -599,8 +600,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		// "https://www.zappos.com/men-bags/COjWAcABAuICAgEY.zso",
-		"https://www.zappos.com/p/nike-tanjun-black-white/product/8619473/color/151",
+		"https://www.zappos.com/men-bags/COjWAcABAuICAgEY.zso",
+		// "https://www.zappos.com/p/nike-tanjun-black-white/product/8619473/color/151",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
