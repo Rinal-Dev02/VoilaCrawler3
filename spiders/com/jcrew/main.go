@@ -1,26 +1,29 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -40,10 +43,11 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^/(browse|brands)(/[a-z0-9-]+){2,6}$`),
+		categoryPathMatcher: regexp.MustCompile(`^(/(c|r))?(/[a-z0-9\-_]+){1,5}$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^/s(/[a-z0-9-]+){1,3}/[0-9]+/?$`),
-		logger:             logger.New("_Crawler"),
+		productPathMatcher: regexp.MustCompile(`^/(p|m)(/[a-z0-9\-_]+){1,6}/[0-9A-Z]+/?$`),
+
+		logger: logger.New("_Crawler"),
 	}
 	return &c, nil
 }
@@ -65,11 +69,17 @@ func (c *_Crawler) Version() int32 {
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
 func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
-	return &crawler.CrawlOptions{
+	options := &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
-		EnableSessionInit: true,
+		EnableSessionInit: false,
 	}
+	options.MustCookies = append(options.MustCookies,
+		&http.Cookie{Name: "jcrew_country", Value: "US", Path: "/"},
+		&http.Cookie{Name: "bluecoreNV", Value: "false", Path: "/"},
+		&http.Cookie{Name: "us_site", Value: "true", Path: "/"},
+	)
+	return options
 }
 
 // AllowedDomains return the domains this spider process will.
@@ -97,10 +107,10 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
@@ -125,33 +135,6 @@ type CategoryView struct {
 					IsFetching      bool `json:"isFetching"`
 					IsFiltering     bool `json:"isFiltering"`
 					ProductArray    struct {
-						CategoryHeader struct {
-							CatLink                     interface{} `json:"catLink"`
-							SkuOnlyFolder               string      `json:"skuOnlyFolder"`
-							ExtLink                     string      `json:"extLink"`
-							CreativeJsPath              string      `json:"creativeJsPath"`
-							CreativeCSSPath             string      `json:"creativeCssPath"`
-							Name                        string      `json:"name"`
-							DimID                       int         `json:"dimId"`
-							HasSubFolders               string      `json:"hasSubFolders"`
-							SeoH1                       string      `json:"seoH1"`
-							ATRExtendedSizeFolder       string      `json:"aTRExtendedSizeFolder"`
-							DisplayCategorySeo          bool        `json:"displayCategorySeo"`
-							CatStyle                    string      `json:"catStyle"`
-							DisplayRectangularImageCrop bool        `json:"displayRectangularImageCrop"`
-							CatLocation                 string      `json:"catLocation"`
-							Priority                    string      `json:"priority"`
-							CatDescription              interface{} `json:"catDescription"`
-							Label                       string      `json:"label"`
-							InvalidSubcategory          bool        `json:"invalidSubcategory"`
-							SeoHTMLContent              string      `json:"seoHTMLContent"`
-							CatName                     string      `json:"catName"`
-							FolderID                    string      `json:"folderId"`
-							Gender                      string      `json:"gender"`
-							PersistCreativeObjects      bool        `json:"persistCreativeObjects"`
-							ATROmniProp25               string      `json:"aTROmniProp25"`
-							MixedProducts               string      `json:"mixedProducts"`
-						} `json:"categoryHeader"`
 						SortByOrderType []struct {
 							Label string `json:"label"`
 							Value string `json:"value"`
@@ -165,25 +148,6 @@ type CategoryView struct {
 								ProductCode        string `json:"productCode"`
 							} `json:"products"`
 						} `json:"productList"`
-						Navigation struct {
-							Refinements []struct {
-								Name   string `json:"name"`
-								Values []struct {
-									ID        int    `json:"id"`
-									Count     string `json:"count"`
-									Label     string `json:"label"`
-									SortOrder int    `json:"sortOrder"`
-									QueryName string `json:"queryName"`
-									Gender    string `json:"gender"`
-									FolderID  string `json:"folderId"`
-									Seo       string `json:"seo"`
-								} `json:"values"`
-								Label         string `json:"label,omitempty"`
-								Priority      int    `json:"priority"`
-								SelectedCount int    `json:"selectedCount,omitempty"`
-							} `json:"refinements"`
-							Breadcrumbs []interface{} `json:"breadcrumbs"`
-						} `json:"navigation"`
 						ResultCount int `json:"resultCount"`
 						Pagination  struct {
 							PageIndex int `json:"pageIndex"`
@@ -206,10 +170,6 @@ type CategoryView struct {
 	} `json:"query"`
 }
 
-// used to extract embaded json data in website page.
-// more about golang regulation see here https://golang.org/pkg/regexp/syntax/
-var productsExtractReg = regexp.MustCompile(`(?U)<script\s*>window.__INITIAL_CONFIG__\s*=\s*({.*});?\s*</script>`)
-
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -222,57 +182,53 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	matched := productsExtractReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Debug(err)
+		return err
 	}
-	// c.logger.Debugf("data: %s", matched[1])
+	rawData := strings.TrimSpace(dom.Find("script#__NEXT_DATA__").Text())
 
 	var viewData CategoryView
-	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+	if err := json.Unmarshal([]byte(rawData), &viewData); err != nil {
 		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
 		return err
 	}
 
 	lastIndex := nextIndex(ctx)
-	for _, idv := range viewData.Props.InitialState.Array.Data.ProductArray.ProductList[0].Products {
+	productData := viewData.Props.InitialState.Array.Data.ProductArray
+	for _, prodList := range productData.ProductList {
+		for _, idv := range prodList.Products {
+			req, err := http.NewRequest(http.MethodGet, idv.URL, nil)
+			if err != nil {
+				c.logger.Errorf("load http request of url %s failed, error=%s", resp.Request.URL, err)
+				return err
+			}
 
-		req, err := http.NewRequest(http.MethodGet, idv.URL, nil)
-		if err != nil {
-			c.logger.Errorf("load http request of url %s failed, error=%s", p.ProductPageURL, err)
-			return err
-		}
+			// set the index of the product crawled in the sub response
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			lastIndex += 1
 
-		lastIndex += 1
-		// set the index of the product crawled in the sub response
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		// yield sub request
-		if err := yield(nctx, req); err != nil {
-			return err
+			// yield sub request
+			if err := yield(nctx, req); err != nil {
+				return err
+			}
 		}
 	}
 
-	// get current page number
-	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("Npge"))
-	if page == 0 {
-		page = 1
-	}
-	// check if this is the last page
-	if len(viewData.Props.InitialState.Array.Data.ProductArray.ProductList[0].Products) >= viewData.Props.InitialState.Array.Data.ProductArray.ResultCount ||
-		page >= int64(viewData.Props.InitialState.Array.Data.ProductArray.Pagination.TotalPage) {
+	if productData.Pagination.PageIndex >= productData.Pagination.TotalPage {
 		return nil
 	}
 
 	// set pagination
 	u := *resp.Request.URL
 	vals := u.Query()
-	vals.Set("Npge", strconv.Format(page+1))
+	vals.Set("Npge", strconv.Format(productData.Pagination.PageIndex+1))
 	u.RawQuery = vals.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-	// update the index of last page
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
+
 	return yield(nctx, req)
 }
 
@@ -280,497 +236,7 @@ type productPageResponse struct {
 	Props struct {
 		IsServer     bool `json:"isServer"`
 		InitialState struct {
-			Signin struct {
-				Login struct {
-					DidInvalidate         bool        `json:"didInvalidate"`
-					IsFetching            bool        `json:"isFetching"`
-					FetchLoginComplete    bool        `json:"fetchLoginComplete"`
-					SuccessComplete       bool        `json:"successComplete"`
-					DidEmailInvalidate    bool        `json:"didEmailInvalidate"`
-					DidPasswordInvalidate bool        `json:"didPasswordInvalidate"`
-					ShowSigninModal       bool        `json:"showSigninModal"`
-					IsForgotPassword      bool        `json:"isForgotPassword"`
-					IsResetPassword       bool        `json:"isResetPassword"`
-					IsResetLinkExpired    bool        `json:"isResetLinkExpired"`
-					ToLink                string      `json:"toLink"`
-					Response              interface{} `json:"response"`
-					UserResetEmail        string      `json:"userResetEmail"`
-				} `json:"login"`
-				Register struct {
-					DidInvalidate               bool   `json:"didInvalidate"`
-					IsFetching                  bool   `json:"isFetching"`
-					FetchRegisterComplete       bool   `json:"fetchRegisterComplete"`
-					SuccessComplete             bool   `json:"successComplete"`
-					CountryCode                 string `json:"countryCode"`
-					CountryName                 string `json:"countryName"`
-					DidEmailInvalidate          bool   `json:"didEmailInvalidate"`
-					DidPasswordInvalidate       bool   `json:"didPasswordInvalidate"`
-					DidFirstNameInvalidate      bool   `json:"didFirstNameInvalidate"`
-					DidLastNameInvalidate       bool   `json:"didLastNameInvalidate"`
-					DidBirthDateMonthInvalidate bool   `json:"didBirthDateMonthInvalidate"`
-					DidBirthDateDayInvalidate   bool   `json:"didBirthDateDayInvalidate"`
-					DidDateInvalidate           bool   `json:"didDateInvalidate"`
-					ShowRegisterModal           bool   `json:"showRegisterModal"`
-				} `json:"register"`
-			} `json:"signin"`
 			Content struct {
-				FooterContent struct {
-					SlTranslate string `json:"sl_translate"`
-					Help        struct {
-						Content struct {
-							Label         string `json:"label"`
-							Twitter       string `json:"twitter"`
-							TelephoneInfo []struct {
-								TelephoneText string `json:"telephoneText"`
-								Country       string `json:"country,omitempty"`
-							} `json:"telephoneInfo"`
-							ContactEmailIntl string `json:"contactEmailIntl"`
-							ContactEmail     string `json:"contactEmail"`
-							LiveChat         string `json:"liveChat"`
-						} `json:"content"`
-						Urls struct {
-							Twitter          string `json:"twitter"`
-							ContactEmail     string `json:"contactEmail"`
-							ContactEmailIntl string `json:"contactEmailIntl"`
-							LiveChat         string `json:"liveChat"`
-						} `json:"urls"`
-					} `json:"help"`
-					Modal struct {
-						Loyalty struct {
-							CallToActionText string `json:"callToActionText"`
-							CallToActionURL  string `json:"callToActionUrl"`
-							Header           string `json:"header"`
-							Intro            string `json:"intro"`
-						} `json:"loyalty"`
-					} `json:"modal"`
-					Signup struct {
-						Label              string `json:"label"`
-						PlaceHolder        string `json:"placeHolder"`
-						Button             string `json:"button"`
-						SignupText         string `json:"signupText"`
-						InvalidEmailText   string `json:"invalidEmailText"`
-						SubmitSuccessLine1 string `json:"submitSuccessLine1"`
-						SubmitSuccessLine2 string `json:"submitSuccessLine2"`
-					} `json:"signup"`
-					CountryContext struct {
-						Content struct {
-							ShipTo  string `json:"shipTo"`
-							Flag    string `json:"flag"`
-							Country string `json:"country"`
-							Change  string `json:"change"`
-						} `json:"content"`
-						Urls struct {
-							Change string `json:"change"`
-						} `json:"urls"`
-					} `json:"countryContext"`
-					FullSite struct {
-						Label string `json:"label"`
-						URL   string `json:"url"`
-					} `json:"fullSite"`
-					SizeCharts struct {
-						Label string `json:"label"`
-						URL   string `json:"url"`
-					} `json:"sizeCharts"`
-					SeoPromo struct {
-						Label string `json:"label"`
-						URL   string `json:"url"`
-					} `json:"seoPromo"`
-					SafetyRecall struct {
-						Message1  string `json:"message1"`
-						Message2  string `json:"message2"`
-						AriaLabel string `json:"ariaLabel"`
-						Link      string `json:"link"`
-					} `json:"safetyRecall"`
-					AdditionalLinks []struct {
-						Label       string `json:"label"`
-						ColumnIndex int    `json:"columnIndex"`
-						RowIndex    int    `json:"rowIndex"`
-						CountryCode string `json:"countryCode"`
-						List        []struct {
-							Label string `json:"label"`
-							Link  string `json:"link"`
-						} `json:"list"`
-					} `json:"additionalLinks"`
-				} `json:"footerContent"`
-				HeaderContent struct {
-					SlTranslate string `json:"sl_translate"`
-					HeaderInfo  struct {
-						Content struct {
-							Seo struct {
-								H1              string `json:"h1"`
-								MetaDescription string `json:"metaDescription"`
-								Title           string `json:"title"`
-								SiteName        string `json:"siteName"`
-							} `json:"seo"`
-							Header struct {
-								Menu                    string `json:"menu"`
-								Search                  string `json:"search"`
-								Stores                  string `json:"stores"`
-								Signin                  string `json:"signin"`
-								Or                      string `json:"or"`
-								Register                string `json:"register"`
-								Wishlist                string `json:"wishlist"`
-								Shoppingbag             string `json:"shoppingbag"`
-								MyRewards               string `json:"myRewards"`
-								Account                 string `json:"account"`
-								MyAccount               string `json:"myAccount"`
-								MyDetails               string `json:"myDetails"`
-								Welcome                 string `json:"welcome"`
-								OrderHistory            string `json:"orderHistory"`
-								SignOut                 string `json:"signOut"`
-								RewardsStatus           string `json:"rewardsStatus"`
-								Country                 string `json:"country"`
-								ViewAll                 string `json:"viewAll"`
-								BackToShoppingBag       string `json:"backToShoppingBag"`
-								AssociateSignin         string `json:"associateSignin"`
-								AssociateSignout        string `json:"associateSignout"`
-								BrowsingAsCustomer      string `json:"browsingAsCustomer"`
-								TimeLeft                string `json:"timeLeft"`
-								ExtendSession           string `json:"extendSession"`
-								AssociateSessionExpired string `json:"associateSessionExpired"`
-							} `json:"header"`
-							Search struct {
-								PlaceHolder string `json:"placeHolder"`
-								Text        string `json:"text"`
-								Button      string `json:"button"`
-							} `json:"search"`
-							FactoryLink struct {
-								Text string `json:"text"`
-								URL  string `json:"url"`
-							} `json:"factoryLink"`
-							Nojs struct {
-								Message string `json:"message"`
-								Help    string `json:"help"`
-							} `json:"nojs"`
-						} `json:"content"`
-						HeaderURL struct {
-							RegisterURL            string `json:"registerUrl"`
-							SigninURL              string `json:"signinUrl"`
-							SignoutURL             string `json:"signoutUrl"`
-							OrderhistoryURL        string `json:"orderhistoryUrl"`
-							WishlistURL            string `json:"wishlistUrl"`
-							ShoppingbagURL         string `json:"shoppingbagUrl"`
-							CountryURL             string `json:"countryUrl"`
-							StoresURL              string `json:"storesUrl"`
-							LoyaltyDashboardURL    string `json:"loyaltyDashboardURL"`
-							AccountHomeURL         string `json:"accountHomeURL"`
-							AccountDetailsURL      string `json:"accountDetailsURL"`
-							SidecarOrderHistoryURL string `json:"sidecarOrderHistoryURL"`
-							AssociateSigninURL     string `json:"associateSigninUrl"`
-						} `json:"headerUrl"`
-						Months  []string `json:"months"`
-						Rewards struct {
-							Jcrew           string `json:"jcrew"`
-							CreditCardName  string `json:"creditCardName"`
-							CreditCard      string `json:"creditCard"`
-							Balance         string `json:"balance"`
-							LastUpdated     string `json:"lastUpdated"`
-							LastUpdatedTime string `json:"lastUpdatedTime"`
-							Points          string `json:"points"`
-							CurrentPoints   string `json:"currentPoints"`
-							PointsToNext    string `json:"pointsToNext"`
-							AccountManage   string `json:"accountManage"`
-							PromoMessage1   string `json:"promoMessage1"`
-							PromoMessage2   string `json:"promoMessage2"`
-							Urls            struct {
-								AccountManage  string `json:"accountManage"`
-								RewardsBalance string `json:"rewardsBalance"`
-								Help           string `json:"help"`
-							} `json:"urls"`
-						} `json:"rewards"`
-						WelcomeMatReact struct {
-							JcrewClothing string `json:"jcrewClothing"`
-							HelloCanada   string `json:"helloCanada"`
-							CanadaByline  struct {
-								Text1 string `json:"text1"`
-								Text2 string `json:"text2"`
-								Text3 string `json:"text3"`
-							} `json:"canadaByline"`
-							ShipsAll           string `json:"shipsAll"`
-							AroundWorld        string `json:"aroundWorld"`
-							FlatRateRestOfIntl string `json:"flatRateRestOfIntl"`
-							FlatRateCanadaMsg1 string `json:"flatRateCanadaMsg1"`
-							FlatRateCanadaMsg2 string `json:"flatRateCanadaMsg2"`
-							DutyFree           string `json:"dutyFree"`
-							DutyFreeCanadaMsg1 string `json:"dutyFreeCanadaMsg1"`
-							DutyFreeCanadaMsg2 string `json:"dutyFreeCanadaMsg2"`
-							NeedHelp           string `json:"needHelp"`
-							NeedHelpCanadaMsg1 string `json:"needHelpCanadaMsg1"`
-							NeedHelpCanadaMsg2 struct {
-								PartOne string `json:"partOne"`
-								Email   string `json:"email"`
-								Phone   string `json:"phone"`
-							} `json:"needHelpCanadaMsg2"`
-							ContactText struct {
-								EmailText string `json:"emailText"`
-								OrText    string `json:"orText"`
-								CallText  string `json:"callText"`
-								AndText   string `json:"andText"`
-							} `json:"contactText"`
-							Contact []struct {
-								Country string `json:"country"`
-								Info    struct {
-									Email string `json:"email"`
-									Phone string `json:"phone"`
-								} `json:"info"`
-							} `json:"contact"`
-							StartShopping string `json:"startShopping"`
-							TakeMeTo      string `json:"takeMeTo"`
-							Terms         struct {
-								Text1         string `json:"text1"`
-								TermsOfUse    string `json:"termsOfUse"`
-								PrivacyPolicy string `json:"privacyPolicy"`
-								Text2         string `json:"text2"`
-								Cookies       string `json:"cookies"`
-								Text3         string `json:"text3"`
-							} `json:"terms"`
-						} `json:"welcomeMatReact"`
-						WelcomeMat struct {
-							HelloCanada        string `json:"helloCanada"`
-							CanadaByline       string `json:"canadaByline"`
-							ShipsAll           string `json:"shipsAll"`
-							AroundWorld        string `json:"aroundWorld"`
-							FlatRate           string `json:"flatRate"`
-							FlatRateCanadaMsg1 string `json:"flatRateCanadaMsg1"`
-							FlatRateCanadaMsg2 string `json:"flatRateCanadaMsg2"`
-							DutyFree           string `json:"dutyFree"`
-							DutyFreeCanadaMsg1 string `json:"dutyFreeCanadaMsg1"`
-							DutyFreeCanadaMsg2 string `json:"dutyFreeCanadaMsg2"`
-							NeedHelp           string `json:"needHelp"`
-							NeedHelpCanadaMsg1 string `json:"needHelpCanadaMsg1"`
-							NeedHelpCanadaMsg2 string `json:"needHelpCanadaMsg2"`
-							Contact            []struct {
-								Country string `json:"country"`
-								Info    string `json:"info"`
-							} `json:"contact"`
-							StartShopping string `json:"startShopping"`
-							TakeMeTo      string `json:"takeMeTo"`
-							Terms         string `json:"terms"`
-						} `json:"welcomeMat"`
-					} `json:"headerInfo"`
-					ProgressBar struct {
-						InitialValue string `json:"initialValue"`
-						FreeShipping struct {
-							IncompleteTitle       string `json:"incompleteTitle"`
-							CompleteTitle         string `json:"completeTitle"`
-							CompleteBottomMessage string `json:"completeBottomMessage"`
-						} `json:"freeShipping"`
-					} `json:"progressBar"`
-					GlobalPromo struct {
-						Details string `json:"details"`
-						Close   string `json:"close"`
-					} `json:"globalPromo"`
-					InlineError struct {
-						OopsText   string `json:"oopsText"`
-						PleaseText string `json:"pleaseText"`
-						RetryText  string `json:"retryText"`
-					} `json:"inlineError"`
-					EmailCapture struct {
-						Default struct {
-							PromoHeaderText       string `json:"promoHeaderText"`
-							PromoHeaderTextMobile string `json:"promoHeaderTextMobile"`
-							PromoIntroText        string `json:"promoIntroText"`
-							ButtonText            string `json:"buttonText"`
-							ButtonTextDesktop     string `json:"buttonTextDesktop"`
-							HeaderText            string `json:"headerText"`
-							HeaderTextMobile      string `json:"headerTextMobile"`
-							IntroText             string `json:"introText"`
-							IntroTextDesktop      string `json:"introTextDesktop"`
-							InvalidEmailText      string `json:"invalidEmailText"`
-							PlaceholderText       string `json:"placeholderText"`
-							PrivacyPolicyText     string `json:"privacyPolicyText"`
-							PrivacyPolicyURL      string `json:"privacyPolicyUrl"`
-							SeeText               string `json:"seeText"`
-							SeeTextDesktop1       string `json:"seeTextDesktop1"`
-							SeeTextDesktop2       string `json:"seeTextDesktop2"`
-							SuccessHeaderText     string `json:"successHeaderText"`
-							SuccessText           string `json:"successText"`
-							Terms                 []struct {
-								CountryCode string `json:"countryCode"`
-								Copy        string `json:"copy"`
-							} `json:"terms"`
-							TermsReact struct {
-								Hk struct {
-									Copy1 string `json:"copy1"`
-									Copy2 string `json:"copy2"`
-								} `json:"hk"`
-								Fr struct {
-									Copy1       string `json:"copy1"`
-									Copy2       string `json:"copy2"`
-									Email       string `json:"email"`
-									PrivacyText string `json:"privacyText"`
-								} `json:"fr"`
-							} `json:"termsReact"`
-							Details  string `json:"details"`
-							Close    string `json:"close"`
-							Nothanks string `json:"nothanks"`
-						} `json:"default"`
-						Affiliates struct {
-							ButtonText        string `json:"buttonText"`
-							ButtonTextDesktop string `json:"buttonTextDesktop"`
-							HeaderText        string `json:"headerText"`
-							IntroText         string `json:"introText"`
-							IntroTextDesktop  string `json:"introTextDesktop"`
-							InvalidEmailText  string `json:"invalidEmailText"`
-							PlaceholderText   string `json:"placeholderText"`
-							PrivacyPolicyText string `json:"privacyPolicyText"`
-							PrivacyPolicyURL  string `json:"privacyPolicyUrl"`
-							SeeText           string `json:"seeText"`
-							SeeTextDesktop1   string `json:"seeTextDesktop1"`
-							SeeTextDesktop2   string `json:"seeTextDesktop2"`
-							SuccessHeaderText string `json:"successHeaderText"`
-							SuccessText       string `json:"successText"`
-							Terms             []struct {
-								CountryCode string `json:"countryCode"`
-								Copy        string `json:"copy"`
-							} `json:"terms"`
-							TermsReact struct {
-								Hk struct {
-									Copy1 string `json:"copy1"`
-									Copy2 string `json:"copy2"`
-								} `json:"hk"`
-								Fr struct {
-									Copy1       string `json:"copy1"`
-									Copy2       string `json:"copy2"`
-									Email       string `json:"email"`
-									PrivacyText string `json:"privacyText"`
-								} `json:"fr"`
-							} `json:"termsReact"`
-							Details  string `json:"details"`
-							Close    string `json:"close"`
-							Nothanks string `json:"nothanks"`
-						} `json:"affiliates"`
-						Social struct {
-							ButtonText        string `json:"buttonText"`
-							ButtonTextDesktop string `json:"buttonTextDesktop"`
-							HeaderText        string `json:"headerText"`
-							IntroText         string `json:"introText"`
-							IntroTextDesktop  string `json:"introTextDesktop"`
-							InvalidEmailText  string `json:"invalidEmailText"`
-							PlaceholderText   string `json:"placeholderText"`
-							PrivacyPolicyText string `json:"privacyPolicyText"`
-							PrivacyPolicyURL  string `json:"privacyPolicyUrl"`
-							SeeText           string `json:"seeText"`
-							SeeTextDesktop1   string `json:"seeTextDesktop1"`
-							SeeTextDesktop2   string `json:"seeTextDesktop2"`
-							SuccessHeaderText string `json:"successHeaderText"`
-							SuccessText       string `json:"successText"`
-							Terms             []struct {
-								CountryCode string `json:"countryCode"`
-								Copy        string `json:"copy"`
-							} `json:"terms"`
-							TermsReact struct {
-								Hk struct {
-									Copy1 string `json:"copy1"`
-									Copy2 string `json:"copy2"`
-								} `json:"hk"`
-								Fr struct {
-									Copy1       string `json:"copy1"`
-									Copy2       string `json:"copy2"`
-									Email       string `json:"email"`
-									PrivacyText string `json:"privacyText"`
-								} `json:"fr"`
-							} `json:"termsReact"`
-							Details  string `json:"details"`
-							Close    string `json:"close"`
-							Nothanks string `json:"nothanks"`
-						} `json:"social"`
-					} `json:"emailCapture"`
-					PasswordCapture struct {
-						ButtonTextDesktop    string `json:"buttonTextDesktop"`
-						HeaderText           string `json:"headerText"`
-						PreIntroTextDesktop  string `json:"preIntroTextDesktop"`
-						IntroLinkTextDesktop string `json:"introLinkTextDesktop"`
-						IntroLinkURL         string `json:"introLinkUrl"`
-						PostIntroTextDesktop string `json:"postIntroTextDesktop"`
-						PostIntroTextMobile  string `json:"postIntroTextMobile"`
-						InvalidPasswordText  string `json:"invalidPasswordText"`
-						PlaceholderText      string `json:"placeholderText"`
-						TermsDesktop         string `json:"termsDesktop"`
-						TermsMobile          string `json:"termsMobile"`
-						TermsText            string `json:"termsText"`
-						TermsURL             string `json:"termsUrl"`
-						PrivacyPolicyText    string `json:"privacyPolicyText"`
-						PrivacyPolicyURL     string `json:"privacyPolicyUrl"`
-						SeeTextDesktop1      string `json:"seeTextDesktop1"`
-						SeeTextDesktop2      string `json:"seeTextDesktop2"`
-						SuccessHeaderText    string `json:"successHeaderText"`
-						SuccessText          string `json:"successText"`
-						Nothanks             string `json:"nothanks"`
-					} `json:"passwordCapture"`
-					MiniBag struct {
-						MobileText        string `json:"mobileText"`
-						Backordered       string `json:"backordered"`
-						Checkout          string `json:"checkout"`
-						CheckoutTitle     string `json:"checkoutTitle"`
-						MonogramMessage   string `json:"monogramMessage"`
-						Edit              string `json:"edit"`
-						Remove            string `json:"remove"`
-						ShoppingBagLink   string `json:"shoppingBagLink"`
-						Preordered        string `json:"preordered"`
-						ThereIs           string `json:"thereIs"`
-						ThereAre          string `json:"thereAre"`
-						SingleItem        string `json:"singleItem"`
-						MultipleItems     string `json:"multipleItems"`
-						ShoppingBag       string `json:"shoppingBag"`
-						ShoppingBagTitle  string `json:"shoppingBagTitle"`
-						Subtotal          string `json:"subtotal"`
-						PartialQuantity1  string `json:"partialQuantity1"`
-						PartialQuantity2  string `json:"partialQuantity2"`
-						Size              string `json:"size"`
-						Color             string `json:"color"`
-						SaleAlert         string `json:"saleAlert"`
-						LowInventoryAlert string `json:"lowInventoryAlert"`
-						Quantity          string `json:"quantity"`
-						ModalTitle        string `json:"modalTitle"`
-						ContinueBtn       string `json:"continueBtn"`
-						CheckoutNowBtn    string `json:"checkoutNowBtn"`
-					} `json:"miniBag"`
-					CreateAccount struct {
-						HeaderText1        string `json:"headerText1"`
-						HeaderText2        string `json:"headerText2"`
-						HeaderText3        string `json:"headerText3"`
-						Blurb1             string `json:"blurb1"`
-						Blurb2             string `json:"blurb2"`
-						Blurb3             string `json:"blurb3"`
-						FirstName          string `json:"firstName"`
-						LastName           string `json:"lastName"`
-						Password           string `json:"password"`
-						SignupLarge        string `json:"signupLarge"`
-						SignupSmall        string `json:"signupSmall"`
-						InvalidFirstName   string `json:"invalidFirstName"`
-						InvalidLastName    string `json:"invalidLastName"`
-						InvalidPassword    string `json:"invalidPassword"`
-						EmailAlreadyExists string `json:"emailAlreadyExists"`
-						SuccessHeader      string `json:"successHeader"`
-						SuccessBlurb       string `json:"successBlurb"`
-						StartShopping      string `json:"startShopping"`
-					} `json:"createAccount"`
-					BagAlerts struct {
-						GreetingPrimary   string `json:"greetingPrimary"`
-						GreetingSecondary string `json:"greetingSecondary"`
-						Abandoned         string `json:"abandoned"`
-						An                string `json:"an"`
-						AnUpper           string `json:"anUpper"`
-						SingleItem        string `json:"singleItem"`
-						MultiItems        string `json:"multiItems"`
-						InYour            string `json:"inYour"`
-						ShoppingBag       string `json:"shoppingBag"`
-						SingleVerb        string `json:"singleVerb"`
-						PluralVerb        string `json:"pluralVerb"`
-						NowOnSale         string `json:"nowOnSale"`
-						LowInventory      string `json:"lowInventory"`
-					} `json:"bagAlerts"`
-					LoyaltyMessage struct {
-						Title     string `json:"title"`
-						MsgLine1  string `json:"msgLine1"`
-						MsgLine2  string `json:"msgLine2"`
-						MsgLine3  string `json:"msgLine3"`
-						Signup    string `json:"signup"`
-						SignupURL string `json:"signupUrl"`
-						MsgLine4  string `json:"msgLine4"`
-					} `json:"loyaltyMessage"`
-				} `json:"headerContent"`
 				Navigation struct {
 					SlTranslate string `json:"sl_translate"`
 					Labels      struct {
@@ -1079,887 +545,40 @@ type productPageResponse struct {
 					} `json:"productRecommendations"`
 				} `json:"p"`
 			} `json:"content"`
-			GlobalState struct {
-				IsBreakpointMediumPlus       bool `json:"isBreakpointMediumPlus"`
-				IsBreakpointLarge            bool `json:"isBreakpointLarge"`
-				IsBreakpointLargePlus        bool `json:"isBreakpointLargePlus"`
-				IsBreakpointXLarge           bool `json:"isBreakpointXLarge"`
-				IsBreakpointXXLarge          bool `json:"isBreakpointXXLarge"`
-				ShowGlobalOverlay            bool `json:"showGlobalOverlay"`
-				IsPastNav                    bool `json:"isPastNav"`
-				IsGlobalOverlayTransitioning bool `json:"isGlobalOverlayTransitioning"`
-				ScrollHeight                 int  `json:"scrollHeight"`
-				WindowWidth                  int  `json:"windowWidth"`
-				SitewidePromos               struct {
-					CouponCode string        `json:"couponCode"`
-					PromoIDs   string        `json:"promoIDs"`
-					PromoList  []interface{} `json:"promoList"`
-				} `json:"sitewidePromos"`
-			} `json:"globalState"`
-			WelcomeMat struct {
-				Display         bool   `json:"display"`
-				ShouldRedirect  bool   `json:"shouldRedirect"`
-				RedirectCountry string `json:"redirectCountry"`
-			} `json:"welcomeMat"`
-			InfoModal struct {
-				ShowInfoModal             bool `json:"showInfoModal"`
-				UseTermsAndConditionsCopy bool `json:"useTermsAndConditionsCopy"`
-				UsePrivacyPolicyCopy      bool `json:"usePrivacyPolicyCopy"`
-			} `json:"infoModal"`
-			Header struct {
-				Promotion struct {
-				} `json:"promotion"`
-				ShippingPromotion struct {
-				} `json:"shippingPromotion"`
-				HasSecondaryHeader   bool `json:"hasSecondaryHeader"`
-				NavContainerHeight   int  `json:"navContainerHeight"`
-				NavigationIsExpanded bool `json:"navigationIsExpanded"`
-			} `json:"header"`
-			GlobalPromo struct {
-				Animation struct {
-					ShowGlobalPromo  bool `json:"showGlobalPromo"`
-					MaxHeight        int  `json:"maxHeight"`
-					SectionHeight    int  `json:"sectionHeight"`
-					IsPromoHeightSet bool `json:"isPromoHeightSet"`
-				} `json:"animation"`
-				Interaction struct {
-					IsDetailsOpen     bool `json:"isDetailsOpen"`
-					IsShipDetailsOpen bool `json:"isShipDetailsOpen"`
-					DetailsOffsetLeft int  `json:"detailsOffsetLeft"`
-				} `json:"interaction"`
-			} `json:"globalPromo"`
-			BagAlert struct {
-				IsOpen        bool `json:"isOpen"`
-				HasTransition bool `json:"hasTransition"`
-				WasClosed     bool `json:"wasClosed"`
-			} `json:"bagAlert"`
 			Navigation struct {
 				Data struct {
 					Nav             []interface{} `json:"nav"`
 					IsFetching      bool          `json:"isFetching"`
 					IsFetchComplete bool          `json:"isFetchComplete"`
-					CmsNav          struct {
-						PricesAsMarked struct {
-							Kids  []interface{} `json:"kids"`
-							Men   []interface{} `json:"men"`
-							Women []interface{} `json:"women"`
-						} `json:"pricesAsMarked"`
-						FeatureStories struct {
-							Boys []struct {
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Title          string `json:"title"`
-								Image          struct {
-									Alt string `json:"alt"`
-									Xl  string `json:"xl"`
-									Lg  string `json:"lg"`
-									Md  string `json:"md"`
-									Sm  string `json:"sm"`
-								} `json:"image"`
-								Ctas []interface{} `json:"ctas"`
-							} `json:"boys"`
-							Girls []struct {
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Title          string `json:"title"`
-								Image          struct {
-									Alt string `json:"alt"`
-									Xl  string `json:"xl"`
-									Lg  string `json:"lg"`
-									Md  string `json:"md"`
-									Sm  string `json:"sm"`
-								} `json:"image"`
-								Ctas []interface{} `json:"ctas"`
-							} `json:"girls"`
-							Kids []struct {
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Title          string `json:"title"`
-								Image          struct {
-									Alt string `json:"alt"`
-									Xl  string `json:"xl"`
-									Lg  string `json:"lg"`
-									Md  string `json:"md"`
-									Sm  string `json:"sm"`
-								} `json:"image"`
-								Ctas []interface{} `json:"ctas"`
-							} `json:"kids"`
-							Labels []struct {
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Title          string `json:"title"`
-								Image          struct {
-									Alt string `json:"alt"`
-									Xl  string `json:"xl"`
-									Lg  string `json:"lg"`
-									Md  string `json:"md"`
-									Sm  string `json:"sm"`
-								} `json:"image"`
-								Ctas []interface{} `json:"ctas"`
-							} `json:"labels"`
-							Men []struct {
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Title          string `json:"title"`
-								Image          struct {
-									Alt string `json:"alt"`
-									Xl  string `json:"xl"`
-									Lg  string `json:"lg"`
-									Md  string `json:"md"`
-									Sm  string `json:"sm"`
-								} `json:"image"`
-								Ctas []interface{} `json:"ctas"`
-							} `json:"men"`
-							Women []struct {
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Title          string `json:"title"`
-								Image          struct {
-									Alt string `json:"alt"`
-									Xl  string `json:"xl"`
-									Lg  string `json:"lg"`
-									Md  string `json:"md"`
-									Sm  string `json:"sm"`
-								} `json:"image"`
-								Ctas []interface{} `json:"ctas"`
-							} `json:"women"`
-						} `json:"featureStories"`
-						GlobalPromo []struct {
-							Text           string `json:"text"`
-							URL            string `json:"url"`
-							URLTargetBlank bool   `json:"urlTargetBlank"`
-							Details        string `json:"details"`
-							HTMLText       string `json:"htmlText"`
-						} `json:"globalPromo"`
-						Labels []struct {
-							Header string `json:"header"`
-							Links  []struct {
-								ID             string `json:"_id"`
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Text           string `json:"text"`
-								Navigation     struct {
-									Badge string `json:"badge"`
-								} `json:"navigation"`
-								Label string `json:"label"`
-								Badge string `json:"badge"`
-							} `json:"links"`
-						} `json:"labels"`
-						Sale []struct {
-							Header string `json:"header"`
-							Links  []struct {
-								ID             string `json:"_id"`
-								Text           string `json:"text"`
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Label          string `json:"label"`
-								Badge          string `json:"badge"`
-							} `json:"links"`
-						} `json:"sale"`
-						Baby []interface{} `json:"baby"`
-						Gift []struct {
-							Header string `json:"header"`
-							Links  []struct {
-								ID             string `json:"_id"`
-								Text           string `json:"text"`
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Label          string `json:"label"`
-								Badge          string `json:"badge"`
-							} `json:"links"`
-						} `json:"gift"`
-						Cashmere []struct {
-							Header string `json:"header"`
-							Links  []struct {
-								ID             string `json:"_id"`
-								Text           string `json:"text"`
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Label          string `json:"label"`
-								Badge          string `json:"badge"`
-							} `json:"links"`
-						} `json:"cashmere"`
-						Swim []struct {
-							Header string `json:"header"`
-							Links  []struct {
-								ID             string `json:"_id"`
-								Text           string `json:"text"`
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Label          string `json:"label"`
-								Badge          string `json:"badge"`
-							} `json:"links"`
-						} `json:"swim"`
-						New []struct {
-							Header string `json:"header"`
-							Links  []struct {
-								ID             string `json:"_id"`
-								Text           string `json:"text"`
-								URL            string `json:"url"`
-								URLTargetBlank bool   `json:"urlTargetBlank"`
-								Label          string `json:"label"`
-								Badge          string `json:"badge"`
-							} `json:"links"`
-						} `json:"new"`
-					} `json:"cmsNav"`
-					DeptData struct {
-						Women struct {
-							FilteredArrays struct {
-								New struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"new"`
-								RecentlyReduced struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"recentlyReduced"`
-								All struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"all"`
-								Size struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"size"`
-								BrandsWeLove struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"brandsWeLove"`
-								BestSeller struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"bestSeller"`
-								Sale struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"sale"`
-								TopRated struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"topRated"`
-								GiftGuide struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"giftGuide"`
-								SaleBySize struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"saleBySize"`
-								SaleNew struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"saleNew"`
-								EasyDoesIt struct {
-									URL   string `json:"url"`
-									Label string `json:"label"`
-								} `json:"easyDoesIt"`
-							} `json:"filteredArrays"`
-							Shoes []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"shoes"`
-							Accessories []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"accessories"`
-							Clothing []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"clothing"`
-							Link struct {
-								IsNonSidecarLink bool   `json:"isNonSidecarLink"`
-								Label            string `json:"label"`
-								ID               string `json:"id"`
-								URL              string `json:"url"`
-							} `json:"link"`
-						} `json:"women"`
-						Boys struct {
-							FilteredArrays struct {
-								New struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"new"`
-								RecentlyReduced struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"recentlyReduced"`
-								All struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"all"`
-								Size struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"size"`
-								BrandsWeLove struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"brandsWeLove"`
-								BestSeller struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"bestSeller"`
-								Sale struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"sale"`
-								TopRated struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"topRated"`
-								GiftGuide struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"giftGuide"`
-								SaleBySize struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"saleBySize"`
-								SaleNew struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"saleNew"`
-							} `json:"filteredArrays"`
-							Shoes []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"shoes"`
-							Accessories []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"accessories"`
-							Clothing []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"clothing"`
-							Link struct {
-								IsNonSidecarLink bool   `json:"isNonSidecarLink"`
-								Label            string `json:"label"`
-								ID               string `json:"id"`
-								URL              string `json:"url"`
-							} `json:"link"`
-						} `json:"boys"`
-						Girls struct {
-							FilteredArrays struct {
-								New struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"new"`
-								RecentlyReduced struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"recentlyReduced"`
-								All struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"all"`
-								Size struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"size"`
-								BrandsWeLove struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"brandsWeLove"`
-								BestSeller struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"bestSeller"`
-								Sale struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"sale"`
-								TopRated struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"topRated"`
-								GiftGuide struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"giftGuide"`
-								SaleBySize struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"saleBySize"`
-								SaleNew struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"saleNew"`
-							} `json:"filteredArrays"`
-							Shoes []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"shoes"`
-							Accessories []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"accessories"`
-							Clothing []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"clothing"`
-							Link struct {
-								IsNonSidecarLink bool   `json:"isNonSidecarLink"`
-								Label            string `json:"label"`
-								ID               string `json:"id"`
-								URL              string `json:"url"`
-							} `json:"link"`
-						} `json:"girls"`
-						Men struct {
-							FilteredArrays struct {
-								New struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"new"`
-								RecentlyReduced struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"recentlyReduced"`
-								All struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"all"`
-								Size struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"size"`
-								BrandsWeLove struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"brandsWeLove"`
-								BestSeller struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"bestSeller"`
-								Sale struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"sale"`
-								TopRated struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"topRated"`
-								GiftGuide struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"giftGuide"`
-								SaleBySize struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"saleBySize"`
-								SaleNew struct {
-									URL     string `json:"url"`
-									APILink string `json:"apiLink"`
-									Label   string `json:"label"`
-								} `json:"saleNew"`
-								EasyDoesIt struct {
-									URL   string `json:"url"`
-									Label string `json:"label"`
-								} `json:"easyDoesIt"`
-							} `json:"filteredArrays"`
-							Shoes []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"shoes"`
-							Accessories []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"accessories"`
-							Clothing []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"clothing"`
-							Link struct {
-								IsNonSidecarLink bool   `json:"isNonSidecarLink"`
-								Label            string `json:"label"`
-								ID               string `json:"id"`
-								URL              string `json:"url"`
-							} `json:"link"`
-						} `json:"men"`
-						Shoes struct {
-							Women []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"women"`
-							Boys []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"boys"`
-							Girls []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"girls"`
-							Men []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"men"`
-							FilteredArrays struct {
-								TheGiftGuide bool `json:"theGiftGuide"`
-							} `json:"filteredArrays"`
-						} `json:"shoes"`
-						Accessories struct {
-							Women []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"women"`
-							Boys []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"boys"`
-							Girls []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"girls"`
-							Men []struct {
-								URL     string `json:"url"`
-								APILink string `json:"apiLink"`
-								Label   string `json:"label"`
-								ID      string `json:"id,omitempty"`
-							} `json:"men"`
-							FilteredArrays struct {
-								TheGiftGuide bool `json:"theGiftGuide"`
-							} `json:"filteredArrays"`
-						} `json:"accessories"`
-					} `json:"deptData"`
 				} `json:"data"`
-				HamburgerNav struct {
-					IsOpen bool `json:"isOpen"`
-					Level  int  `json:"level"`
-				} `json:"hamburgerNav"`
 			} `json:"navigation"`
-			Country struct {
-				CountryObj struct {
-					Currencies struct {
-						CurrencyItem string `json:"currencyItem"`
-					} `json:"currencies"`
-					CountryCode      string `json:"countryCode"`
-					Display          string `json:"display"`
-					ChangedCountries bool   `json:"changedCountries"`
-				} `json:"countryObj"`
-				Regions []struct {
-					Code      string `json:"code"`
-					Display   string `json:"display"`
-					Priority  string `json:"priority"`
-					Sort      string `json:"sort"`
-					Countries []struct {
-						Currencies struct {
-							CurrencyItem string `json:"currencyItem"`
-						} `json:"currencies"`
-						CountryCode      string `json:"countryCode"`
-						Display          string `json:"display"`
-						LiveChat         string `json:"live_chat,omitempty"`
-						ShowFinalSale    string `json:"showFinalSale"`
-						ShowFreeShipping string `json:"showFreeShipping"`
-						EndecaSaleID     string `json:"endecaSaleId,omitempty"`
-					} `json:"countries"`
-				} `json:"regions"`
-			} `json:"country"`
 			Products struct {
 				ProductsByProductCode map[string]struct {
-					//AB613 struct {
-					ProductCode               string        `json:"productCode"`
-					ProductDataFetched        bool          `json:"productDataFetched"`
-					LastUpdated               int           `json:"lastUpdated"`
-					PdpIntlMessage            string        `json:"pdpIntlMessage"`
-					IsPreorder                bool          `json:"isPreorder"`
-					ShipRestricted            bool          `json:"shipRestricted"`
-					IsFindInStore             bool          `json:"isFindInStore"`
-					LimitQuantity             interface{}   `json:"limit-quantity"`
-					JspURL                    string        `json:"jspUrl"`
-					ProductDescriptionRomance string        `json:"productDescriptionRomance"`
-					ProductDescriptionFit     []string      `json:"productDescriptionFit"`
-					IsVPS                     bool          `json:"isVPS"`
-					StyledWithSkus            string        `json:"styledWithSkus"`
-					PriceCallArgs             []interface{} `json:"price-call-args"`
-					OlapicCopy                string        `json:"olapicCopy"`
-					SwatchOrderAlphabetical   bool          `json:"swatchOrderAlphabetical"`
-					ColorsMap                 map[string]struct {
-						//RD5923 struct {
-						Three034 string `json:"30/34"`
-						Three532 string `json:"35/32"`
-						Three632 string `json:"36/32"`
-						Three334 string `json:"33/34"`
-						Three234 string `json:"32/34"`
-						Three432 string `json:"34/32"`
-						Three330 string `json:"33/30"`
-						Two930   string `json:"29/30"`
-						Three630 string `json:"36/30"`
-						Three230 string `json:"32/30"`
-						Two932   string `json:"29/32"`
-						Three232 string `json:"32/32"`
-						Three134 string `json:"31/34"`
-						Three332 string `json:"33/32"`
-						Three032 string `json:"30/32"`
-						Two832   string `json:"28/32"`
-						Three430 string `json:"34/30"`
-						Three030 string `json:"30/30"`
-						Three130 string `json:"31/30"`
-						Three132 string `json:"31/32"`
-						Three434 string `json:"34/34"`
-						//} `json:"RD5923"`
-					} `json:"colorsMap"`
-					IsFreeShipping  bool   `json:"isFreeShipping"`
-					ProductName     string `json:"productName"`
-					ProductsByComma string `json:"products-by-comma"`
-					Brand           string `json:"brand"`
-					PriceEndpoint   string `json:"priceEndpoint"`
-					SizeChart       string `json:"sizeChart"`
-					SizesMap        struct {
-						Three034 struct {
-							GR6062 string `json:"GR6062"`
-							RD5923 string `json:"RD5923"`
-							BR6565 string `json:"BR6565"`
-							WZ0451 string `json:"WZ0451"`
-							GR8250 string `json:"GR8250"`
-						} `json:"30/34"`
-						Three532 struct {
-							GR6062 string `json:"GR6062"`
-							GR8250 string `json:"GR8250"`
-							BR6565 string `json:"BR6565"`
-							RD5923 string `json:"RD5923"`
-							RD6067 string `json:"RD6067"`
-							BL7505 string `json:"BL7505"`
-							WZ0451 string `json:"WZ0451"`
-						} `json:"35/32"`
-						Three632 struct {
-							BR6565 string `json:"BR6565"`
-							GR6062 string `json:"GR6062"`
-							RD5923 string `json:"RD5923"`
-							BL7505 string `json:"BL7505"`
-							GR8250 string `json:"GR8250"`
-							WZ0451 string `json:"WZ0451"`
-						} `json:"36/32"`
-						Three334 struct {
-							WZ0451 string `json:"WZ0451"`
-							GR8250 string `json:"GR8250"`
-							RD5923 string `json:"RD5923"`
-							BR6565 string `json:"BR6565"`
-							BL7505 string `json:"BL7505"`
-							GR6062 string `json:"GR6062"`
-						} `json:"33/34"`
-						Three234 struct {
-							WZ0451 string `json:"WZ0451"`
-							BR6565 string `json:"BR6565"`
-							GR8250 string `json:"GR8250"`
-							RD6067 string `json:"RD6067"`
-							GR6062 string `json:"GR6062"`
-							RD5923 string `json:"RD5923"`
-							BL7505 string `json:"BL7505"`
-						} `json:"32/34"`
-						Four432 struct {
-							GR6062 string `json:"GR6062"`
-						} `json:"44/32"`
-						Three432 struct {
-							BR6565 string `json:"BR6565"`
-							WZ0451 string `json:"WZ0451"`
-							GR8250 string `json:"GR8250"`
-							BL7505 string `json:"BL7505"`
-							GR6062 string `json:"GR6062"`
-							RD5923 string `json:"RD5923"`
-							RD6067 string `json:"RD6067"`
-						} `json:"34/32"`
-						Three330 struct {
-							WZ0451 string `json:"WZ0451"`
-							BR6565 string `json:"BR6565"`
-							GR6062 string `json:"GR6062"`
-							GR8250 string `json:"GR8250"`
-							RD5923 string `json:"RD5923"`
-							BL7505 string `json:"BL7505"`
-						} `json:"33/30"`
-						Two930 struct {
-							RD5923 string `json:"RD5923"`
-							GR8250 string `json:"GR8250"`
-						} `json:"29/30"`
-						Three630 struct {
-							BR6565 string `json:"BR6565"`
-							RD5923 string `json:"RD5923"`
-							RD6067 string `json:"RD6067"`
-						} `json:"36/30"`
-						Three230 struct {
-							BR6565 string `json:"BR6565"`
-							GR6062 string `json:"GR6062"`
-							WZ0451 string `json:"WZ0451"`
-							RD6067 string `json:"RD6067"`
-							RD5923 string `json:"RD5923"`
-						} `json:"32/30"`
-						Two932 struct {
-							RD5923 string `json:"RD5923"`
-							GR8250 string `json:"GR8250"`
-							GR6062 string `json:"GR6062"`
-							WZ0451 string `json:"WZ0451"`
-							RD6067 string `json:"RD6067"`
-							BL7505 string `json:"BL7505"`
-						} `json:"29/32"`
-						Three232 struct {
-							WZ0451 string `json:"WZ0451"`
-							BR6565 string `json:"BR6565"`
-							GR8250 string `json:"GR8250"`
-							GR6062 string `json:"GR6062"`
-							RD6067 string `json:"RD6067"`
-							RD5923 string `json:"RD5923"`
-						} `json:"32/32"`
-						Three134 struct {
-							RD5923 string `json:"RD5923"`
-							BL7505 string `json:"BL7505"`
-							BR6565 string `json:"BR6565"`
-							GR8250 string `json:"GR8250"`
-							GR6062 string `json:"GR6062"`
-							WZ0451 string `json:"WZ0451"`
-						} `json:"31/34"`
-						Three332 struct {
-							WZ0451 string `json:"WZ0451"`
-							GR8250 string `json:"GR8250"`
-							BR6565 string `json:"BR6565"`
-							GR6062 string `json:"GR6062"`
-							RD5923 string `json:"RD5923"`
-							BL7505 string `json:"BL7505"`
-							RD6067 string `json:"RD6067"`
-						} `json:"33/32"`
-						Three032 struct {
-							GR6062 string `json:"GR6062"`
-							WZ0451 string `json:"WZ0451"`
-							RD5923 string `json:"RD5923"`
-							BL7505 string `json:"BL7505"`
-							GR8250 string `json:"GR8250"`
-						} `json:"30/32"`
-						Two832 struct {
-							RD5923 string `json:"RD5923"`
-							BL7505 string `json:"BL7505"`
-							GR8250 string `json:"GR8250"`
-							GR6062 string `json:"GR6062"`
-							WZ0451 string `json:"WZ0451"`
-							RD6067 string `json:"RD6067"`
-						} `json:"28/32"`
-						Three430 struct {
-							BR6565 string `json:"BR6565"`
-							WZ0451 string `json:"WZ0451"`
-							GR8250 string `json:"GR8250"`
-							BL7505 string `json:"BL7505"`
-							GR6062 string `json:"GR6062"`
-							RD5923 string `json:"RD5923"`
-							RD6067 string `json:"RD6067"`
-						} `json:"34/30"`
-						Three030 struct {
-							GR6062 string `json:"GR6062"`
-							RD5923 string `json:"RD5923"`
-							WZ0451 string `json:"WZ0451"`
-						} `json:"30/30"`
-						Three634 struct {
-							BL7505 string `json:"BL7505"`
-							BR6565 string `json:"BR6565"`
-							GR8250 string `json:"GR8250"`
-							RD6067 string `json:"RD6067"`
-						} `json:"36/34"`
-						Three130 struct {
-							GR6062 string `json:"GR6062"`
-							RD5923 string `json:"RD5923"`
-							BR6565 string `json:"BR6565"`
-							WZ0451 string `json:"WZ0451"`
-							RD6067 string `json:"RD6067"`
-						} `json:"31/30"`
-						Three132 struct {
-							BR6565 string `json:"BR6565"`
-							GR8250 string `json:"GR8250"`
-							GR6062 string `json:"GR6062"`
-							WZ0451 string `json:"WZ0451"`
-							RD6067 string `json:"RD6067"`
-							RD5923 string `json:"RD5923"`
-						} `json:"31/32"`
-						Four234 struct {
-							GR6062 string `json:"GR6062"`
-						} `json:"42/34"`
-						Three434 struct {
-							GR8250 string `json:"GR8250"`
-							BR6565 string `json:"BR6565"`
-							BL7505 string `json:"BL7505"`
-							GR6062 string `json:"GR6062"`
-							RD5923 string `json:"RD5923"`
-							RD6067 string `json:"RD6067"`
-							WZ0451 string `json:"WZ0451"`
-						} `json:"34/34"`
-					} `json:"sizesMap"`
-					ListPrice struct {
+					ProductCode               string                       `json:"productCode"`
+					ProductDataFetched        bool                         `json:"productDataFetched"`
+					LastUpdated               int                          `json:"lastUpdated"`
+					PdpIntlMessage            string                       `json:"pdpIntlMessage"`
+					IsPreorder                bool                         `json:"isPreorder"`
+					ShipRestricted            bool                         `json:"shipRestricted"`
+					IsFindInStore             bool                         `json:"isFindInStore"`
+					LimitQuantity             interface{}                  `json:"limit-quantity"`
+					JspURL                    string                       `json:"jspUrl"`
+					ProductDescriptionRomance string                       `json:"productDescriptionRomance"`
+					ProductDescriptionFit     []string                     `json:"productDescriptionFit"`
+					IsVPS                     bool                         `json:"isVPS"`
+					StyledWithSkus            string                       `json:"styledWithSkus"`
+					PriceCallArgs             []interface{}                `json:"price-call-args"`
+					OlapicCopy                string                       `json:"olapicCopy"`
+					SwatchOrderAlphabetical   bool                         `json:"swatchOrderAlphabetical"`
+					ColorsMap                 map[string]map[string]string `json:"colorsMap"`
+					IsFreeShipping            bool                         `json:"isFreeShipping"`
+					ProductName               string                       `json:"productName"`
+					ProductsByComma           string                       `json:"products-by-comma"`
+					Brand                     string                       `json:"brand"`
+					PriceEndpoint             string                       `json:"priceEndpoint"`
+					SizeChart                 string                       `json:"sizeChart"`
+					SizesMap                  map[string]map[string]string `json:"sizesMap"`
+					ListPrice                 struct {
 						Amount    string `json:"amount"`
 						Formatted string `json:"formatted"`
 					} `json:"listPrice"`
@@ -1994,7 +613,6 @@ type productPageResponse struct {
 					} `json:"seoProperties"`
 					ShotTypes []string `json:"shotTypes"`
 					Skus      map[string]struct {
-						//Num99105744175 struct {
 						ShowOnSale    bool   `json:"show-on-sale"`
 						ColorName     string `json:"colorName"`
 						Variant       string `json:"variant"`
@@ -2012,8 +630,6 @@ type productPageResponse struct {
 							Amount    string `json:"amount"`
 							Formatted string `json:"formatted"`
 						} `json:"price"`
-						//} `json:"99105744175"`
-
 					} `json:"skus"`
 					OlapicEnabled         bool          `json:"olapicEnabled"`
 					BaseProductCode       string        `json:"baseProductCode"`
@@ -2034,7 +650,6 @@ type productPageResponse struct {
 					Subcategory           string        `json:"subcategory"`
 					ProductSlug           string        `json:"productSlug"`
 					IsSaleProduct         bool          `json:"isSaleProduct"`
-					ColorName             string        `json:"colorName"`
 					SelectedProductCode   string        `json:"selectedProductCode"`
 					SelectedColorName     string        `json:"selectedColorName"`
 					SelectedColorCode     string        `json:"selectedColorCode"`
@@ -2044,15 +659,14 @@ type productPageResponse struct {
 					UseProductAPI         bool          `json:"useProductApi"`
 					IsStoresShowAll       bool          `json:"isStoresShowAll"`
 					PriceModel            map[string]struct {
-						//AB613 struct {
 						ListPrice struct {
-							Amount    int    `json:"amount"`
-							Formatted string `json:"formatted"`
+							Amount    float64 `json:"amount"`
+							Formatted string  `json:"formatted"`
 						} `json:"listPrice"`
 						Colors []struct {
 							SalePrice struct {
-								Amount    int    `json:"amount"`
-								Formatted string `json:"formatted"`
+								Amount    float64 `json:"amount"`
+								Formatted string  `json:"formatted"`
 							} `json:"salePrice"`
 							ShowOnSale       bool   `json:"show-on-sale"`
 							ColorName        string `json:"colorName"`
@@ -2069,12 +683,12 @@ type productPageResponse struct {
 							Variations       string `json:"variations"`
 						} `json:"colors"`
 						Was struct {
-							Amount    int    `json:"amount"`
-							Formatted string `json:"formatted"`
+							Amount    float64 `json:"amount"`
+							Formatted string  `json:"formatted"`
 						} `json:"was"`
 						Now struct {
-							Amount    int    `json:"amount"`
-							Formatted string `json:"formatted"`
+							Amount    float64 `json:"amount"`
+							Formatted string  `json:"formatted"`
 						} `json:"now"`
 						DiscountPercentage int    `json:"discountPercentage"`
 						ExtendedSize       string `json:"extendedSize"`
@@ -2084,10 +698,8 @@ type productPageResponse struct {
 							Priority int    `json:"priority"`
 							IconPath string `json:"iconPath"`
 						} `json:"badge"`
-						//} `json:"AB613"`
 					} `json:"priceModel"`
 					HasVariations bool `json:"hasVariations"`
-					//} `json:"AB613"`
 				} `json:"productsByProductCode"`
 				IsFetching     bool `json:"isFetching"`
 				PdpDynamicData struct {
@@ -2096,95 +708,10 @@ type productPageResponse struct {
 					JSON            []interface{} `json:"json"`
 				} `json:"pdpDynamicData"`
 				LastUpdated time.Time `json:"lastUpdated"`
-				Helpers     struct {
-					Tooltip struct {
-						Tooltip struct {
-							ClassName string `json:"className"`
-							Message   string `json:"message"`
-							Top       int    `json:"top"`
-							Left      int    `json:"left"`
-						} `json:"tooltip"`
-						ShouldShowTooltip bool `json:"shouldShowTooltip"`
-					} `json:"tooltip"`
-					Message struct {
-						AddToBagText               string `json:"addToBagText"`
-						WishlistText               string `json:"wishlistText"`
-						ShowSkuMessage             bool   `json:"showSkuMessage"`
-						ShowOtherMessage           bool   `json:"showOtherMessage"`
-						IsBagDisabled              bool   `json:"isBagDisabled"`
-						IsWishlistDisabled         bool   `json:"isWishlistDisabled"`
-						AddToBagClasses            string `json:"addToBagClasses"`
-						WishlistClasses            string `json:"wishlistClasses"`
-						ProductDetailsHeight       string `json:"productDetailsHeight"`
-						ShowMonogram               bool   `json:"showMonogram"`
-						HiddenMessage              int    `json:"hiddenMessage"`
-						ShowMessage                int    `json:"showMessage"`
-						ShowLowInventory           bool   `json:"showLowInventory"`
-						ShowFinalSale              bool   `json:"showFinalSale"`
-						ShowBackordered            bool   `json:"showBackordered"`
-						ShowBasketQuotaExceeded    bool   `json:"showBasketQuotaExceeded"`
-						ShowGenericAddToBag        bool   `json:"showGenericAddToBag"`
-						BackorderedDate            string `json:"backorderedDate"`
-						ShowNoMonogramFromRetail   bool   `json:"showNoMonogramFromRetail"`
-						ShowForgotSize             bool   `json:"showForgotSize"`
-						ShowAddedToBag             bool   `json:"showAddedToBag"`
-						ShowAddedToBagOffline      bool   `json:"showAddedToBagOffline"`
-						CheckoutFeatureParams      string `json:"checkoutFeatureParams"`
-						ShowAddedToWishlist        bool   `json:"showAddedToWishlist"`
-						ShowAddedToWishlistOffline bool   `json:"showAddedToWishlistOffline"`
-						AddToWishlistMessage1      string `json:"addToWishlistMessage1"`
-						AddToWishlistMessage2      string `json:"addToWishlistMessage2"`
-						AddToWishlistMessage3      string `json:"addToWishlistMessage3"`
-						WishlistSize               string `json:"wishlistSize"`
-						Response                   struct {
-						} `json:"response"`
-						ShowPostPartialQuantity bool   `json:"showPostPartialQuantity"`
-						ShowPostSoldOut         bool   `json:"showPostSoldOut"`
-						ShowPostBackordered     bool   `json:"showPostBackordered"`
-						UpdateWishlistMessage   bool   `json:"updateWishlistMessage"`
-						ToastMessage            string `json:"toastMessage"`
-					} `json:"message"`
-					Carousel struct {
-						CarouselSliderWrap struct {
-							Width     string `json:"width"`
-							Height    string `json:"height"`
-							Transform string `json:"transform"`
-						} `json:"carouselSliderWrap"`
-						ImageWidth         string `json:"imageWidth"`
-						SelectedPage       int    `json:"selectedPage"`
-						CurrentPage        int    `json:"currentPage"`
-						InitialCarouselSet bool   `json:"initialCarouselSet"`
-						HasTransition      bool   `json:"hasTransition"`
-					} `json:"carousel"`
-					FlyoutZoom struct {
-						FlyoutZoomWrapper struct {
-							Left   int `json:"left"`
-							Width  int `json:"width"`
-							Height int `json:"height"`
-						} `json:"flyoutZoomWrapper"`
-						ImageZoomWrapper struct {
-							Height    int    `json:"height"`
-							Width     int    `json:"width"`
-							Transform string `json:"transform"`
-						} `json:"imageZoomWrapper"`
-						FlyoutZoomLens struct {
-							Top       int    `json:"top"`
-							Left      int    `json:"left"`
-							Width     int    `json:"width"`
-							Height    int    `json:"height"`
-							Transform string `json:"transform"`
-						} `json:"flyoutZoomLens"`
-						ReferencePoints struct {
-						} `json:"referencePoints"`
-						ReferencePointsSet bool `json:"referencePointsSet"`
-						HasZoomStarted     bool `json:"hasZoomStarted"`
-						FlyoutZoomSet      bool `json:"flyoutZoomSet"`
-					} `json:"flyoutZoom"`
-				} `json:"helpers"`
 			} `json:"products"`
 			ProductDetail struct {
-				EVar78Pdp string `json:"eVar78pdp"`
-				Flyzoom   struct {
+				// EVar78Pdp string `json:"eVar78pdp"`
+				Flyzoom struct {
 					ImageIndex   int           `json:"imageIndex"`
 					ImageURL     string        `json:"imageURL"`
 					ImagePresets []interface{} `json:"imagePresets"`
@@ -2259,35 +786,6 @@ type productPageResponse struct {
 					} `json:"visitedMergedProducts"`
 				} `json:"mergedProduct"`
 			} `json:"productDetail"`
-			Quickshop struct {
-				ProductObj struct {
-					ColorsVisited struct {
-					} `json:"colorsVisited"`
-					ShowSizeFit              bool        `json:"showSizeFit"`
-					ShowDetails              bool        `json:"showDetails"`
-					IsSizeSet                bool        `json:"isSizeSet"`
-					LoadingText              string      `json:"loadingText"`
-					SelectedColorCode        string      `json:"selectedColorCode"`
-					SelectedColorName        string      `json:"selectedColorName"`
-					CustomStlRecommendations interface{} `json:"customStlRecommendations"`
-					ShowFamilyPrice          bool        `json:"showFamilyPrice"`
-					SelectedShot             int         `json:"selectedShot"`
-				} `json:"productObj"`
-				Hover struct {
-					HoverColorCode   interface{} `json:"hoverColorCode"`
-					HoverSize        interface{} `json:"hoverSize"`
-					HoverVariant     interface{} `json:"hoverVariant"`
-					HoverProductCode interface{} `json:"hoverProductCode"`
-				} `json:"hover"`
-				SetQuickShop struct {
-					Show bool   `json:"show"`
-					Top  string `json:"top"`
-				} `json:"setQuickShop"`
-				MergedProduct struct {
-					VisitedMergedProducts struct {
-					} `json:"visitedMergedProducts"`
-				} `json:"mergedProduct"`
-			} `json:"quickshop"`
 			Configuration struct {
 				IsCheckoutStarted                 bool   `json:"isCheckoutStarted"`
 				IsExperimental                    bool   `json:"isExperimental"`
@@ -2623,138 +1121,10 @@ type productPageResponse struct {
 				Referrer string `json:"referrer"`
 				Page     string `json:"page"`
 			} `json:"configuration"`
-			Array struct {
-				Supplements struct {
-					InStockStyledWithList []interface{} `json:"inStockStyledWithList"`
-				} `json:"supplements"`
-				Filters struct {
-					RefinementsByID struct {
-					} `json:"refinementsById"`
-					RefinementGroups struct {
-					} `json:"refinementGroups"`
-					SelectedByID struct {
-					} `json:"selectedById"`
-					ShouldPersistFilters bool          `json:"shouldPersistFilters"`
-					SelectedIdsOrdered   []interface{} `json:"selectedIdsOrdered"`
-				} `json:"filters"`
-				FindInStoreSfcc struct {
-					IsFetchingStores bool          `json:"isFetchingStores"`
-					IsToggledOn      bool          `json:"isToggledOn"`
-					Stores           []interface{} `json:"stores"`
-					NoResults        bool          `json:"noResults"`
-					ShowModal        bool          `json:"showModal"`
-				} `json:"findInStoreSfcc"`
-				Pagination struct {
-					PageIndex      int `json:"pageIndex"`
-					ResultsPerPage int `json:"resultsPerPage"`
-				} `json:"pagination"`
-				SelectedSort struct {
-					Value string `json:"value"`
-					Label string `json:"label"`
-				} `json:"selectedSort"`
-				SelectedSubcategory struct {
-					Name     string `json:"name"`
-					SafeName string `json:"safeName"`
-					Value    string `json:"value"`
-				} `json:"selectedSubcategory"`
-				Data struct {
-					HasSplitResults bool `json:"hasSplitResults"`
-					IsFetching      bool `json:"isFetching"`
-					IsFiltering     bool `json:"isFiltering"`
-					ProductArray    struct {
-					} `json:"productArray"`
-					SearchTerm       string `json:"searchTerm"`
-					LastFilterAction struct {
-					} `json:"lastFilterAction"`
-				} `json:"data"`
-				ArrayDynamicData struct {
-					IsFetching      bool `json:"isFetching"`
-					IsFetchComplete bool `json:"isFetchComplete"`
-				} `json:"arrayDynamicData"`
-				CreativeContent struct {
-				} `json:"creativeContent"`
-				ProductTiles struct {
-					ToggleArrayImageOnHover  bool          `json:"toggleArrayImageOnHover"`
-					ShowLaydownImagesOnArray bool          `json:"showLaydownImagesOnArray"`
-					ShowFabricSwatchOnArray  bool          `json:"showFabricSwatchOnArray"`
-					ExcludedFabricSwatch     []interface{} `json:"excludedFabricSwatch"`
-				} `json:"productTiles"`
-			} `json:"array"`
-			Cart struct {
-				CartSize                  int  `json:"cartSize"`
-				IsMiniCartFetching        bool `json:"isMiniCartFetching"`
-				IsMiniCartFetchComplete   bool `json:"isMiniCartFetchComplete"`
-				HasMiniCartErrors         bool `json:"hasMiniCartErrors"`
-				ShowMiniCart              bool `json:"showMiniCart"`
-				ShowFirstItem             bool `json:"showFirstItem"`
-				IsPartialQuantity         bool `json:"isPartialQuantity"`
-				IsRemoveItemFetchComplete bool `json:"isRemoveItemFetchComplete"`
-				IsRemoveItemSuccess       bool `json:"isRemoveItemSuccess"`
-				IsFixedAddToBag           bool `json:"isFixedAddToBag"`
-				ShouldRedirectToBag       bool `json:"shouldRedirectToBag"`
-				IsAddingToBag             bool `json:"isAddingToBag"`
-				MiniCartInfo              struct {
-				} `json:"miniCartInfo"`
-			} `json:"cart"`
-			User struct {
-				IsFetchComplete bool `json:"isFetchComplete"`
-				HasErrors       bool `json:"hasErrors"`
-				Location        struct {
-				} `json:"location"`
-			} `json:"user"`
-			Account struct {
-				ShowHeaderMenu    bool `json:"showHeaderMenu"`
-				ShowRewardsWidget bool `json:"showRewardsWidget"`
-			} `json:"account"`
-			OrderHistory struct {
-				CurrentPage            int    `json:"currentPage"`
-				FetchingProductRecs    bool   `json:"fetchingProductRecs"`
-				FetchedProductRecs     bool   `json:"fetchedProductRecs"`
-				OrderHistoryFetched    bool   `json:"orderHistoryFetched"`
-				OrderHistoryFetchError string `json:"orderHistoryFetchError"`
-				OrdersByID             struct {
-				} `json:"ordersById"`
-				Pages                 []interface{} `json:"pages"`
-				ShowMoreRecs          bool          `json:"showMoreRecs"`
-				SubmittingOrderUpdate bool          `json:"submittingOrderUpdate"`
-				TotalOrders           int           `json:"totalOrders"`
-				OrderHistorySource    string        `json:"orderHistorySource"`
-				StoreOrderHistory     struct {
-					OrderHistoryFetched       bool          `json:"orderHistoryFetched"`
-					FetchingStoreOrderHistory bool          `json:"fetchingStoreOrderHistory"`
-					TotalOrders               int           `json:"totalOrders"`
-					OrderHistoryFetchError    string        `json:"orderHistoryFetchError"`
-					Pages                     []interface{} `json:"pages"`
-					OrdersByID                struct {
-					} `json:"ordersById"`
-				} `json:"storeOrderHistory"`
-			} `json:"orderHistory"`
-			EmailCapture struct {
-				Display          bool `json:"display"`
-				DisplayError     bool `json:"displayError"`
-				DisplaySuccess   bool `json:"displaySuccess"`
-				ShouldTransition bool `json:"shouldTransition"`
-				Bottom           int  `json:"bottom"`
-			} `json:"emailCapture"`
 			Breadcrumbs []struct {
 				Label string `json:"label"`
 				Path  string `json:"path"`
 			} `json:"breadcrumbs"`
-			Clienteling struct {
-				AssociateSignin struct {
-					SuccessComplete            bool        `json:"successComplete"`
-					DidCustomerEmailInvalidate bool        `json:"didCustomerEmailInvalidate"`
-					DidAssociateIDInvalidate   bool        `json:"didAssociateIdInvalidate"`
-					DidInvalidate              bool        `json:"didInvalidate"`
-					Response                   interface{} `json:"response"`
-				} `json:"associateSignin"`
-				AssociateSignout struct {
-				} `json:"associateSignout"`
-				ExtendAssociateSession struct {
-					SuccessComplete bool        `json:"successComplete"`
-					Response        interface{} `json:"response"`
-				} `json:"extendAssociateSession"`
-			} `json:"clienteling"`
 			Sale struct {
 				Data struct {
 					SaleData struct {
@@ -2800,97 +1170,6 @@ type productPageResponse struct {
 				ValidStoresByPath struct {
 				} `json:"validStoresByPath"`
 			} `json:"findInStore"`
-			Omniture struct {
-				PageName   string `json:"pageName"`
-				Server     string `json:"server"`
-				Channel    string `json:"channel"`
-				PageType   string `json:"pageType"`
-				Prop1      string `json:"prop1"`
-				Prop2      string `json:"prop2"`
-				Prop3      string `json:"prop3"`
-				Prop4      string `json:"prop4"`
-				Prop5      string `json:"prop5"`
-				Prop6      string `json:"prop6"`
-				Prop7      string `json:"prop7"`
-				Prop8      string `json:"prop8"`
-				Prop9      string `json:"prop9"`
-				Prop10     string `json:"prop10"`
-				Prop11     string `json:"prop11"`
-				Prop12     string `json:"prop12"`
-				Prop13     string `json:"prop13"`
-				Prop14     string `json:"prop14"`
-				Prop15     string `json:"prop15"`
-				Prop16     string `json:"prop16"`
-				Prop17     string `json:"prop17"`
-				Prop18     string `json:"prop18"`
-				Prop19     string `json:"prop19"`
-				Prop30     string `json:"prop30"`
-				Prop20     string `json:"prop20"`
-				Prop21     string `json:"prop21"`
-				Prop23     string `json:"prop23"`
-				Prop31     string `json:"prop31"`
-				Prop33     string `json:"prop33"`
-				Prop39     string `json:"prop39"`
-				Prop44     string `json:"prop44"`
-				Prop50     string `json:"prop50"`
-				Prop64     string `json:"prop64"`
-				Prop69     string `json:"prop69"`
-				Campaign   string `json:"campaign"`
-				State      string `json:"state"`
-				Zip        string `json:"zip"`
-				Events     string `json:"events"`
-				Products   string `json:"products"`
-				PurchaseID string `json:"purchaseID"`
-				EVar1      string `json:"eVar1"`
-				EVar2      string `json:"eVar2"`
-				EVar3      string `json:"eVar3"`
-				EVar4      string `json:"eVar4"`
-				EVar5      string `json:"eVar5"`
-				EVar6      string `json:"eVar6"`
-				EVar7      string `json:"eVar7"`
-				EVar8      string `json:"eVar8"`
-				EVar9      string `json:"eVar9"`
-				EVar10     string `json:"eVar10"`
-				EVar11     string `json:"eVar11"`
-				EVar12     string `json:"eVar12"`
-				EVar13     string `json:"eVar13"`
-				EVar14     string `json:"eVar14"`
-				EVar15     string `json:"eVar15"`
-				EVar16     string `json:"eVar16"`
-				EVar17     string `json:"eVar17"`
-				EVar18     string `json:"eVar18"`
-				EVar19     string `json:"eVar19"`
-				EVar20     string `json:"eVar20"`
-				EVar21     string `json:"eVar21"`
-				EVar22     string `json:"eVar22"`
-				EVar23     string `json:"eVar23"`
-				EVar24     string `json:"eVar24"`
-				EVar25     string `json:"eVar25"`
-				EVar26     string `json:"eVar26"`
-				EVar27     string `json:"eVar27"`
-				EVar28     string `json:"eVar28"`
-				EVar29     string `json:"eVar29"`
-				EVar30     string `json:"eVar30"`
-				EVar31     string `json:"eVar31"`
-				EVar32     string `json:"eVar32"`
-				EVar33     string `json:"eVar33"`
-				EVar34     string `json:"eVar34"`
-				EVar35     string `json:"eVar35"`
-				EVar36     string `json:"eVar36"`
-				EVar37     string `json:"eVar37"`
-				EVar38     string `json:"eVar38"`
-				EVar39     string `json:"eVar39"`
-				EVar40     string `json:"eVar40"`
-				EVar44     string `json:"eVar44"`
-				EVar50     string `json:"eVar50"`
-				EVar57     string `json:"eVar57"`
-				EVar62     string `json:"eVar62"`
-				EVar69     string `json:"eVar69"`
-				EVar73     string `json:"eVar73"`
-				EVar74     string `json:"eVar74"`
-				EVar95     string `json:"eVar95"`
-				List1      string `json:"list1"`
-			} `json:"omniture"`
 			Routing struct {
 				Query struct {
 					Sale        string `json:"sale"`
@@ -2982,11 +1261,10 @@ type productPageResponse struct {
 		SWHASH               string `json:"SW_HASH"`
 		USEAKAMAIORIGINCHECK string `json:"USE_AKAMAI_ORIGIN_CHECK"`
 	} `json:"runtimeConfig"`
-	IsFallback   bool            `json:"isFallback"`
-	CustomServer bool            `json:"customServer"`
-	Gip          bool            `json:"gip"`
-	AppGip       bool            `json:"appGip"`
-	Head         [][]interface{} `json:"head"`
+	IsFallback   bool `json:"isFallback"`
+	CustomServer bool `json:"customServer"`
+	Gip          bool `json:"gip"`
+	AppGip       bool `json:"appGip"`
 }
 
 // used to trim html labels in description
@@ -3002,125 +1280,112 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err != nil {
 		return err
 	}
-	matched := productsExtractReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Debug(err)
+		return err
 	}
-	// c.logger.Debugf("data: %s", matched[1])
+	rawData := strings.TrimSpace(dom.Find("script#__NEXT_DATA__").Text())
 
 	var viewData productPageResponse
-	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+	if err := json.Unmarshal([]byte(rawData), &viewData); err != nil {
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
+	c.logger.Debugf("%s", rawData)
 
-	prodid := viewData.Props.InitialState.Products.ProductsByProductCode.ProductCode
-	// build product data
-	item := pbItem.Product{
-		Source: &pbItem.Source{
-			Id:       strconv.Format(viewData.Props.InitialState.Products.ProductsByProductCode.ProductCode),
-			CrawlUrl: resp.Request.URL.String(),
-		},
-		BrandName:   viewData.Props.InitialState.Products.ProductsByProductCode.Brand,
-		Title:       viewData.Props.InitialState.Products.ProductsByProductCode.ProductName,
-		Description: viewData.Props.InitialState.Products.ProductsByProductCode.ProductDescriptionRomance + " " + strings.Join(viewData.Props.InitialState.Products.ProductsByProductCode.ProductDescriptionTech, " ") + " " + strings.Join(viewData.Props.InitialState.Products.ProductsByProductCode.ProductDescriptionFit, " "),
-		Price: &pbItem.Price{
-			Currency: regulation.Currency_USD,
-		},
-		// Stats: &pbItem.Stats{
-		// 	ReviewCount: int32(p.NumberOfReviews),
-		// 	Rating:      float32(p.ReviewAverageRating / 5.0),
-		// },
-	}
-
-	var colorImg [len(viewData.Props.InitialState.Products.ProductsByProductCode.ColorsList)]string
-	var colorIndex int = 0
-
-	for _, rawSku := range viewData.Props.InitialState.Products.ProductsByProductCode.Skus {
-
-		originalPrice, _ := strconv.ParseFloat(rawSku.Price.Amount)
-		msrp, _ := strconv.ParseFloat(rawSku.ListPrice.Amount)
-		discount, _ := (msrp - originalPrice) * 100 / msrp
-		sku := pbItem.Sku{
-			SourceId: strconv.Format(rawSku.ID),
+	colorImgs := map[string][]*pbMedia.Media{}
+	for code, prod := range viewData.Props.InitialState.Products.ProductsByProductCode {
+		item := pbItem.Product{
+			Source: &pbItem.Source{
+				Id:       code,
+				CrawlUrl: "https://www.jcrew.com" + prod.URL,
+			},
+			BrandName:   prod.Brand,
+			Title:       prod.ProductName,
+			Description: prod.ProductDescriptionRomance + " " + strings.Join(prod.ProductDescriptionTech, " "),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(originalPrice * 100),
-				Msrp:     int32(msrp * 100),
-				Discount: int32(discount),
 			},
-			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+			CrowdType:   strings.TrimRight(viewData.Query.Gender, "_category"),
+			Category:    strings.Replace(viewData.Query.Category, "_", " ", -1),
+			SubCategory: strings.Replace(viewData.Query.Subcategory, "_", " ", -1),
+			// Stats: &pbItem.Stats{
+			// 	ReviewCount: int32(p.NumberOfReviews),
+			// 	Rating:      float32(p.ReviewAverageRating / 5.0),
+			// },
 		}
-		// if rawSku.TotalQuantityAvailable > 0 {
-		// 	sku.Stock.StockStatus = pbItem.Stock_InStock
-		// 	sku.Stock.StockCount = int32(rawSku.TotalQuantityAvailable)
-		// }
 
-		// color
+		for _, model := range prod.PriceModel {
+			for _, color := range model.Colors {
+				var medias []*pbMedia.Media
+				for ki, mid := range strings.Split(color.SkuShotType, ",") {
+					str_im := ""
+					if mid == "" {
+						str_im = "https://www.jcrew.com/s7-img-facade/" + code +
+							"_" + color.ColorCode + "?fmt=jpeg&qlt=90,0&resMode=sharp&op_usm=.1,0,0,0&crop=0,0,0,0"
+					} else {
+						str_im = "https://www.jcrew.com/s7-img-facade/" + code +
+							"_" + color.ColorCode + mid + "?fmt=jpeg&qlt=90,0&resMode=sharp&op_usm=.1,0,0,0&crop=0,0,0,0"
+					}
 
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecColor,
-			Id:    strconv.Format(rawSku.ColorCode),
-			Name:  rawSku.ColorName,
-			Value: rawSku.ColorName,
-			//Icon:  color.SwatchMedia.Mobile,
-		})
-
-		if Contains(colorImg, rawSku.ColorName) == false {
-			colorImg[colorIndex] = rawSku.ColorName
-			colorIndex += 1
-			skuShotCode := ""
-			for _, mid := range viewData.Props.InitialState.Products.ProductsByProductCode.PriceModel.Colors {
-				if mid.ColorCode == rawSku.ColorCode
-				{
-					skuShotCode = mid.SkuShotType
+					medias = append(medias, pbMedia.NewImageMedia(
+						"",
+						str_im+"&wid=1200&hei=1200",
+						str_im+"&wid=1200&hei=1200",
+						str_im+"&wid=500&hei=500",
+						str_im+"&wid=700&hei=700",
+						"",
+						ki == 0,
+					))
+					colorImgs[color.ColorCode] = medias
 				}
-			}
-			
-			//img
-			isDefault := true
-			for ki, mid := range strings.Split(skuShotCode, ",") {
-				str_im := ""
-				if ki > 0 {
-					isDefault = false
-				}
-
-				if mid == "" {
-					str_im = "https://www.jcrew.com/s7-img-facade/" + prodid + "_" + rawSku.ColorCode + "?fmt=jpeg&qlt=90,0&resMode=sharp&op_usm=.1,0,0,0&crop=0,0,0,0"
-
-				} else {
-					str_im = "https://www.jcrew.com/s7-img-facade/" + prodid + "_" + rawSku.ColorCode + mid + "?fmt=jpeg&qlt=90,0&resMode=sharp&op_usm=.1,0,0,0&crop=0,0,0,0"
-				}
-				    
-				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-					strconv.Format(prodid + "_" + rawSku.ColorCode),
-					str_im & "&wid=1200&hei=1200",
-					str_im & "&wid=1200&hei=1200",
-					str_im & "&wid=500&hei=500",
-					str_im & "&wid=700&hei=700",
-					"",
-					isDefault,
-				))
-
 			}
 		}
 
-		// size
+		for _, rawSku := range prod.Skus {
+			// TODO: check
+			originalPrice, _ := strconv.ParseFloat(rawSku.Price.Amount)
+			msrp, _ := strconv.ParseFloat(rawSku.ListPrice.Amount)
+			discount := math.Ceil((msrp - originalPrice) * 100 / msrp)
 
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    rawSku.SkuID,
-			Name:  rawSku.Size,
-			Value: rawSku.Size,
-		})
+			sku := pbItem.Sku{
+				SourceId: rawSku.SkuID,
+				Price: &pbItem.Price{
+					Currency: regulation.Currency_USD,
+					Current:  int32(originalPrice * 100),
+					Msrp:     int32(msrp * 100),
+					Discount: int32(discount),
+				},
+				Medias: colorImgs[rawSku.ColorCode],
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			}
+			if rawSku.ShowOnSale {
+				sku.Stock.StockStatus = pbItem.Stock_InStock
+			}
 
-		item.SkuItems = append(item.SkuItems, &sku)
-	}
+			// color
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
+				Id:    strconv.Format(rawSku.ColorCode),
+				Name:  rawSku.ColorName,
+				Value: rawSku.ColorCode,
+			})
 
-	// yield item result
-	if err = yield(ctx, &item); err != nil {
-		return err
+			// size
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Id:    rawSku.Size,
+				Name:  rawSku.Size,
+				Value: rawSku.Size,
+			})
+
+			item.SkuItems = append(item.SkuItems, &sku)
+		}
+		if err = yield(ctx, &item); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -3138,7 +1403,10 @@ func Contains(a []string, x string) bool {
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.nordstrom.com/browse/activewear/women-clothing?breadcrumb=Home%2FWomen%2FClothing%2FActivewear&origin=topnav",
+		// "https://www.jcrew.com/c/womens_category/sweatshirts_sweatpants",
+		"https://www.jcrew.com/r/sale/men/discount-60-70-off/discount-70-and-above",
+		// "https://www.jcrew.com/p/womens_category/sweatshirts_sweatpants/pullovers/mariner-cloth-buttonup-hoodie/AW153?color_name=white-navy-mira-stripe",
+		// "https://www.jcrew.com/p/girls_category/pajamas/nightgowns/girls-flannel-nightgown-in-tartan/AE512?color_name=white-out-plaid-red-navy",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -3163,25 +1431,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	var (
-		// get ProxyCrawl's API Token from you run environment
-		apiToken = os.Getenv("PC_API_TOKEN")
-		// get ProxyCrawl's Javascript Token from you run environment
-		jsToken = os.Getenv("PC_JS_TOKEN")
-	)
-	if apiToken == "" || jsToken == "" {
-		panic("env PC_API_TOKEN or PC_JS_TOKEN is not set")
-	}
-
-	// build a logger object.
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
-	client, err := proxy.NewProxyClient(
-		// cookie jar used for auto cookie management.
-		cookiejar.New(),
-		logger,
-		proxy.Options{APIToken: apiToken, JSToken: jsToken},
-	)
+	// get proxy's microservice address from env
+	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
@@ -3193,6 +1446,7 @@ func main() {
 	}
 	opts := spider.CrawlOptions()
 
+	skip := false
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
@@ -3201,6 +1455,10 @@ func main() {
 			logger.Debugf("Access %s", i.URL)
 
 			// process logic of sub request
+			if skip {
+				return nil
+			}
+			skip = true
 
 			// init custom headers
 			for k := range opts.MustHeader {
@@ -3236,7 +1494,7 @@ func main() {
 				EnableHeadless:    false,
 				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
 				KeepSession:       spider.CrawlOptions().KeepSession,
-				ProxyLevel:        http.ProxyLevelReliable,
+				Reliability:       spider.CrawlOptions().Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -3246,7 +1504,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
@@ -3255,7 +1513,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", "jcrew_123456")
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
