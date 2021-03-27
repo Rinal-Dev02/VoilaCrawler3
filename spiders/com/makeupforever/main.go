@@ -17,12 +17,14 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
+	"github.com/voiladev/VoilaCrawl/vendor/github.com/voiladev/go-framework/glog"
 
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 )
 
@@ -45,10 +47,10 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher:  regexp.MustCompile(`^(/[a-z0-9-]+){1,6}$`),
+		categoryPathMatcher:  regexp.MustCompile(`^/us/en(/[a-z0-9-]+){1,6}$`),
 		categoryPathMatcher1: regexp.MustCompile(`(.*)/Search-UpdateGrid`),
 		// this regular used to match product page url path
-		productPathMatcher:  regexp.MustCompile(`^(/[a-z0-9-]+){1,3}/[A-Za-z0-9-]+.html$`),
+		productPathMatcher:  regexp.MustCompile(`^/us/en(/[a-z0-9-]+){1,3}/[A-Za-z0-9-]+.html$`),
 		productPathMatcher1: regexp.MustCompile(`(.*)/Product-Variation`),
 		logger:              logger.New("_Crawler"),
 	}
@@ -162,7 +164,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 			rawurl := "https://www.makeupforever.com/on/demandware.store/Sites-MakeUpForEver-US-Site/en_US/Product-Variation?quantity=1&pid=" + href
 
-			//c.logger.Debugf("yield %v --> %s", lastIndex, rawurl)
 			req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -615,7 +616,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
