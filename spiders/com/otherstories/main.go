@@ -44,9 +44,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(/[a-zA-Z0-9-._]+){1,6}.html$`),
+		categoryPathMatcher: regexp.MustCompile(`^/en_usd(/[a-zA-Z0-9-._]+){1,6}.html$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^(/[a-zA-Z0-9-._]+){1,6}[0-9]+.html$`),
+		productPathMatcher: regexp.MustCompile(`^/en_usd(/[a-zA-Z0-9-._]+){1,6}[0-9]+.html$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -123,6 +123,7 @@ func isRobotCheckPage(respBody []byte) bool {
 // used to extract embaded json data in website page.
 // more about golang regulation see here https://golang.org/pkg/regexp/syntax/
 var productsExtractReg = regexp.MustCompile(`(?U)var\s*productArticleDetails\s*=\s*({.*});\s*`)
+var articleCodeReg = regexp.MustCompile(`(\d)+`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -310,8 +311,6 @@ func DecodeResponse(respBody string) ([]Article, error) {
 				article    Article
 			)
 			if err := json.Unmarshal(rawData, &article); err != nil {
-				//fmt.Println(err)
-				//return err
 				continue
 			}
 			art = append(art, article)
@@ -330,6 +329,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
 		return err
 	}
@@ -366,8 +370,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	article, err := DecodeResponse(responseJS)
-	// fmt.Println(len(article))
-	// fmt.Println(err)
 
 	availabilityURL := "https://www.stories.com/webservices_stories/service/product/stories-us/availability/" + viewData.AncestorProductCode + ".json"
 
@@ -412,6 +414,39 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if originalPrice == 0.0 {
 			originalPrice = MSRP
 		}
+
+		sel := doc.Find(`.m-breadcrumb.u-align-to-logo.pdp-breadcrumb.new-breadcrumb>ol>li`)
+		for b := range sel.Nodes {
+			cate := strings.TrimSpace(sel.Eq(b).Text())
+			switch b {
+			case 1:
+				item.Category = cate
+			case 2:
+				item.SubCategory = cate
+			case 3:
+				item.SubCategory2 = cate
+			}
+		}
+
+		for _, v := range []string{"woman", "women", "female"} {
+			if strings.Contains(strings.ToLower(item.Category), v) {
+				item.CrowdType = "women"
+				break
+			}
+		}
+		for _, v := range []string{"man", "men", "male"} {
+			if strings.Contains(strings.ToLower(item.Category), v) {
+				item.CrowdType = "men"
+				break
+			}
+		}
+		for _, v := range []string{"kid", "child", "girl", "boy"} {
+			if strings.Contains(strings.ToLower(item.Category), v) {
+				item.CrowdType = "kids"
+				break
+			}
+		}
+
 		for kv, rawSku := range article[i].Variants {
 
 			sku := pbItem.Sku{
@@ -431,13 +466,23 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 			}
 
+			imgIcon := ""
+			sel = doc.Find(`.a-image.is-hidden.Resolve`)
+			currarticlecode := articleCodeReg.FindSubmatch([]byte(article[i].URL))
+			for x := range sel.Nodes {
+				if articlecode, _ := sel.Eq(x).Attr("data-articlecode"); articlecode == string(currarticlecode[0]) {
+					resolvechain, _ := sel.Eq(x).Attr("data-resolvechain")
+					imgIcon = "https://lp.stories.com/app005prod?set=key[resolve.pixelRatio],value[1]&set=key[resolve.width],value[50]&set=key[resolve.height],value[10000]&set=key[resolve.imageFit],value[containerwidth]&set=key[resolve.allowImageUpscaling],value[0]&set=key[resolve.format],value[webp]&set=key[resolve.quality],value[90]&" + resolvechain
+					break
+				}
+			}
 			// color
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
 				Id:    article[i].ColorCode,
 				Name:  article[i].ColorLoc,
 				Value: article[i].ColorLoc,
-				//Icon:  color.SwatchMedia.Mobile,
+				Icon:  imgIcon,
 			})
 
 			if kv == 0 {
@@ -448,10 +493,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					}
 					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
 						strconv.Format(m),
-						"https:"+mid.Thumbnail,
-						"https:"+mid.Thumbnail+"&set=key[resolve.width],value[900]",
-						"https:"+mid.Thumbnail+"&set=key[resolve.width],value[600]",
-						"https:"+mid.Thumbnail+"&set=key[resolve.width],value[500]",
+						fmt.Sprintf("https:%s", mid.Thumbnail),
+						fmt.Sprintf("https:%s&set=key[resolve.width],value[900]", mid.Thumbnail),
+						fmt.Sprintf("https:%s&set=key[resolve.width],value[600]", mid.Thumbnail),
+						fmt.Sprintf("https:%s&set=key[resolve.width],value[500]", mid.Thumbnail),
 						"",
 						isDefault,
 					))
@@ -474,14 +519,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			return err
 		}
 	}
-
 	return nil
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		// "https://www.stories.com/en_usd/sale/all-sale.html",
+		//"https://www.stories.com/en_usd/sale/all-sale.html",
 		"https://www.stories.com/en_usd/clothing/blouses-shirts/shirts/product.oversized-wool-blend-workwear-shirt-brown.0764033007.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
