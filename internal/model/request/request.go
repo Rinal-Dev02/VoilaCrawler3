@@ -6,8 +6,11 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
 	"github.com/voiladev/VoilaCrawl/pkg/types"
+	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/randutil"
 )
 
@@ -25,6 +28,7 @@ func NewRequest(req interface{}) (*Request, error) {
 	case *pbCrawl.Command_Request:
 		r.TracingId = i.GetTracingId()
 		r.JobId = i.GetJobId()
+		r.StoreId = i.GetStoreId()
 		r.ParentId = i.GetParent().GetReqId()
 		r.Method = i.GetMethod()
 		r.Url = i.GetUrl()
@@ -59,6 +63,7 @@ func NewRequest(req interface{}) (*Request, error) {
 	case *pbCrawl.FetchRequest:
 		r.TracingId = randutil.MustNewRandomID()
 		r.JobId = i.GetJobId()
+		r.StoreId = i.GetStoreId()
 		r.Method = i.GetMethod()
 		r.Url = i.GetUrl()
 		r.Body = i.GetBody()
@@ -96,8 +101,8 @@ func NewRequest(req interface{}) (*Request, error) {
 		r.Options.MaxRetryCount = 3
 	}
 	if r.Options.MaxTtlPerRequest == 0 {
-		// 10mins for one request
-		r.Options.MaxTtlPerRequest = 10 * 60
+		// 5mins for one request
+		r.Options.MaxTtlPerRequest = 5 * 60
 	}
 	return &r, nil
 }
@@ -112,6 +117,9 @@ func (r *Request) Validate() error {
 	}
 	if r.GetJobId() == "" {
 		return errors.New("invalid request job id")
+	}
+	if r.GetStoreId() == "" {
+		return errors.New("invalid store id")
 	}
 	if r.GetMethod() != http.MethodGet &&
 		r.GetMethod() != http.MethodPost &&
@@ -137,6 +145,7 @@ func (r *Request) Unmarshal(ret interface{}) error {
 		val.TracingId = r.GetTracingId()
 		val.JobId = r.GetJobId()
 		val.ReqId = r.GetId()
+		val.StoreId = r.GetStoreId()
 		val.Method = r.GetMethod()
 		val.Url = r.GetUrl()
 		val.Body = r.GetBody()
@@ -160,6 +169,51 @@ func (r *Request) Unmarshal(ret interface{}) error {
 			MaxTtlPerRequest: r.GetOptions().GetMaxTtlPerRequest(),
 			MaxRetryCount:    r.GetOptions().GetMaxRetryCount(),
 			MaxRequestDepth:  r.GetOptions().GetMaxRequestDepth(),
+		}
+	case *pbProxy.Request:
+		val.TracingId = r.GetTracingId()
+		val.JobId = r.GetJobId()
+		val.ReqId = r.GetId()
+		val.Method = r.GetMethod()
+		val.Url = r.GetUrl()
+		val.Body = []byte(r.GetBody())
+		val.Headers = map[string]*pbHttp.ListValue{}
+		val.Options = &pbProxy.Request_Options{
+			EnableProxy:      !r.GetOptions().GetDisableProxy(),
+			MaxTtlPerRequest: int64(r.GetOptions().MaxTtlPerRequest),
+		}
+		if val.Options.MaxTtlPerRequest == 0 {
+			val.Options.MaxTtlPerRequest = int64(config.DefaultTtlPerRequest)
+		}
+
+		var cookie string
+		if r.GetCustomCookies() != "" {
+			var cookies []*pbHttp.Cookie
+			if err := json.Unmarshal([]byte(r.GetCustomCookies()), &cookies); err != nil {
+				return err
+			}
+			for _, c := range cookies {
+				if cookie == "" {
+					cookie = c.Name + "=" + c.Value
+				} else {
+					cookie = "; " + c.Name + "=" + c.Value
+				}
+			}
+		}
+		if r.GetCustomHeaders() != "" {
+			headers := map[string]string{}
+			if err := json.Unmarshal([]byte(r.GetCustomHeaders()), &headers); err != nil {
+				return err
+			}
+			for k, v := range headers {
+				if k == "Cookie" {
+					if cookie != "" {
+						cookie = cookie + "; "
+					}
+					v = cookie + v
+				}
+				val.Headers[k] = &pbHttp.ListValue{Values: []string{v}}
+			}
 		}
 	default:
 		return errors.New("unsupported unmarshal type")

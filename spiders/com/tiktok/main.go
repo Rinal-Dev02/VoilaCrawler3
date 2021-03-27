@@ -612,65 +612,67 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
+	// build a http client
+	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
 
+	// instance the spider locally
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)
 	}
 	opts := spider.CrawlOptions()
 
+	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
 
+			// process logic of sub request
+
+			// init custom headers
 			for k := range opts.MustHeader {
 				i.Header.Set(k, opts.MustHeader.Get(k))
 			}
-			resp, err := client.DoWithOptions(context.Background(), i, http.Options{EnableProxy: false})
+
+			// init custom cookies
+			for _, c := range opts.MustCookies {
+				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
+					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+					if c := i.Header.Get("Cookie"); c != "" {
+						i.Header.Set("Cookie", c+"; "+val)
+					} else {
+						i.Header.Set("Cookie", val)
+					}
+				}
+			}
+
+			// do http requests here.
+			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+			defer cancel()
+			resp, err := client.DoWithOptions(nctx, i, http.Options{
+				EnableProxy:       true,
+				EnableHeadless:    false,
+				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
+				KeepSession:       spider.CrawlOptions().KeepSession,
+				Reliability:       spider.CrawlOptions().Reliability,
+			})
 			if err != nil {
 				panic(err)
 			}
 			defer resp.Body.Close()
 
 			return spider.Parse(ctx, resp, callback)
-		case *pbItem.Tiktok_Item:
-			logger.Debugf("Access %s", i.Video.OriginalUrl)
-
-			req, err := http.NewRequest(http.MethodGet, i.Video.OriginalUrl, nil)
-			if err != nil {
-				return err
-			}
-			for k, v := range i.Headers {
-				if k == "Cookie" {
-					continue
-				}
-				req.Header.Set(k, v)
-			}
-			req.Header.Set("Accept", "*/*")
-			req.Header.Set("Accept-Encoding", "identity;q=1, *;q=0")
-			req.Header.Set("Accept-Language", "en-US,en;q=0.9")
-
-			resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: false})
-			if err != nil {
-				panic(err)
-			}
-			defer resp.Body.Close()
-
-			if data, err := ioutil.ReadAll(resp.Body); err != nil {
-				logger.Fatal(err)
-			} else {
-				logger.Infof("status: %v, size: %d", resp.StatusCode, len(data))
-			}
 		default:
+			// output the result
 			data, err := json.Marshal(i)
 			if err != nil {
 				return err
@@ -680,10 +682,9 @@ func main() {
 		return nil
 	}
 
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-		defer cancel()
-
 		if err := callback(ctx, req); err != nil {
 			logger.Fatal(err)
 		}

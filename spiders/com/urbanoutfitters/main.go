@@ -21,6 +21,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -38,9 +39,9 @@ type _Crawler struct {
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:              client,
-		categoryPathMatcher:     regexp.MustCompile(`^/[a-z0-9-]+$`),
-		categoryJsonPathMatcher: regexp.MustCompile(`^/api/catalog/v[0-9]+/[a-z0-9-]+/pools/US_DIRECT/navigation-items/[a-z0-9-]+/products$`),
-		productPathMatcher:      regexp.MustCompile(`^/shop/[a-z0-9-]+$`),
+		categoryPathMatcher:     regexp.MustCompile(`^/[a-z0-9\-]+$`),
+		categoryJsonPathMatcher: regexp.MustCompile(`^/api/catalog/v[0-9]+/[a-z0-9\-]+/pools/US_DIRECT/navigation-items/[a-z0-9\-]+/products$`),
+		productPathMatcher:      regexp.MustCompile(`^/shop/[a-z0-9\-]+$`),
 		logger:                  logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -61,8 +62,9 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
-	// options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
+	options.EnableSessionInit = true
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+	options.MustHeader.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_2_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36")
 	options.MustCookies = append(options.MustCookies,
 		// urbn_auth_payload
 		&http.Cookie{Name: "localredirected", Value: "False", Path: "/"},
@@ -76,47 +78,31 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 		&http.Cookie{Name: "urbn_geo_region", Value: "US-NV", Path: "/"},
 		&http.Cookie{Name: "urbn_inventory_pool", Value: "US_DIRECT", Path: "/"},
 		&http.Cookie{Name: "urbn_language", Value: "en-US", Path: "/"},
-		// &http.Cookie{Name: "urbn_personalization_context", Value: "%5B%5B%22device_type%22%2C%20%22LARGE%22%5D%2C%20%5B%22personalization%22%2C%20%5B%5B%22ab%22%2C%20%5B%5D%5D%2C%20%5B%22experience%22%2C%20%5B%5B%22image_quality%22%2C%2080%5D%2C%20%5B%22reduced%22%2C%20false%5D%5D%5D%2C%20%5B%22initialized%22%2C%20false%5D%2C%20%5B%22isSiteOutsideNorthAmerica%22%2C%20false%5D%2C%20%5B%22isSiteOutsideUSA%22%2C%20false%5D%2C%20%5B%22isViewingInEnglish%22%2C%20true%5D%2C%20%5B%22isViewingRegionalSite%22%2C%20true%5D%2C%20%5B%22loyalty%22%2C%20false%5D%2C%20%5B%22loyaltyPoints%22%2C%20%22%22%5D%2C%20%5B%22privacyRestriction%22%2C%20%5B%5B%22country%22%2C%20%22US%22%5D%2C%20%5B%22region%22%2C%20%22CA%22%5D%2C%20%5B%22userHasDismissedPrivacyNotice%22%2C%20false%5D%2C%20%5B%22userHasOptedOut%22%2C%20false%5D%2C%20%5B%22userIsResident%22%2C%20true%5D%5D%5D%2C%20%5B%22siteDown%22%2C%20false%5D%2C%20%5B%22thirdParty%22%2C%20%5B%5B%22dynamicYield%22%2C%20true%5D%2C%20%5B%22googleMaps%22%2C%20true%5D%2C%20%5B%22moduleImages%22%2C%20true%5D%2C%20%5B%22personalizationQs%22%2C%20%22%22%5D%2C%20%5B%22productImages%22%2C%20true%5D%2C%20%5B%22promoBanners%22%2C%20true%5D%2C%20%5B%22tealium%22%2C%20true%5D%5D%5D%2C%20%5B%22userHasAgreedToCookies%22%2C%20false%5D%5D%5D%2C%20%5B%22scope%22%2C%20%22GUEST%22%5D%2C%20%5B%22user_location%22%2C%20%22c0968e82cfc373f755331f5767a064bb%22%5D%5D", Path: "/"},
 		&http.Cookie{Name: "urbn_privacy_restriction_region", Value: "CA", Path: "/"},
 		&http.Cookie{Name: "urbn_site_id", Value: "uo-us", Path: "/"},
-		// &http.Cookie{Name: "urbn_tracer", Value: "8IOPHZ11TD", Path: "/"},
 	)
 	return options
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.urbanoutfitters.com"}
-}
-
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
-	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.categoryPathMatcher,
-		c.categoryJsonPathMatcher,
-		c.productPathMatcher,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
-		}
-	}
-	return false
+	return []string{"*.urbanoutfitters.com"}
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
-	c.logger.Debug("path", resp.Request.URL.Path)
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	if resp.Request.URL.Path == "/unsupported" {
+		return fmt.Errorf("invalud request url")
+	}
+
+	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseProduct(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.categoryJsonPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryJsonProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseProduct(ctx, resp, yield)
 	}
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
@@ -148,6 +134,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 	sel := doc.Find(`.c-pwa-tile-tiles>.s-pwa-tile-grid>.c-pwa-tile-grid-inner`)
+
+	c.logger.Debugf("found %d", len(sel.Nodes))
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 		if u, exists := node.Find(`.c-pwa-tile-grid-tile>.c-pwa-product-tile>a`).Attr("href"); exists {
@@ -247,8 +235,8 @@ type parseCategoryJsonProductsResponse struct {
 				} `json:"skuInfo"`
 				FaceOutColorCode string `json:"faceOutColorCode"`
 				Reviews          struct {
-					Count         int `json:"count"`
-					AverageRating int `json:"averageRating"`
+					Count         int     `json:"count"`
+					AverageRating float32 `json:"averageRating"`
 				} `json:"reviews"`
 			} `json:"tile"`
 		} `json:"allMeta"`
@@ -263,10 +251,9 @@ func (c *_Crawler) parseCategoryJsonProducts(ctx context.Context, resp *http.Res
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		c.logger.Debug(err)
+		c.logger.Debugf("resp: %s, error=%s", respBody, err)
 		return err
 	}
-	c.logger.Debugf("resp: %s", respBody)
 
 	lastIndex := nextIndex(ctx)
 	fields := strings.Split(resp.Request.URL.Path, "/")
@@ -435,16 +422,16 @@ type rawProduct struct {
 				} `json:"sliceItems"`
 			} `json:"primarySlice"`
 			Afterpay struct {
-				Status        string `json:"status"`
-				NumOfPayments int    `json:"numOfPayments"`
-				Payment       int    `json:"payment"`
+				Status        string  `json:"status"`
+				NumOfPayments float64 `json:"numOfPayments"`
+				Payment       float64 `json:"payment"`
 			} `json:"afterpay"`
 			AllSkusCollectionPointEligible bool `json:"allSkusCollectionPointEligible"`
 			HasRestockFeeCode              bool `json:"hasRestockFeeCode"`
 		} `json:"skuInfo"`
 		Reviews struct {
-			Count         int `json:"count"`
-			AverageRating int `json:"averageRating"`
+			Count         int     `json:"count"`
+			AverageRating float32 `json:"averageRating"`
 		} `json:"reviews"`
 		ProductSlug string `json:"productSlug"`
 		ProductID   string `json:"productId"`
@@ -473,20 +460,10 @@ type rawProduct struct {
 			SkuInventory struct {
 			} `json:"skuInventory"`
 		} `json:"bopis"`
-		GiftCard struct {
-			Name         interface{} `json:"name"`
-			EmailAddress interface{} `json:"emailAddress"`
-			Message      interface{} `json:"message"`
-			DeliveryDate struct {
-				Year  interface{} `json:"year"`
-				Day   interface{} `json:"day"`
-				Month interface{} `json:"month"`
-			} `json:"deliveryDate"`
-		} `json:"giftCard"`
 		SelectedColor     string      `json:"selectedColor"`
 		SelectedFit       string      `json:"selectedFit"`
 		SelectedSize      interface{} `json:"selectedSize"`
-		SelectedQuantity  int         `json:"selectedQuantity"`
+		SelectedQuantity  interface{} `json:"selectedQuantity"`
 		ProductModuleName string      `json:"productModuleName"`
 		SizeGuide         interface{} `json:"sizeGuide"`
 	} `json:"skuSelection"`
@@ -506,7 +483,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	matched := initStateReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		return fmt.Errorf("product data from %s not found", resp.Request.URL)
+		c.httpClient.Jar().Clear(ctx, resp.Request.URL)
+
+		c.logger.Debugf("product data not found")
+		return fmt.Errorf("extract product data from %s failed, may dynamic page", resp.Request.URL)
 	}
 
 	initState := map[string]json.RawMessage{}
@@ -625,9 +605,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
+		// "https://www.urbanoutfitters.com/shop/uo-rugby-cotton-shirt?category=mens-clothing-sale&color=001",
 		// "https://www.urbanoutfitters.com/shop/uo-retro-sport-colorblock-crew-neck-sweatshirt?category=mens-clothing-sale&color=004&type=REGULAR&quantity=1&size=L",
-		// "https://www.urbanoutfitters.com/mens-clothing-sale",
-		"https://www.urbanoutfitters.com/api/catalog/v2/uo-us/pools/US_DIRECT/navigation-items/mens-clothing-sale/products?page-size=96&skip=192&projection-slug=categorytiles",
+		"https://www.urbanoutfitters.com/mens-clothing-sale",
+		// "https://www.urbanoutfitters.com/api/catalog/v2/uo-us/pools/US_DIRECT/navigation-items/mens-clothing-sale/products?page-size=96&skip=192&projection-slug=categorytiles",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -648,68 +629,91 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
+	// build a http client
+	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
 
+	// instance the spider locally
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)
 	}
 	opts := spider.CrawlOptions()
 
+	// this callback func is used to do recursion call of sub requests.
+	var callback func(ctx context.Context, val interface{}) error
+	callback = func(ctx context.Context, val interface{}) error {
+		switch i := val.(type) {
+		case *http.Request:
+			logger.Debugf("Access %s", i.URL)
+
+			// process logic of sub request
+
+			// init custom headers
+			for k := range opts.MustHeader {
+				i.Header.Set(k, opts.MustHeader.Get(k))
+			}
+
+			// init custom cookies
+			for _, c := range opts.MustCookies {
+				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
+					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+					if c := i.Header.Get("Cookie"); c != "" {
+						i.Header.Set("Cookie", c+"; "+val)
+					} else {
+						i.Header.Set("Cookie", val)
+					}
+				}
+			}
+
+			// set scheme,host for sub requests. for the product url in category page is just the path without hosts info.
+			// here is just the test logic. when run the spider online, the controller will process automatically
+			if i.URL.Scheme == "" {
+				i.URL.Scheme = "https"
+			}
+			if i.URL.Host == "" {
+				i.URL.Host = "www.urbanoutfitters.com"
+			}
+
+			// do http requests here.
+			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+			defer cancel()
+			resp, err := client.DoWithOptions(nctx, i, http.Options{
+				EnableProxy:       true,
+				EnableHeadless:    spider.CrawlOptions().EnableHeadless,
+				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
+				KeepSession:       spider.CrawlOptions().KeepSession,
+				Reliability:       spider.CrawlOptions().Reliability,
+			})
+			if err != nil {
+				logger.Error(err)
+				panic(err)
+			}
+			defer resp.Body.Close()
+
+			return spider.Parse(ctx, resp, callback)
+		default:
+			// output the result
+			// data, err := json.Marshal(i)
+			// if err != nil {
+			// 	return err
+			// }
+			logger.Infof("got one item")
+		}
+		return nil
+	}
+
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
+	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-		defer cancel()
-
-		logger.Debugf("Access %s", req.URL)
-		for k := range opts.MustHeader {
-			req.Header.Set(k, opts.MustHeader.Get(k))
+		if err := callback(ctx, req); err != nil {
+			logger.Fatal(err)
 		}
-		req.Header.Set("x-urbn-channel", "web")
-		req.Header.Set("x-urbn-country", "US")
-		req.Header.Set("x-urbn-currency", "USD")
-		req.Header.Set("x-urbn-experience", "ss")
-		req.Header.Set("x-urbn-geo-region", "US-NV")
-		req.Header.Set("x-urbn-language", "en-US")
-		req.Header.Set("x-urbn-primary-data-center-id", "US-NV")
-		req.Header.Set("x-urbn-site-id", "uo-us")
-		for _, c := range opts.MustCookies {
-			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
-				val := fmt.Sprintf("%s=%s", c.Name, c.Value)
-				if c := req.Header.Get("Cookie"); c != "" {
-					req.Header.Set("Cookie", c+"; "+val)
-				} else {
-					req.Header.Set("Cookie", val)
-				}
-			}
-		}
-
-		resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: true})
-		if err != nil {
-			panic(err)
-		}
-		defer resp.Body.Close()
-
-		if err := spider.Parse(ctx, resp, func(ctx context.Context, val interface{}) error {
-			switch i := val.(type) {
-			case *http.Request:
-				logger.Infof("new request %s", i.URL)
-			default:
-				data, err := json.Marshal(i)
-				if err != nil {
-					return err
-				}
-				logger.Infof("data: %s", data)
-			}
-			return nil
-		}); err != nil {
-			panic(err)
-		}
-		break
 	}
 }

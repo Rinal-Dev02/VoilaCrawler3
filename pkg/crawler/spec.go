@@ -26,6 +26,8 @@ type CrawlOptions struct {
 	KeepSession bool `json:"keepSession"`
 	// SessionTTL if not set, will set session ttl according to last cookie expires
 	SessionTtl int32 `json:"sessionTtl"`
+	// DisableCookieJar disable cookie save
+	DisableCookieJar bool `json:"disableCookieJar"`
 
 	// DisableRedirect
 	DisableRedirect bool `json:"disableRedirect"`

@@ -39,7 +39,7 @@ func NewCrawler(client http.Client, path string, logger glog.Log) (*Crawler, err
 	if err != nil {
 		return nil, err
 	}
-	crawler.gid = fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s-%s-%v", hostname, crawler.ID(), crawler.Version()))))
+	crawler.gid = fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s-%v", crawler.ID(), crawler.Version()))))
 
 	return &crawler, nil
 }
