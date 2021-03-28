@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
 
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
@@ -75,7 +76,7 @@ type Crawler interface {
 	// StoreID() string
 
 	// CrawlOptions return crawler action requirement
-	CrawlOptions() *CrawlOptions
+	CrawlOptions(u *url.URL) *CrawlOptions
 
 	// AllowedDomains returns the domains this crawler supportes
 	AllowedDomains() []string

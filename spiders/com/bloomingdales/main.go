@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
 	"time"
 
-	//"github.com/gosimple/slug"
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -20,8 +22,11 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	// pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 type _Crawler struct {
@@ -37,7 +42,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
 		categoryPathMatcher: regexp.MustCompile(`^((\?!product).)*`),
-		productPathMatcher:  regexp.MustCompile(`^(/[a-z0-9_-]+)?/shop((\/product\/))([/a-z0-9_-]+)$`),
+		productPathMatcher:  regexp.MustCompile(`^(/[.a-z0-9_\-]+)?/shop((\/product\/))([/.a-z0-9_\-]+)$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -54,24 +59,31 @@ func (c *_Crawler) Version() int32 {
 }
 
 // CrawlOptions
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
-	options.MustCookies = append(options.MustCookies) //&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
-	// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
-	// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
-	// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
-	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-	// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
-
+	options.EnableSessionInit = false
+	options.DisableCookieJar = true
+	// options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+	options.MustHeader.Set("accept-encoding", "gzip, deflate, br")
+	options.MustCookies = append(options.MustCookies,
+		&http.Cookie{Name: "currency", Value: `USD`, Path: "/"},
+		&http.Cookie{Name: "shippingCountry", Value: `US`, Path: "/"},
+		&http.Cookie{Name: "mercury", Value: `true`, Path: "/"},
+	)
+	if u != nil {
+		options.MustCookies = append(options.MustCookies, &http.Cookie{
+			Name:  "FORWARDPAGE_KEY",
+			Value: url.QueryEscape(u.String()),
+		})
+		options.MustHeader.Set("Referer", u.String())
+	}
 	return options
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.bloomingdales.com"}
+	return []string{"*.bloomingdales.com"}
 }
 
 func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
@@ -109,76 +121,6 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")) + 1)
 }
 
-var (
-	prodDataExtraReg      = regexp.MustCompile(`(data-bootstrap="page/discovery-pages"\s*type="application/json">)([^<]+)</script>`)
-	prodDataPaginationReg = regexp.MustCompile(`(data-bootstrap="feature/canvas"\s*type="application/json">)([^<]+)</script>`)
-)
-
-type parseCategoryPagination struct {
-	Row   int `json:"row"`
-	Model struct {
-		Pagination struct {
-			NextURL       string `json:"nextURL"`
-			BaseURL       string `json:"baseURL"`
-			NumberOfPages int    `json:"numberOfPages"`
-			CurrentPage   int    `json:"currentPage"`
-		} `json:"pagination"`
-	} `json:"model"`
-}
-
-type parseCategoryData struct {
-	Meta struct {
-		Analytics struct {
-			Coremetrics struct {
-				ClientID      string `json:"clientID"`
-				CmHostURL     string `json:"cmHostUrl"`
-				PageID        string `json:"pageID"`
-				CategoryID    string `json:"categoryID"`
-				SearchResults string `json:"searchResults"`
-				Attributes    []struct {
-					Name  string `json:"name"`
-					Value string `json:"value"`
-					Seq   string `json:"seq"`
-				} `json:"attributes"`
-				TrackingBreadcrumb   string `json:"trackingBreadcrumb"`
-				BtCategoryID         string `json:"btCategoryID"`
-				CategoryName         string `json:"categoryName"`
-				ParentCategoryID     string `json:"parentCategoryID"`
-				ParentCategoryName   string `json:"parentCategoryName"`
-				FobCategoryID        string `json:"fobCategoryID"`
-				FobCategoryName      string `json:"fobCategoryName"`
-				TopLevelCategoryID   string `json:"topLevelCategoryID"`
-				TopLevelCategoryName string `json:"topLevelCategoryName"`
-			} `json:"coremetrics"`
-			Data struct {
-				CategoryID             string   `json:"categoryID"`
-				SearchResults          string   `json:"searchResults"`
-				TrackBreadcrumb        string   `json:"trackBreadcrumb"`
-				BtCategory             string   `json:"btCategory"`
-				CategoryName           string   `json:"categoryName"`
-				ParentCategoryID       string   `json:"parentCategoryID"`
-				ParentCategoryName     string   `json:"parentCategoryName"`
-				FobCategoryID          string   `json:"fobCategoryID"`
-				FobCategoryName        string   `json:"fobCategoryName"`
-				TopLevelCategoryID     string   `json:"topLevelCategoryID"`
-				TopLevelCategoryName   string   `json:"topLevelCategoryName"`
-				ProductPlacementReason string   `json:"productPlacementReason"`
-				ProductRating          []string `json:"productRating"`
-				ProductReviews         []string `json:"productReviews"`
-				ProductPricingState    []string `json:"productPricingState"`
-				ProductID              []string `json:"productID"`
-				ResultsCurrentPage     string   `json:"resultsCurrentPage"`
-				ResultsPerPage         string   `json:"resultsPerPage"`
-				SortType               string   `json:"sortType"`
-				TotalResults           string   `json:"totalResults"`
-				SearchPass             string   `json:"searchPass"`
-				NewMarkDownProducts    []string `json:"newMarkDownProducts"`
-				NewArrivalProducts     []string `json:"newArrivalProducts"`
-			} `json:"data"`
-		} `json:"analytics"`
-	} `json:"meta"`
-}
-
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -190,53 +132,29 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	var (
-		r parseCategoryData
-		p parseCategoryPagination
-	)
-
-	// -------------------------------------------------------------------- //
-	// product list
-	matched := prodDataExtraReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
-	}
-
-	matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
-	if err = json.Unmarshal(matched[2], &r); err != nil {
-		c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
 		return err
 	}
-	// -------------------------------------------------------------------- //
-	// Product Pagination
-	matched = prodDataPaginationReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
-	}
 
-	matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
-	if err = json.Unmarshal(matched[2], &p); err != nil {
-		c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
-		return err
-	}
-	// -------------------------------------------------------------------- //
-
-	categoryId := r.Meta.Analytics.Data.CategoryID
 	lastIndex := nextIndex(ctx)
-	for _, idv := range r.Meta.Analytics.Data.ProductID {
 
-		rawurl := fmt.Sprintf("%s://%s/shop/product/a?ID=%s&CategoryID=%s", resp.Request.URL.Scheme, resp.Request.URL.Host, idv, categoryId)
-		//fmt.Println(rawurl)
-		// // prod page
-		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
+	sel := dom.Find(".items>.cell")
+	if len(sel.Nodes) == 0 {
+		return errors.New("no product found")
+	}
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		href := node.Find(`.productThumbnail .productDescLink`).AttrOr("href", "")
+
+		req, err := http.NewRequest(http.MethodGet, href, nil)
 		if err != nil {
-			c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
+			c.logger.Errorf("load http request of url %s failed, error=%s", href, err)
 			return err
 		}
-
-		lastIndex++
-		// set the index of the product crawled in the sub response
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		lastIndex++
 
 		// yield sub request
 		if err := yield(nctx, req); err != nil {
@@ -244,23 +162,21 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	// get current page number
-	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("Pageindex"))
-	if page == 0 {
-		page = 1
-	}
-
-	// check if this is the last page
-	totalResults, _ := strconv.ParseInt(r.Meta.Analytics.Data.TotalResults)
-	// p.Model.Pagination.CurrentPage >= p.Model.Pagination.NumberOfPages ||
-	if lastIndex >= int(totalResults) {
+	pageIndex := dom.Find(`#sort-pagination-select-bottom > option[selected="selected"] + option`).AttrOr("value", "")
+	if pageIndex == "" {
 		return nil
 	}
 
-	u := fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, p.Model.Pagination.NextURL)
+	u := *resp.Request.URL
+	fields := strings.Split(u.Path, "/")
+	if len(fields) > 3 && fields[len(fields)-2] == "Pageindex" {
+		fields[len(fields)-1] = pageIndex
+	} else {
+		fields = append(fields, "Pageindex", pageIndex)
+	}
+	u.Path = strings.Join(fields, "/")
 
-	req, _ := http.NewRequest(http.MethodGet, u, nil)
-	// update the index of last page
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
 }
@@ -429,6 +345,43 @@ type parseProductData struct {
 			} `json:"klarna"`
 			ReviewTitle string `json:"reviewTitle"`
 		} `json:"detail"`
+		Relationships struct {
+			Taxonomy struct {
+				Categories []struct {
+					Name string `json:"name"`
+					URL  string `json:"url"`
+					ID   int    `json:"id"`
+				} `json:"categories"`
+				DefaultCategoryID int `json:"defaultCategoryId"`
+			} `json:"taxonomy"`
+			Upcs map[string]struct {
+				ID         int `json:"id"`
+				Identifier struct {
+					UpcNumber string `json:"upcNumber"`
+				} `json:"identifier"`
+				Availability struct {
+					CheckInStoreEligibility bool   `json:"checkInStoreEligibility"`
+					Available               bool   `json:"available"`
+					ShipDays                int    `json:"shipDays"`
+					Message                 string `json:"message"`
+					OrderType               string `json:"orderType"`
+					BopsAvailability        bool   `json:"bopsAvailability"`
+					BossAvailability        bool   `json:"bossAvailability"`
+					StoreAvailability       bool   `json:"storeAvailability"`
+				} `json:"availability"`
+				Traits struct {
+					Colors struct {
+						SelectedColor int `json:"selectedColor"`
+					} `json:"colors"`
+					Sizes struct {
+						SelectedSize int `json:"selectedSize"`
+					} `json:"sizes"`
+				} `json:"traits"`
+				ProtectionPlans        []interface{} `json:"protectionPlans"`
+				HolidayMessageEligible bool          `json:"holidayMessageEligible"`
+			} `json:"upcs"`
+		} `json:"relationships"`
+
 		Traits struct {
 			Colors struct {
 				SelectedColor int `json:"selectedColor"`
@@ -523,22 +476,14 @@ type parseProductData struct {
 				OrderedSizesBySeqNumber []int  `json:"orderedSizesBySeqNumber"`
 				SizeChartID             string `json:"sizeChartId"`
 				SizeMap                 map[string]struct {
-					//Num0 struct {
 					ID          int    `json:"id"`
 					Name        string `json:"name"`
 					DisplayName string `json:"displayName"`
 					Colors      []int  `json:"colors"`
-					//} `json:"0"`
 				} `json:"sizeMap"`
 			} `json:"sizes"`
 			TraitsMaps struct {
-				UpcMap struct {
-					One8175291 int `json:"1817529_1"`
-					One8175290 int `json:"1817529_0"`
-					One8175293 int `json:"1817529_3"`
-					One8175292 int `json:"1817529_2"`
-					One8175294 int `json:"1817529_4"`
-				} `json:"upcMap"`
+				UpcMap        map[string]int `json:"upcMap"`
 				PriceToColors []struct {
 					Price    string `json:"price"`
 					ColorIds []int  `json:"colorIds"`
@@ -554,7 +499,7 @@ type parseProductData struct {
 }
 
 var (
-	detailReg = regexp.MustCompile(`(data-bootstrap="page/product"\s*type="application/json">)({.*})</script>`)
+	detailReg = regexp.MustCompile(`(?U)<script\s+data-bootstrap="page/product"\s*type="application/json">({.*})</script>`)
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -578,10 +523,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		pd parseProductData
 	)
 
-	matched[2] = bytes.ReplaceAll(matched[2], []byte("\\\\\\\""), []byte("\\\\\\\\\""))
-	matched[2] = bytes.ReplaceAll(bytes.ReplaceAll(matched[2], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
-
-	if err = json.Unmarshal(matched[2], &pd); err != nil {
+	if err = json.Unmarshal(matched[1], &pd); err != nil {
 		c.logger.Error(err)
 		return err
 	}
@@ -601,72 +543,89 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
-
 		Stats: &pbItem.Stats{
 			ReviewCount: int32(reviewCount),
 			Rating:      float32(rating),
 		},
 	}
-
-	for _, p := range pd.Product.Traits.Colors.ColorMap {
-
-		current, _ := strconv.ParseFloat(p.Pricing.Price.TieredPrice[1].Values[0].Value)
-		msrp, _ := strconv.ParseFloat(p.Pricing.Price.TieredPrice[0].Values[0].Value)
-		discount := (msrp - current) * 100 / msrp
-
-		for ks, rawSize := range p.Sizes {
-
-			sizeID := strconv.Format(rawSize)
-			sku := pbItem.Sku{
-				SourceId: strconv.Format(p.ID) + "_" + strconv.Format(rawSize),
-				Price: &pbItem.Price{
-					Currency: regulation.Currency_USD,
-					Current:  int32(current * 100),
-					Msrp:     int32(msrp * 100),
-					Discount: int32(discount),
-				},
-				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
-			}
-			// if rawSize.StockLevelStatus == "inStock" {  // ASk ?
-			// 	sku.Stock.StockStatus = pbItem.Stock_InStock
-			// 	//sku.Stock.StockCount = int32(rawSize.Quantity)
-			// }
-
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    sizeID,
-				Name:  pd.Product.Traits.Sizes.SizeMap[sizeID].Name,
-				Value: pd.Product.Traits.Sizes.SizeMap[sizeID].DisplayName,
-			})
-
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{ // color ASK
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    strconv.Format(p.ID),
-				Name:  p.NormalName,
-				Value: p.NormalName,
-			})
-
-			if ks == 0 {
-
-				isDefault := true
-				for key, img := range p.Imagery.Images {
-					if key > 1 {
-						isDefault = false
-					}
-					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-						strconv.Format(p.ID),
-						"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath,
-						"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath+"?op_sharpen=1&wid=1000",
-						"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath+"?op_sharpen=1&wid=700",
-						"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath+"?op_sharpen=1&wid=450",
-						"",
-						isDefault,
-					))
-				}
-
-			}
-			item.SkuItems = append(item.SkuItems, &sku)
+	for i, cate := range pd.Product.Relationships.Taxonomy.Categories {
+		switch i {
+		case 0:
+			item.Category = cate.Name
+		case 1:
+			item.SubCategory = cate.Name
+		case 2:
+			item.SubCategory2 = cate.Name
 		}
+	}
+	for skuId, rawSku := range pd.Product.Relationships.Upcs {
+		colorId := strconv.Format(rawSku.Traits.Colors.SelectedColor)
+		color := pd.Product.Traits.Colors.ColorMap[colorId]
+		sizeId := strconv.Format(rawSku.Traits.Sizes.SelectedSize)
+		size := pd.Product.Traits.Sizes.SizeMap[sizeId]
+
+		var (
+			current, msrp, discount float64
+		)
+		for _, p := range color.Pricing.Price.TieredPrice {
+			if len(p.Values) == 0 {
+				continue
+			}
+			if current == 0 && msrp == 0 {
+				current, msrp = p.Values[0].Value, p.Values[0].Value
+			} else if p.Values[0].Value > msrp {
+				msrp = p.Values[0].Value
+			} else if p.Values[0].Value < current {
+				current = p.Values[0].Value
+			}
+		}
+		if msrp == 0 {
+			return fmt.Errorf("no msrp price found for %s", resp.Request.URL)
+		}
+		discount = math.Ceil((msrp - current) * 100 / msrp)
+
+		var medias []*pbMedia.Media
+		for key, img := range color.Imagery.Images {
+			medias = append(medias, pbMedia.NewImageMedia(
+				"",
+				"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath,
+				"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath+"?op_sharpen=1&wid=1000",
+				"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath+"?op_sharpen=1&wid=700",
+				"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath+"?op_sharpen=1&wid=450",
+				"",
+				key == 0,
+			))
+		}
+
+		sku := pbItem.Sku{
+			SourceId: skuId,
+			Price: &pbItem.Price{
+				Currency: regulation.Currency_USD,
+				Current:  int32(current * 100),
+				Msrp:     int32(msrp * 100),
+				Discount: int32(discount),
+			},
+			Medias: medias,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+		}
+		// if rawSize.StockLevelStatus == "inStock" {  // ASk ?
+		// 	sku.Stock.StockStatus = pbItem.Stock_InStock
+		// 	//sku.Stock.StockCount = int32(rawSize.Quantity)
+		// }
+
+		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecColor,
+			Id:    colorId,
+			Name:  color.NormalName,
+			Value: color.NormalName,
+		})
+		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecSize,
+			Id:    sizeId,
+			Name:  size.DisplayName,
+			Value: size.Name,
+		})
+		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
 	// yield item result
@@ -679,7 +638,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		"https://www.bloomingdales.com/shop/womens-apparel/tops-tees?id=5619",
-		"https://www.bloomingdales.com/shop/product/aqua-puff-sleeve-top-100-exclusive?ID=3845413&CategoryID=5619",
+		// "https://www.bloomingdales.com/shop/product/aqua-passion-sleeveless-maxi-dress-100-exclusive?ID=3996369&CategoryID=21683",
+		// "https://www.bloomingdales.com/shop/product/a.l.c.-kati-puff-sleeve-tee?ID=3202505&CategoryID=5619",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -711,7 +671,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -720,7 +679,7 @@ func main() {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
 
-			// process logic of sub request
+			opts := spider.CrawlOptions(i.URL)
 
 			// init custom headers
 			for k := range opts.MustHeader {
@@ -751,12 +710,14 @@ func main() {
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
+
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
-				EnableProxy:       false,
+				EnableProxy:       true,
 				EnableHeadless:    false,
-				EnableSessionInit: false,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				DisableCookieJar:  opts.DisableCookieJar,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -766,7 +727,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
@@ -775,7 +736,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("bloomingdales_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"net/url"
 
 	"github.com/nsqio/go-nsq"
 	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
@@ -50,19 +51,22 @@ func (s *CrawlerServer) GetCrawlers(ctx context.Context, req *pbCrawl.GetCrawler
 	if s == nil {
 		return nil, nil
 	}
-	if req.GetHost() == "" {
-		return nil, pbError.ErrInvalidArgument
-	}
-	s.logger.Debugf("get crawlers of %s", req.GetHost())
-
-	crawlers, err := s.crawlerManager.GetByHost(ctx, req.GetHost())
+	u, err := url.Parse(req.GetUrl())
 	if err != nil {
-		s.logger.Errorf("get crawlers of host %s failed, error=%s", req.GetHost(), err)
+		return nil, pbError.ErrInvalidArgument.New(err)
+	}
+	if u.Host == "" {
+		return nil, pbError.ErrInvalidArgument.New("no host found")
+	}
+
+	crawlers, err := s.crawlerManager.GetByHost(ctx, u.Host)
+	if err != nil {
+		s.logger.Errorf("get crawlers of host %s failed, error=%s", u.Host, err)
 		return nil, err
 	}
 	var resp pbCrawl.GetCrawlersResponse
 	for _, c := range crawlers {
-		options := c.CrawlOptions()
+		options := c.CrawlOptions(u)
 		if options == nil {
 			options = &crawler.CrawlOptions{}
 		}

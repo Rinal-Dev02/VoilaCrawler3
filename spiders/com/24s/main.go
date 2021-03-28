@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -71,7 +72,7 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	return &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
@@ -572,9 +573,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
-
-	stop := false
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -582,10 +580,8 @@ func main() {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
-			if stop {
-				return nil
-			}
-			stop = true
+
+			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
 
@@ -621,9 +617,9 @@ func main() {
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    true,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)

@@ -66,7 +66,7 @@ func (c *_Crawler) Version() int32 {
 }
 
 // CrawlOptions
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
@@ -545,7 +545,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -553,6 +552,7 @@ func main() {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
+			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
 
@@ -588,9 +588,9 @@ func main() {
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)
