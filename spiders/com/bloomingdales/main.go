@@ -70,36 +70,21 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "currency", Value: `USD`, Path: "/"},
 		&http.Cookie{Name: "shippingCountry", Value: `US`, Path: "/"},
-		&http.Cookie{Name: "mercury", Value: `true`, Path: "/"},
+		&http.Cookie{Name: "mercury", Value: `false`, Path: "/"},
 	)
+
 	if u != nil {
-		options.MustCookies = append(options.MustCookies, &http.Cookie{
-			Name:  "FORWARDPAGE_KEY",
-			Value: url.QueryEscape(u.String()),
-		})
-		options.MustHeader.Set("Referer", u.String())
+		// options.MustCookies = append(options.MustCookies, &http.Cookie{
+		// 	Name:  "FORWARDPAGE_KEY",
+		// 	Value: url.QueryEscape(u.String()),
+		// })
+		// options.MustHeader.Set("Referer", u.String())
 	}
 	return options
 }
 
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.bloomingdales.com"}
-}
-
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
-	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.categoryPathMatcher,
-		c.productPathMatcher,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
-		}
-	}
-	return false
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -153,6 +138,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			c.logger.Errorf("load http request of url %s failed, error=%s", href, err)
 			return err
 		}
+		req.Header.Set("Referer", resp.Request.URL.String())
+		req.AddCookie(&http.Cookie{Name: "FORWARDPAGE_KEY", Value: url.QueryEscape(resp.Request.URL.String())})
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
 		lastIndex++
 
@@ -177,6 +164,9 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	u.Path = strings.Join(fields, "/")
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req.Header.Set("Referer", resp.Request.URL.String())
+	req.AddCookie(&http.Cookie{Name: "FORWARDPAGE_KEY", Value: url.QueryEscape(resp.Request.URL.String())})
+
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
 }
@@ -678,12 +668,13 @@ func main() {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
-
 			opts := spider.CrawlOptions(i.URL)
 
 			// init custom headers
 			for k := range opts.MustHeader {
-				i.Header.Set(k, opts.MustHeader.Get(k))
+				if i.Header.Get(k) == "" {
+					i.Header.Set(k, opts.MustHeader.Get(k))
+				}
 			}
 
 			// init custom cookies
