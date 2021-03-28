@@ -57,7 +57,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 // ID
 func (c *_Crawler) ID() string {
 	// every spider should got an unique id which should not larget than 64 in length
-	return "4b95dd02f3f535e5f2cc6254d64f56fe"
+	return "108af0b590940d1b1ec87e4a46596b1c"
 }
 
 // Version
@@ -606,7 +606,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		// "https://www.matchesfashion.com/us/mens/shop/shoes",
-		"https://www.matchesfashion.com/us/products/Raey-Chest-pocket-cotton-blend-jacket--1317200",
+		// "https://www.matchesfashion.com/us/products/Raey-Chest-pocket-cotton-blend-jacket--1317200",
+		"https://www.matchesfashion.com/us/womens/shop/clothing/lingerie/briefs",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
