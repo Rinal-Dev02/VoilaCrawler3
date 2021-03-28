@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -14,6 +15,8 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
@@ -64,7 +67,7 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	return &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
@@ -219,8 +222,31 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	return yield(nctx, req)
 }
 
+type parentCategory struct {
+	CatID       string `json:"cat_id"`
+	URLCatID    string `json:"url_cat_id"`
+	GoodsTypeID string `json:"goods_type_id"`
+	CatURLName  string `json:"cat_url_name"`
+	CatName     string `json:"cat_name"`
+	ParentID    string `json:"parent_id"`
+	SortOrder   string `json:"sort_order"`
+	IsLeaf      string `json:"is_leaf"`
+	GoodsNum    string `json:"goods_num"`
+	Multi       struct {
+		CatID           string `json:"cat_id"`
+		CatName         string `json:"cat_name"`
+		MetaTitle       string `json:"meta_title"`
+		MetaKeywords    string `json:"meta_keywords"`
+		MetaDescription string `json:"meta_description"`
+		CatDesc         string `json:"cat_desc"`
+		LanguageFlag    string `json:"language_flag"`
+	} `json:"multi"`
+	Children []*parentCategory `json:"children"`
+}
+
 type parseProductData struct {
-	GoodsImgs struct {
+	ParentCats parentCategory `json:"parentCats"`
+	GoodsImgs  struct {
 		MainImage struct {
 			OriginImage     string `json:"origin_image"`
 			Thumbnail       string `json:"thumbnail"`
@@ -398,11 +424,23 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Rating:      float32(rating),
 		},
 	}
+	item.CrowdType = viewData.ParentCats.CatName
+	if len(viewData.ParentCats.Children) > 0 {
+		item.Category = viewData.ParentCats.Children[0].CatName
+	}
+	if len(viewData.ParentCats.Children[0].Children) > 0 {
+		item.SubCategory = viewData.ParentCats.Children[0].Children[0].CatName
+	}
+	if len(viewData.ParentCats.Children[0].Children[0].Children) > 0 {
+		item.SubCategory2 = viewData.ParentCats.Children[0].Children[0].Children[0].CatName
+	}
 
 	colorName := ""
+	colorId := ""
 	for _, rowdes := range viewData.Detail.ProductDetails {
 		if rowdes.AttrName == "Color" {
 			colorName = rowdes.AttrValue
+			colorId = rowdes.AttrValueID
 			break
 		}
 	}
@@ -413,7 +451,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		discount := ((originalPrice - msrp) / msrp) * 100
 
 		sku := pbItem.Sku{
-			SourceId: strconv.Format(ks),
+			SourceId: fmt.Sprintf("%s-%s", viewData.Detail.GoodsSn, rawSku.AttrValueID),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(originalPrice * 100),
@@ -431,7 +469,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecColor,
-			Id:    strconv.Format(viewData.Detail.GoodsID),
+			Id:    colorId,
 			Name:  colorName,
 			Value: colorName,
 			//Icon:  color.SwatchMedia.Mobile,
@@ -440,7 +478,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if ks == 0 {
 			m := viewData.GoodsImgs.MainImage
 			sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-				strconv.Format(m),
+				"",
 				m.OriginImage,
 				strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_900x.jpg"),
 				strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_600x.jpg"),
@@ -451,7 +489,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			for _, m := range viewData.GoodsImgs.DetailImage {
 				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-					strconv.Format(m),
+					"",
 					m.OriginImage,
 					strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_900x.jpg"),
 					strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_600x.jpg"),
@@ -465,11 +503,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		// size
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    rawSku.AttrID,
-			Name:  rawSku.AttrValue,
-			Value: rawSku.AttrValue,
+			Id:    rawSku.AttrValueID,
+			Name:  rawSku.AttrValueEn,
+			Value: rawSku.AttrValueEn,
 		})
-
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
@@ -485,7 +522,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		// "https://www.nordstrom.com/browse/activewear/women-clothing?breadcrumb=Home%2FWomen%2FClothing%2FActivewear&origin=topnav",
-		"https://us.shein.com/T-Shirts-c-1738.html?ici=us_tab01navbar04menu01dir02&scici=navbar_WomenHomePage~~tab01navbar04menu01dir02~~4_1_2~~real_1738~~~~0~~50001&srctype=category&userpath=category%3ECLOTHING%3ETOPS%3ET-Shirts",
+		// "https://us.shein.com/T-Shirts-c-1738.html?ici=us_tab01navbar04menu01dir02&scici=navbar_WomenHomePage~~tab01navbar04menu01dir02~~4_1_2~~real_1738~~~~0~~50001&srctype=category&userpath=category%3ECLOTHING%3ETOPS%3ET-Shirts",
 		"https://us.shein.com//Slogan-Graphic-Crop-Tee-p-1854713-cat-1738.html?scici=navbar_WomenHomePage~~tab01navbar04menu01dir02~~4_1_2~~real_1738~~~~0~~50001",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
@@ -509,7 +546,7 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
@@ -524,7 +561,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -532,6 +568,7 @@ func main() {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
+			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
 
@@ -558,18 +595,18 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "www.shein.com"
+				i.URL.Host = "us.shein.com"
 			}
 
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
-				EnableProxy:       false,
+				EnableProxy:       true,
 				EnableHeadless:    false,
-				EnableSessionInit: false,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -579,7 +616,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
@@ -588,7 +625,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("shein_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
