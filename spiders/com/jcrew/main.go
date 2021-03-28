@@ -82,6 +82,12 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		&http.Cookie{Name: "jcrew_country", Value: "US", Path: "/"},
 		&http.Cookie{Name: "bluecoreNV", Value: "false", Path: "/"},
 		&http.Cookie{Name: "us_site", Value: "true", Path: "/"},
+		&http.Cookie{Name: "MR", Value: "0"},
+		&http.Cookie{Name: "jcrew_wc", Value: "yes"},
+		&http.Cookie{Name: "AKA_A2", Value: "B"},
+		&http.Cookie{Name: "s_slt", Value: "%5B%5BB%5D%5D"},
+		&http.Cookie{Name: "s_sq", Value: "%5B%5BB%5D%5D"},
+		&http.Cookie{Name: "s_cc", Value: "true"},
 	)
 	return options
 }
@@ -203,7 +209,15 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	productData := viewData.Props.InitialState.Array.Data.ProductArray
 	for _, prodList := range productData.ProductList {
 		for _, idv := range prodList.Products {
-			req, err := http.NewRequest(http.MethodGet, idv.URL, nil)
+			u, err := url.Parse(idv.URL)
+			if err != nil {
+				c.logger.Error(err)
+				continue
+			}
+			if strings.HasPrefix(u.Path, "/nl/") {
+				u.Path = strings.TrimPrefix(u.Path, "/nl")
+			}
+			req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 			if err != nil {
 				c.logger.Errorf("load http request of url %s failed, error=%s", resp.Request.URL, err)
 				return err
