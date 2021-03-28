@@ -2,7 +2,6 @@ package crawler
 
 import (
 	"context"
-	"net/url"
 
 	"github.com/voiladev/VoilaCrawl/internal/model/request"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
@@ -36,12 +35,7 @@ func (ctrl *CrawlerController) GetCrawlerByUrl(ctx context.Context, rawUrl strin
 	}
 	logger := ctrl.logger.New("GetCrawlerByUrl")
 
-	u, err := url.Parse(rawUrl)
-	if err != nil {
-		logger.Error(err)
-		return nil, err
-	}
-	resp, err := ctrl.crawlerClient.GetCrawlers(ctx, &pbCrawl.GetCrawlersRequest{Host: u.Host})
+	resp, err := ctrl.crawlerClient.GetCrawlers(ctx, &pbCrawl.GetCrawlersRequest{Url: rawUrl})
 	if err != nil {
 		logger.Error(err)
 		return nil, err
