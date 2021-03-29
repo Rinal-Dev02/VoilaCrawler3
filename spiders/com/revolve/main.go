@@ -264,9 +264,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err != nil {
 		return err
 	}
-	if isRobotCheckPage(respbody) {
-		return errors.New("robot check page")
-	}
 
 	matched := productsDataExtractReg.FindSubmatch(respbody)
 	if len(matched) <= 1 {
