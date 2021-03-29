@@ -57,21 +57,20 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
-	options.MustCookies = append(options.MustCookies,
-		&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
-		// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
-		// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
-		// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
-		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
-		// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
-	)
+	options.MustCookies = append(options.MustCookies)
+	//	&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
+	// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
+	// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
+	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
+
 	return options
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.6pm.com"}
+	return []string{"*.6pm.com"}
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -176,12 +175,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	// get current page number
-	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("p"))
-
-	// check if this is the last page
-	totalpages, _ := strconv.ParseInt(r.Filters.PageCount)
-	if page >= totalpages || lastIndex >= int(r.Products.TotalProductCount) {
+	if r.Meta.DocumentMeta.Link.Rel.Next == "" {
 		return nil
 	}
 
@@ -194,7 +188,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 }
 
-var productsExtractReg = regexp.MustCompile(`window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
+var productsExtractReg = regexp.MustCompile(`(?U)<script\s*>\s*window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
 
 type productPageStructure struct {
 	Product struct {
@@ -448,10 +442,27 @@ type productPageStructure struct {
 			} `json:"youtubeData"`
 		} `json:"detail"`
 	} `json:"product"`
+	PixelServer struct {
+		Data struct {
+			CustomerCountryCode interface{} `json:"customerCountryCode"`
+			PageID              string      `json:"pageId"`
+			PageLang            string      `json:"pageLang"`
+			PageTitle           bool        `json:"pageTitle"`
+			Product             struct {
+				Sku         string `json:"sku"`
+				StyleID     string `json:"styleId"`
+				Price       string `json:"price"`
+				Name        string `json:"name"`
+				Brand       string `json:"brand"`
+				Category    string `json:"category"`
+				SubCategory string `json:"subCategory"`
+				Gender      string `json:"gender"`
+			} `json:"product"`
+		} `json:"data"`
+		PageType    string `json:"pageType"`
+		QueryString string `json:"queryString"`
+	} `json:"pixelServer"`
 }
-
-// used to trim html labels in description
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
 
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -487,7 +498,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 		BrandName:   viewData.Product.Detail.BrandName,
 		Title:       viewData.Product.Detail.ProductName,
-		Description: htmlTrimRegp.ReplaceAllString(viewData.Product.Detail.ReceivedDescription, ""),
+		CrowdType:   viewData.PixelServer.Data.Product.Gender,
+		Category:    viewData.PixelServer.Data.Product.Category,
+		SubCategory: viewData.PixelServer.Data.Product.SubCategory,
+		Description: viewData.Product.Detail.ReceivedDescription,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
@@ -498,14 +512,27 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	for _, rawSku := range viewData.Product.Detail.Styles {
+		var medias []*pbMedia.Media
+		for ki, m := range rawSku.Images {
+			medias = append(medias, pbMedia.NewImageMedia(
+				strconv.Format(ki),
+				"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX1200_.jpg",
+				"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX1000_.jpg",
+				"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX700_.jpg",
+				"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX500_.jpg",
+				"",
+				m.Type == "main",
+			))
+		}
 
-		for ks, rawSkusize := range rawSku.Stocks {
-
-			originalPrice, _ := strconv.ParseFloat(strings.ReplaceAll(rawSku.Price, "$", ""))
-			msrp, _ := strconv.ParseFloat(strings.ReplaceAll(rawSku.OriginalPrice, "$", ""))
+		for _, rawSkusize := range rawSku.Stocks {
+			originalPrice, _ := strconv.ParsePrice(rawSku.Price)
+			msrp, _ := strconv.ParsePrice(rawSku.OriginalPrice)
 			discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.PercentOff, "%"))
+
 			sku := pbItem.Sku{
-				SourceId: strconv.Format(rawSku.ProductID),
+				SourceId: fmt.Sprintf("%s-%s", rawSku.ColorID, rawSkusize.SizeID),
+				Medias:   medias,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(originalPrice * 100),
@@ -520,7 +547,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				sku.Stock.StockCount = int32(stock)
 			}
 
-			// color
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
 				Id:    strconv.Format(rawSku.ColorID),
@@ -528,35 +554,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Value: rawSku.Color,
 				//Icon:  color.SwatchMedia.Mobile,
 			})
-
-			if ks == 0 {
-				isdefalut := true
-				for ki, m := range rawSku.Images {
-					if m.Type == "main" {
-						isdefalut = false
-					}
-
-					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-						strconv.Format(ki),
-						"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX1200_.jpg",
-						"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX1200_.jpg",
-						"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX700_.jpg",
-						"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX400_.jpg",
-						"",
-						isdefalut,
-					))
-				}
-			}
-			// size
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    rawSkusize.Upc,
+				Id:    rawSkusize.SizeID,
 				Name:  rawSkusize.Size,
 				Value: rawSkusize.Size,
 			})
-
 			item.SkuItems = append(item.SkuItems, &sku)
-
 		}
 	}
 
@@ -564,14 +568,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err = yield(ctx, &item); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.6pm.com/women-dresses/CKvXARDE1wHAAQHiAgMBAhg.zso?s=isNew%2Fdesc%2FgoLiveDate%2Fdesc%2FrecentSalesStyle%2Fdesc%2F&p=1",
-		"https://www.6pm.com/p/tommy-hilfiger-short-sleeve-polo-dress-sky-captain-bright-white/product/9496908/color/858095",
+		// "https://www.6pm.com/women-dresses/CKvXARDE1wHAAQHiAgMBAhg.zso?s=isNew%2Fdesc%2FgoLiveDate%2Fdesc%2FrecentSalesStyle%2Fdesc%2F&p=1",
+		// "https://www.6pm.com/p/tommy-hilfiger-short-sleeve-polo-dress-sky-captain-bright-white/product/9496908/color/858095",
+		"https://www.6pm.com/p/nicole-miller-lurex-striped-jersey-v-neck-tucked-dress-black-gold/product/7997750/color/136",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -610,9 +614,8 @@ func main() {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
-			opts := spider.CrawlOptions(i.URL)
 
-			// process logic of sub request
+			opts := spider.CrawlOptions(i.URL)
 
 			// init custom headers
 			for k := range opts.MustHeader {
