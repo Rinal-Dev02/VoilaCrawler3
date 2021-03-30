@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -18,6 +20,8 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
@@ -40,9 +44,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9-]+)+(-l)([a-z0-9-]+).html(.*)$`),
+		categoryPathMatcher: regexp.MustCompile(`^(/[a-zA-Z0-9\-]+){0,6}/[a-zA-Z0-9\-]+-l[a-z0-9-]+\.html$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^(/[a-z0-9-]+)+(-p)([a-z0-9-]+).html(.*)$`),
+		productPathMatcher: regexp.MustCompile(`^(/[a-zA-Z0-9\-]+){0,3}/[a-zA-Z0-9®%\-]+-p[a-z0-9-]+\.html$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -64,12 +68,17 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
-	return &crawler.CrawlOptions{
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
+	options := crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
-		EnableSessionInit: true,
+		EnableSessionInit: false,
 	}
+	options.MustCookies = append(options.MustCookies,
+		&http.Cookie{Name: "storepath", Value: "us%2Fen", Path: "/"},
+		&http.Cookie{Name: "web_version", Value: "STANDARD", Path: "/"},
+	)
+	return &options
 }
 
 // AllowedDomains return the domains this spider process will.
@@ -102,7 +111,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	return fmt.Errorf("unsupported url %s", resp.Request.URL.Path)
 }
 
 // nextIndex used to get the index from the shared data.
@@ -289,9 +298,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 					continue
 				}
 
-				rawurl := fmt.Sprintf("%s://%s/%s-p%s.html?v1=%v", resp.Request.URL.Scheme, resp.Request.URL.Host, pc.Seo.Keyword, pc.Seo.SeoProductID, pc.Seo.DiscernProductID)
-				fmt.Println(rawurl)
-
+				rawurl := fmt.Sprintf("%s://%s/us/en/%s-p%s.html?v1=%v", resp.Request.URL.Scheme, resp.Request.URL.Host, pc.Seo.Keyword, pc.Seo.SeoProductID, pc.Seo.DiscernProductID)
 				req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 				if err != nil {
 					c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
@@ -344,9 +351,12 @@ type ProductStructure struct {
 			BrandGroupID   int    `json:"brandGroupId"`
 			BrandGroupCode string `json:"brandGroupCode"`
 		} `json:"brand"`
-		Name        string `json:"name"`
-		Description string `json:"description"`
-		Detail      struct {
+		Name                     string `json:"name"`
+		Description              string `json:"description"`
+		Price                    int64  `json:"price"`
+		OldPrice                 int64  `json:"oldPrice"`
+		DisplayDiscountPercentag int64  `json:"displayDiscountPercentag"`
+		Detail                   struct {
 			Description      string        `json:"description"`
 			RawDescription   string        `json:"rawDescription"`
 			Reference        string        `json:"reference"`
@@ -439,6 +449,18 @@ type ProductStructure struct {
 			IsBuyable  bool          `json:"isBuyable"`
 		} `json:"detail"`
 	} `json:"product"`
+	Category struct {
+		Id          int64  `json:"id"`
+		SectionName string `json:"sectionName"`
+		Seo         struct {
+			Keyword string `json:"keyword"`
+		} `json:"seo"`
+		BreadCrumb []struct {
+			Id      int64  `json:"id"`
+			Text    string `json:"text"`
+			Keyword string `json:"keyword"`
+		} `json:"breadCrumb"`
+	} `json:"category"`
 }
 
 // parseProduct
@@ -459,13 +481,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	var viewData ProductStructure
-
 	if err := json.Unmarshal(matched[1], &viewData); err != nil {
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
-
-	colorcode := resp.Request.URL.Query().Get("v1")
 
 	//Prepare Product Data
 	item := pbItem.Product{
@@ -474,35 +493,69 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			CrawlUrl: resp.Request.URL.String(),
 		},
 		BrandName:   viewData.Product.Brand.BrandGroupCode,
+		CrowdType:   viewData.Category.SectionName,
 		Title:       viewData.Product.Name,
 		Description: viewData.Product.Description,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
+			Current:  int32(viewData.Product.Price),
+			Msrp:     int32(viewData.Product.OldPrice),
+			Discount: int32(viewData.Product.DisplayDiscountPercentag),
 		},
-		// Stats: &pbItem.Stats{
-		// 	//ReviewCount: int32(p.NumberOfReviews),
-		// 	//Rating:      float32(p.ReviewAverageRating / 5.0),
-		// },
+	}
+	if item.Price.Msrp == 0 {
+		item.Price.Msrp = item.Price.Current
+	}
+
+	for i, cate := range viewData.Category.BreadCrumb {
+		switch i {
+		case 0:
+			item.Category = cate.Text
+		case 1:
+			item.SubCategory = cate.Text
+		case 2:
+			item.SubCategory2 = cate.Text
+		}
 	}
 
 	for _, rawColor := range viewData.Product.Detail.Colors {
+		colorSpec := pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecColor,
+			Id:    strconv.Format(rawColor.ID),
+			Name:  rawColor.Name,
+			Value: rawColor.HexCode,
+		}
 
-		if colorcode != "" {
-			if strconv.Format(rawColor.ProductID) != colorcode {
-				continue
+		var medias []*pbMedia.Media
+		for _, mid := range rawColor.MainImgs {
+			template := "https://static.zara.net/photos" + mid.Path + "/{width}" + mid.Name + ".jpg?ts=" + mid.Timestamp
+			if mid.Type == "image" {
+				medias = append(medias, pbMedia.NewImageMedia(
+					strconv.Format(mid.Name),
+					strings.ReplaceAll(template, "{width}", ""),
+					strings.ReplaceAll(template, "{width}", "w/1280/"),
+					strings.ReplaceAll(template, "{width}", "w/600/"),
+					strings.ReplaceAll(template, "{width}", "w/500/"),
+					"",
+					mid.Order == 1,
+				))
 			}
 		}
 
-		for ks, rawSku := range rawColor.Sizes {
-
+		for _, rawSku := range rawColor.Sizes {
 			originalPrice, _ := strconv.ParseFloat(rawSku.Price)
 			msrp, _ := strconv.ParseFloat(rawSku.OldPrice)
+			if msrp == 0 {
+				msrp = originalPrice
+			}
 			discount := 0.0
-			if msrp > 0 {
-				discount = (msrp - originalPrice) / msrp * 100
+			if msrp != originalPrice {
+				discount = math.Ceil((msrp - originalPrice) / msrp * 100)
 			}
 			sku := pbItem.Sku{
-				SourceId: strconv.Format(rawSku.ID),
+				SourceId:    strconv.Format(rawSku.Sku),
+				Medias:      medias,
+				Description: rawColor.Description,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(originalPrice),
@@ -513,54 +566,24 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			if viewData.Product.Detail.IsBuyable {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
-				//sku.Stock.StockCount = int32(rawSku.TotalQuantityAvailable)
 			}
 
-			// color
-
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    strconv.Format(rawColor.ProductID),
-				Name:  rawColor.Name,
-				Value: rawColor.Name,
-				//Icon:  color.SwatchMedia.Mobile,
-			})
-
-			if ks == 0 {
-				isDefault := true
-				for _, mid := range rawColor.MainImgs {
-					template := "https://static.zara.net/photos" + mid.Path + mid.Name + ".jpg?ts=" + mid.Timestamp
-					if mid.Order > 1 {
-						isDefault = false
-					}
-					if mid.Type == "image" {
-						sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-							strconv.Format(mid.Name),
-							template,
-							template+"&sw=1000&sh=1200",
-							template+"&sw=600&sh=800",
-							template+"&sw=500&sh=600",
-							"",
-							isDefault,
-						))
-					}
-				}
-			}
-
-			// size
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+			sku.Specs = append(sku.Specs, &colorSpec, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    strconv.Format(rawSku.Sku),
+				Id:    strconv.Format(rawSku.ID),
 				Name:  rawSku.Name,
 				Value: rawSku.Name,
 			})
-
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
-	// yield item result
-	if err = yield(ctx, &item); err != nil {
-		return err
+	if len(item.SkuItems) > 0 {
+		// yield item result
+		if err = yield(ctx, &item); err != nil {
+			return err
+		}
+	} else {
+		return errors.New("no product sku spec found")
 	}
 
 	return nil
@@ -570,9 +593,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		"https://www.zara.com/us/en/woman-bags-l1024.html?v1=1719123",
-		//"https://www.zara.com/us/en/fabric-bucket-bag-with-pocket-p16619710.html?v1=100626185&v2=1719123",
-		"https://www.zara.com/us/en/quilted-velvet-maxi-crossbody-bag-p16311710.html?v1=95124768&v2=1719102",
-		//"https://www.zara.com/us/en/text-detail-belt-bag-p16363710.html?v1=79728740&v2=1719123",
+		// "https://www.zara.com/us/en/fabric-bucket-bag-with-pocket-p16619710.html?v1=100626185&v2=1719123",
+		// "https://www.zara.com/us/en/quilted-velvet-maxi-crossbody-bag-p16311710.html?v1=95124768&v2=1719102",
+		// "https://www.zara.com/us/en/text-detail-belt-bag-p16363710.html?v1=79728740&v2=1719123",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -595,12 +618,11 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -611,7 +633,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -620,7 +641,12 @@ func main() {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
 
-			// process logic of sub request
+			crawler := spider.(*_Crawler)
+			if crawler.productPathMatcher.MatchString(i.URL.Path) {
+				return nil
+			}
+
+			opts := spider.CrawlOptions(i.URL)
 
 			// init custom headers
 			for k := range opts.MustHeader {
@@ -654,9 +680,9 @@ func main() {
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -666,7 +692,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
@@ -675,7 +701,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
