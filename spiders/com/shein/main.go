@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -179,13 +180,15 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	lastIndex := nextIndex(ctx)
 	for _, idv := range viewData.Results.Goods {
-
-		rawurl := fmt.Sprintf("%s://%s/%s", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.PretreatInfo.GoodsDetailURL)
+		rawurl := idv.PretreatInfo.GoodsDetailURL
 		//c.logger.Debugf(rawurl)
 		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 		if err != nil {
 			c.logger.Errorf("load http request of url %s failed, error=%s", idv.PretreatInfo.GoodsDetailURL, err)
 			return err
+		}
+		if strings.HasSuffix(req.URL.Path, ".html") {
+			req.URL.RawQuery = ""
 		}
 
 		lastIndex += 1
@@ -266,25 +269,17 @@ type parseProductData struct {
 		VideoURL string `json:"video_url"`
 	} `json:"goods_imgs"`
 	Detail struct {
-		GoodsID       string `json:"goods_id"`
-		CatID         string `json:"cat_id"`
-		GoodsSn       string `json:"goods_sn"`
-		GoodsURLName  string `json:"goods_url_name"`
-		SupplierID    string `json:"supplier_id"`
-		GoodsName     string `json:"goods_name"`
-		OriginalImg   string `json:"original_img"`
-		GoodsThumb    string `json:"goods_thumb"`
-		GoodsImg      string `json:"goods_img"`
-		IsStockEnough string `json:"is_stock_enough"`
-		Brand         string `json:"brand"`
-		SizeTemplate  struct {
-			ImageURL         string `json:"image_url"`
-			DescriptionMulti []struct {
-				Sort        int    `json:"sort"`
-				Name        string `json:"name"`
-				Description string `json:"description"`
-			} `json:"description_multi"`
-		} `json:"sizeTemplate"`
+		GoodsID               string `json:"goods_id"`
+		CatID                 string `json:"cat_id"`
+		GoodsSn               string `json:"goods_sn"`
+		GoodsURLName          string `json:"goods_url_name"`
+		SupplierID            string `json:"supplier_id"`
+		GoodsName             string `json:"goods_name"`
+		OriginalImg           string `json:"original_img"`
+		GoodsThumb            string `json:"goods_thumb"`
+		GoodsImg              string `json:"goods_img"`
+		IsStockEnough         string `json:"is_stock_enough"`
+		Brand                 string `json:"brand"`
 		GoodsDesc             string `json:"goods_desc"`
 		SupplierTopCategoryID string `json:"supplier_top_category_id"`
 		ParentID              string `json:"parent_id"`
@@ -381,6 +376,22 @@ type parseProductData struct {
 		CommentNum         int    `json:"comment_num"`
 		CommentRankAverage string `json:"comment_rank_average"`
 	} `json:"commentInfo"`
+	RelationColor []struct {
+		GoodsID      string `json:"goods_id"`
+		CatID        string `json:"cat_id"`
+		GoodsSn      string `json:"goods_sn"`
+		GoodsURLName string `json:"goods_url_name"`
+		SupplierID   string `json:"supplier_id"`
+		GoodsName    string `json:"goods_name"`
+	} `json:"relation_color"`
+	SoldoutColor []struct {
+		GoodsID      string `json:"goods_id"`
+		CatID        string `json:"cat_id"`
+		GoodsSn      string `json:"goods_sn"`
+		GoodsURLName string `json:"goods_url_name"`
+		SupplierID   string `json:"supplier_id"`
+		GoodsName    string `json:"goods_name"`
+	} `json:"soldoutColor"`
 }
 
 // parseProduct
@@ -406,12 +417,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
+	c.logger.Debugf("%s", matched[1])
 
 	rating, _ := strconv.ParseFloat(viewData.CommentInfo.CommentRankAverage)
 	item := pbItem.Product{
 		Source: &pbItem.Source{
 			Id:       strconv.Format(viewData.Detail.GoodsID),
 			CrawlUrl: resp.Request.URL.String(),
+			GroupId:  viewData.Detail.ProductRelationID,
 		},
 		BrandName:   viewData.Detail.Brand,
 		Title:       viewData.Detail.GoodsName,
@@ -445,76 +458,124 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
-	for ks, rawSku := range viewData.AttrSizeList {
-		originalPrice, _ := strconv.ParseFloat(rawSku.Price.SalePrice.UsdAmount)
-		msrp, _ := strconv.ParseFloat(rawSku.Price.RetailPrice.UsdAmount)
+	colorSpec := pbItem.SkuSpecOption{
+		Type:  pbItem.SkuSpecType_SkuSpecColor,
+		Id:    colorId,
+		Name:  colorName,
+		Value: colorName,
+		Icon:  viewData.Detail.ColorImage,
+	}
+
+	var medias []*pbMedia.Media
+	m := viewData.GoodsImgs.MainImage
+	medias = append(medias, pbMedia.NewImageMedia(
+		"",
+		m.OriginImage,
+		strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_900x.jpg"),
+		strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_600x.jpg"),
+		strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_500x.jpg"),
+		"",
+		true,
+	))
+
+	for _, m := range viewData.GoodsImgs.DetailImage {
+		medias = append(medias, pbMedia.NewImageMedia(
+			"",
+			m.OriginImage,
+			strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_900x.jpg"),
+			strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_600x.jpg"),
+			strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_500x.jpg"),
+			"",
+			false,
+		))
+	}
+
+	if len(viewData.AttrSizeList) > 0 {
+		for _, rawSku := range viewData.AttrSizeList {
+			originalPrice, _ := strconv.ParseFloat(rawSku.Price.SalePrice.UsdAmount)
+			msrp, _ := strconv.ParseFloat(rawSku.Price.RetailPrice.UsdAmount)
+			discount := ((originalPrice - msrp) / msrp) * 100
+
+			sku := pbItem.Sku{
+				SourceId: fmt.Sprintf("%s-%s", viewData.Detail.GoodsSn, rawSku.AttrValueID),
+				Price: &pbItem.Price{
+					Currency: regulation.Currency_USD,
+					Current:  int32(originalPrice * 100),
+					Msrp:     int32(msrp * 100),
+					Discount: int32(discount),
+				},
+				Medias: medias,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			}
+			if rawSku.Stock > 0 {
+				sku.Stock.StockStatus = pbItem.Stock_InStock
+				sku.Stock.StockCount = int32(rawSku.Stock)
+			}
+			sku.Specs = append(sku.Specs, &colorSpec, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Id:    rawSku.AttrValueID,
+				Name:  rawSku.AttrValueEn,
+				Value: rawSku.AttrValueEn,
+			})
+			item.SkuItems = append(item.SkuItems, &sku)
+		}
+	} else {
+		prod := viewData.Detail
+		originalPrice, _ := strconv.ParseFloat(prod.SalePrice.UsdAmount)
+		msrp, _ := strconv.ParseFloat(prod.RetailPrice.UsdAmount)
 		discount := ((originalPrice - msrp) / msrp) * 100
 
 		sku := pbItem.Sku{
-			SourceId: fmt.Sprintf("%s-%s", viewData.Detail.GoodsSn, rawSku.AttrValueID),
+			SourceId: viewData.Detail.GoodsSn,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(originalPrice * 100),
 				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
-			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			Specs:  []*pbItem.SkuSpecOption{&colorSpec},
+			Medias: medias,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
-		if rawSku.Stock > 0 {
+		stock, _ := strconv.ParseInt(prod.Stock)
+		if stock > 0 {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
-			sku.Stock.StockCount = int32(rawSku.Stock)
+			sku.Stock.StockCount = int32(stock)
 		}
-
-		// color
-
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecColor,
-			Id:    colorId,
-			Name:  colorName,
-			Value: colorName,
-			//Icon:  color.SwatchMedia.Mobile,
-		})
-
-		if ks == 0 {
-			m := viewData.GoodsImgs.MainImage
-			sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-				"",
-				m.OriginImage,
-				strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_900x.jpg"),
-				strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_600x.jpg"),
-				strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_500x.jpg"),
-				"",
-				true,
-			))
-
-			for _, m := range viewData.GoodsImgs.DetailImage {
-				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-					"",
-					m.OriginImage,
-					strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_900x.jpg"),
-					strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_600x.jpg"),
-					strings.ReplaceAll(m.OriginImage, ".jpg", "_thumbnail_500x.jpg"),
-					"",
-					false,
-				))
-			}
-		}
-
-		// size
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    rawSku.AttrValueID,
-			Name:  rawSku.AttrValueEn,
-			Value: rawSku.AttrValueEn,
-		})
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
-	// yield item result
-	if err = yield(ctx, &item); err != nil {
-		return err
+	if len(item.SkuItems) > 0 {
+		// yield item result
+		if err = yield(ctx, &item); err != nil {
+			return err
+		}
+	} else {
+		return errors.New("no sku spec found")
 	}
 
+	for _, color := range viewData.RelationColor {
+		u := fmt.Sprintf("https://us.shein.com/%s-p-%s-cat-%s.html", strings.ReplaceAll(color.GoodsURLName, " ", "-"), color.GoodsID, color.CatID)
+		req, err := http.NewRequest(http.MethodGet, u, nil)
+		if err != nil {
+			c.logger.Error(err)
+			continue
+		}
+		if err := yield(ctx, req); err != nil {
+			return err
+		}
+	}
+	for _, color := range viewData.SoldoutColor {
+		u := fmt.Sprintf("https://us.shein.com/%s-p-%s-cat-%s.html", strings.ReplaceAll(color.GoodsURLName, " ", "-"), color.GoodsID, color.CatID)
+		req, err := http.NewRequest(http.MethodGet, u, nil)
+		if err != nil {
+			c.logger.Error(err)
+			continue
+		}
+		if err := yield(ctx, req); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -523,7 +584,9 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		// "https://www.nordstrom.com/browse/activewear/women-clothing?breadcrumb=Home%2FWomen%2FClothing%2FActivewear&origin=topnav",
 		// "https://us.shein.com/T-Shirts-c-1738.html?ici=us_tab01navbar04menu01dir02&scici=navbar_WomenHomePage~~tab01navbar04menu01dir02~~4_1_2~~real_1738~~~~0~~50001&srctype=category&userpath=category%3ECLOTHING%3ETOPS%3ET-Shirts",
-		"https://us.shein.com//Slogan-Graphic-Crop-Tee-p-1854713-cat-1738.html?scici=navbar_WomenHomePage~~tab01navbar04menu01dir02~~4_1_2~~real_1738~~~~0~~50001",
+		// "https://us.shein.com//Slogan-Graphic-Crop-Tee-p-1854713-cat-1738.html?scici=navbar_WomenHomePage~~tab01navbar04menu01dir02~~4_1_2~~real_1738~~~~0~~50001",
+		// "https://us.shein.com/Rhinestone-Decor-Hair-Hoop-p-1315510-cat-1778.html?scici=navbar_2~~tab01navbar08menu11~~8_11~~real_1765~~SPcCccWomenCategory_default~~0~~0",
+		"https://us.shein.com/Allover-Print-Surplice-Front-Layered-Hem-Dress-p-1575863-cat-1727.html?scici=navbar_WomenHomePage~~tab01navbar06menu05dir01~~6_5_1~~itemPicking_00109364~~~~0~~50001",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
