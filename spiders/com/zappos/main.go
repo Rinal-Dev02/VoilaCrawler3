@@ -39,7 +39,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 		httpClient: client,
 		// /men-bags/COjWAcABAuICAgEY.zso
 		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9\-]+){1,5}/[a-zA-Z0-9]+\.zso$`),
-		productPathMatcher:  regexp.MustCompile(`^/p(/[a-z0-9_-]+)/product/\d+(/[a-z0-9]+/\d+)?$`),
+		productPathMatcher:  regexp.MustCompile(`^(/a/[a-z0-0-]+)?/p(/[a-z0-9_-]+)/product/\d+(/[a-z0-9]+/\d+)?$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -487,9 +487,6 @@ type productPageStructure struct {
 	} `json:"product"`
 }
 
-// used to trim html labels in description
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
-
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil {
@@ -600,8 +597,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.zappos.com/men-bags/COjWAcABAuICAgEY.zso",
+		// "https://www.zappos.com/men-bags/COjWAcABAuICAgEY.zso",
 		// "https://www.zappos.com/p/nike-tanjun-black-white/product/8619473/color/151",
+		"https://www.zappos.com/a/the-style-room/p/rag-bone-watch-belt-black/product/9532098/color/3",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
