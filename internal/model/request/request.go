@@ -227,6 +227,7 @@ func (r *Request) Unmarshal(ret interface{}) error {
 			}
 			val.Headers["Cookie"] = &pbHttp.ListValue{Values: []string{cookie}}
 		}
+	default:
 		return errors.New("unsupported unmarshal type")
 	}
 	return nil
