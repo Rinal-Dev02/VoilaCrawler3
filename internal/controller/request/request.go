@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
 	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
 	"github.com/voiladev/VoilaCrawl/pkg/pigate"
+	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	pbSession "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	"github.com/voiladev/go-framework/glog"
@@ -294,6 +296,42 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 								ctrl.logger.Errorf("unmarshal request to proxy.Request failed, error=%s", err)
 								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, err.Error())
 								return err
+							}
+
+							for k, v := range options.GetHeaders() {
+								if lv, ok := proxyReq.GetHeaders()[k]; ok {
+									lv.Values = lv.Values[0:0]
+									lv.Values = append(lv.Values, v)
+								} else {
+									proxyReq.Headers[k] = &pbHttp.ListValue{Values: []string{v}}
+								}
+							}
+
+							var (
+								cookie    string
+								cookieMap = map[string]string{}
+								reqUrl, _ = url.Parse(req.GetUrl())
+							)
+							for _, c := range req.Cookies() {
+								if c.Path == "" || c.Path == "/" || strings.HasPrefix(reqUrl.Path, c.Path) {
+									cookieMap[c.Name] = c.Value
+								}
+							}
+							for _, c := range options.GetCookies() {
+								if c.Path == "" || c.Path == "/" || strings.HasPrefix(reqUrl.Path, c.Path) {
+									cookieMap[c.Name] = c.Value
+								}
+							}
+							for k, v := range cookieMap {
+								v := fmt.Sprintf("%s=%s", k, v)
+								if cookie == "" {
+									cookie = v
+								} else {
+									cookie = cookie + "; " + v
+								}
+							}
+							if cookie != "" {
+								proxyReq.GetHeaders()["Cookie"] = &pbHttp.ListValue{Values: []string{cookie}}
 							}
 
 							// EnableProxy, MaxTtlPerRequest set in Unmarshal

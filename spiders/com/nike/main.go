@@ -23,6 +23,7 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -64,7 +65,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.Reliability = 1
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "NIKE_COMMERCE_COUNTRY", Value: "US"},
 		&http.Cookie{Name: "NIKE_COMMERCE_LANG_LOCALE", Value: "en_US"},
@@ -294,7 +295,7 @@ func (c *_Crawler) parseCategoryAPIProducts(ctx context.Context, resp *http.Resp
 
 	lastIndex := nextIndex(ctx)
 	for _, prod := range viewData.Data.Products.Products {
-		u := strings.ReplaceAll(prod.URL, "{countryLang}", "")
+		u := "https://www.nike.com" + strings.ReplaceAll(prod.URL, "{countryLang}", "")
 
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
