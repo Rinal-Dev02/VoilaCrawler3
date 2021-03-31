@@ -27,19 +27,16 @@ import (
 type _Crawler struct {
 	httpClient http.Client
 
-	categoryPathMatcher     *regexp.Regexp
-	categoryJsonPathMatcher *regexp.Regexp
-	productGroupPathMatcher *regexp.Regexp
-	productPathMatcher      *regexp.Regexp
-	logger                  glog.Log
+	categoryPathMatcher *regexp.Regexp
+	productPathMatcher  *regexp.Regexp
+	logger              glog.Log
 }
 
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
-		httpClient: client,
-		// /men-bags/COjWAcABAuICAgEY.zso
-		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9\-]+){1,5}/[a-zA-Z0-9]+\.zso$`),
-		productPathMatcher:  regexp.MustCompile(`^(/a/[a-z0-0-]+)?/p(/[a-z0-9_-]+)/product/\d+(/[a-z0-9]+/\d+)?$`),
+		httpClient:          client,
+		categoryPathMatcher: regexp.MustCompile(`^(.*)(.zso)(.*)$`),
+		productPathMatcher:  regexp.MustCompile(`(/[a-z0-9_-]+)/(product)`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -47,7 +44,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 
 // ID
 func (c *_Crawler) ID() string {
-	return "e656205bf04d4436886b680d7b20a93b"
+	return "74b57a389ee549588cc6017f231ac53b"
 }
 
 // Version
@@ -60,31 +57,20 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	options.MustCookies = append(options.MustCookies,
-		&http.Cookie{Name: "geo", Value: "US/CA/803/LOSANGELES"},
-		&http.Cookie{Name: "clouddc", Value: "west1"},
-	)
+	options.MustCookies = append(options.MustCookies)
+	//	&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
+	// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "browseCurrency", Value: "USD", Path: "/"},
+	// &http.Cookie{Name: "browseLanguage", Value: "en-US", Path: "/"},
+	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
+	// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
+
 	return options
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"*.zappos.com"}
-}
-
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
-	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.categoryPathMatcher,
-		c.productPathMatcher,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
-		}
-	}
-	return false
+	return []string{"*.6pm.com"}
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -105,25 +91,24 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")) + 1)
 }
 
-var productsExtractReg = regexp.MustCompile(`(?U)<script\s*>window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
+var prodDataExtraReg = regexp.MustCompile(`window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
-
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Debug(err)
 		return err
 	}
 
-	matched := productsExtractReg.FindSubmatch(respBody)
+	// next page
+	matched := prodDataExtraReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
 		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
 	}
-
 	var r struct {
 		Filters struct {
 			Page      int64 `json:"page"`
@@ -167,59 +152,45 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	lastIndex := nextIndex(ctx)
 	for _, prod := range r.Products.List {
-		if prod.ProductURL == "" {
-			continue
+		rawurl := fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, prod.ProductURL)
+		if strings.HasPrefix(prod.ProductURL, "http:") || strings.HasPrefix(prod.ProductURL, "https:") {
+			rawurl = prod.ProductURL
 		}
-		req, err := http.NewRequest(http.MethodGet, prod.ProductURL, nil)
+		//fmt.Println(rawurl)
+
+		// // prod page
+		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 		if err != nil {
-			c.logger.Error(err)
-			continue
+			c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
+			return err
 		}
 
+		lastIndex++
+		// set the index of the product crawled in the sub response
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		lastIndex += 1
-		if err = yield(nctx, req); err != nil {
+
+		// yield sub request
+		if err := yield(nctx, req); err != nil {
 			return err
 		}
 	}
 
-	// get current page number
-	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("p"))
-
-	// check if this is the last page
-	totalpages := r.Filters.PageCount
-	if page >= totalpages || r.Meta.DocumentMeta.Link.Rel.Next == "" {
+	if r.Meta.DocumentMeta.Link.Rel.Next == "" {
 		return nil
 	}
 
-	req, _ := http.NewRequest(http.MethodGet, r.Meta.DocumentMeta.Link.Rel.Next, nil)
-	nctx := context.WithValue(ctx, "item.index", lastIndex)
+	u := fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, r.Meta.DocumentMeta.Link.Rel.Next)
 
+	req, _ := http.NewRequest(http.MethodGet, u, nil)
+	// update the index of last page
+	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
 
 }
 
+var productsExtractReg = regexp.MustCompile(`(?U)<script\s*>\s*window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
+
 type productPageStructure struct {
-	PixelServer struct {
-		Data struct {
-			CustomerCountryCode string `json:"customerCountryCode"`
-			PageID              string `json:"pageId"`
-			PageLang            string `json:"pageLang"`
-			PageTitle           bool   `json:"pageTitle"`
-			Product             struct {
-				Sku         string `json:"sku"`
-				StyleID     string `json:"styleId"`
-				Price       string `json:"price"`
-				Name        string `json:"name"`
-				Brand       string `json:"brand"`
-				Category    string `json:"category"`
-				SubCategory string `json:"subCategory"`
-				Gender      string `json:"gender"`
-			} `json:"product"`
-		} `json:"data"`
-		PageType    string `json:"pageType"`
-		QueryString string `json:"queryString"`
-	} `json:"pixelServer"`
 	Product struct {
 		SelectedSizing struct {
 			D7 string `json:"d7"`
@@ -470,21 +441,27 @@ type productPageStructure struct {
 			YoutubeData           struct {
 			} `json:"youtubeData"`
 		} `json:"detail"`
-		StyleThumbnails []struct {
-			Color     string `json:"color"`
-			ColorID   string `json:"colorId"`
-			Src       string `json:"src"`
-			TsdSrc    string `json:"tsdSrc"`
-			StyleID   string `json:"styleId"`
-			SwatchSrc string `json:"swatchSrc"`
-		} `json:"styleThumbnails"`
-		ReviewsTotalPages         int    `json:"reviewsTotalPages"`
-		SeoProductURL             string `json:"seoProductUrl"`
-		DimensionValueLengthTypes struct {
-			D7 string `json:"d7"`
-		} `json:"dimensionValueLengthTypes"`
-		CalledClientSide bool `json:"calledClientSide"`
 	} `json:"product"`
+	PixelServer struct {
+		Data struct {
+			CustomerCountryCode interface{} `json:"customerCountryCode"`
+			PageID              string      `json:"pageId"`
+			PageLang            string      `json:"pageLang"`
+			PageTitle           bool        `json:"pageTitle"`
+			Product             struct {
+				Sku         string `json:"sku"`
+				StyleID     string `json:"styleId"`
+				Price       string `json:"price"`
+				Name        string `json:"name"`
+				Brand       string `json:"brand"`
+				Category    string `json:"category"`
+				SubCategory string `json:"subCategory"`
+				Gender      string `json:"gender"`
+			} `json:"product"`
+		} `json:"data"`
+		PageType    string `json:"pageType"`
+		QueryString string `json:"queryString"`
+	} `json:"pixelServer"`
 }
 
 // parseProduct
@@ -504,12 +481,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	var viewData productPageStructure
+
 	if err := json.Unmarshal(matched[1], &viewData); err != nil {
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
 
-	reviews, _ := strconv.ParseInt(viewData.Product.Detail.ReviewSummary.TotalReviews)
+	reviewCount, _ := strconv.ParseInt(viewData.Product.Detail.ReviewCount)
+	rating, _ := strconv.ParseFloat(viewData.Product.Detail.ProductRating)
+
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
@@ -518,53 +498,53 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 		BrandName:   viewData.Product.Detail.BrandName,
 		Title:       viewData.Product.Detail.ProductName,
+		CrowdType:   viewData.PixelServer.Data.Product.Gender,
+		Category:    viewData.PixelServer.Data.Product.Category,
+		SubCategory: viewData.PixelServer.Data.Product.SubCategory,
 		Description: viewData.Product.Detail.ReceivedDescription,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
-		CrowdType:   viewData.PixelServer.Data.Product.Gender,
-		Category:    viewData.PixelServer.Data.Product.Category,
-		SubCategory: viewData.PixelServer.Data.Product.SubCategory,
 		Stats: &pbItem.Stats{
-			ReviewCount: int32(reviews),
-			Rating:      float32(viewData.Product.Detail.ReviewSummary.AggregateRating),
+			ReviewCount: int32(reviewCount),
+			Rating:      float32(rating),
 		},
 	}
 
 	for _, rawSku := range viewData.Product.Detail.Styles {
-		originalPrice, _ := strconv.ParsePrice(rawSku.OriginalPrice)
-		price, _ := strconv.ParsePrice(rawSku.Price)
-		discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.PercentOff, "%"))
-
 		var medias []*pbMedia.Media
-		for _, m := range rawSku.Images {
+		for ki, m := range rawSku.Images {
 			medias = append(medias, pbMedia.NewImageMedia(
-				m.ImageID,
-				fmt.Sprintf("https://m.media-amazon.com/images/I/%s.jpg", m.ImageID),
-				fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR1000,750_.jpg", m.ImageID),
-				fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR700,525_.jpg", m.ImageID),
-				fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR500,375_.jpg", m.ImageID),
+				strconv.Format(ki),
+				"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX1200_.jpg",
+				"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX1000_.jpg",
+				"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX700_.jpg",
+				"https://m.media-amazon.com/images/I/"+m.ImageID+"._SX500_.jpg",
 				"",
-				m.Type == "Main",
+				m.Type == "main",
 			))
 		}
 
-		for _, stock := range rawSku.Stocks {
+		for _, rawSkusize := range rawSku.Stocks {
+			originalPrice, _ := strconv.ParsePrice(rawSku.Price)
+			msrp, _ := strconv.ParsePrice(rawSku.OriginalPrice)
+			discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.PercentOff, "%"))
+
 			sku := pbItem.Sku{
-				SourceId: rawSku.StyleID,
+				SourceId: fmt.Sprintf("%s-%s", rawSku.ColorID, rawSkusize.SizeID),
+				Medias:   medias,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
-					Current:  int32(price * 100),
-					Msrp:     int32(originalPrice * 100),
+					Current:  int32(originalPrice * 100),
+					Msrp:     int32(msrp * 100),
 					Discount: int32(discount),
 				},
-				Medias: medias,
-				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
-			onhandCount, _ := strconv.ParseInt(stock.OnHand)
-			if onhandCount > 0 {
+			stock, _ := strconv.ParseInt(rawSkusize.OnHand)
+			if stock > 0 {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
-				sku.Stock.StockCount = int32(onhandCount)
+				sku.Stock.StockCount = int32(stock)
 			}
 
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
@@ -572,17 +552,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Id:    strconv.Format(rawSku.ColorID),
 				Name:  rawSku.Color,
 				Value: rawSku.Color,
+				//Icon:  color.SwatchMedia.Mobile,
 			})
-
-			if len(rawSku.Stocks) > 0 {
-				stock := rawSku.Stocks[0]
-				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecSize,
-					Id:    stock.SizeID,
-					Name:  stock.Size,
-					Value: stock.Size,
-				})
-			}
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Id:    rawSkusize.SizeID,
+				Name:  rawSkusize.Size,
+				Value: rawSkusize.Size,
+			})
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
@@ -591,15 +568,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err = yield(ctx, &item); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		// "https://www.zappos.com/men-bags/COjWAcABAuICAgEY.zso",
-		// "https://www.zappos.com/p/nike-tanjun-black-white/product/8619473/color/151",
-		"https://www.zappos.com/a/the-style-room/p/rag-bone-watch-belt-black/product/9532098/color/3",
+		// "https://www.6pm.com/women-dresses/CKvXARDE1wHAAQHiAgMBAhg.zso?s=isNew%2Fdesc%2FgoLiveDate%2Fdesc%2FrecentSalesStyle%2Fdesc%2F&p=1",
+		// "https://www.6pm.com/p/tommy-hilfiger-short-sleeve-polo-dress-sky-captain-bright-white/product/9496908/color/858095",
+		"https://www.6pm.com/p/nicole-miller-lurex-striped-jersey-v-neck-tucked-dress-black-gold/product/7997750/color/136",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -638,9 +614,8 @@ func main() {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
-			opts := spider.CrawlOptions(i.URL)
 
-			// process logic of sub request
+			opts := spider.CrawlOptions(i.URL)
 
 			// init custom headers
 			for k := range opts.MustHeader {
@@ -665,7 +640,7 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "www.zappos.com"
+				i.URL.Host = "www.6pm.com"
 			}
 
 			// do http requests here.
@@ -695,7 +670,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {

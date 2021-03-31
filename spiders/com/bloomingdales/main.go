@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -18,15 +19,14 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
+	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	// pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type _Crawler struct {
@@ -41,8 +41,8 @@ type _Crawler struct {
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
-		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9_\-]+)?/shop(/[a-zA-Z0-9\-]+){1,4}(/Pageindex/\d+)?$`),
-		productPathMatcher:  regexp.MustCompile(`^(/[a-z0-9_\-]+)?/shop/product/([/a-z0-9_\-]+)$`),
+		categoryPathMatcher: regexp.MustCompile(`^((\?!product).)*`),
+		productPathMatcher:  regexp.MustCompile(`^(/[.a-z0-9_\-]+)?/shop((\/product\/))([/.a-z0-9_\-]+)$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -50,7 +50,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 
 // ID
 func (c *_Crawler) ID() string {
-	return "b790c41a7de54f33b698170352afe0e1"
+	return "fe2669c60fa94d8595a59f10027a7877"
 }
 
 // Version
@@ -65,34 +65,26 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options.LoginRequired = false
 	options.EnableSessionInit = false
 	options.DisableCookieJar = true
-	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
-	options.MustHeader.Add("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.16; rv:85.0) Gecko/20100101 Firefox/85.0")
+	// options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+	options.MustHeader.Set("accept-encoding", "gzip, deflate, br")
+	options.MustCookies = append(options.MustCookies,
+		&http.Cookie{Name: "currency", Value: `USD`, Path: "/"},
+		&http.Cookie{Name: "shippingCountry", Value: `US`, Path: "/"},
+		&http.Cookie{Name: "mercury", Value: `false`, Path: "/"},
+	)
 
-	// options.MustCookies = append(options.MustCookies,
-	// 	&http.Cookie{Name: "shippingCountry", Value: "US", Path: "/"},
-	// 	&http.Cookie{Name: "currency", Value: "USD", Path: "/"},
-	// )
+	if u != nil {
+		// options.MustCookies = append(options.MustCookies, &http.Cookie{
+		// 	Name:  "FORWARDPAGE_KEY",
+		// 	Value: url.QueryEscape(u.String()),
+		// })
+		// options.MustHeader.Set("Referer", u.String())
+	}
 	return options
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"*.macys.com"}
-}
-
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
-	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.categoryPathMatcher,
-		c.productPathMatcher,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
-		}
-	}
-	return false
+	return []string{"*.bloomingdales.com"}
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -105,6 +97,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
+
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
 
@@ -112,11 +105,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")) + 1)
 }
-
-var (
-	prodDataExtraReg      = regexp.MustCompile(`(data-bootstrap="page/discovery-pages" type="application/json">)([^<]+)</script>`)
-	prodDataPaginationReg = regexp.MustCompile(`(data-bootstrap="feature/canvas"  type="application/json">)([^<]+)</script>`)
-)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -134,80 +122,98 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		c.logger.Error(err)
 		return err
 	}
-	sel := dom.Find(`.items > .productThumbnailItem`)
 
 	lastIndex := nextIndex(ctx)
+
+	sel := dom.Find(".items>.cell")
+	if len(sel.Nodes) == 0 {
+		return errors.New("no product found")
+	}
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
+		href := node.Find(`.productThumbnail .productDescLink`).AttrOr("href", "")
 
-		detailUrl := node.Find(".productDescription>a").AttrOr("href", "")
-		if detailUrl == "" {
-			continue
-		}
-		req, err := http.NewRequest(http.MethodGet, detailUrl, nil)
+		req, err := http.NewRequest(http.MethodGet, href, nil)
 		if err != nil {
-			c.logger.Errorf("invalud product detail url %s", detailUrl)
+			c.logger.Errorf("load http request of url %s failed, error=%s", href, err)
+			return err
 		}
 		req.Header.Set("Referer", resp.Request.URL.String())
-
+		req.AddCookie(&http.Cookie{Name: "FORWARDPAGE_KEY", Value: url.QueryEscape(resp.Request.URL.String())})
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		lastIndex += 1
+		lastIndex++
 
+		// yield sub request
 		if err := yield(nctx, req); err != nil {
 			return err
 		}
 	}
 
-	var pagination struct {
-		Row   int `json:"row"`
-		Model struct {
-			Pagination struct {
-				NextURL       string `json:"nextURL"`
-				BaseURL       string `json:"baseURL"`
-				NumberOfPages int    `json:"numberOfPages"`
-				CurrentPage   int    `json:"currentPage"`
-			} `json:"pagination"`
-		} `json:"model"`
+	pageIndex := dom.Find(`#sort-pagination-select-bottom > option[selected="selected"] + option`).AttrOr("value", "")
+	if pageIndex == "" {
+		return nil
 	}
-	pRawData := strings.TrimSpace(dom.Find(`script[data-bootstrap="feature/canvas"]`).Text())
-	if err := json.Unmarshal([]byte(pRawData), &pagination); err != nil {
-		c.logger.Errorf("unmarshal pagination info %s failed, error=%s", respBody, err)
-		return err
-	}
-	if pagination.Model.Pagination.NextURL != "" {
-		req, _ := http.NewRequest(http.MethodGet, pagination.Model.Pagination.NextURL, nil)
-		req.Header.Set("Referer", resp.Request.URL.String())
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		return yield(nctx, req)
-	}
-	return nil
-}
 
-type parseProductResponse struct {
-	Properties struct {
-		ASSETHOST string `json:"ASSET_HOST"`
-		Recaptcha struct {
-			ScriptURL string `json:"scriptUrl"`
-			SiteKey   string `json:"siteKey"`
-		} `json:"recaptcha"`
-	} `json:"properties"`
-	ISCLIENTLOGSENABLED bool   `json:"_IS_CLIENT_LOGS_ENABLED"`
-	PDPBOOTSTRAPDATA    string `json:"_PDP_BOOTSTRAP_DATA"`
+	u := *resp.Request.URL
+	fields := strings.Split(u.Path, "/")
+	if len(fields) > 3 && fields[len(fields)-2] == "Pageindex" {
+		fields[len(fields)-1] = pageIndex
+	} else {
+		fields = append(fields, "Pageindex", pageIndex)
+	}
+	u.Path = strings.Join(fields, "/")
+
+	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req.Header.Set("Referer", resp.Request.URL.String())
+	req.AddCookie(&http.Cookie{Name: "FORWARDPAGE_KEY", Value: url.QueryEscape(resp.Request.URL.String())})
+
+	nctx := context.WithValue(ctx, "item.index", lastIndex)
+	return yield(nctx, req)
 }
 
 type parseProductData struct {
-	UtagData struct {
-		ProductRating  []string `json:"product_rating"`
-		ProductReviews []string `json:"product_reviews"`
-	} `json:"utagData"`
+	Properties struct {
+		KlarnaLibraryID        string `json:"klarnaLibraryId"`
+		KlarnaLibrary          string `json:"klarnaLibrary"`
+		ProxyServiceHost       string `json:"proxyServiceHost"`
+		FooterServiceEndpoint  string `json:"footerServiceEndpoint"`
+		HeaderServiceEndpoint  string `json:"headerServiceEndpoint"`
+		KillswitchXapiURI      string `json:"killswitchXapiUri"`
+		FooterXapiURI          string `json:"footerXapiUri"`
+		HeaderXapiURI          string `json:"headerXapiUri"`
+		IsBot                  bool   `json:"isBot"`
+		FacebookAppID          string `json:"facebookAppId"`
+		WebConcurrency         string `json:"webConcurrency"`
+		StoreURLHost           string `json:"storeUrlHost"`
+		ImageBaseURL           string `json:"imageBaseUrl"`
+		AssetHost              string `json:"assetHost"`
+		Host                   string `json:"host"`
+		SecurityCspEnabled     bool   `json:"securityCspEnabled"`
+		IsTealiumEnabled       bool   `json:"isTealiumEnabled"`
+		WebcollageAPI          string `json:"webcollageApi"`
+		BrightcoveAPI          string `json:"brightcoveApi"`
+		BazaarvoicePrrAPI      string `json:"bazaarvoicePrrApi"`
+		BazaarvoiceIshipAPI    string `json:"bazaarvoiceIshipApi"`
+		BazaarvoiceAPI         string `json:"bazaarvoiceApi"`
+		CustomerServiceHost    string `json:"customerServiceHost"`
+		IsProduction           bool   `json:"isProduction"`
+		TagEnv                 string `json:"tagEnv"`
+		MasheryLocalHostHeader string `json:"masheryLocalHostHeader"`
+		ProductXapiHost        string `json:"productXapiHost"`
+		EntryPoint             string `json:"entryPoint"`
+		NodeEnv                string `json:"nodeEnv"`
+		XapiHost               string `json:"xapiHost"`
+		Key1                   string `json:"key1"`
+		RtoHost                string `json:"rtoHost"`
+		Brand                  string `json:"brand"`
+		DataMode               string `json:"dataMode"`
+		FooterSideCaching      string `json:"footerSideCaching"`
+		DtCollectorName        string `json:"dtCollectorName"`
+		DtNodeAgentPath        string `json:"dtNodeAgentPath"`
+		DtAgentName            string `json:"dtAgentName"`
+	} `json:"properties"`
 	Product struct {
-		ID         int `json:"id"`
-		Identifier struct {
-			ProductURL           string `json:"productUrl"`
-			ProductID            int    `json:"productId"`
-			TopLevelCategoryID   string `json:"topLevelCategoryID"`
-			TopLevelCategoryName string `json:"topLevelCategoryName"`
-		} `json:"identifier"`
+		ID     int `json:"id"`
 		Detail struct {
 			Name                 string `json:"name"`
 			Description          string `json:"description"`
@@ -263,13 +269,13 @@ type parseProductData struct {
 				ProcessedProdDesc                          bool `json:"processedProdDesc"`
 				EsecRemoveSecureUserTokenQueryParamEnabled bool `json:"esecRemoveSecureUserTokenQueryParamEnabled"`
 				SeeMoreExperienceEnabled                   bool `json:"seeMoreExperienceEnabled"`
-				StyleMeEnabled                             bool `json:"styleMeEnabled"`
-				ZeekitEnabled                              bool `json:"zeekitEnabled"`
-				AltModelSizesExperimentEnabled             bool `json:"altModelSizesExperimentEnabled"`
 				SeeMoreAndSizeChartExperienceEnabled       bool `json:"seeMoreAndSizeChartExperienceEnabled"`
 				SizeChartExperienceEnabled                 bool `json:"sizeChartExperienceEnabled"`
 				GwpExperienceEnabled                       bool `json:"gwpExperienceEnabled"`
 				BcomsyndigoEnabled                         bool `json:"bcomsyndigoEnabled"`
+				StyleMeEnabled                             bool `json:"styleMeEnabled"`
+				ZeekitEnabled                              bool `json:"zeekitEnabled"`
+				AltModelSizesExperimentEnabled             bool `json:"altModelSizesExperimentEnabled"`
 				PDPColorized                               bool `json:"PDPColorized"`
 				IsShoeSizeSelectorsEnabled                 bool `json:"isShoeSizeSelectorsEnabled"`
 				IsEligibleForColorwayPromoBadging          bool `json:"isEligibleForColorwayPromoBadging"`
@@ -281,17 +287,16 @@ type parseProductData struct {
 				Phase2DesktopBVAPITrt1Enabled              bool `json:"phase2DesktopBVApiTrt1Enabled"`
 				Phase2DesktopBVAPITrt2Enabled              bool `json:"phase2DesktopBVApiTrt2Enabled"`
 				Phase2MobileBVAPITrt1Enabled               bool `json:"phase2MobileBVApiTrt1Enabled"`
-				IsBVAPIExpArmOneEnabled                    bool `json:"isBVApiExpArmOneEnabled"`
-				PdpExpansionEnabled                        bool `json:"pdpExpansionEnabled"`
-				IsWebCollageOutFromTabs                    bool `json:"isWebCollageOutFromTabs"`
-				IsDressSizeSelectorsEnabled                bool `json:"isDressSizeSelectorsEnabled"`
-				IsTrueCollectionsEnabled                   bool `json:"isTrueCollectionsEnabled"`
-				IsReviewPhotosUploadEnabled                bool `json:"isReviewPhotosUploadEnabled"`
-				IsVideoImageRailEnabled                    bool `json:"isVideoImageRailEnabled"`
-				IsReviewsPage                              bool `json:"isReviewsPage"`
-				IsBVAPIExpArmTwoEnabled                    bool `json:"isBVApiExpArmTwoEnabled"`
 				IsNew                                      bool `json:"isNew"`
 				IsFindationEnabled                         bool `json:"isFindationEnabled"`
+				PdpExpansionEnabled                        bool `json:"pdpExpansionEnabled"`
+				IsReviewPhotosUploadEnabled                bool `json:"isReviewPhotosUploadEnabled"`
+				IsWebCollageOutFromTabs                    bool `json:"isWebCollageOutFromTabs"`
+				IsDressSizeSelectorsEnabled                bool `json:"isDressSizeSelectorsEnabled"`
+				IsVideoImageRailEnabled                    bool `json:"isVideoImageRailEnabled"`
+				IsTrueCollectionsEnabled                   bool `json:"isTrueCollectionsEnabled"`
+				IsReviewsPage                              bool `json:"isReviewsPage"`
+				IsEGiftCard                                bool `json:"isEGiftCard"`
 			} `json:"flags"`
 			ReviewStatistics struct {
 				Aggregate struct {
@@ -300,14 +305,11 @@ type parseProductData struct {
 					Count            int     `json:"count"`
 				} `json:"aggregate"`
 			} `json:"reviewStatistics"`
-			QuestionAnswer struct {
-				QuestionCount int `json:"questionCount"`
-				AnswerCount   int `json:"answerCount"`
-			} `json:"questionAnswer"`
 			OrderedMasterGroupList []interface{} `json:"orderedMasterGroupList"`
 			MemberDisplayGroupsMap struct {
 			} `json:"memberDisplayGroupsMap"`
 			BulletText            []string `json:"bulletText"`
+			MaterialsAndCare      []string `json:"materialsAndCare"`
 			MaxQuantity           int      `json:"maxQuantity"`
 			TypeName              string   `json:"typeName"`
 			AdditionalImagesCount int      `json:"additionalImagesCount"`
@@ -319,61 +321,39 @@ type parseProductData struct {
 				SubBrand      string `json:"subBrand"`
 				BrandBreakout bool   `json:"brandBreakout"`
 			} `json:"brand"`
-			BulletLinks         []interface{} `json:"bulletLinks"`
-			PdfEmailDescription string        `json:"pdfEmailDescription"`
-			MemberProductCount  int           `json:"memberProductCount"`
-			CompleteName        string        `json:"completeName"`
-			ProcessedProdDesc   struct {
-				ProductDetails []string `json:"productDetails"`
-				SizeAndFit     []string `json:"sizeAndFit"`
-				FabricAndCare  []string `json:"fabricAndCare"`
-			} `json:"processedProdDesc"`
-			Metric struct {
-				ProductUnitSalesCount        string `json:"productUnitSalesCount"`
-				ProductUnitSalesCountMessage string `json:"productUnitSalesCountMessage"`
-			} `json:"metric"`
-			Klarna struct {
+			BulletLinks            []interface{} `json:"bulletLinks"`
+			PdfEmailDescription    string        `json:"pdfEmailDescription"`
+			MemberProductCount     int           `json:"memberProductCount"`
+			CompleteName           string        `json:"completeName"`
+			DimensionsHeaderText   string        `json:"dimensionsHeaderText"`
+			DressOccasion          string        `json:"dressOccasion"`
+			SizeLabel              string        `json:"sizeLabel"`
+			KidsChokingHazardLabel string        `json:"kidsChokingHazardLabel"`
+			Klarna                 struct {
 				KlarnaDataClientID    string `json:"klarnaDataClientId"`
 				KlarnaOnsiteJsSdkPath string `json:"klarnaOnsiteJsSdkPath"`
 			} `json:"klarna"`
+			ReviewTitle string `json:"reviewTitle"`
 		} `json:"detail"`
-		Shipping struct {
-			ReturnConstraintMessage string   `json:"returnConstraintMessage"`
-			Notes                   []string `json:"notes"`
-			FreeShippingMessages    []string `json:"freeShippingMessages"`
-		} `json:"shipping"`
 		Relationships struct {
 			Taxonomy struct {
 				Categories []struct {
 					Name string `json:"name"`
 					URL  string `json:"url"`
-					Type string `json:"type"`
 					ID   int    `json:"id"`
 				} `json:"categories"`
 				DefaultCategoryID int `json:"defaultCategoryId"`
 			} `json:"taxonomy"`
 			Upcs map[string]struct {
-				//Num44742859 struct {
 				ID         int `json:"id"`
 				Identifier struct {
 					UpcNumber string `json:"upcNumber"`
 				} `json:"identifier"`
-				Department struct {
-					DepartmentID   int    `json:"departmentId"`
-					DepartmentName string `json:"departmentName"`
-				} `json:"department"`
-				ClassCode     int    `json:"classCode"`
-				SubClassCode  int    `json:"subClassCode"`
-				VendorCode    int    `json:"vendorCode"`
-				MarkStyleCode string `json:"markStyleCode"`
-				Relationships struct {
-				} `json:"relationships"`
 				Availability struct {
 					CheckInStoreEligibility bool   `json:"checkInStoreEligibility"`
 					Available               bool   `json:"available"`
 					ShipDays                int    `json:"shipDays"`
 					Message                 string `json:"message"`
-					AvailabilityMessage     string `json:"availabilityMessage"`
 					OrderType               string `json:"orderType"`
 					BopsAvailability        bool   `json:"bopsAvailability"`
 					BossAvailability        bool   `json:"bossAvailability"`
@@ -391,35 +371,12 @@ type parseProductData struct {
 				HolidayMessageEligible bool          `json:"holidayMessageEligible"`
 			} `json:"upcs"`
 		} `json:"relationships"`
-		Imagery struct {
-			Images []struct {
-				FilePath             string `json:"filePath"`
-				Name                 string `json:"name"`
-				ShowJumboSwatch      bool   `json:"showJumboSwatch"`
-				SwatchSpriteOffset   int    `json:"swatchSpriteOffset"`
-				SwatchSpriteURLIndex int    `json:"swatchSpriteUrlIndex"`
-			} `json:"images"`
-			SmallImagesSprites struct {
-				SpriteUrls      []string `json:"spriteUrls"`
-				ImagesWidth     int      `json:"imagesWidth"`
-				ImagesHeight    int      `json:"imagesHeight"`
-				ImagesPerSprite int      `json:"imagesPerSprite"`
-			} `json:"smallImagesSprites"`
-			ItemQty                        int  `json:"itemQty"`
-			HasImagesRail                  bool `json:"hasImagesRail"`
-			ApplyFixForManyAltImagesMobile bool `json:"applyFixForManyAltImagesMobile"`
-		} `json:"imagery"`
-		Availability struct {
-			CheckInStoreEligibility bool `json:"checkInStoreEligibility"`
-			Available               bool `json:"available"`
-			BopsAvailability        bool `json:"bopsAvailability"`
-			BossAvailability        bool `json:"bossAvailability"`
-			StoreAvailability       bool `json:"storeAvailability"`
-		} `json:"availability"`
+
 		Traits struct {
 			Colors struct {
 				SelectedColor int `json:"selectedColor"`
 				ColorMap      map[string]struct {
+					//Num1817529 struct {
 					ID          int    `json:"id"`
 					Name        string `json:"name"`
 					NormalName  string `json:"normalName"`
@@ -444,6 +401,12 @@ type parseProductData struct {
 							ImagesHeight    int      `json:"imagesHeight"`
 							ImagesPerSprite int      `json:"imagesPerSprite"`
 						} `json:"smallImagesSprites"`
+						LargeImagesSprites struct {
+							SpriteUrls      []string `json:"spriteUrls"`
+							ImagesWidth     int      `json:"imagesWidth"`
+							ImagesHeight    int      `json:"imagesHeight"`
+							ImagesPerSprite int      `json:"imagesPerSprite"`
+						} `json:"largeImagesSprites"`
 						PrimaryImage struct {
 							FilePath             string `json:"filePath"`
 							Name                 string `json:"name"`
@@ -465,6 +428,8 @@ type parseProductData struct {
 								ApplicableToAllUpcs bool `json:"applicableToAllUpcs"`
 								SelectItemsOnSale   bool `json:"selectItemsOnSale"`
 								IsMasterNonRanged   bool `json:"isMasterNonRanged"`
+								IsFinalOfferType    bool `json:"isFinalOfferType"`
+								ShowFinalOfferText  bool `json:"showFinalOfferText"`
 							} `json:"priceType"`
 							Policy struct {
 								Text string `json:"text"`
@@ -479,26 +444,21 @@ type parseProductData struct {
 								} `json:"values"`
 							} `json:"tieredPrice"`
 							PriceTypeID int `json:"priceTypeId"`
-							FinalPrice  struct {
-								Label  string `json:"label"`
-								Values []struct {
-									Value          float64 `json:"value"`
-									FormattedValue string  `json:"formattedValue"`
-									Type           string  `json:"type"`
-								} `json:"values"`
-								MaskPromotion        bool     `json:"maskPromotion"`
-								ApplicablePromotions []string `json:"applicablePromotions"`
-								PromoCode            string   `json:"promoCode"`
-							} `json:"finalPrice"`
 						} `json:"price"`
 						BadgeIds []string `json:"badgeIds"`
 					} `json:"pricing"`
+					//} `json:"1817529"`
 				} `json:"colorMap"`
 				SwatchSprite struct {
 					SwatchSpriteUrls  []string `json:"swatchSpriteUrls"`
 					SpriteSwatchSize  int      `json:"spriteSwatchSize"`
 					SwatchesPerSprite int      `json:"swatchesPerSprite"`
 				} `json:"swatchSprite"`
+				LargeSwatchSprite struct {
+					SwatchSpriteUrls  []string `json:"swatchSpriteUrls"`
+					SpriteSwatchSize  int      `json:"spriteSwatchSize"`
+					SwatchesPerSprite int      `json:"swatchesPerSprite"`
+				} `json:"largeSwatchSprite"`
 				OrderedColorsByID   []int `json:"orderedColorsById"`
 				OrderedColorsByName []int `json:"orderedColorsByName"`
 			} `json:"colors"`
@@ -521,87 +481,15 @@ type parseProductData struct {
 				} `json:"priceToColors"`
 			} `json:"traitsMaps"`
 		} `json:"traits"`
-		Pricing struct {
-			Price struct {
-				PriceType struct {
-					OnEdv               bool `json:"onEdv"`
-					OnSale              bool `json:"onSale"`
-					UpcOnSale           bool `json:"upcOnSale"`
-					UpcOnEdv            bool `json:"upcOnEdv"`
-					MemberProductOnSale bool `json:"memberProductOnSale"`
-					WillBe              bool `json:"willBe"`
-					ApplicableToAllUpcs bool `json:"applicableToAllUpcs"`
-					SelectItemsOnSale   bool `json:"selectItemsOnSale"`
-					IsMasterNonRanged   bool `json:"isMasterNonRanged"`
-				} `json:"priceType"`
-				Policy struct {
-					Text string `json:"text"`
-					URL  string `json:"url"`
-				} `json:"policy"`
-				TieredPrice []struct {
-					Label  string `json:"label"`
-					Values []struct {
-						Value          float64 `json:"value"`
-						FormattedValue string  `json:"formattedValue"`
-						Type           string  `json:"type"`
-					} `json:"values"`
-				} `json:"tieredPrice"`
-				PriceTypeID int `json:"priceTypeId"`
-				FinalPrice  struct {
-					Label  string `json:"label"`
-					Values []struct {
-						Value          float64 `json:"value"`
-						FormattedValue string  `json:"formattedValue"`
-						Type           string  `json:"type"`
-					} `json:"values"`
-					MaskPromotion        bool     `json:"maskPromotion"`
-					ApplicablePromotions []string `json:"applicablePromotions"`
-					PromoCode            string   `json:"promoCode"`
-				} `json:"finalPrice"`
-			} `json:"price"`
-			BadgesMap map[string]struct {
-				//Num19909501 struct {
-				WalletEligible          bool   `json:"walletEligible"`
-				CheckoutDescription     string `json:"checkoutDescription"`
-				Description             string `json:"description"`
-				PromoID                 string `json:"promoId"`
-				Header                  string `json:"header"`
-				ApplicableToAllUpcs     bool   `json:"applicableToAllUpcs"`
-				Offer                   string `json:"offer"`
-				PromotionType           string `json:"promotionType"`
-				HasMorePromotionDetails bool   `json:"hasMorePromotionDetails"`
-				//} `json:"19909501"`
-			} `json:"badgesMap"`
-			BadgeIds []string `json:"badgeIds"`
-		} `json:"pricing"`
-		Review struct {
-			HasErrors bool `json:"hasErrors"`
-			Reviews   []struct {
-				ReviewID           int     `json:"reviewId"`
-				Rating             float32 `json:"rating"`
-				Title              string  `json:"title"`
-				ReviewText         string  `json:"reviewText"`
-				TopContributor     bool    `json:"topContributor"`
-				Anonymous          bool    `json:"anonymous"`
-				DisplayName        string  `json:"displayName"`
-				IncentivizedReview bool    `json:"incentivizedReview"`
-			} `json:"reviews"`
-		} `json:"review"`
-		ProtectionPlans []interface{} `json:"protectionPlans"`
-		URLTemplate     struct {
-			Swatch       string `json:"swatch"`
-			SwatchSprite string `json:"swatchSprite"`
-			Product      string `json:"product"`
-		} `json:"urlTemplate"`
-		HolidayMessageEligible bool `json:"holidayMessageEligible"`
-		Seotags                struct {
-			Seotags string `json:"seotags"`
-		} `json:"seotags"`
 	} `json:"product"`
+	UtagData struct {
+		ProductRating  []string `json:"product_rating"`
+		ProductReviews []string `json:"product_reviews"`
+	} `json:"utagData"`
 }
 
 var (
-	detailReg = regexp.MustCompile(`(?U)<script[^>]*>\s*window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
+	detailReg = regexp.MustCompile(`(?U)<script\s+data-bootstrap="page/product"\s*type="application/json">({.*})</script>`)
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -622,31 +510,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	var (
-		i  parseProductResponse
 		pd parseProductData
 	)
 
-	if err = json.Unmarshal(matched[1], &i); err != nil {
+	if err = json.Unmarshal(matched[1], &pd); err != nil {
 		c.logger.Error(err)
 		return err
 	}
 
-	if err = json.Unmarshal([]byte(i.PDPBOOTSTRAPDATA), &pd); err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	var (
-		reviewCount int64
-		rating      float64
-	)
-
-	if len(pd.UtagData.ProductReviews) > 0 {
-		reviewCount, _ = strconv.ParseInt(pd.UtagData.ProductReviews[0])
-	}
-	if len(pd.UtagData.ProductRating) > 0 {
-		rating, _ = strconv.ParseFloat(pd.UtagData.ProductRating[0])
-	}
+	reviewCount, _ := strconv.ParseFloat(pd.UtagData.ProductReviews[0])
+	rating, _ := strconv.ParseFloat(pd.UtagData.ProductRating[0])
 
 	item := pbItem.Product{
 		Source: &pbItem.Source{
@@ -656,6 +529,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Title:       pd.Product.Detail.Name,
 		Description: pd.Product.Detail.Description,
 		BrandName:   pd.Product.Detail.Brand.Name,
+		//CrowdType:    i.Details.GenderName,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
@@ -667,74 +541,84 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	for i, cate := range pd.Product.Relationships.Taxonomy.Categories {
 		switch i {
 		case 0:
-			item.CrowdType = strings.ToLower(cate.Name)
-		case 1:
 			item.Category = cate.Name
-		case 2:
+		case 1:
 			item.SubCategory = cate.Name
-		case 3:
+		case 2:
 			item.SubCategory2 = cate.Name
 		}
 	}
+	for skuId, rawSku := range pd.Product.Relationships.Upcs {
+		colorId := strconv.Format(rawSku.Traits.Colors.SelectedColor)
+		color := pd.Product.Traits.Colors.ColorMap[colorId]
+		sizeId := strconv.Format(rawSku.Traits.Sizes.SelectedSize)
+		size := pd.Product.Traits.Sizes.SizeMap[sizeId]
 
-	colors := pd.Product.Traits.Colors
-	sizes := pd.Product.Traits.Sizes
-	for id, p := range pd.Product.Relationships.Upcs {
+		var (
+			current, msrp, discount float64
+		)
+		for _, p := range color.Pricing.Price.TieredPrice {
+			if len(p.Values) == 0 {
+				continue
+			}
+			if current == 0 && msrp == 0 {
+				current, msrp = p.Values[0].Value, p.Values[0].Value
+			} else if p.Values[0].Value > msrp {
+				msrp = p.Values[0].Value
+			} else if p.Values[0].Value < current {
+				current = p.Values[0].Value
+			}
+		}
+		if msrp == 0 {
+			return fmt.Errorf("no msrp price found for %s", resp.Request.URL)
+		}
+		discount = math.Ceil((msrp - current) * 100 / msrp)
+
+		var medias []*pbMedia.Media
+		for key, img := range color.Imagery.Images {
+			medias = append(medias, pbMedia.NewImageMedia(
+				"",
+				"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath,
+				"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath+"?op_sharpen=1&wid=1000",
+				"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath+"?op_sharpen=1&wid=700",
+				"https://images.bloomingdalesassets.com/is/image/BLM/products/"+img.FilePath+"?op_sharpen=1&wid=450",
+				"",
+				key == 0,
+			))
+		}
 
 		sku := pbItem.Sku{
-			SourceId: id,
-			Price:    &pbItem.Price{Currency: regulation.Currency_USD},
-			Stock:    &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			SourceId: skuId,
+			Price: &pbItem.Price{
+				Currency: regulation.Currency_USD,
+				Current:  int32(current * 100),
+				Msrp:     int32(msrp * 100),
+				Discount: int32(discount),
+			},
+			Medias: medias,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
 		}
-		if p.Availability.Available {
-			sku.Stock.StockStatus = pbItem.Stock_InStock
-		}
+		// if rawSize.StockLevelStatus == "inStock" {  // ASk ?
+		// 	sku.Stock.StockStatus = pbItem.Stock_InStock
+		// 	//sku.Stock.StockCount = int32(rawSize.Quantity)
+		// }
 
-		if color, ok := colors.ColorMap[strconv.Format(p.Traits.Colors.SelectedColor)]; ok {
-			// build color sku
-			spec := pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    strconv.Format(color.ID),
-				Name:  color.NormalName,
-				Value: color.Name,
-			}
-			sku.Specs = append(sku.Specs, &spec)
-
-			current := color.Pricing.Price.TieredPrice[1].Values[0].Value
-			msrp := color.Pricing.Price.TieredPrice[0].Values[0].Value
-			discount := math.Ceil((msrp - current) * 100 / msrp)
-			sku.Price.Current = int32(current * 100)
-			sku.Price.Msrp = int32(msrp * 100)
-			sku.Price.Discount = int32(discount)
-
-			for i, img := range color.Imagery.Images {
-				itemImg, _ := anypb.New(&media.Media_Image{
-					OriginalUrl: "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath,
-					LargeUrl:    "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=1230&hei=1500&op_sharpen=1", // $S$, $XXL$
-					MediumUrl:   "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=640&hei=780&op_sharpen=1",
-					SmallUrl:    "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=500&hei=609&op_sharpen=1",
-				})
-				sku.Medias = append(sku.Medias, &media.Media{
-					Detail:    itemImg,
-					IsDefault: i == 0,
-				})
-			}
-		}
-		if size, ok := sizes.SizeMap[strconv.Format(p.Traits.Sizes.SelectedSize)]; ok {
-			spec := pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    strconv.Format(size.ID),
-				Name:  size.DisplayName,
-				Value: size.Name,
-			}
-			sku.Specs = append(sku.Specs, &spec)
-		}
-		if len(sku.Specs) == 0 {
-			return fmt.Errorf("got invalid sku, got no sku spec")
-		}
+		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecColor,
+			Id:    colorId,
+			Name:  color.NormalName,
+			Value: color.NormalName,
+		})
+		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecSize,
+			Id:    sizeId,
+			Name:  size.DisplayName,
+			Value: size.Name,
+		})
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
+	// yield item result
 	if err = yield(ctx, &item); err != nil {
 		return err
 	}
@@ -743,8 +627,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.macys.com/shop/womens-clothing/womens-sale-clearance?id=10066",
-		// "https://www.macys.com/shop/product/style-co-ribbed-hoodie-sweater-created-for-macys?ID=11393511&CategoryID=10066",
+		"https://www.bloomingdales.com/shop/womens-apparel/tops-tees?id=5619",
+		// "https://www.bloomingdales.com/shop/product/aqua-passion-sleeveless-maxi-dress-100-exclusive?ID=3996369&CategoryID=21683",
+		// "https://www.bloomingdales.com/shop/product/a.l.c.-kati-puff-sleeve-tee?ID=3202505&CategoryID=5619",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -761,10 +646,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
+// local test
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
-	// build a http client
+	// build a http client.
 	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
@@ -787,7 +672,9 @@ func main() {
 
 			// init custom headers
 			for k := range opts.MustHeader {
-				i.Header.Set(k, opts.MustHeader.Get(k))
+				if i.Header.Get(k) == "" {
+					i.Header.Set(k, opts.MustHeader.Get(k))
+				}
 			}
 
 			// init custom cookies
@@ -808,14 +695,13 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "www.macys.com"
+				i.URL.Host = "www.bloomingdales.com"
 			}
 
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
 
-			// nctx = context.WithValue(nctx, "tracing_id", fmt.Sprintf("macy_%d", time.Now().UnixNano()))
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
@@ -841,7 +727,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("macy_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("bloomingdales_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {

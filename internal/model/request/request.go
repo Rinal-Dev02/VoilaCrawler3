@@ -132,6 +132,18 @@ func (r *Request) Validate() error {
 	return nil
 }
 
+func (r *Request) Cookies() []*pbHttp.Cookie {
+	if r == nil || r.GetCustomCookies() == "" {
+		return nil
+	}
+
+	var cookies []*pbHttp.Cookie
+	if err := json.Unmarshal([]byte(r.GetCustomCookies()), &cookies); err != nil {
+		return nil
+	}
+	return cookies
+}
+
 func (r *Request) Unmarshal(ret interface{}) error {
 	if r == nil {
 		return errors.New("empty")
@@ -177,6 +189,7 @@ func (r *Request) Unmarshal(ret interface{}) error {
 		val.Method = r.GetMethod()
 		val.Url = r.GetUrl()
 		val.Body = []byte(r.GetBody())
+
 		val.Headers = map[string]*pbHttp.ListValue{}
 		val.Options = &pbProxy.Request_Options{
 			EnableProxy:      !r.GetOptions().GetDisableProxy(),
@@ -185,9 +198,22 @@ func (r *Request) Unmarshal(ret interface{}) error {
 		if val.Options.MaxTtlPerRequest == 0 {
 			val.Options.MaxTtlPerRequest = int64(config.DefaultTtlPerRequest)
 		}
+		if r.GetCustomHeaders() != "" {
+			headers := map[string]string{}
+			if err := json.Unmarshal([]byte(r.GetCustomHeaders()), &headers); err != nil {
+				return err
+			}
+			for k, v := range headers {
+				if k == "Cookie" {
+					continue
+				}
+				val.Headers[k] = &pbHttp.ListValue{Values: []string{v}}
+			}
+		}
 
-		var cookie string
 		if r.GetCustomCookies() != "" {
+			var cookie string
+
 			var cookies []*pbHttp.Cookie
 			if err := json.Unmarshal([]byte(r.GetCustomCookies()), &cookies); err != nil {
 				return err
@@ -199,21 +225,7 @@ func (r *Request) Unmarshal(ret interface{}) error {
 					cookie = "; " + c.Name + "=" + c.Value
 				}
 			}
-		}
-		if r.GetCustomHeaders() != "" {
-			headers := map[string]string{}
-			if err := json.Unmarshal([]byte(r.GetCustomHeaders()), &headers); err != nil {
-				return err
-			}
-			for k, v := range headers {
-				if k == "Cookie" {
-					if cookie != "" {
-						cookie = cookie + "; "
-					}
-					v = cookie + v
-				}
-				val.Headers[k] = &pbHttp.ListValue{Values: []string{v}}
-			}
+			val.Headers["Cookie"] = &pbHttp.ListValue{Values: []string{cookie}}
 		}
 	default:
 		return errors.New("unsupported unmarshal type")

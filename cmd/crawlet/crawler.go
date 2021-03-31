@@ -56,7 +56,7 @@ func (e *Crawler) SetHeader(r *http.Request) *http.Request {
 		return nil
 	}
 
-	options := e.CrawlOptions()
+	options := e.CrawlOptions(r.URL)
 	for key := range options.MustHeader {
 		r.Header.Set(key, options.MustHeader.Get(key))
 	}
