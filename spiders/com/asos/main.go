@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -22,6 +23,8 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -38,7 +41,7 @@ type _Crawler struct {
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:              client,
-		categoryPathMatcher:     regexp.MustCompile(`^(/[a-z0-9_-]+)?/(women|men)(/[a-z0-9_-]+){1,2}/cat/?$`),
+		categoryPathMatcher:     regexp.MustCompile(`^(/[a-z0-9_-]+)?/(women|men)(/[a-z0-9_-]+){1,6}/cat/?$`),
 		categoryJsonPathMatcher: regexp.MustCompile(`^/api/product/search/v2/categories/([a-z0-9]+)`),
 		productGroupPathMatcher: regexp.MustCompile(`^(/[a-z0-9_-]+)?(/[a-z0-9_-]+){2}/grp/[0-9]+/?$`),
 		productPathMatcher:      regexp.MustCompile(`^(/[a-z0-9_-]+)?(/[a-z0-9_-]+){2}/prd/[0-9]+/?$`),
@@ -58,11 +61,11 @@ func (c *_Crawler) Version() int32 {
 }
 
 // CrawlOptions
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
-	options.EnableHeadless = false
+	options.EnableHeadless = true
 	options.LoginRequired = false
-	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
+	options.EnableSessionInit = false
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
 		// &http.Cookie{Name: "browseCountry", Value: "US", Path: "/"},
@@ -71,30 +74,14 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
 		// &http.Cookie{Name: "browseSizeSchema", Value: "US", Path: "/"},
 		// &http.Cookie{Name: "storeCode", Value: "US", Path: "/"},
+		// &http.Cookie{Name: "currency", Value: "2", Path: "/"},
 	)
+
 	return options
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.asos.com"}
-}
-
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
-	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.categoryPathMatcher,
-		c.categoryJsonPathMatcher,
-		c.productGroupPathMatcher,
-		c.productPathMatcher,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
-		}
-	}
-	return false
+	return []string{"*.asos.com"}
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -179,15 +166,15 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			rawurl = prod.Url
 		}
 
-		if req, err := http.NewRequest(http.MethodGet, rawurl, nil); err != nil {
+		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
+		if err != nil {
 			c.logger.Debug(err)
 			return err
-		} else {
-			nnctx := context.WithValue(nctx, "item.index", lastIndex+1)
-			lastIndex += 1
-			if err = yield(nnctx, req); err != nil {
-				return err
-			}
+		}
+		nnctx := context.WithValue(nctx, "item.index", lastIndex+1)
+		lastIndex += 1
+		if err = yield(nnctx, req); err != nil {
+			return err
 		}
 	}
 
@@ -204,6 +191,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	vals.Set("limit", strconv.Format(len(r.Search.Products)))
 	u.RawQuery = vals.Encode()
 
+	nctx = context.WithValue(nctx, "referer", resp.Request.URL.String())
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 	return yield(context.WithValue(nctx, "item.index", lastIndex), req)
 }
@@ -267,7 +255,14 @@ func (c *_Crawler) parseCategoryProductsJson(ctx context.Context, resp *http.Res
 	u.RawQuery = vals.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-	req.Header.Set("Referer", resp.Request.Header.Get("Referer"))
+	if val := ctx.Value("referer"); val != nil {
+		if referer, _ := val.(string); referer != "" {
+			req.Header.Set("Referer", referer)
+		}
+	}
+	if req.Header.Get("Referer") == "" && resp.Request.Header.Get("Referer") != "" {
+		req.Header.Set("Referer", resp.Request.Header.Get("Referer"))
+	}
 	return yield(context.WithValue(ctx, "item.index", lastIndex), req)
 }
 
@@ -436,10 +431,10 @@ type parseProductStockPrice struct {
 			ConversionID string  `json:"conversionId"`
 		} `json:"previous"`
 		Rrp struct {
-			Value        interface{} `json:"value"`
-			Text         interface{} `json:"text"`
-			VersionID    string      `json:"versionId"`
-			ConversionID string      `json:"conversionId"`
+			Value        float64 `json:"value"`
+			Text         string  `json:"text"`
+			VersionID    string  `json:"versionId"`
+			ConversionID string  `json:"conversionId"`
 		} `json:"rrp"`
 		Xrp struct {
 			Value        float64 `json:"value"`
@@ -480,11 +475,11 @@ type parseProductRatingResponse struct {
 }
 
 var (
-	detailReg     = regexp.MustCompile(`window\.asos\.pdp\.config\.product\s*=\s*({[^;]+});`)
-	stockPriceReg = regexp.MustCompile(`window\.asos\.pdp\.config\.stockPriceApiUrl\s*=\s*'(/api/product/catalogue/[^;]+)'\s*;`)
-	appVersionReg = regexp.MustCompile(`window\.asos\.pdp\.config\.appVersion\s*=\s*'([a-z0-9-.]+)';`)
-	ratingReg     = regexp.MustCompile(`window\.asos\.pdp\.config\.ratings\s*=\s*([^;]*);`)
-	descReg       = regexp.MustCompile(`<script\s+id="split\-structured\-data"\s+type="application/ld\+json">(.*)</script>`)
+	detailReg     = regexp.MustCompile(`(?U)window\.asos\.pdp\.config\.product\s*=\s*({[^;]+});`)
+	stockPriceReg = regexp.MustCompile(`(?U)window\.asos\.pdp\.config\.stockPriceApiUrl\s*=\s*'(/api/product/catalogue/[^;]+)'\s*;`)
+	appVersionReg = regexp.MustCompile(`(?U)window\.asos\.pdp\.config\.appVersion\s*=\s*'([a-z0-9-.]+)';`)
+	ratingReg     = regexp.MustCompile(`(?U)window\.asos\.pdp\.config\.ratings\s*=\s*({.*});`)
+	descReg       = regexp.MustCompile(`(?U)<script\s+id="split\-structured\-data"\s+type="application/ld\+json">(.*)</script>`)
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -522,9 +517,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Error(err)
 		return err
 	}
-	if err = json.Unmarshal(matchedRating[1], &rating); err != nil {
-		c.logger.Error(err)
-		return err
+	if len(matchedRating) > 1 {
+		if err = json.Unmarshal(matchedRating[1], &rating); err != nil {
+			c.logger.Errorf("%s, error=%s", matchedRating[1], err)
+			return err
+		}
 	}
 	if len(matchedDesc) > 1 {
 		if err = json.Unmarshal(matchedDesc[1], &desc); err != nil {
@@ -542,10 +539,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			c.logger.Error(err)
 			return err
 		}
-		opts := c.CrawlOptions()
+		vals := req.URL.Query()
+		vals.Set("store", "US")
+		vals.Set("currency", "USD")
+		req.URL.RawQuery = vals.Encode()
+
+		opts := c.CrawlOptions(resp.Request.URL)
 		for k := range opts.MustHeader {
 			req.Header.Set(k, opts.MustHeader.Get(k))
 		}
+		req.Header.Set("accept-encoding", "gzip, deflate, br")
+		req.Header.Set("accept", "*/*")
 		req.Header.Set("Referer", resp.Request.URL.String())
 		req.Header.Set("User-Agent", resp.Request.Header.Get("User-Agent"))
 		req.Header.Set("asos-c-name", "asos-web-productpage")
@@ -564,7 +568,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 			EnableProxy:    true,
-			EnableHeadless: c.CrawlOptions().EnableHeadless,
+			EnableHeadless: c.CrawlOptions(resp.Request.URL).EnableHeadless,
+			Reliability:    c.CrawlOptions(resp.Request.URL).Reliability,
 		})
 		if err != nil {
 			c.logger.Error(err)
@@ -577,9 +582,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			return fmt.Errorf(resp.Status)
 		}
 
-		var stockPrices []*parseProductStockPrice
-		if err := json.NewDecoder(resp.Body).Decode(&stockPrices); err != nil {
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
 			c.logger.Error(err)
+			return err
+		}
+
+		var stockPrices []*parseProductStockPrice
+		if err := json.Unmarshal(data, &stockPrices); err != nil {
+			c.logger.Errorf("%s, error=%s", data, err)
 			return err
 		}
 		if len(stockPrices) > 0 {
@@ -649,6 +660,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				// 接口里返回的都是美元价格，请求的页面path有个 /us 前缀
 				Currency: regulation.Currency_USD,
 				Current:  int32(vv.Price.Current.Value * 100),
+				Msrp:     int32(vv.Price.Previous.Value * 100),
 			},
 			Stock: &pbItem.Stock{
 				StockStatus: pbItem.Stock_OutOfStock,
@@ -669,6 +681,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if vv.IsInStock {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
 		}
+		if item.Price.Msrp == 0 {
+			item.Price.Msrp = sku.Price.Msrp
+		}
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 	return yield(ctx, &item)
@@ -676,10 +691,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.asos.com/us/women/new-in/new-in-clothing/cat/?cid=2623&nlid=ww%7Cclothing%7Cshop%20by%20product&page=1",
-		"https://www.asos.com/api/product/search/v2/categories/2623?channel=desktop-web&country=US&currency=USD&keyStoreDataversion=3pmn72e-27&lang=en-US&limit=72&nlid=ww%7Cclothing%7Cshop+by+product&offset=72&rowlength=4&store=US",
-		"https://www.asos.com/us/missguided-plus/missguided-plus-oversized-long-sleeve-t-shirt-in-gray-snake-tie-dye/prd/23385813?colourwayid=60477943&SearchQuery=&cid=4169",
-		"https://www.asos.com/us/asos-design/asos-design-tie-front-maxi-beach-set-in-black/grp/33060?colourwayid=60343707#22019820&SearchQuery=&cid=2623",
+		"https://www.asos.com/us/women/outlet/ctas/timed-sales/timed-sale-1/cat/?cid=28030",
+		// "https://www.asos.com/us/catch/catch-exclusive-ribbed-tie-cardigan-set-in-beige/grp/34104?colourwayid=60431494&cid=2623",
+		// "https://www.asos.com/us/olivia-burton/olivia-burton-white-dial-midi-mesh-watch-in-rose-gold/prd/22313628?colourwayid=60389207&cid=5088",
+		// "https://www.asos.com/us/women/new-in/new-in-clothing/cat/?cid=2623&nlid=ww%7Cclothing%7Cshop%20by%20product&page=1",
+		// "https://www.asos.com/api/product/search/v2/categories/2623?channel=desktop-web&country=US&currency=USD&keyStoreDataversion=3pmn72e-27&lang=en-US&limit=72&nlid=ww%7Cclothing%7Cshop+by+product&offset=72&rowlength=4&store=US",
+		// "https://www.asos.com/us/missguided-plus/missguided-plus-oversized-long-sleeve-t-shirt-in-gray-snake-tie-dye/prd/23385813?colourwayid=60477943&SearchQuery=&cid=4169",
+		// "https://www.asos.com/us/asos-design/asos-design-tie-front-maxi-beach-set-in-black/grp/33060?colourwayid=60343707#22019820&SearchQuery=&cid=2623",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -696,60 +714,90 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
+	// build a http client
+	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
 
+	// instance the spider locally
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
 
+	// this callback func is used to do recursion call of sub requests.
+	var callback func(ctx context.Context, val interface{}) error
+	callback = func(ctx context.Context, val interface{}) error {
+		switch i := val.(type) {
+		case *http.Request:
+			logger.Debugf("Access %s", i.URL)
+			opts := spider.CrawlOptions(i.URL)
+
+			// process logic of sub request
+
+			// init custom headers
+			for k := range opts.MustHeader {
+				i.Header.Set(k, opts.MustHeader.Get(k))
+			}
+
+			// init custom cookies
+			for _, c := range opts.MustCookies {
+				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
+					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+					if c := i.Header.Get("Cookie"); c != "" {
+						i.Header.Set("Cookie", c+"; "+val)
+					} else {
+						i.Header.Set("Cookie", val)
+					}
+				}
+			}
+
+			// set scheme,host for sub requests. for the product url in category page is just the path without hosts info.
+			// here is just the test logic. when run the spider online, the controller will process automatically
+			if i.URL.Scheme == "" {
+				i.URL.Scheme = "https"
+			}
+			if i.URL.Host == "" {
+				i.URL.Host = "www.asos.com"
+			}
+
+			// do http requests here.
+			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+			defer cancel()
+			resp, err := client.DoWithOptions(nctx, i, http.Options{
+				EnableProxy:       true,
+				EnableHeadless:    false,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
+			})
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
+
+			return spider.Parse(ctx, resp, callback)
+		default:
+			// output the result
+			data, err := protojson.Marshal(i.(proto.Message))
+			if err != nil {
+				return err
+			}
+			logger.Infof("data: %s", data)
+		}
+		return nil
+	}
+
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute*5)
-		defer cancel()
-
-		logger.Debugf("Access %s", req.URL)
-		req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 11_1_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36")
-		for k := range opts.MustHeader {
-			req.Header.Set(k, opts.MustHeader.Get(k))
-		}
-		for _, c := range opts.MustCookies {
-			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
-				val := fmt.Sprintf("%s=%s", c.Name, c.Value)
-				if c := req.Header.Get("Cookie"); c != "" {
-					req.Header.Set("Cookie", c+"; "+val)
-				} else {
-					req.Header.Set("Cookie", val)
-				}
-			}
-		}
-
-		resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: true})
-		if err != nil {
-			panic(err)
-		}
-		defer resp.Body.Close()
-
-		if err := spider.Parse(ctx, resp, func(ctx context.Context, val interface{}) error {
-			switch i := val.(type) {
-			case *http.Request:
-				logger.Infof("new request %s", i.URL)
-			default:
-				data, err := json.Marshal(i)
-				if err != nil {
-					return err
-				}
-				logger.Infof("data: %s", data)
-			}
-			return nil
-		}); err != nil {
-			panic(err)
+		if err := callback(ctx, req); err != nil {
+			logger.Fatal(err)
 		}
 	}
 }

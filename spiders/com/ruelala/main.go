@@ -27,6 +27,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -65,13 +66,14 @@ func (c *_Crawler) Version() int32 {
 }
 
 // CrawlOptions
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
-	// NOTE: no need to set useragent here for user agent is dynamic
-	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
-	options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
+	options.EnableSessionInit = true
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+
+	// options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{
 			Name:  "geolocation_data",
@@ -80,21 +82,21 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 		},
 		&http.Cookie{Name: "bfx.country", Value: "US", Path: "/"},
 		&http.Cookie{Name: "bfx.currency", Value: "USD", Path: "/"},
-		&http.Cookie{
-			Name:  "bfx.apiKey",
-			Value: "c9f2ab70-8028-11e6-bf37-d180220906db",
-			Path:  "/", /* TODO: check is this value changeable */
-		},
+		// &http.Cookie{
+		// 	Name:  "bfx.apiKey",
+		// 	Value: "c9f2ab70-8028-11e6-bf37-d180220906db",
+		// 	Path:  "/", /* TODO: check is this value changeable */
+		// },
 		&http.Cookie{Name: "bfx.env", Value: "PROD", Path: "/"},
 		&http.Cookie{Name: "bfx.logLevel", Value: "ERROR", Path: "/"},
 		&http.Cookie{Name: "bfx.language", Value: "en", Path: "/"},
-		&http.Cookie{Name: "bfx.sessionId", Value: "0076DDB9-BFE7-4882-BC40-F80853BA3B77", Path: "/"},
+		// &http.Cookie{Name: "bfx.sessionId", Value: "0076DDB9-BFE7-4882-BC40-F80853BA3B77", Path: "/"},
 	)
 	return options
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.ruelala.com"}
+	return []string{"*.ruelala.com"}
 }
 
 func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
@@ -175,6 +177,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	u.RawQuery = vals.Encode()
 
 	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+
 	return yield(ctx, req)
 }
 
@@ -266,6 +270,7 @@ func (c *_Crawler) parseCategoryProductsJson(ctx context.Context, resp *http.Res
 
 		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 		req.Header.Set("Referer", fmt.Sprintf("%s://%s%s", u.Scheme, u.Host, item.ProductPage))
+		req.Header.Set("X-Requested-With", "XMLHttpRequest")
 
 		lastIndex += 1
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
@@ -416,24 +421,32 @@ func (c *_Crawler) parseProductJson(ctx context.Context, resp *http.Response, yi
 
 	skuSpec := map[string]*pbItem.SkuSpecOption{}
 	medias := map[string][]*media.Media{}
-	for i, color := range i.Data.Attributes.Colors {
-		img := media.Media_Image{}
-		if len(color.ImagesZoom) > 0 { // 864x1080
-			img.OriginalUrl = urlutil.Format(color.ImagesZoom[0])
-		}
-		if len(color.ImagesDetail) > 0 { // 400x500
-			img.SmallUrl = urlutil.Format(color.ImagesDetail[0])
-		}
-		if len(color.ImagesTablet) > 0 { //528x660
-			img.MediumUrl = urlutil.Format(color.ImagesTablet[0])
-		}
-		if len(color.ImagesTabletHires) > 0 && img.OriginalUrl == "" { // 1056x1320
-			img.LargeUrl = urlutil.Format(color.ImagesTabletHires[0])
-		}
+	for _, color := range i.Data.Attributes.Colors {
+		for j := 0; ; j++ {
+			if len(color.ImagesZoom) <= j {
+				break
+			}
 
-		imgData, _ := anypb.New(&img)
-		m := media.Media{Detail: imgData, IsDefault: i == 0}
-		medias[fmt.Sprintf("%s-%v", pbItem.SkuSpecType_SkuSpecColor, strings.ToLower(color.DisplayValue))] = []*media.Media{&m}
+			img := media.Media_Image{}
+			if len(color.ImagesZoom) > j { // 864x1080
+				img.OriginalUrl = urlutil.Format(color.ImagesZoom[j])
+			}
+			if len(color.ImagesDetail) > j { // 400x500
+				img.SmallUrl = urlutil.Format(color.ImagesDetail[j])
+			}
+			if len(color.ImagesTablet) > j { //528x660
+				img.MediumUrl = urlutil.Format(color.ImagesTablet[j])
+			}
+			if len(color.ImagesTabletHires) > j && img.OriginalUrl == "" { // 1056x1320
+				img.LargeUrl = urlutil.Format(color.ImagesTabletHires[j])
+			}
+
+			imgData, _ := anypb.New(&img)
+			m := media.Media{Detail: imgData, IsDefault: j == 0}
+
+			key := fmt.Sprintf("%s-%v", pbItem.SkuSpecType_SkuSpecColor, strings.ToLower(color.DisplayValue))
+			medias[key] = append(medias[key], &m)
+		}
 
 		if color.DisplayValue != "" && color.InternalValue != "" {
 			spec := pbItem.SkuSpecOption{
@@ -461,8 +474,8 @@ func (c *_Crawler) parseProductJson(ctx context.Context, resp *http.Response, yi
 			Price: &pbItem.Price{
 				// 接口里返回的都是美元价格，页面上的结算价格是根据当前的IP来判断的
 				Currency:  regulation.Currency_USD,
-				Current:   int32(u.Price * 100),
-				Msrp:      int32(u.Msrp * 100),
+				Current:   int32(u.Price),
+				Msrp:      int32(u.Msrp),
 				Discount:  int32(u.PercentOff),
 				Discount1: 0,
 			},
@@ -498,11 +511,14 @@ func (c *_Crawler) parseProductJson(ctx context.Context, resp *http.Response, yi
 	return yield(ctx, &item)
 }
 
-func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
-	// req, _ := http.NewRequest(http.MethodGet, "https://www.ruelala.com/boutique/product/174603/119603536/?dsi=CAT-1267617049--4dee2f9b-246e-4f10-a0bc-dedfbf503be5&lsi=b09cfcbf-cdc7-41d1-81fe-0d48f800ada5&pos=17", nil)
-	req, _ := http.NewRequest(http.MethodGet, "https://www.ruelala.com/api/v3/products/119603585", nil)
-
-	return []*http.Request{req}
+func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
+	for _, u := range []string{
+		"https://www.ruelala.com/nav/women/clothing/dresses%20&%20skirts?dsi=CAT-1267617049--bdfc116b-6bba-4b4b-8a91-25c170e607ef&lsi=d8bf02ed-e287-4873-aab9-7aeb8f43ccd3",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, u, nil)
+		reqs = append(reqs, req)
+	}
+	return reqs
 }
 
 func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) error {
@@ -514,54 +530,90 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
+	// build a http client
+	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
+	// instance the spider locally
 	spider, err := New(client, logger)
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
 
-	for _, req := range spider.NewTestRequest(ctx) {
-		for k := range opts.MustHeader {
-			req.Header.Set(k, opts.MustHeader.Get(k))
-		}
-		for _, c := range opts.MustCookies {
-			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
-				val := fmt.Sprintf("%s=%s", c.Name, c.Value)
-				if c := req.Header.Get("Cookie"); c != "" {
-					req.Header.Set("Cookie", c+"; "+val)
-				} else {
-					req.Header.Set("Cookie", val)
+	// this callback func is used to do recursion call of sub requests.
+	var callback func(ctx context.Context, val interface{}) error
+	callback = func(ctx context.Context, val interface{}) error {
+		switch i := val.(type) {
+		case *http.Request:
+			logger.Debugf("Access %s", i.URL)
+			opts := spider.CrawlOptions(i.URL)
+
+			// process logic of sub request
+
+			// init custom headers
+			for k := range opts.MustHeader {
+				i.Header.Set(k, opts.MustHeader.Get(k))
+			}
+
+			// init custom cookies
+			for _, c := range opts.MustCookies {
+				if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
+					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+					if c := i.Header.Get("Cookie"); c != "" {
+						i.Header.Set("Cookie", c+"; "+val)
+					} else {
+						i.Header.Set("Cookie", val)
+					}
 				}
 			}
-		}
 
-		resp, err := client.DoWithOptions(ctx, req, http.Options{EnableProxy: true})
-		if err != nil {
-			panic(err)
-		}
-		defer resp.Body.Close()
+			// set scheme,host for sub requests. for the product url in category page is just the path without hosts info.
+			// here is just the test logic. when run the spider online, the controller will process automatically
+			if i.URL.Scheme == "" {
+				i.URL.Scheme = "https"
+			}
+			if i.URL.Host == "" {
+				i.URL.Host = "www.ruelala.com"
+			}
 
-		if err := spider.Parse(ctx, resp, func(ctx context.Context, val interface{}) error {
-			data, err := json.Marshal(val)
+			// do http requests here.
+			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+			defer cancel()
+			resp, err := client.DoWithOptions(nctx, i, http.Options{
+				EnableProxy:       true,
+				EnableHeadless:    false,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
+			})
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
+
+			return spider.Parse(ctx, resp, callback)
+		default:
+			// output the result
+			data, err := json.Marshal(i)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("%s\n", data)
+			logger.Infof("data: %s", data)
+		}
+		return nil
+	}
 
-			return nil
-		}); err != nil {
-			panic(err)
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("ruelala_%d", time.Now().UnixNano()))
+	// start the crawl request
+	for _, req := range spider.NewTestRequest(context.Background()) {
+		if err := callback(ctx, req); err != nil {
+			logger.Fatal(err)
 		}
 	}
 }

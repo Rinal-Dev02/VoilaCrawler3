@@ -39,8 +39,10 @@ message Request {
     string tracingId  = 2 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
     // JobId
     string jobId      = 3 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
+    // StoreId
+    string storeId    = 4 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
     // ParentId
-    string parentId   = 4 [(gogoproto.moretags) = "xorm:\"varchar(64)\""];
+    string parentId   = 5 [(gogoproto.moretags) = "xorm:\"varchar(64)\""];
 
     // Method
     string method        = 12 [(gogoproto.moretags) = "xorm:\"varchar(16)\""];
@@ -70,11 +72,22 @@ message Request {
     int32  status        = 61 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
     // IsSucceed
     bool   isSucceed     = 62 [(gogoproto.moretags) = "xorm:\"default(0) index\""];
-    // Duration
-    int64  duration      = 63 [(gogoproto.moretags) = "xorm:\"default(0)\""];
-    // ErrMsg
-    string errMsg        = 64 [(gogoproto.moretags) = "xorm:\"text\""];
 
     // Metadata
     Metadata metadata    = 101 [(gogoproto.moretags) = "xorm:\"extends\""];
+}
+
+// RequestHistory
+message RequestHistory {
+	// Id
+	string id   = 1 [(gogoproto.moretags) = "xorm:\"varchar(64) pk\""];
+    // Timestamp
+	int64 timestamp = 2 [(gogoproto.moretags) = "xorm:\"pk\""];
+
+    // StatusCode
+	int32  statusCode = 6;
+	// ErrMsg
+	string errMsg = 7 [(gogoproto.moretags) = "xorm:\"text\""];
+	// Duration
+	int32  duration   = 10;
 }

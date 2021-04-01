@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	nodeCtrl "github.com/voiladev/VoilaCrawl/internal/controller/node"
+	reqCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request"
 	"github.com/voiladev/VoilaCrawl/internal/model/request"
 	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
@@ -14,27 +14,33 @@ import (
 	"github.com/voiladev/go-framework/redis"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 	"google.golang.org/protobuf/proto"
+	"xorm.io/xorm"
 )
 
 type GatewayServer struct {
 	pbCrawl.UnimplementedGatewayServer
 
 	ctx            context.Context
-	nodeCtrl       *nodeCtrl.NodeController
+	engine         *xorm.Engine
 	redisClient    *redis.RedisClient
 	requestManager *reqManager.RequestManager
+	requestCtrl    *reqCtrl.RequestController
 	logger         glog.Log
 }
 
 func NewGatewayServer(
 	ctx context.Context,
-	nodeCtrl *nodeCtrl.NodeController,
+	engine *xorm.Engine,
+	requestCtrl *reqCtrl.RequestController,
 	redisClient *redis.RedisClient,
 	requestManager *reqManager.RequestManager,
 	logger glog.Log,
 ) (pbCrawl.GatewayServer, error) {
-	if nodeCtrl == nil {
-		return nil, errors.New("invalid node controller")
+	if engine == nil {
+		return nil, errors.New("invalid xorm engine")
+	}
+	if requestCtrl == nil {
+		return nil, errors.New("invalid request controller")
 	}
 	if redisClient == nil {
 		return nil, errors.New("invalid redis client")
@@ -44,35 +50,13 @@ func NewGatewayServer(
 	}
 	s := GatewayServer{
 		ctx:            ctx,
-		nodeCtrl:       nodeCtrl,
+		engine:         engine,
+		requestCtrl:    requestCtrl,
 		redisClient:    redisClient,
 		requestManager: requestManager,
 		logger:         logger.New("GatewayServer"),
 	}
 	return &s, nil
-}
-
-func (s *GatewayServer) Channel(cs pbCrawl.Gateway_ChannelServer) error {
-	if s == nil {
-		return nil
-	}
-	logger := s.logger.New("Channel")
-
-	handler, err := s.nodeCtrl.Register(cs.Context(), cs)
-	if err != nil {
-		logger.Error(err)
-		return err
-	}
-
-	defer func() {
-		s.nodeCtrl.Unregister(cs.Context(), handler.ID())
-	}()
-
-	if err := handler.Run(); err != nil {
-		logger.Error(err)
-		return err
-	}
-	return nil
 }
 
 func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*pbCrawl.FetchResponse, error) {
@@ -86,16 +70,34 @@ func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*
 		logger.Errorf("load request failed, error=%s", err)
 		return nil, pbError.ErrInvalidArgument.New(err)
 	}
-	if r, err = s.requestManager.Create(ctx, nil, r); err != nil {
+	if r.GetJobId() == "" {
+		return nil, pbError.ErrInvalidArgument.New("invalid job id")
+	}
+
+	session := s.engine.NewSession()
+	defer session.Close()
+
+	if r, err = s.requestManager.Create(ctx, session, r); err != nil && err != pbError.ErrAlreadyExists {
 		logger.Errorf("save request failed, error=%s", err)
 		return nil, err
 	}
 
-	if err = s.nodeCtrl.PublishRequest(ctx, r); err != nil {
-		logger.Error(err)
+	if err := session.Begin(); err != nil {
+		logger.Errorf("begin tx failed, error=%s", err)
+		return nil, pbError.ErrDatabase.New("begin tx failed")
+	}
+	if err := s.requestCtrl.PublishRequest(ctx, session, r, true); err != nil {
+		logger.Errorf("publish request failed, error=%s", err)
+		session.Rollback()
 		return nil, err
 	}
 
+	if err := session.Commit(); err != nil {
+		logger.Errorf("commit tx failed, error=%s", err)
+		return nil, pbError.ErrDatabase.New("commit tx failed")
+	}
+
+	// TODO: change this to an api
 	if req.GetOptions().GetEnableBlockForItems() {
 		ttl := req.GetOptions().GetMaxBlockTtl()
 		if ttl <= 0 {
