@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -17,11 +18,11 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-	"github.com/voiladev/VoilaCrawl/vendor/github.com/voiladev/go-framework/glog"
-
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+
+	"github.com/voiladev/go-framework/glog"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -73,7 +74,7 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	return &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
@@ -164,6 +165,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 			rawurl := "https://www.makeupforever.com/on/demandware.store/Sites-MakeUpForEver-US-Site/en_US/Product-Variation?quantity=1&pid=" + href
 
+			fmt.Println(rawurl)
 			req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -175,6 +177,17 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 				return err
 			}
 		}
+	}
+
+	totalRecords := 0
+	if bytes.Contains(respBody, []byte("class=\"numberproduct-bold\"")) {
+		resultTR, _ := strconv.ParseInt(doc.Find(`.numberproduct-bold`).Text())
+		totalRecords = int(resultTR)
+	}
+
+	if totalRecords > 0 && totalRecords <= lastIndex {
+		// nextpage not found
+		return nil
 	}
 
 	if !bytes.Contains(respBody, []byte("<div class=\"show-more\" id=\"show-more\"")) {
@@ -335,9 +348,9 @@ type parseProductData struct {
 		MainIngredients  string `json:"mainIngredients"`
 		HowToUse         struct {
 		} `json:"howToUse"`
-
-		Rating     int `json:"rating"`
-		Promotions []struct {
+		SelectedProductURL string  `json:"selectedProductUrl"`
+		Rating             float64 `json:"rating"`
+		Promotions         []struct {
 			CalloutMsg     string `json:"calloutMsg"`
 			Details        string `json:"details"`
 			Enabled        bool   `json:"enabled"`
@@ -402,19 +415,20 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
+	counters := 0
 	loopIndex := 0
 	if sizeIndex > -1 {
 		loopIndex = sizeIndex
 	}
 
+	rating, _ := strconv.ParseFloat(viewData.Product.Rating)
 	for _, rawColor := range viewData.Product.VariationAttributes[colorIndex].Values {
-
-		//rating, _ := strconv.ParseFloat(viewData.Product.StarRating)
+		counters++
 		// build product data
 		item := pbItem.Product{
 			Source: &pbItem.Source{
 				Id: viewData.Product.MasterID,
-				//CrawlUrl: resp.Request.URL.String(),
+				//CrawlUrl: resp.Request.URL.String(),  // not found
 				//https://www.makeupforever.com/us/en/a-MI000044405.html?dwvar_MI000044405_color=368&pid=MI000044405&quantity=1
 				CrawlUrl: "https://www.makeupforever.com/us/en/a-" + viewData.Product.MasterID + ".html?dwvar_" + viewData.Product.MasterID + "_color=" + rawColor.ID + "&pid=" + viewData.Product.MasterID + "&quantity=1",
 			},
@@ -424,10 +438,26 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
-			// Stats: &pbItem.Stats{
-			// 	ReviewCount: int32(viewData.Product.TurntoReviewCount),
-			// 	Rating:      float32(rating),
-			// },
+			Stats: &pbItem.Stats{
+				//ReviewCount: int32(viewData.Product.TurntoReviewCount),
+				Rating: float32(rating),
+			},
+		}
+
+		list := strings.Split(viewData.Product.SelectedProductURL, "/")
+		for j, l := range list {
+			if j < 3 || j >= len(list)-2 {
+				continue
+			}
+
+			switch j {
+			case 3:
+				item.Category = l
+			case 4:
+				item.SubCategory = l
+			case 5:
+				item.SubCategory2 = l
+			}
 		}
 
 		originalPrice, _ := strconv.ParseFloat(viewData.Product.Price.Sales.Value)
@@ -518,7 +548,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.makeupforever.com/us/en/face",
+		"https://www.makeupforever.com/us/en/face/foundation",
 		//"https://www.makeupforever.com/on/demandware.store/Sites-MakeUpForEver-US-Site/en_US/Product-Variation?pid=MI000044405&quantity=0",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
@@ -558,7 +588,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
+	opts := spider.CrawlOptions(nil)
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -604,9 +634,9 @@ func main() {
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    true,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: spider.CrawlOptions(nil).EnableSessionInit,
+				KeepSession:       spider.CrawlOptions(nil).KeepSession,
+				Reliability:       spider.CrawlOptions(nil).Reliability,
 			})
 			if err != nil {
 				panic(err)
