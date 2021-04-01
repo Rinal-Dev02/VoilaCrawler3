@@ -16,6 +16,7 @@ import (
 	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -99,14 +100,17 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			EnableHeadless:    opts.EnableHeadless,
 			EnableSessionInit: opts.EnableSessionInit,
 			KeepSession:       opts.KeepSession,
-			MaxTtlPerRequest:  10 * 60, // 10mins
+			DisableCookieJar:  opts.DisableCookieJar,
+			MaxTtlPerRequest:  5 * 60, // 5mins
 			DisableRedirect:   opts.DisableRedirect,
+			RequestFilterKeys: opts.RequestFilterKeys,
+			JsWaitDuration:    opts.JsWaitDuration,
 		},
 	}
 	// set ttl per request according to deadline
 	if deadline, ok := ctx.Deadline(); ok {
 		timeRemain := deadline.Unix() - time.Now().Unix()
-		if timeRemain > 0 {
+		if timeRemain > 30 {
 			req.Options.MaxTtlPerRequest = timeRemain
 		}
 	}
@@ -120,7 +124,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	if ctx.Value("req_id") != nil {
 		req.ReqId = ctx.Value("req_id").(string)
 	} else {
-		req.ReqId = fmt.Sprintf("req_%d", time.Now().UnixNano())
+		req.ReqId = fmt.Sprintf("req_%s", randutil.MustNewRandomID())
 	}
 	for key, vals := range r.Header {
 		req.Headers[key] = &pbHttp.ListValue{Values: vals}
@@ -180,6 +184,8 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 						resp.Header.Del("Content-Length")
 						resp.ContentLength = -1
 						resp.Uncompressed = true
+					} else {
+						c.logger.Errorf("decode failed, error=%s", err)
 					}
 				} else {
 					resp.ContentLength = int64(len(res.Body))
