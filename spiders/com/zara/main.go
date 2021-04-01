@@ -44,9 +44,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(/[a-zA-Z0-9\-]+){0,6}/[a-zA-Z0-9\-]+-l[a-z0-9-]+\.html$`),
+		categoryPathMatcher: regexp.MustCompile(`^(/[a-zA-Z0-9\-]+){0,6}/[a-zA-Z0-9\pL\pS%\-]+-l[a-z0-9\pL\-]+\.html$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^(/[a-zA-Z0-9\-]+){0,3}/[a-zA-Z0-9®%\-]+-p[a-z0-9-]+\.html$`),
+		productPathMatcher: regexp.MustCompile(`^(/[a-zA-Z0-9\-]+){0,3}/[a-zA-Z0-9\pL\pS%\-]+-p[a-z0-9\pL\-]+\.html$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
