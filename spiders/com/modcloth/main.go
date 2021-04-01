@@ -4,8 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"math"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -16,13 +20,13 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -42,9 +46,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(.*)$`),
+		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9\-]+){1,6}$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^(.*).html$`),
+		productPathMatcher: regexp.MustCompile(`^(/[a-z0-9\-]+){1,4}/\d+\.html$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -66,12 +70,13 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
-	return &crawler.CrawlOptions{
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
+	opts := &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
-		EnableSessionInit: true,
+		EnableSessionInit: false,
 	}
+	return opts
 }
 
 // AllowedDomains return the domains this spider process will.
@@ -79,7 +84,7 @@ func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
 // the returned domains is matched in glob regulation.
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"www.modcloth.com"}
+	return []string{"*.modcloth.com"}
 }
 
 // Parse is the entry to run the spider.
@@ -156,12 +161,12 @@ type RawProductVariationDetails []struct {
 		Archived       bool   `json:"archived"`
 		Online         bool   `json:"online"`
 	} `json:"product_variants"`
-	IsSelected     bool `json:"isSelected"`
-	Archived       bool `json:"archived"`
-	Online         bool `json:"online"`
-	ReviewsCount   int  `json:"reviewsCount"`
-	ReviewsRanking int  `json:"reviewsRanking"`
-	UnitsAvailable int  `json:"units_available"`
+	IsSelected     bool    `json:"isSelected"`
+	Archived       bool    `json:"archived"`
+	Online         bool    `json:"online"`
+	ReviewsCount   int     `json:"reviewsCount"`
+	ReviewsRanking float64 `json:"reviewsRanking"`
+	UnitsAvailable int     `json:"units_available"`
 }
 
 type RawProductOtherDetails struct {
@@ -245,15 +250,6 @@ func TrimSpaceNewlineInByte(s []byte) []byte {
 	return re.ReplaceAll(s, []byte(" "))
 }
 
-// used to extract embaded json data in website page.
-// more about golang regulation see here https://golang.org/pkg/regexp/syntax/
-var productsExtractReg = regexp.MustCompile(`(?U)var\s*utag_data\s*=\s*({.*});`)
-var productDataVariationExtractReg = regexp.MustCompile(`(?U)mc_global.product\s*=\s*(\[.*\]);`)
-
-var productDateMainExtractReg = regexp.MustCompile(`(?U)<script\s*type="application/ld\+json">\s*({.*})\s*</script>`)
-
-//var productDateMainExtractReg = regexp.MustCompile(`(?U)json">\s*({.*})\s*</script>\s*</head>`)
-
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -261,69 +257,60 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	// read the response data from http response
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
+		c.logger.Debug(err)
 		return err
 	}
-	respBody = TrimSpaceNewlineInByte(respBody)
 
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
-		return err
-	}
-
-	matched := productsExtractReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
-	}
-	// c.logger.Debugf("data: %s", matched[1])
-
-	var viewData CategoriesView
-	if err := json.Unmarshal(matched[1], &viewData); err != nil {
-		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+		c.logger.Debug(err)
 		return err
 	}
 
 	lastIndex := nextIndex(ctx)
-	for _, idv := range viewData.ProductID {
-
-		rawUrl := "https://www.modcloth.com/shop/a/" + idv + ".html"
-
-		//fmt.Println(rawUrl)
-		req, err := http.NewRequest(http.MethodGet, rawUrl, nil)
+	sel := doc.Find(`#search-result-items .grid-tile`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		href := node.Find(`.product-tile>.product-name>.name-link`).AttrOr("href", "")
+		if href == "" {
+			continue
+		}
+		req, err := http.NewRequest(http.MethodGet, href, nil)
 		if err != nil {
-			c.logger.Errorf("load http request of url %s failed, error=%s", rawUrl, err)
-			return err
+			c.logger.Error(err)
+			continue
 		}
 
-		lastIndex += 1
-		// set the index of the product crawled in the sub response
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		// yield sub request
+		lastIndex += 1
 		if err := yield(nctx, req); err != nil {
+			c.logger.Error(err)
 			return err
 		}
-	}
-
-	totalResults, _ := strconv.ParseInt(strings.ReplaceAll(doc.Find(`div.results-hits`).First().Text(), " Results", ""))
-
-	// check if this is the last page
-	if lastIndex >= int(totalResults) || totalResults == 0 {
-		return nil
 	}
 
 	// set pagination
-	u, _ := doc.Find(`a.page-next`).First().Attr("href")
+	pageSel := doc.Find(`.search-result-options.bottom .pagination li.first-last.right-arrow`)
+	if strings.Contains(pageSel.AttrOr("class", ""), "disabled") {
+		return nil
+	}
+	href := pageSel.Find(".page-next").AttrOr("href", "")
+	if href == "" {
+		return nil
+	}
 
-	req, _ := http.NewRequest(http.MethodGet, u, nil)
-	// update the index of last page
+	req, _ := http.NewRequest(http.MethodGet, href, nil)
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
 }
 
-// used to trim html labels in description
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+// used to extract embaded json data in website page.
+// more about golang regulation see here https://golang.org/pkg/regexp/syntax/
+var productsExtractReg = regexp.MustCompile(`(?Us)var\s*utag_data\s*=\s*({.*});`)
+var productDataVariationExtractReg = regexp.MustCompile(`(?Us)mc_global.product\s*=\s*(\[.*\]);`)
+var productDateMainExtractReg = regexp.MustCompile(`(?Us)<script\s*type="application/ld\+json">\s*({.*})\s*</script>`)
 
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -336,26 +323,24 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	respBody = TrimSpaceNewlineInByte(respBody)
-
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
 		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+		return fmt.Errorf("extract product info from %s failed, error=%s", resp.Request.URL, err)
 	}
 	// c.logger.Debugf("data: %s", matched[1])
 
-	var viewData RawProductDetails
-	var imgData RawProductOtherDetails
-	var variationData RawProductVariationDetails
-
+	var (
+		viewData      RawProductDetails
+		imgData       RawProductOtherDetails
+		variationData RawProductVariationDetails
+	)
 	if err := json.Unmarshal(matched[1], &imgData); err != nil {
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
 
 	matched1 := productDateMainExtractReg.FindAllSubmatch(respBody, -1)
-	//matched = productDateMainExtractReg.FindSubmatch(respBody)
 	if len(matched1) <= 1 {
 		c.logger.Debugf("%s", respBody)
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
@@ -382,94 +367,117 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 		BrandName:   viewData.Brand.Name,
 		Title:       viewData.Name,
-		Description: htmlTrimRegp.ReplaceAllString(viewData.Description, ""),
+		Description: viewData.Description,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
 		Stats: &pbItem.Stats{
 			ReviewCount: int32(viewData.AggregateRating.ReviewCount),
-			Rating:      float32(viewData.AggregateRating.RatingValue / 5.0),
+			Rating:      float32(viewData.AggregateRating.RatingValue),
 		},
+	}
+	if len(imgData.MasterGroupID) > 0 {
+		item.Source.GroupId = imgData.MasterGroupID[0]
+	}
+	if len(imgData.ProductCategory) > 0 {
+		item.Category = imgData.ProductCategory[0]
+	}
+	if len(imgData.ProductSubcategory) > 0 {
+		item.SubCategory = imgData.ProductSubcategory[0]
+	}
+
+	var colorSpec *pbItem.SkuSpecOption
+	if len(imgData.ProductColor) > 0 {
+		colorSpec = &pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecColor,
+			Id:    imgData.ProductColor[0],
+			Name:  imgData.ProductColor[0],
+			Value: imgData.ProductColor[0],
+		}
+	}
+
+	var medias []*pbMedia.Media
+	for m, mid := range imgData.ProductImgURL {
+		s := strings.Split(mid, "?")
+		medias = append(medias, pbMedia.NewImageMedia(
+			strconv.Format(m),
+			s[0],
+			s[0]+"?sw=913&sm=fit",
+			s[0]+"?sw=600&sm=fit",
+			s[0]+"?sw=450&sm=fit",
+			"",
+			m == 0,
+		))
 	}
 
 	for _, rawSku := range variationData {
-
 		if rawSku.VariationGroupID == viewData.ProductID {
+			var (
+				current, msrp, discount float64
+			)
+			if len(imgData.ProductOriginalPrice) > 0 {
+				msrp, _ = strconv.ParseFloat(imgData.ProductOriginalPrice[0])
+			}
+			if len(imgData.ProductUnitPrice) > 0 {
+				current, _ = strconv.ParseFloat(imgData.ProductUnitPrice[0])
+			}
+			discount = math.Ceil((msrp - current) / msrp * 100)
 
-			for ks, rawVariation := range rawSku.ProductVariants {
-
-				originalPrice, _ := strconv.ParseFloat(imgData.ProductUnitPrice)
-				msrp, _ := strconv.ParseFloat(imgData.ProductOriginalPrice)
-				discount := (msrp - originalPrice*100) / msrp
+			for _, rawVariation := range rawSku.ProductVariants {
 				sku := pbItem.Sku{
-					SourceId: strconv.Format(viewData.ProductID),
+					SourceId: rawVariation.Upc,
 					Price: &pbItem.Price{
 						Currency: regulation.Currency_USD,
 						Current:  int32(viewData.Offers.Price * 100),
 						Msrp:     int32(viewData.Offers.Price * 100),
 						Discount: int32(discount),
 					},
-					Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+					Medias: medias,
+					Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 				}
 				if rawVariation.UnitsAvailable > 0 {
 					sku.Stock.StockStatus = pbItem.Stock_InStock
 					sku.Stock.StockCount = int32(rawVariation.UnitsAvailable)
 				}
 
-				// color
-				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecColor,
-					Id:    strconv.Format(imgData.ProductID),
-					Name:  imgData.ProductColor[0],
-					Value: imgData.ProductColor[0],
-					//Icon:  color.SwatchMedia.Mobile,
-				})
-
-				if ks == 0 {
-					isDefault := true
-					for m, mid := range imgData.ProductImgURL {
-						if m > 0 {
-							isDefault = true
-						}
-						s := strings.Split(mid, "?")
-						sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-							strconv.Format(m),
-							s[0],
-							s[0]+"sw=913&sm=fit",
-							s[0]+"sw=600&sm=fit",
-							s[0]+"sw=450&sm=fit",
-							"",
-							isDefault,
-						))
-					}
+				if colorSpec != nil {
+					sku.Specs = append(sku.Specs, colorSpec)
 				}
-
-				// size
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 					Type:  pbItem.SkuSpecType_SkuSpecSize,
 					Id:    rawVariation.Upc,
 					Name:  rawVariation.Size,
 					Value: rawVariation.Size,
 				})
-
 				item.SkuItems = append(item.SkuItems, &sku)
+			}
+		} else {
+			req, err := http.NewRequest(http.MethodGet, rawSku.URL, nil)
+			if err != nil {
+				c.logger.Error(err)
+				continue
+			}
+			if err := yield(ctx, req); err != nil {
+				c.logger.Error(err)
+				return err
 			}
 		}
 	}
-
-	// yield item result
-	if err = yield(ctx, &item); err != nil {
-		return err
+	if len(item.SkuItems) > 0 {
+		if err = yield(ctx, &item); err != nil {
+			return err
+		}
+	} else {
+		return errors.New("not sku found")
 	}
-
 	return nil
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.modcloth.com/shop/best-selling-shoes",
-		"https://www.modcloth.com/shop/a/171894.html",
+		// "https://www.modcloth.com/shop/best-selling-shoes",
+		"https://www.modcloth.com/shop/shoes/t-u-k-the-zest-is-history-heel-in-burgundy/128047.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -492,12 +500,11 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -508,7 +515,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -516,6 +522,13 @@ func main() {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
+
+			// crawler := spider.(*_Crawler)
+			// if crawler.productPathMatcher.MatchString(i.URL.Path) {
+			// 	return nil
+			// }
+
+			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
 
@@ -549,11 +562,11 @@ func main() {
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
-				EnableProxy:       false,
+				EnableProxy:       true,
 				EnableHeadless:    false,
-				EnableSessionInit: false,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -563,7 +576,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
@@ -572,7 +585,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
