@@ -446,7 +446,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		list := strings.Split(viewData.Product.SelectedProductURL, "/")
 		for j, l := range list {
-			if j < 3 || j >= len(list)-2 {
+			if j < 3 || j >= len(list)-1 {
 				continue
 			}
 
