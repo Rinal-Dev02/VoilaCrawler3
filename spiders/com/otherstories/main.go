@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -18,13 +19,13 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -44,9 +45,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^/en_usd(/[a-zA-Z0-9-._]+){1,6}.html$`),
+		categoryPathMatcher: regexp.MustCompile(`^/en_usd(/[a-zA-Z0-9\pL\-._]+){1,6}.html$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^/en_usd(/[a-zA-Z0-9-._]+){1,6}[0-9]+.html$`),
+		productPathMatcher: regexp.MustCompile(`^/en_usd(/[a-zA-Z0-9\pL\-._]+){1,6}[0-9]+.html$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -68,12 +69,19 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
-	return &crawler.CrawlOptions{
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
+	opts := &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
-		EnableSessionInit: true,
+		EnableSessionInit: false,
 	}
+	opts.MustCookies = append(opts.MustCookies,
+		&http.Cookie{Name: "countryId", Value: "US", Path: "/"},
+		&http.Cookie{Name: "HMCORP_locale", Value: "en_US", Path: "/"},
+		&http.Cookie{Name: "HMCORP_currency", Value: "USD", Path: "/"},
+		&http.Cookie{Name: "ug-country-selector", Value: "viewed", Path: "/"},
+	)
+	return opts
 }
 
 // AllowedDomains return the domains this spider process will.
@@ -137,28 +145,17 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	if isRobotCheckPage(respBody) {
-		return errors.New("robot check page")
-	}
-
-	if !bytes.Contains(respBody, []byte("class=\"a-link no-styling")) {
-		return errors.New("products not found")
-	}
-
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
 		return err
 	}
 
 	lastIndex := nextIndex(ctx)
-	sel := doc.Find(`.a-link.no-styling`)
+	sel := doc.Find(`#reloadProducts .o-product`)
 
-	c.logger.Debugf("nodes %d", len(sel.Nodes))
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		if href, _ := node.Attr("href"); href != "" {
-
-			//c.logger.Debugf("yield %v --> %s", lastIndex, href)
+		if href, _ := node.Find(`.a-link`).Attr("href"); href != "" {
 			req, err := http.NewRequest(http.MethodGet, href, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -166,6 +163,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			}
 			lastIndex += 1
 			nctx := context.WithValue(ctx, "item.index", lastIndex)
+
 			if err := yield(nctx, req); err != nil {
 				return err
 			}
@@ -177,22 +175,25 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	ppp, _ := doc.Find(`#productPerPage`).Attr(`class`)
 	productPerPage, _ := strconv.ParseInt(ppp)
-
+	if productPerPage == 0 {
+		productPerPage = 20
+	}
 	pc, _ := doc.Find(`#productCount`).Attr(`class`)
 	productCount, _ := strconv.ParseInt(pc)
 
-	if productCount <= productPerPage {
-		return nil
-	} else if (productStart + productPerPage) >= productCount {
+	if (productStart+productPerPage) >= productCount && productCount != 0 {
 		return nil
 	}
 
 	nexturl, _ := doc.Find(`#productPath`).Attr(`class`)
+	if nexturl == "" {
+		return nil
+	}
 
-	nexturl = "https://www.stories.com" + nexturl + "?start=" + strconv.Format((productStart + productPerPage))
-
+	nexturl = nexturl + "?start=" + strconv.Format(productStart+productPerPage)
 	req, _ := http.NewRequest(http.MethodGet, nexturl, nil)
-	// update the index of last page
+	req.Header.Set("Referer", resp.Request.Header.Get("Referer"))
+
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
 }
@@ -289,22 +290,23 @@ type parseProductResponse struct {
 	MainCategorySummary string   `json:"mainCategorySummary"`
 	Name                string   `json:"name"`
 	StyleWithArticles   []string `json:"styleWithArticles"`
+	Articles            map[string]*Article
 }
 
 type parseProductsAvailability struct {
 	Availability []string `json:"availability"`
 }
 
-func DecodeResponse(respBody string) ([]Article, error) {
-	//var art []Article
-	art := make([]Article, 0)
+func DecodeResponse(respBody string) (*parseProductResponse, error) {
+	viewData := parseProductResponse{Articles: map[string]*Article{}}
+
 	ret := map[string]json.RawMessage{}
 	if err := json.Unmarshal([]byte(respBody), &ret); err != nil {
-		fmt.Println(err)
-		//return art, err
+		return nil, err
 	}
 
 	for key, msg := range ret {
+		rawData, _ := msg.MarshalJSON()
 		if regexp.MustCompile(`[0-9]+`).MatchString(key) {
 			var (
 				rawData, _ = msg.MarshalJSON()
@@ -313,14 +315,21 @@ func DecodeResponse(respBody string) ([]Article, error) {
 			if err := json.Unmarshal(rawData, &article); err != nil {
 				continue
 			}
-			art = append(art, article)
+			viewData.Articles[key] = &article
+		} else if key == "ancestorProductCode" {
+			viewData.AncestorProductCode = strings.Trim(fmt.Sprintf("%s", rawData), `"`)
+		} else if key == "articleCode" {
+			viewData.ArticleCode = strings.Trim(fmt.Sprintf("%s", rawData), `"`)
+		} else if key == "name" {
+			viewData.Name = strings.Trim(fmt.Sprintf("%s", rawData), `"`)
+		} else if key == "baseProductCode" {
+			viewData.BaseProductCode = strings.Trim(fmt.Sprintf("%s", rawData), `"`)
+		} else if key == "mainCategorySummary" {
+			viewData.MainCategorySummary = strings.Trim(fmt.Sprintf("%s", rawData), `"`)
 		}
 	}
-	return art, nil
+	return &viewData, nil
 }
-
-// used to trim html labels in description
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
 
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -346,8 +355,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	var (
-		viewData parseProductResponse
-		q        parseProductsAvailability
+		q parseProductsAvailability
 	)
 
 	vm := otto.New()
@@ -358,59 +366,59 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		obj = JSON.stringify(productArticleDetails);		
 	`)
 
-	responseJS := ""
 	value, err := vm.Get("obj")
-	{
-		responseJS, _ = value.ToString()
+	responseJS, _ := value.ToString()
 
-		if err := json.Unmarshal([]byte(responseJS), &viewData); err != nil {
-			c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
+	viewData, err := DecodeResponse(responseJS)
+	if err != nil {
+		c.logger.Debug(err)
+		return err
+	}
+
+	{
+		aUrl := "https://www.stories.com/webservices_stories/service/product/stories-us/availability/" + viewData.AncestorProductCode + ".json"
+		req, err := http.NewRequest(http.MethodGet, aUrl, nil)
+		if err != nil {
+			c.logger.Debug(err)
+			return err
+		}
+
+		availreq, err := c.httpClient.Do(ctx, req)
+		if err != nil {
+			c.logger.Debug(err)
+			return err
+		}
+		defer availreq.Body.Close()
+
+		respBody, err := io.ReadAll(availreq.Body)
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		if err = json.Unmarshal(respBody, &q); err != nil {
+			c.logger.Debugf("parse image %s failed, error=%s", respBody, err)
 			return err
 		}
 	}
 
-	article, err := DecodeResponse(responseJS)
-
-	availabilityURL := "https://www.stories.com/webservices_stories/service/product/stories-us/availability/" + viewData.AncestorProductCode + ".json"
-
-	req, err := http.NewRequest(http.MethodGet, availabilityURL, nil)
-
-	availreq, err := c.httpClient.Do(ctx, req)
-	if err != nil {
-		panic(err)
-	}
-	defer availreq.Body.Close()
-
-	respBodyImg, err := ioutil.ReadAll(availreq.Body)
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	if err = json.Unmarshal(respBodyImg, &q); err != nil {
-		c.logger.Debugf("parse %s failed, error=%s", respBodyImg, err)
-		return err
-	}
-
-	for i := range article {
-
-		// build product data
+	for key, article := range viewData.Articles {
 		item := pbItem.Product{
 			Source: &pbItem.Source{
-				Id:       strconv.Format(i),
+				Id:       key,
 				CrawlUrl: resp.Request.URL.String(),
+				GroupId:  viewData.AncestorProductCode,
 			},
-			BrandName:   article[i].BrandName,
-			Title:       article[i].Name,
-			Description: htmlTrimRegp.ReplaceAllString(article[i].Description, ""),
+			BrandName:   article.BrandName,
+			Title:       article.Name,
+			Description: article.Description,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
 		}
 
-		originalPrice, _ := strconv.ParseFloat(article[i].PriceSaleValue)
-		MSRP, _ := strconv.ParseFloat(article[i].PriceValue)
-		discount, _ := strconv.ParseInt(strings.TrimPrefix(strings.TrimSuffix(article[i].PercentageDiscount, "%"), "-"))
+		originalPrice, _ := strconv.ParseFloat(article.PriceSaleValue)
+		MSRP, _ := strconv.ParseFloat(article.PriceValue)
+		discount, _ := strconv.ParseInt(strings.TrimPrefix(strings.TrimSuffix(article.PercentageDiscount, "%"), "-"))
 		if originalPrice == 0.0 {
 			originalPrice = MSRP
 		}
@@ -447,10 +455,41 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 		}
 
-		for kv, rawSku := range article[i].Variants {
+		imgIcon := ""
+		sel = doc.Find(`.a-image.is-hidden.Resolve`)
+		currarticlecode := articleCodeReg.FindSubmatch([]byte(article.URL))
+		for x := range sel.Nodes {
+			if articlecode, _ := sel.Eq(x).Attr("data-articlecode"); articlecode == string(currarticlecode[0]) {
+				resolvechain, _ := sel.Eq(x).Attr("data-resolvechain")
+				imgIcon = "https://lp.stories.com/app005prod?set=key[resolve.pixelRatio],value[1]&set=key[resolve.width],value[50]&set=key[resolve.height],value[10000]&set=key[resolve.imageFit],value[containerwidth]&set=key[resolve.allowImageUpscaling],value[0]&set=key[resolve.format],value[webp]&set=key[resolve.quality],value[90]&" + resolvechain
+				break
+			}
+		}
+		colorSpec := pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecColor,
+			Id:    article.ColorCode,
+			Name:  article.ColorLoc,
+			Value: article.ColorLoc,
+			Icon:  imgIcon,
+		}
 
+		var medias []*pbMedia.Media
+		for m, mid := range article.VAssets {
+			medias = append(medias, pbMedia.NewImageMedia(
+				strconv.Format(m),
+				fmt.Sprintf("https:%s", mid.Thumbnail),
+				fmt.Sprintf("https:%s&set=key[resolve.width],value[900]", mid.Thumbnail),
+				fmt.Sprintf("https:%s&set=key[resolve.width],value[600]", mid.Thumbnail),
+				fmt.Sprintf("https:%s&set=key[resolve.width],value[500]", mid.Thumbnail),
+				"",
+				m == 0,
+			))
+		}
+
+		for _, rawSku := range article.Variants {
 			sku := pbItem.Sku{
 				SourceId: strconv.Format(rawSku.VariantCode),
+				Medias:   medias,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(originalPrice * 100),
@@ -466,51 +505,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 			}
 
-			imgIcon := ""
-			sel = doc.Find(`.a-image.is-hidden.Resolve`)
-			currarticlecode := articleCodeReg.FindSubmatch([]byte(article[i].URL))
-			for x := range sel.Nodes {
-				if articlecode, _ := sel.Eq(x).Attr("data-articlecode"); articlecode == string(currarticlecode[0]) {
-					resolvechain, _ := sel.Eq(x).Attr("data-resolvechain")
-					imgIcon = "https://lp.stories.com/app005prod?set=key[resolve.pixelRatio],value[1]&set=key[resolve.width],value[50]&set=key[resolve.height],value[10000]&set=key[resolve.imageFit],value[containerwidth]&set=key[resolve.allowImageUpscaling],value[0]&set=key[resolve.format],value[webp]&set=key[resolve.quality],value[90]&" + resolvechain
-					break
-				}
-			}
-			// color
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    article[i].ColorCode,
-				Name:  article[i].ColorLoc,
-				Value: article[i].ColorLoc,
-				Icon:  imgIcon,
-			})
-
-			if kv == 0 {
-				isDefault := true
-				for m, mid := range article[i].VAssets {
-					if m > 0 {
-						isDefault = false
-					}
-					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-						strconv.Format(m),
-						fmt.Sprintf("https:%s", mid.Thumbnail),
-						fmt.Sprintf("https:%s&set=key[resolve.width],value[900]", mid.Thumbnail),
-						fmt.Sprintf("https:%s&set=key[resolve.width],value[600]", mid.Thumbnail),
-						fmt.Sprintf("https:%s&set=key[resolve.width],value[500]", mid.Thumbnail),
-						"",
-						isDefault,
-					))
-				}
-			}
-
-			// size
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+			sku.Specs = append(sku.Specs, &colorSpec, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
 				Id:    rawSku.VariantCode,
 				Name:  rawSku.SizeName,
 				Value: rawSku.SizeName,
 			})
-
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 
@@ -525,8 +525,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		//"https://www.stories.com/en_usd/sale/all-sale.html",
-		"https://www.stories.com/en_usd/clothing/blouses-shirts/shirts/product.oversized-wool-blend-workwear-shirt-brown.0764033007.html",
+		"https://www.stories.com/en_usd/sale/all-sale.html",
+		// "https://www.stories.com/en_usd/clothing/blouses-shirts/shirts/product.oversized-wool-blend-workwear-shirt-brown.0764033007.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -549,12 +549,11 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -565,7 +564,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -573,6 +571,12 @@ func main() {
 		switch i := val.(type) {
 		case *http.Request:
 			logger.Debugf("Access %s", i.URL)
+
+			// crawler := spider.(*_Crawler)
+			// if crawler.productPathMatcher.MatchString(i.URL.Path) {
+			// 	return nil
+			// }
+			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
 
@@ -607,10 +611,10 @@ func main() {
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
-				EnableHeadless:    true,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableHeadless:    false,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -620,7 +624,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
@@ -629,7 +633,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
