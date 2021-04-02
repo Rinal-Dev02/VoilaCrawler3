@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -14,14 +15,14 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-
 	media "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -65,12 +66,17 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
-	return &crawler.CrawlOptions{
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
+	opts := &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
-		EnableSessionInit: true,
+		EnableSessionInit: false,
 	}
+	opts.MustCookies = append(opts.MustCookies,
+		&http.Cookie{Name: "x-ak-country-code", Value: "US", Path: "/"},
+		&http.Cookie{Name: "lang", Value: "v=2&lang=en-us", Path: "/"},
+	)
+	return opts
 }
 
 // AllowedDomains return the domains this spider process will.
@@ -187,11 +193,9 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			rawurl := ""
 			if idv.Attributes.ProductLink.URI != "" {
 				rawurl = fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.Attributes.ProductLink.URI)
-
 			} else {
 				rawurl = fmt.Sprintf("%s://%s/en_us/products/couture-%s", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.ObjectID)
 			}
-			fmt.Println(rawurl)
 			req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 			if err != nil {
 				c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
@@ -393,11 +397,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(contentData.Title),
+			Id:       contentData.Reference,
 			CrawlUrl: resp.Request.URL.String(),
 		},
 		BrandName:   "DIOR",
-		Title:       contentData.Reference,
+		Title:       contentData.Title,
 		Description: htmlTrimRegp.ReplaceAllString(contentDescriptionData.Sections[0].Content, ""),
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
@@ -408,12 +412,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	var itemImg []*media.Media
 	contentIndex = getIndex(viewData, "PRODUCTMEDIAS")
 	contentImgData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
-	isDefault := true
 	for ki, mid := range contentImgData.Items {
-		if ki > 0 {
-			isDefault = false
-		}
-
 		imgsize := "/" + strconv.Format(mid.Images[0].Width) + "x" + strconv.Format(mid.Images[0].Height) + "/"
 		iZoom := strings.NewReplacer(imgsize, "/3000x2000/", "_ZHC.", "_ZH.", "_GH.", "_ZH.", "cover_image_", "zoom_image_", "grid_image_", "zoom_image_")
 		iMid := strings.NewReplacer(imgsize, "/870x580/", "_ZH.", "_ZHC.", "_GH.", "_ZHC.", "grid_image_", "cover_image_")
@@ -425,7 +424,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			iMid.Replace(mid.Images[0].URI),
 			iSmall.Replace(mid.Images[0].URI),
 			"",
-			isDefault,
+			ki == 0,
 		))
 	}
 
@@ -434,10 +433,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		contentData = viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 
 		if contentData.VariationsType != "SIZE" {
-			fmt.Println("Variation is not type of SIZE")
+			c.logger.Debugf("Variation is not type of SIZE")
 		}
 
-		for ks, rawSku := range contentData.Variations {
+		for _, rawSku := range contentData.Variations {
 			originalPrice := (rawSku.Price.Value)
 			//discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.DisplayPercentOff, "%"))
 			sku := pbItem.Sku{
@@ -447,7 +446,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					Current:  int32(originalPrice * 100),
 					Msrp:     int32(originalPrice * 100),
 				},
-				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+				Medias: itemImg,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
 			if rawSku.Status == "AVAILABLE" {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
@@ -455,11 +455,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			// color
 			sku.Specs = append(sku.Specs, &itemColor)
-
-			//image
-			if ks == 0 {
-				sku.Medias = itemImg
-			}
 
 			// size
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
@@ -534,9 +529,9 @@ func getIndex(viewData parseProductData, types string) int {
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		//"https://www.dior.com/en_us/womens-fashion/ready-to-wear/all-ready-to-wear",
+		"https://www.dior.com/en_us/womens-fashion/ready-to-wear/all-ready-to-wear",
 		// "https://www.dior.com/en_us/products/couture-124V03BM211_X5685-ribbed-knit-bar-jacket-navy-blue-double-breasted-virgin-wool",
-		"https://www.dior.com/en_us/products/couture-93C1046A0121_C975-dior-oblique-tie-blue-and-black-silk",
+		// "https://www.dior.com/en_us/products/couture-93C1046A0121_C975-dior-oblique-tie-blue-and-black-silk",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -559,12 +554,11 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -575,14 +569,27 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
+
+	reqFilter := map[string]struct{}{}
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			crawler := spider.(*_Crawler)
+			if crawler.productPathMatcher.MatchString(i.URL.Path) {
+				return nil
+			}
+
+			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
 
@@ -618,9 +625,9 @@ func main() {
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -630,7 +637,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
