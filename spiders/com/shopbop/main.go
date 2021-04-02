@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -20,8 +21,11 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -65,12 +69,15 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
-	return &crawler.CrawlOptions{
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
+	opts := &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
+		Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
 	}
+
+	return opts
 }
 
 // AllowedDomains return the domains this spider process will.
@@ -106,12 +113,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
 
-func isRobotCheckPage(respBody []byte) bool {
-	return bytes.Contains(respBody, []byte("we believe you are using automation tools to browse the website")) ||
-		bytes.Contains(respBody, []byte("Javascript is disabled or blocked by an extension")) ||
-		bytes.Contains(respBody, []byte("Your browser does not support cookies"))
-}
-
 // nextIndex used to get the index from the shared data.
 // item.index is a const key for item index.
 func nextIndex(ctx context.Context) int {
@@ -133,11 +134,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if err != nil {
 		return err
 	}
-
-	if isRobotCheckPage(respBody) {
-		return errors.New("robot check page")
-	}
-	// c.logger.Debugf("%s", respBody)
 
 	if !bytes.Contains(respBody, []byte("data-productid")) {
 		return errors.New("products not found")
@@ -389,7 +385,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.shopbop.com/active-clothing-shorts/br/v=1/65919.htm",
+		// "https://www.shopbop.com/active-clothing-shorts/br/v=1/65919.htm",
 		"https://www.shopbop.com/hilary-bootie-sam-edelman/vp/v=1/1504954305.htm?folderID=15539&fm=other-shopbysize-viewall&os=false&colorId=1071C&ref_=SB_PLP_NB_12&breadcrumb=Sale%3EShoes",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
@@ -413,12 +409,11 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -429,14 +424,27 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
+
+	reqFilter := map[string]struct{}{}
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			// crawler := spider.(*_Crawler)
+			// if crawler.productPathMatcher.MatchString(i.URL.Path) {
+			// 	return nil
+			// }
+
+			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
 
@@ -463,7 +471,7 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "www.shopbop.com"
+				i.URL.Host = "www.modcloth.com"
 			}
 
 			// do http requests here.
@@ -472,9 +480,9 @@ func main() {
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -484,7 +492,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
@@ -493,7 +501,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
