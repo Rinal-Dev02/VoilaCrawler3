@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
@@ -23,6 +25,8 @@ import (
 
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -42,9 +46,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^((\?!previewAttribute).)*`),
+		categoryPathMatcher: regexp.MustCompile(`^/US/en/cat(/[A-Za-z0-9_-]+){1,5}`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`(.*)previewAttribute=(.*)`),
+		productPathMatcher: regexp.MustCompile(`((.*)previewAttribute=(.*))|((.*)_[/A-Za-z0-9]+)`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -66,7 +70,7 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	return &crawler.CrawlOptions{
 		EnableHeadless: true,
 		// use js api to init session for the first request of the crawl
@@ -98,7 +102,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-	if c.productPathMatcher.MatchString(resp.Request.URL.String()) {
+	if c.productPathMatcher.MatchString(resp.Request.URL.String()) || c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
@@ -194,7 +198,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
 		return err
 	}
-	//for _, idv := range viewData.MainEntity.ItemListElement {
 
 	lastIndex := nextIndex(ctx)
 	sel := doc.Find(`.c-prod-card__cta-box>a`)
@@ -326,14 +329,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	originalPrice, _ := strconv.ParseFloat(viewData.ProductPrice[0])
 	msrp := 0.0
+	discount := 0.0
 	if len(viewData.WasPrice) > 0 {
 		msrp, _ = strconv.ParseFloat(viewData.WasPrice[0])
 	}
 	if msrp == 0.0 {
 		msrp = originalPrice
 	}
-	discount := ((originalPrice - msrp) / msrp) * 100
+	if msrp > originalPrice {
+		discount = ((originalPrice - msrp) / msrp) * 100
+	}
 
+	// Note: Color variation is available on product list page therefor not considering multiple color of a product
 	colorName, _ := doc.Find(`[class^="c-select c-filter__select --colour"]`).Find(`[class^="c-select__dropdown-item --selected"]`).Attr(`data-js-action`)
 
 	sel := doc.Find(`[class^="c-select c-filter__select --size"]`).Find(`.c-select__dropdown-item`)
@@ -408,10 +415,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		//"https://www.selfridges.com/US/en/cat/womens/clothing/tops/?cm_sp=MegaMenu-_-Women-_-Clothing-Tops&pn=1&scrollToProductId=R03735136_GARNET_ALT10",
+		"https://www.selfridges.com/US/en/cat/womens/clothing/tops/?cm_sp=MegaMenu-_-Women-_-Clothing-Tops&pn=1&scrollToProductId=R03735136_GARNET_ALT10",
 		//"https://www.selfridges.com/US/en/cat/stella-mccartney-branded-relaxed-fit-cotton-jersey-vest_R03733067/?previewAttribute=PURE%20WHITE",
 		//"https://www.selfridges.com/US/en/cat/a_R03647747/?previewAttribute=Sky Blue Cream",
-		"https://www.selfridges.com/US/en/cat/a_R03673363/?previewAttribute=CLOUD%20DANCER",
+		//"https://www.selfridges.com/US/en/cat/a_R03673363/?previewAttribute=CLOUD%20DANCER",
+		"https://www.selfridges.com/US/en/cat/tom-ford-floral-print-leather-card-holder_R03714356/?previewAttribute=BLK+WHT",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -450,7 +458,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
+	opts := spider.CrawlOptions(nil)
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -478,6 +486,11 @@ func main() {
 				}
 			}
 
+			i.Header.Add("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
+			i.Header.Add("accept-encoding", "gzip, deflate, br")
+			i.Header.Add("accept-language", "en-US,en;q=0.8")
+			i.Header.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36")
+
 			// set scheme,host for sub requests. for the product url in category page is just the path without hosts info.
 			// here is just the test logic. when run the spider online, the controller will process automatically
 			if i.URL.Scheme == "" {
@@ -491,11 +504,11 @@ func main() {
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
-				EnableProxy:       false,
+				EnableProxy:       true,
 				EnableHeadless:    true,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: spider.CrawlOptions(nil).EnableSessionInit,
+				KeepSession:       spider.CrawlOptions(nil).KeepSession,
+				Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
 			})
 			if err != nil {
 				panic(err)
@@ -505,7 +518,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
