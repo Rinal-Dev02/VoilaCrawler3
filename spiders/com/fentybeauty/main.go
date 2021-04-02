@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -24,6 +25,8 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -45,7 +48,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 		// this regular used to match category page url path
 		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9-]+){1,6}$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^(/[a-z0-9-]+){1,3}/[A-Za-z0-9]+.html$`),
+		productPathMatcher: regexp.MustCompile(`^(/[A-Za-z0-9-]+){1,4}.html$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -67,7 +70,7 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	return &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
@@ -250,27 +253,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
-	for _, v := range []string{"man", "men", "male"} {
-		if strings.Contains(strings.ToLower(item.Category), v) {
-			item.CrowdType = "men"
-			break
-		}
-	}
-
-	for _, v := range []string{"woman", "women", "female"} {
-		if strings.Contains(strings.ToLower(item.Category), v) {
-			item.CrowdType = "women"
-			break
-		}
-	}
-
-	for _, v := range []string{"kid", "child", "girl", "boy"} {
-		if strings.Contains(strings.ToLower(item.Category), v) {
-			item.CrowdType = "kids"
-			break
-		}
-	}
-
 	currentPrice := int64(0)
 	msrp := int64(0)
 
@@ -289,12 +271,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		discount = ((currentPrice - msrp) / msrp) * 100
 	}
 
-	if strings.Contains(resp.Request.URL.String(), "_color") {
+	if strings.Contains(resp.Request.URL.String(), "_color") || bytes.Contains(respbody, []byte("class=\"swatches Color")) {
 
 		if bytes.Contains(respbody, []byte("class=\"swatches Color filtered\"")) {
-			sel = doc.Find(`.swatches.Color.filtered>li`)
+			sel = doc.Find(`.swatches.Color.filtered`).First().Find(`li`)
+		} else if bytes.Contains(respbody, []byte("class=\"swatches Color")) {
+			sel = doc.Find(`.swatches.Color`).First().Find(`li`)
 		} else {
-			sel = doc.Find(`.swatches.Color>li`)
+			sel = doc.Find(`.swatches.Color`).First().Find(`li`)
 		}
 
 		for i := range sel.Nodes {
@@ -435,8 +419,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.fentybeauty.com/makeup-face",
-		"https://www.fentybeauty.com/brow-mvp-sculpting-wax-pencil-and-styler/46291.html?cgid=makeup-brow",
+		//"https://www.fentybeauty.com/makeup-face",
+		"https://www.fentybeauty.com/powder-puff-setting-brush-170/27464.html?cgid=makeup-face-powder",
+		//"https://www.fentybeauty.com/pro-filtr-instant-retouch-setting-powder/FB30011.html?dwvar_FB30011_color=FB9005&cgid=makeup-face-powder",
+		//"https://www.fentybeauty.com/soft-matte-complexion-essentials-with-brush/pro-filter-foundation-essentials-brush.html?cgid=makeup-face",
 		//"https://www.fentybeauty.com/pro-filtr-soft-matte-longwear-foundation/FB30006.html?dwvar_FB30006_color=FB0340&cgid=makeup-face-foundation",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
@@ -476,7 +462,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
+	opts := spider.CrawlOptions(nil)
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -519,9 +505,9 @@ func main() {
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       false,
 				EnableHeadless:    true,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: spider.CrawlOptions(nil).EnableSessionInit,
+				KeepSession:       spider.CrawlOptions(nil).KeepSession,
+				Reliability:       spider.CrawlOptions(nil).Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -531,7 +517,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
