@@ -390,7 +390,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
 				strconv.Format(j),
-				s[0],
+				s[0]+".jpg",
 				s[0]+".jpg?sw=1000",
 				s[0]+".jpg?sw=600",
 				s[0]+".jpg?sw=500",
