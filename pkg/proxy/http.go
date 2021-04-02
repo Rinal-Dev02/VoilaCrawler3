@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
+	"io/ioutil"
 	rhttp "net/http"
 	"net/url"
 	"strings"
@@ -16,6 +16,7 @@ import (
 	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -81,7 +82,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 
 	var body []byte
 	if r.Body != nil {
-		body, err = io.ReadAll(r.Body)
+		body, err = ioutil.ReadAll(r.Body)
 		if err != nil {
 			c.logger.Debug(err)
 			return nil, err
@@ -99,14 +100,17 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			EnableHeadless:    opts.EnableHeadless,
 			EnableSessionInit: opts.EnableSessionInit,
 			KeepSession:       opts.KeepSession,
-			MaxTtlPerRequest:  10 * 60, // 10mins
+			DisableCookieJar:  opts.DisableCookieJar,
+			MaxTtlPerRequest:  5 * 60, // 5mins
 			DisableRedirect:   opts.DisableRedirect,
+			RequestFilterKeys: opts.RequestFilterKeys,
+			JsWaitDuration:    opts.JsWaitDuration,
 		},
 	}
 	// set ttl per request according to deadline
 	if deadline, ok := ctx.Deadline(); ok {
 		timeRemain := deadline.Unix() - time.Now().Unix()
-		if timeRemain > 0 {
+		if timeRemain > 30 {
 			req.Options.MaxTtlPerRequest = timeRemain
 		}
 	}
@@ -120,7 +124,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	if ctx.Value("req_id") != nil {
 		req.ReqId = ctx.Value("req_id").(string)
 	} else {
-		req.ReqId = fmt.Sprintf("req_%d", time.Now().UnixNano())
+		req.ReqId = fmt.Sprintf("req_%s", randutil.MustNewRandomID())
 	}
 	for key, vals := range r.Header {
 		req.Headers[key] = &pbHttp.ListValue{Values: vals}
@@ -145,7 +149,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	}
 
 	var proxyRespBody pbProxy.Response
-	if respBody, err := io.ReadAll(proxyResp.Body); err != nil {
+	if respBody, err := ioutil.ReadAll(proxyResp.Body); err != nil {
 		return nil, err
 	} else if err := protojson.Unmarshal(respBody, &proxyRespBody); err != nil {
 		return nil, err
@@ -174,12 +178,14 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			// try to uncompress ziped data
 			if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
 				if reader, err := gzip.NewReader(bytes.NewReader(res.Body)); err == nil {
-					if data, err := io.ReadAll(reader); err == nil {
+					if data, err := ioutil.ReadAll(reader); err == nil {
 						resp.Body = http.NewReader(data)
 						resp.Header.Del("Content-Encoding")
 						resp.Header.Del("Content-Length")
 						resp.ContentLength = -1
 						resp.Uncompressed = true
+					} else {
+						c.logger.Errorf("decode failed, error=%s", err)
 					}
 				} else {
 					resp.ContentLength = int64(len(res.Body))
