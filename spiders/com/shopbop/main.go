@@ -76,7 +76,11 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		EnableSessionInit: true,
 		Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
 	}
-
+	opts.MustCookies = append(opts.MustCookies,
+		&http.Cookie{Name: "llc", Value: "US-EN-USD", Path: "/"},
+		&http.Cookie{Name: "s_cc", Value: "false", Path: "/"},
+		&http.Cookie{Name: "showEmailPopUp", Value: fmt.Sprintf("false_%d", time.Now().UnixNano()/1000000), Path: "/"},
+	)
 	return opts
 }
 
@@ -145,17 +149,18 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	lastIndex := nextIndex(ctx)
-	sel := doc.Find(`.info.clearfix>a`)
+	sel := doc.Find(`#product-container .product`)
 	c.logger.Debugf("nodes %d", len(sel.Nodes))
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		if href, _ := node.Attr("href"); href != "" {
-			//fmt.Println(string(href), " -- ", lastIndex)
+		if href, _ := node.Find(`.url`).Attr("href"); href != "" &&
+			(strings.HasPrefix(href, "/") || strings.HasPrefix(href, "http://") || strings.HasPrefix(href, "https://")) {
 			req, err := http.NewRequest(http.MethodGet, href, nil)
 			if err != nil {
 				c.logger.Error(err)
 				continue
 			}
+
 			lastIndex += 1
 			nctx := context.WithValue(ctx, "item.index", lastIndex)
 			if err := yield(nctx, req); err != nil {
@@ -164,23 +169,18 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	// get current page number
-	baseIndex, _ := strconv.ParseInt(resp.Request.URL.Query().Get("baseIndex"))
-
-	// check if this is the last page
-	if !bytes.Contains(respBody, []byte("class=\"next \"")) {
+	nextNode := doc.Find(`.pages .next`)
+	if strings.Contains(nextNode.AttrOr("class", ""), "disabled") {
+		return nil
+	}
+	nextUrl := nextNode.AttrOr("data-next-link", "")
+	if nextUrl == "" {
 		return nil
 	}
 
-	// set pagination
-	u := *resp.Request.URL
-	vals := u.Query()
-	vals.Set("baseIndex", strconv.Format(baseIndex+100))
-	u.RawQuery = vals.Encode()
-
-	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-	// update the index of last page
+	req, _ := http.NewRequest(http.MethodGet, nextUrl, nil)
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
+
 	return yield(nctx, req)
 }
 
@@ -273,7 +273,6 @@ type parseProductResponse struct {
 }
 
 // used to trim html labels in description
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
 var imageReg = regexp.MustCompile(`_UX[0-9]+_`)
 
 // parseProduct
@@ -300,6 +299,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
@@ -308,77 +313,80 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 		BrandName:   viewData.Product.BrandLabel,
 		Title:       viewData.Product.ShortDescription,
-		Description: htmlTrimRegp.ReplaceAllString(viewData.Product.LongDescription, ", "),
+		Description: viewData.Product.LongDescription,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
 	}
-	for _, rawColor := range viewData.Product.StyleColors {
+	sel := dom.Find(`#bread-crumbs .bread-crumb-list>li[itemprop="itemListElement"]`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		switch i {
+		case 0:
+			item.Category = node.Find(`span[itemprop="name"]`).Text()
+		case 1:
+			item.SubCategory = node.Find(`span[itemprop="name"]`).Text()
+		case 2:
+			item.SubCategory2 = node.Find(`span[itemprop="name"]`).Text()
+		}
+	}
 
+	for _, rawColor := range viewData.Product.StyleColors {
 		originalPrice, _ := strconv.ParseFloat(rawColor.Prices[0].SaleAmount)
 		msrp, _ := strconv.ParseFloat(rawColor.Prices[0].RetailAmount)
 		discount, _ := strconv.ParseInt(rawColor.Prices[0].SalePercentage)
 
-		for ks, rawSku := range rawColor.StyleColorSizes {
+		var medias []*pbMedia.Media
+		for ki, m := range rawColor.Images {
+			template := m.URL
+			medias = append(medias, pbMedia.NewImageMedia(
+				"",
+				template,
+				imageReg.ReplaceAllString(template, "_UX1000_"),
+				imageReg.ReplaceAllString(template, "_UX600_"),
+				imageReg.ReplaceAllString(template, "_UX500_"),
+				"",
+				ki == 0,
+			))
+		}
+
+		colorSpec := pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecColor,
+			Id:    strconv.Format(rawColor.Color.Code),
+			Name:  rawColor.Color.Label,
+			Value: rawColor.Color.Label,
+			Icon:  rawColor.SwatchImage.URL,
+		}
+
+		for _, rawSku := range rawColor.StyleColorSizes {
 			sku := pbItem.Sku{
-				SourceId: strconv.Format(viewData.Product.StyleNumber),
+				SourceId: strconv.Format(rawSku.SkuCode),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(originalPrice * 100),
 					Msrp:     int32(msrp * 100),
 					Discount: int32(discount),
 				},
-				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+				Medias: medias,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
 			if rawSku.InStock {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
-				//sku.Stock.StockCount = int32(rawSku.TotalQuantityAvailable)
 			}
-
-			// color
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    strconv.Format(rawColor.Color.Code),
-				Name:  rawColor.Color.Label,
-				Value: rawColor.Color.Label,
-				Icon:  rawColor.SwatchImage.URL,
-			})
-
-			if ks == 0 {
-				isDefault := true
-				for ki, m := range rawColor.Images {
-					if ki > 0 {
-						isDefault = false
-					}
-					template := m.URL
-					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-						strconv.Format(rawColor.StyleColorCode),
-						template,
-						imageReg.ReplaceAllString(template, "_UX700_"),
-						imageReg.ReplaceAllString(template, "_UX500_"),
-						imageReg.ReplaceAllString(template, "_UX400_"),
-						"",
-						isDefault,
-					))
-				}
-			}
-
-			// size
+			sku.Specs = append(sku.Specs, &colorSpec)
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    rawSku.Sin,
+				Id:    rawSku.Size.Code,
 				Name:  rawSku.Size.Label,
-				Value: rawSku.Size.Label,
+				Value: rawSku.Size.Code,
 			})
-
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
-	// yield item result
+
 	if err = yield(ctx, &item); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -386,7 +394,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		// "https://www.shopbop.com/active-clothing-shorts/br/v=1/65919.htm",
-		"https://www.shopbop.com/hilary-bootie-sam-edelman/vp/v=1/1504954305.htm?folderID=15539&fm=other-shopbysize-viewall&os=false&colorId=1071C&ref_=SB_PLP_NB_12&breadcrumb=Sale%3EShoes",
+		// "https://www.shopbop.com/active-bags/br/v=1/65741.htm",
+		// "https://www.shopbop.com/hilary-bootie-sam-edelman/vp/v=1/1504954305.htm?folderID=15539&fm=other-shopbysize-viewall&os=false&colorId=1071C&ref_=SB_PLP_NB_12&breadcrumb=Sale%3EShoes",
+		// "https://www.shopbop.com/recycled-ripstop-quilt-coat-ganni/vp/v=1/1569753880.htm?folderID=64802&fm=other-shopbysize-viewall&os=false&colorId=1A608&ref_=SB_PLP_NB_1&breadcrumb=Clothing%3EJackets",
+		"https://www.shopbop.com/medium-weekender-marc-jacobs/vp/v=1/1552457368.htm?folderID=65741&fm=other-viewall&os=false&colorId=1A039&ref_=SB_PLP_DB_10&breadcrumb=Active%3EBags",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -471,7 +482,7 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "www.modcloth.com"
+				i.URL.Host = "www.shopbop.com"
 			}
 
 			// do http requests here.
@@ -501,7 +512,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
