@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/gosimple/slug"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
@@ -106,7 +107,7 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")) + 1)
 }
 
-var prodDataExtraReg = regexp.MustCompile(`window\.asos\.plp\._data\s*=\s*JSON\.parse\('([^;)]+)'\);`)
+var prodDataExtraReg = regexp.MustCompile(`(?U)window\.asos\.plp\._data\s*=\s*JSON\.parse\('(.*)'\);`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -119,19 +120,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	// extract html content
-	// doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	// if err != nil {
-	// 	return err
-	// }
-	// doc.Find(`div[data-auto-id="productList"]>section>article[data-auto-id="productTile"]>a`).Each(func(i int, s *goquery.Selection) {
-	// 	if u, exists := s.Attr("href"); exists {
-	// 		req, _ := http.NewRequest(http.MethodGet, u, nil)
-	// 		yield(ctx, req)
-	// 	}
-	// })
-
-	// next page
 	matched := prodDataExtraReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
 		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
@@ -504,6 +492,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	matchedRating := ratingReg.FindSubmatch(respBody)
 	matchedDesc := descReg.FindSubmatch(respBody)
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
 	var (
 		i      parseProductResponse
 		sp     *parseProductStockPrice
@@ -609,17 +603,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(i.ID),
-			CrawlUrl: resp.Request.URL.String(),
-			GroupId:  groupId,
+			Id:           strconv.Format(i.ID),
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: dom.Find(`link[rel="canonical"]`).AttrOr("href", ""),
+			GroupId:      groupId,
 		},
-		Title:        i.Name,
-		Description:  desc.Desc,
-		BrandName:    i.BrandName,
-		CrowdType:    i.Gender,
-		Category:     "", // auto set by crawl job info
-		SubCategory:  "",
-		SubCategory2: "",
+		Title:       i.Name,
+		Description: desc.Desc,
+		BrandName:   i.BrandName,
+		CrowdType:   i.Gender,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 			Current:  int32(sp.ProductPrice.Current.Value * 100),
@@ -634,6 +626,26 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			StockStatus: pbItem.Stock_InStock,
 		}
 	}
+	breadSel := dom.Find(`nav[aria-label="breadcrumbs"]>ol>li`)
+	for i := range breadSel.Nodes {
+		if i == len(breadSel.Nodes)-1 {
+			break
+		}
+		node := breadSel.Eq(i)
+		switch i {
+		case 1:
+			item.Category = strings.TrimSpace(node.Find("a").Text())
+		case 2:
+			item.SubCategory = strings.TrimSpace(node.Find("a").Text())
+		case 3:
+			item.SubCategory2 = strings.TrimSpace(node.Find("a").Text())
+		case 4:
+			item.SubCategory3 = strings.TrimSpace(node.Find("a").Text())
+		case 5:
+			item.SubCategory4 = strings.TrimSpace(node.Find("a").Text())
+		}
+	}
+
 	for _, img := range i.Images {
 		itemImg, _ := anypb.New(&media.Media_Image{
 			OriginalUrl: img.URL,
@@ -691,7 +703,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.asos.com/us/women/outlet/ctas/timed-sales/timed-sale-1/cat/?cid=28030",
+		// "https://www.asos.com/us/women/outlet/ctas/timed-sales/timed-sale-1/cat/?cid=28030",
+		// "https://www.asos.com/us/women/accessories/scarves/cat/?cid=6452&nlid=ww|accessories|shop+by+product",
+		"https://www.asos.com/us/women/tops/cat/?cid=4169&currentpricerange=0-365&nlid=ww|clothing|shop%20by%20product&refine=attribute_1047:8392|attribute_10156:50477",
+		// "https://www.asos.com/us/women/face-body/makeup/cat/?cid=5020&ctaref=cat_header&currentpricerange=5-75&refine=attribute_1047:9778,8461",
 		// "https://www.asos.com/us/catch/catch-exclusive-ribbed-tie-cardigan-set-in-beige/grp/34104?colourwayid=60431494&cid=2623",
 		// "https://www.asos.com/us/olivia-burton/olivia-burton-white-dial-midi-mesh-watch-in-rose-gold/prd/22313628?colourwayid=60389207&cid=5088",
 		// "https://www.asos.com/us/women/new-in/new-in-clothing/cat/?cid=2623&nlid=ww%7Cclothing%7Cshop%20by%20product&page=1",
@@ -730,12 +745,25 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			// crawler := spider.(*_Crawler)
+			// if crawler.productPathMatcher.MatchString(i.URL.Path) {
+			// 	return nil
+			// }
+
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -793,7 +821,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
