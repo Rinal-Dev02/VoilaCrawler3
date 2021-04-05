@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
@@ -21,6 +23,8 @@ import (
 
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -40,9 +44,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^((\?/p/).)*`),
+		categoryPathMatcher: regexp.MustCompile(`^/en-us/shop(.*)`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^(.*)(&lvrid=_p)(.*)$`),
+		productPathMatcher: regexp.MustCompile(`^(/en-us/p(.*)(&lvrid=_p)(.*)) | (/en-us/p(.*))$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -64,7 +68,7 @@ func (c *_Crawler) Version() int32 {
 // These options tells the spider controller how to do http requests.
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	return &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
@@ -97,7 +101,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(resp.Request.URL.String()) || c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
@@ -205,12 +209,14 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	matched := productListExtractReg.FindSubmatch(respBody)
+	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+		matched = productListExtractReg.FindSubmatch(respBody)
+		if len(matched) <= 1 {
+			c.logger.Debugf("%s", respBody)
+			return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+		}
 	}
-	// c.logger.Debugf("data: %s", matched[1])
 
 	var viewData CategoryData
 	if err := json.Unmarshal(matched[1], &viewData); err != nil {
@@ -645,6 +651,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 	}
 
+	// Note: Color variation is available on product list page therefor not considering multiple color of a product
 	for _, rawcolor := range viewData.AvailabilityByColor {
 
 		for ks, rawSku := range rawcolor.SizeAvailability {
@@ -677,7 +684,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 
 			if ks == 0 {
-				colorcode := string(rawcolor.ComColorID) + "|" + rawcolor.VendorColorID
+				colorcode := strconv.Format(rawcolor.ComColorID) + "|" + rawcolor.VendorColorID
 				isDefault := true
 				for i, mid := range viewData.PhotosByColor[colorcode] {
 					if i > 0 {
@@ -717,9 +724,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.luisaviaroma.com/en-us/shop/women/bags?lvrid=_gw_i22_s&Page=2&ajax=true",
-		"https://www.luisaviaroma.com/en-us/p/the-attico/women/top-handle-bags/72I-RSI001?ColorId=MTAw0&SubLine=bags&CategoryId=81&lvrid=_p_d4UN_gw_c81",
-		"https://www.luisaviaroma.com/72I-0LT009?ColorId=MDBC0&lvrid=_p",
+		"https://www.luisaviaroma.com/en-us/shop/women/shoes/ballerinas?lvrid=_gw_i4_c145",
+		//"https://www.luisaviaroma.com/en-us/shop/home/lladr%C3%B2?lvrid=_ge_d0oy",
+		// "https://www.luisaviaroma.com/en-us/p/the-attico/women/top-handle-bags/72I-RSI001?ColorId=MTAw0&SubLine=bags&CategoryId=81&lvrid=_p_d4UN_gw_c81",
+		// "https://www.luisaviaroma.com/72I-0LT009?ColorId=MDBC0&lvrid=_p",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -747,7 +755,7 @@ func main() {
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-	//os.Setenv("VOILA_PROXY_URL", "http://3.239.93.53:30216")
+
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -758,7 +766,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
+	opts := spider.CrawlOptions(nil)
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -802,8 +810,8 @@ func main() {
 				EnableProxy:       true,
 				EnableHeadless:    true,
 				EnableSessionInit: true,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				KeepSession:       spider.CrawlOptions(nil).KeepSession,
+				Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
 			})
 			if err != nil {
 				panic(err)
@@ -813,7 +821,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
