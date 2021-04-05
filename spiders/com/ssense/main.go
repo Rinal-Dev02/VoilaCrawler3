@@ -21,6 +21,7 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -73,6 +74,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
+		Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
 	}
 	opts.MustCookies = append(opts.MustCookies,
 		&http.Cookie{Name: "country", Value: "US", Path: "/"},
@@ -497,11 +499,6 @@ func main() {
 			reqFilter[i.URL.String()] = struct{}{}
 
 			logger.Debugf("Access %s", i.URL)
-
-			crawler := spider.(*_Crawler)
-			if crawler.productPathMatcher.MatchString(i.URL.Path) {
-				return nil
-			}
 
 			// crawler := spider.(*_Crawler)
 			// if crawler.productPathMatcher.MatchString(i.URL.Path) {
