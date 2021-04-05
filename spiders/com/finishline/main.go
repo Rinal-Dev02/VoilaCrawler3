@@ -5,10 +5,10 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -25,6 +25,8 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 type _Crawler struct {
@@ -39,7 +41,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
 		categoryPathMatcher: regexp.MustCompile(`^((\?!product).)*`),
-		productPathMatcher:  regexp.MustCompile(`^(.*)(/product/)(.*)$`),
+		productPathMatcher:  regexp.MustCompile(`^((.*)(/product/)(.*))|(/store/product/(.*)(/prod\d+))$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -56,7 +58,7 @@ func (c *_Crawler) Version() int32 {
 }
 
 // CrawlOptions
-func (c *_Crawler) CrawlOptions() *crawler.CrawlOptions {
+func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.LoginRequired = false
@@ -204,7 +206,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 	}
 
-	//itemListElement
 	sel := doc.Find(`.breadcrumbs>li`)
 	c.logger.Debugf("nodes %d", len(sel.Nodes))
 	for i := range sel.Nodes {
@@ -249,9 +250,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	priceregx = regexp.MustCompile(`"product_list_price"\s*:\s*\["(.*)"\],`)
 	msrp, _ := strconv.ParseFloat(string(priceregx.FindSubmatch(respbody)[1]))
+	discount := 0.0
+	if msrp > 0.0 && msrp > currentPrice {
+		discount = ((currentPrice - msrp) / msrp) * 100
+	}
+	imgIcon, _ := doc.Find(`.colorway`).Find(`a[data-productid="` + string(sizeID.FindSubmatch(respbody)[1]) + `"]`).Find(`div>img`).Attr(`data-src`)
 
-	discount := ((currentPrice - msrp) / msrp) * 100
-
+	// Note: Color variation is available on product list page therefor not considering multiple color of a product
 	sel = doc.Find(sizelist)
 	for i := range sel.Nodes {
 		snode := sel.Eq(i)
@@ -269,7 +274,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
-		if !strings.Contains(snode.Text(), `disabled`) {
+		classAttr, _ := snode.Attr(`class`)
+		if !strings.Contains(classAttr, `disabled`) {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
 			//sku.Stock.StockCount = int32(rawSku.AvailableDc)
 		}
@@ -283,17 +289,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Id:    colorSourceID,
 			Name:  colorName,
 			Value: colorName,
-			//Icon:  color.SwatchMedia.Mobile,
+			Icon:  imgIcon,
 		})
 
 		if i == 0 {
 			isDefault := true
-			sel = doc.Find(`.thumbSlide`)
-			for j := range sel.Nodes {
+			seli := doc.Find(`.thumbSlide`)
+			for j := range seli.Nodes {
 				if j > 1 {
 					isDefault = false
 				}
-				node := sel.Eq(j)
+				node := seli.Eq(j)
 				mediumUrl, _ := node.Find(`.over5.pdp-image.isShoe`).Attr("data-thumb")
 
 				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
@@ -327,10 +333,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
-		"https://www.finishline.com/store/women/shoes/running/_/N-nat3jh?mnid=women_shoes_running",
-		"https://www.finishline.com/store/product/womens-nike-air-max-270-casual-shoes/prod2770847?styleId=AH6789&colorId=001",
+		//"https://www.finishline.com/store/women/shoes/running/_/N-nat3jh?mnid=women_shoes_running",
+		//"https://www.finishline.com/store/product/womens-nike-air-max-270-casual-shoes/prod2770847?styleId=AH6789&colorId=001",
+		"https://www.finishline.com/store/product/mens-nike-challenger-og-casual-shoes/prod2820864?styleId=CW7645&colorId=002",
 		//"https://www.finishline.com/store/product/womens-puma-future-rider-play-on-casual-shoes/prod2795926?styleId=38182501&colorId=100",
-		// "https://www.neimanmarcus.com/p/moncler-moka-shiny-fitted-puffer-coat-with-hood-and-matching-items-prod213210002?childItemId=NMTA8BE_&focusProductId=prod180340224&navpath=cat000000_cat000001_cat58290731_cat77190754&page=0&position=27",
+
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -363,7 +370,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions()
+	opts := spider.CrawlOptions(nil)
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
@@ -406,9 +413,9 @@ func main() {
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
-				EnableSessionInit: spider.CrawlOptions().EnableSessionInit,
-				KeepSession:       spider.CrawlOptions().KeepSession,
-				Reliability:       spider.CrawlOptions().Reliability,
+				EnableSessionInit: spider.CrawlOptions(nil).EnableSessionInit,
+				KeepSession:       spider.CrawlOptions(nil).KeepSession,
+				Reliability:       spider.CrawlOptions(nil).Reliability,
 			})
 			if err != nil {
 				panic(err)
@@ -418,7 +425,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
