@@ -438,7 +438,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			orgPrice float64
 			price    float64
 			discount float64
-			medias   []*pbMedia.Media
 		)
 		if orgPrice != price {
 			discount = math.Round((orgPrice - price) / orgPrice * 100)
@@ -519,7 +518,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				discount = math.Ceil((orgPrice - price) / orgPrice * 100)
 			}
 
-			medias = medias[0:0]
+			var medias []*pbMedia.Media
 			for ki, mid := range viewData.Product.Images.HiRes {
 				template := mid.URL
 				medias = append(medias, pbMedia.NewImageMedia(
@@ -651,7 +650,6 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 		orgPrice float64
 		price    float64
 		discount float64
-		medias   []*pbMedia.Media
 		opts     = c.CrawlOptions(resp.Request.URL)
 	)
 	for _, prodInfo := range productSkus.Products {
@@ -782,7 +780,7 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 				discount = math.Ceil((orgPrice - price) / orgPrice * 100)
 			}
 
-			medias = medias[0:0]
+			var medias []*pbMedia.Media
 			for ki, mid := range viewData.Product.Images.HiRes {
 				template := mid.URL
 				medias = append(medias, pbMedia.NewImageMedia(
