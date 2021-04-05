@@ -651,6 +651,31 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 	}
 
+	item.Category = viewData.BreadcrumbGender
+	item.SubCategory = viewData.BreadcrumbSubline
+	item.SubCategory2 = viewData.BreadcrumbDescription
+
+	for _, v := range []string{"man", "men", "male"} {
+		if strings.Contains(strings.ToLower(item.Category), v) {
+			item.CrowdType = "men"
+			break
+		}
+	}
+
+	for _, v := range []string{"woman", "women", "female"} {
+		if strings.Contains(strings.ToLower(item.Category), v) {
+			item.CrowdType = "women"
+			break
+		}
+	}
+
+	for _, v := range []string{"kid", "child", "girl", "boy"} {
+		if strings.Contains(strings.ToLower(item.Category), v) {
+			item.CrowdType = "kids"
+			break
+		}
+	}
+
 	// Note: Color variation is available on product list page therefor not considering multiple color of a product
 	for _, rawcolor := range viewData.AvailabilityByColor {
 
