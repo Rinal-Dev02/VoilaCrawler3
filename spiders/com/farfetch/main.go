@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -21,6 +24,8 @@ import (
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -35,9 +40,10 @@ type _Crawler struct {
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
-		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9_-]+)?/shopping/(women|men)([/a-z0-9_-]+)items.aspx$`),
-		productPathMatcher:  regexp.MustCompile(`^(/[a-z0-9_-]+)+(/[a-z0-9_-]+)-item-[0-9]+.aspx$`),
-		logger:              logger.New("_Crawler"),
+		categoryPathMatcher: regexp.MustCompile(`^/(shopping|sets)/(women|men|kids)([/a-z0-9_-]+)items.aspx$`),
+		// https://www.farfetch.com/shopping/women/aztech-mountain-galena-puffer-coat-item-15896311.aspx?storeid=10254
+		productPathMatcher: regexp.MustCompile(`^/shopping(/[a-z0-9_\-]+){2,5}\-item\-\d+.aspx$`),
+		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
 }
@@ -85,17 +91,68 @@ func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
 	return false
 }
 
+var countriesPrefix = map[string]struct{}{"/ad": {}, "/ae": {}, "/ar-ae": {}, "/af": {}, "/ag": {}, "/ai": {}, "/al": {}, "/am": {}, "/an": {}, "/ao": {}, "/aq": {}, "/ar": {}, "/at": {}, "/au": {}, "/aw": {}, "/az": {}, "/ba": {}, "/bb": {}, "/bd": {}, "/be": {}, "/bf": {}, "/bg": {}, "/bh": {}, "/ar-bh": {}, "/bi": {}, "/bj": {}, "/bm": {}, "/bn": {}, "/bo": {}, "/br": {}, "/bs": {}, "/bt": {}, "/bv": {}, "/bw": {}, "/by": {}, "/bz": {}, "/ca": {}, "/cc": {}, "/cf": {}, "/cg": {}, "/ch": {}, "/ci": {}, "/ck": {}, "/cl": {}, "/cm": {}, "/cn": {}, "/co": {}, "/cr": {}, "/cv": {}, "/cx": {}, "/cy": {}, "/cz": {}, "/de": {}, "/dj": {}, "/dk": {}, "/dm": {}, "/do": {}, "/dz": {}, "/ec": {}, "/ee": {}, "/eg": {}, "/ar-eg": {}, "/eh": {}, "/es": {}, "/et": {}, "/fi": {}, "/fj": {}, "/fk": {}, "/fm": {}, "/fo": {}, "/fr": {}, "/ga": {}, "/uk": {}, "/gd": {}, "/ge": {}, "/gf": {}, "/gg": {}, "/gh": {}, "/gi": {}, "/gl": {}, "/gm": {}, "/gn": {}, "/gp": {}, "/gq": {}, "/gr": {}, "/gt": {}, "/gu": {}, "/gw": {}, "/gy": {}, "/hk": {}, "/hn": {}, "/hr": {}, "/ht": {}, "/hu": {}, "/ic": {}, "/id": {}, "/ie": {}, "/il": {}, "/in": {}, "/io": {}, "/iq": {}, "/ar-iq": {}, "/is": {}, "/it": {}, "/je": {}, "/jm": {}, "/jo": {}, "/ar-jo": {}, "/jp": {}, "/ke": {}, "/kg": {}, "/kh": {}, "/ki": {}, "/km": {}, "/kn": {}, "/kr": {}, "/kv": {}, "/kw": {}, "/ar-kw": {}, "/ky": {}, "/kz": {}, "/la": {}, "/lb": {}, "/ar-lb": {}, "/lc": {}, "/li": {}, "/lk": {}, "/ls": {}, "/lt": {}, "/lu": {}, "/lv": {}, "/ma": {}, "/mc": {}, "/md": {}, "/me": {}, "/mg": {}, "/mh": {}, "/mk": {}, "/ml": {}, "/mn": {}, "/mo": {}, "/mp": {}, "/mq": {}, "/mr": {}, "/ms": {}, "/mt": {}, "/mu": {}, "/mv": {}, "/mw": {}, "/mx": {}, "/my": {}, "/mz": {}, "/na": {}, "/nc": {}, "/ne": {}, "/nf": {}, "/ng": {}, "/ni": {}, "/nl": {}, "/no": {}, "/np": {}, "/nr": {}, "/nu": {}, "/nz": {}, "/om": {}, "/ar-om": {}, "/pa": {}, "/pe": {}, "/pf": {}, "/pg": {}, "/ph": {}, "/pk": {}, "/pl": {}, "/pm": {}, "/pn": {}, "/pr": {}, "/pt": {}, "/pw": {}, "/py": {}, "/qa": {}, "/ar-qa": {}, "/re": {}, "/ro": {}, "/rs": {}, "/ru": {}, "/rw": {}, "/sa": {}, "/ar-sa": {}, "/sb": {}, "/sc": {}, "/se": {}, "/sg": {}, "/sh": {}, "/si": {}, "/sk": {}, "/sl": {}, "/sm": {}, "/sn": {}, "/sr": {}, "/st": {}, "/sv": {}, "/sz": {}, "/tc": {}, "/td": {}, "/tg": {}, "/th": {}, "/tj": {}, "/tk": {}, "/tl": {}, "/tn": {}, "/to": {}, "/tr": {}, "/tt": {}, "/tv": {}, "/tw": {}, "/tz": {}, "/ua": {}, "/ug": {}, "/uy": {}, "/uz": {}, "/va": {}, "/vc": {}, "/ve": {}, "/vg": {}, "/vi": {}, "/vn": {}, "/vu": {}, "/wf": {}, "/xc": {}, "/ye": {}, "/za": {}, "/zm": {}, "/zw": {}}
+
+func getPathFirstSection(p string) string {
+	return "/" + strings.SplitN(strings.TrimPrefix(p, "/"), "/", 2)[0]
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseProduct(ctx, resp, yield)
+	prefix := getPathFirstSection(resp.Request.URL.Path)
+	if _, ok := countriesPrefix[prefix]; ok {
+		req := resp.Request
+		req.URL.Path = strings.TrimPrefix(req.URL.Path, prefix)
+
+		opts := c.CrawlOptions(req.URL)
+		for k := range opts.MustHeader {
+			req.Header.Set(k, opts.MustHeader.Get(k))
+		}
+		for _, c := range opts.MustCookies {
+			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
+				val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+				if c := req.Header.Get("Cookie"); c != "" {
+					req.Header.Set("Cookie", c+"; "+val)
+				} else {
+					req.Header.Set("Cookie", val)
+				}
+			}
+		}
+		c.logger.Infof("Access %s", req.URL.String())
+		if res, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableSessionInit,
+			DisableCookieJar:  opts.DisableCookieJar,
+			Reliability:       opts.Reliability,
+		}); err != nil {
+			return err
+		} else {
+			resp = res
+		}
 	}
 
+	yieldWrap := func(ctx context.Context, val interface{}) error {
+		switch v := val.(type) {
+		case *http.Request:
+			prefix := getPathFirstSection(v.URL.Path)
+			if _, ok := countriesPrefix[prefix]; ok {
+				v.URL.Path = strings.TrimPrefix(v.URL.Path, prefix)
+			}
+			return yield(ctx, v)
+		default:
+			return yield(ctx, val)
+		}
+	}
+
+	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yieldWrap)
+	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseProduct(ctx, resp, yieldWrap)
+	}
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
 
@@ -823,8 +880,8 @@ type parseProductResponse struct {
 }
 
 var (
-	detailReg  = regexp.MustCompile(`(window\['__initialState_slice-pdp__'\])\s*=\s*([^;]+)<\/script>`)
-	detailReg1 = regexp.MustCompile(`(window\['__initialState__']) = "([^;)]+)";`)
+	detailReg  = regexp.MustCompile(`(?Ums)window\['__initialState_slice-pdp__'\]\s*=\s*([^;]+);?<\/script>`)
+	detailReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__']\s*=\s*"([^;)]+)";`)
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -838,29 +895,32 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
 	matched := detailReg.FindSubmatch(respBody)
-	if matched == nil {
+	if len(matched) == 0 {
 		matched = detailReg1.FindSubmatch(respBody)
 	}
 	if len(matched) <= 1 {
 		c.httpClient.Jar().Clear(ctx, resp.Request.URL)
-
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
 	}
 
-	var (
-		i parseProductResponse
-	)
-
-	if err = json.Unmarshal(matched[2], &i); err != nil {
+	var i parseProductResponse
+	if err = json.Unmarshal(matched[1], &i); err != nil {
 		c.logger.Error(err)
 		return err
 	}
 
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(i.ProductViewModel.Details.ProductID),
-			CrawlUrl: resp.Request.URL.String(),
+			Id:           strconv.Format(i.ProductViewModel.Details.ProductID),
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: doc.Find(`link[rel="canonical"]`).AttrOr("href", ""),
 		},
 		Title:       i.ProductViewModel.Details.ShortDescription,
 		Description: i.ProductViewModel.Details.Description,
@@ -870,12 +930,31 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Currency: regulation.Currency_USD,
 		},
 	}
+	for i, bread := range i.ProductViewModel.Breadcrumb {
+		if i == 0 {
+			continue
+		}
+		switch i {
+		case 1:
+			item.Category = bread.Text
+		case 2:
+			item.SubCategory = bread.Text
+		case 3:
+			item.SubCategory2 = bread.Text
+		case 4:
+			item.SubCategory3 = bread.Text
+		case 5:
+			item.SubCategory4 = bread.Text
+		}
+	}
 
 	discount, _ := strconv.ParseInt(strings.TrimSuffix(i.ProductViewModel.PriceInfo.Default.Labels.Discount, "% Off"))
 	current, _ := strconv.ParseFloat(i.ProductViewModel.PriceInfo.Default.FinalPrice)
 	msrp, _ := strconv.ParseFloat(i.ProductViewModel.PriceInfo.Default.InitialPrice)
 
 	for _, rawSize := range i.ProductViewModel.Sizes.Available {
+		color := i.ProductViewModel.Details.Colors
+
 		sku := pbItem.Sku{
 			SourceId: strconv.Format(rawSize.SizeID),
 			Price: &pbItem.Price{
@@ -891,21 +970,25 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			sku.Stock.StockCount = int32(rawSize.Quantity)
 		}
 
+		if color != "" {
+			sku.SourceId = fmt.Sprintf("%s-%v", color, rawSize.SizeID)
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
+				Id:    color,
+				Name:  color,
+				Value: color,
+			})
+		}
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecSize,
 			Id:    strconv.Format(rawSize.SizeID),
 			Name:  rawSize.Description,
 			Value: strconv.Format(rawSize.SizeID),
 		})
-
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
-	isDefault := true
 	for _, img := range i.ProductViewModel.Images.Main {
-		if img.Index > 1 {
-			isDefault = false
-		}
 		itemImg, _ := anypb.New(&media.Media_Image{
 			OriginalUrl: img.Zoom,
 			LargeUrl:    img.Zoom, // $S$, $XXL$
@@ -914,11 +997,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		})
 		item.Medias = append(item.Medias, &media.Media{
 			Detail:    itemImg,
-			IsDefault: isDefault,
+			IsDefault: img.Index == 1,
 		})
 	}
 
-	// yield item result
 	if err = yield(ctx, &item); err != nil {
 		return err
 	}
@@ -927,7 +1009,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.farfetch.com/shopping/women/denim-1/items.aspx",
+		"https://www.farfetch.com/de/shopping/women/denim-1/items.aspx",
+		// "https://www.farfetch.com/de/shopping/women/aztech-mountain-galena-mantel-item-15896311.aspx?storeid=10254",
 		//"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
 		//"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
 	} {
@@ -948,6 +1031,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -962,12 +1049,26 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -995,7 +1096,7 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "www.farfetch.com"
+				i.URL.Host = "www.saksfifthavenue.com"
 			}
 
 			// do http requests here.
@@ -1016,12 +1117,11 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			// data, err := json.Marshal(i)
-			// if err != nil {
-			// 	return err
-			// }
-			// logger.Infof("data: %s", data)
-			logger.Debugf("got item")
+			data, err := protojson.Marshal(i.(proto.Message))
+			if err != nil {
+				return err
+			}
+			logger.Infof("data: %s", data)
 		}
 		return nil
 	}
