@@ -267,17 +267,19 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 					// get crawl options
 					// TODO: check crawl options
 					go func(ctx context.Context, req *request.Request) {
-						defer func() {
-							ctrl.threadCtrl.Unlock(req.GetStoreId(), req.GetId())
-							ctrl.logger.Debugf("unlocked %s %s", req.GetStoreId(), req.GetId())
-						}()
 						ctrl.logger.Infof("%s %s", req.GetMethod(), req.GetUrl())
 
 						if _, err := ctrl.requestManager.UpdateStatus(ctx, nil, reqId, 2, false); err != nil {
 							ctrl.logger.Errorf("update request status failed, error=%s", err)
 						}
 
-						err := func() error {
+						err := func() (err error) {
+							defer func() {
+								if e := recover(); e != nil {
+									err = fmt.Errorf("%v", e)
+								}
+							}()
+
 							crawlers, err := ctrl.crawlerCtrl.GetCrawlerByUrl(ctx, req.GetUrl())
 							if err != nil {
 								ctrl.logger.Errorf("check crawler for %s failed, error=%s", req.GetUrl(), err)
@@ -287,7 +289,8 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							if len(crawlers) == 0 {
 								ctrl.logger.Warnf("not crawler found for %s", req.GetUrl())
 								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, "no useable crawler")
-								return err
+								err = fmt.Errorf("no crawler usable for %s", req.GetUrl())
+								return
 							}
 							options := crawlers[0].GetOptions()
 
@@ -358,7 +361,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							if err != nil {
 								ctrl.logger.Errorf("do %s request failed, error=%s", req.GetUrl(), err)
 								ctrl.historyCtrl.Publish(ctx, req.GetId(), duration, 0, err.Error())
-								return err
+								return
 							}
 							ctrl.historyCtrl.Publish(ctx, req.GetId(), duration, proxyResp.StatusCode, "")
 
@@ -374,13 +377,16 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 								}
 
 								if proxyResp.GetStatusCode() == -1 {
-									return errors.New(proxyResp.GetStatus())
+									err = errors.New(proxyResp.GetStatus())
+									return
 								}
 								// to requeue again
-								return errors.New("access forbidden")
+								err = errors.New("access forbidden")
+								return
 							}
 							if proxyResp.GetRequest() == nil {
-								return fmt.Errorf("request info missing for %s", req.GetUrl())
+								err = fmt.Errorf("request info missing for %s", req.GetUrl())
+								return
 							}
 
 							// parse respose, if failed, queue the request again
@@ -389,8 +395,11 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 								ctrl.logger.Errorf("parse response from %s failed, error=%s", req.GetUrl(), err)
 								return err
 							}
-							return nil
+							return
 						}()
+
+						ctrl.threadCtrl.Unlock(req.GetStoreId(), req.GetId(), err)
+						ctrl.logger.Debugf("unlocked %s %s", req.GetStoreId(), req.GetId())
 
 						var (
 							status        int32 = 3

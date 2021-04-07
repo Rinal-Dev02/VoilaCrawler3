@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/voiladev/VoilaCrawl/internal/model/request"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
@@ -55,12 +56,16 @@ func (ctrl *CrawlerController) Parse(ctx context.Context, r *request.Request, ra
 		return err
 	}
 
-	if _, err := ctrl.crawlerClient.Parse(ctx, &pbCrawl.ParseRequest{
+	if res, err := ctrl.crawlerClient.Parse(ctx, &pbCrawl.ParseRequest{
 		Request:             &crawlReq,
 		Response:            rawResp,
 		EnableBlockForItems: false,
 	}); err != nil {
 		logger.Errorf("parse %s failed, error=%s", r.GetUrl(), err)
+		return err
+	} else if res.ItemCount+res.SubReqCount == 0 {
+		err = fmt.Errorf("parse %s failed, error=got no item or subrequest", r.GetUrl())
+		logger.Error(err)
 		return err
 	}
 	return nil

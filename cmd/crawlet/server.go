@@ -122,8 +122,24 @@ func (s *CrawlerServer) Parse(ctx context.Context, req *pbCrawl.ParseRequest) (*
 	shareCtx = context.WithValue(shareCtx, "req_id", req.GetRequest().GetReqId())
 	shareCtx = context.WithValue(shareCtx, "store_id", req.GetRequest().GetStoreId())
 
-	var ret []*anypb.Any
+	var (
+		ret         []*anypb.Any
+		subReqCount int32
+		itemCount   int32
+	)
 	if err := s.crawlerCtrl.Parse(shareCtx, req, func(ctx context.Context, msg proto.Message) error {
+		var topic string
+		switch msg.(type) {
+		case *pbCrawl.Command_Request:
+			topic = config.CrawlRequestTopic
+			subReqCount += 1
+		case *pbCrawl.Item:
+			itemCount += 1
+			topic = config.CrawlItemProductTopic
+		default:
+			return errors.New("unsupported data type")
+		}
+
 		if req.GetEnableBlockForItems() {
 			data, err := anypb.New(msg)
 			if err != nil {
@@ -133,15 +149,6 @@ func (s *CrawlerServer) Parse(ctx context.Context, req *pbCrawl.ParseRequest) (*
 			return nil
 		}
 
-		var topic string
-		switch msg.(type) {
-		case *pbCrawl.Command_Request:
-			topic = config.CrawlRequestTopic
-		case *pbCrawl.Item:
-			topic = config.CrawlItemProductTopic
-		default:
-			return errors.New("unsupported data type")
-		}
 		data, err := proto.Marshal(msg)
 		if err != nil {
 			return err
@@ -155,5 +162,9 @@ func (s *CrawlerServer) Parse(ctx context.Context, req *pbCrawl.ParseRequest) (*
 		logger.Errorf("parse response from %s failed, error=%v", req.GetRequest().GetUrl(), err)
 		return nil, pbError.ErrInternal.New(err.Error())
 	}
-	return &pbCrawl.ParseResponse{Data: ret}, nil
+	return &pbCrawl.ParseResponse{
+		Data:        ret,
+		ItemCount:   itemCount,
+		SubReqCount: subReqCount,
+	}, nil
 }
