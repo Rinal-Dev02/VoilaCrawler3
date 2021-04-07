@@ -309,24 +309,24 @@ type ProductDataJson struct {
 			HTML           string  `json:"html"`
 		} `json:"price"`
 		Images struct {
-			// Large []struct {
-			// 	Alt      string `json:"alt"`
-			// 	URL      string `json:"url"`
-			// 	Title    string `json:"title"`
-			// 	HiresURL string `json:"hiresURL"`
-			// } `json:"large"`
+			Large []struct {
+				Alt      string `json:"alt"`
+				URL      string `json:"url"`
+				Title    string `json:"title"`
+				HiresURL string `json:"hiresURL"`
+			} `json:"large"`
 			// Small []struct {
 			// 	Alt      string `json:"alt"`
 			// 	URL      string `json:"url"`
 			// 	Title    string `json:"title"`
 			// 	HiresURL string `json:"hiresURL"`
 			// } `json:"small"`
-			HiRes []struct {
-				Alt   string `json:"alt"`
-				URL   string `json:"url"`
-				Title string `json:"title"`
-				// HiresURL string `json:"hiresURL"`
-			} `json:"hi-res"`
+			// HiRes []struct {
+			// 	Alt   string `json:"alt"`
+			// 	URL   string `json:"url"`
+			// 	Title string `json:"title"`
+			// 	// HiresURL string `json:"hiresURL"`
+			// } `json:"hi-res"`
 			// Swatch []struct {
 			// 	Alt      string `json:"alt"`
 			// 	URL      string `json:"url"`
@@ -377,7 +377,11 @@ type ProductDataJson struct {
 	} `json:"product"`
 }
 
-var productInfoReg = regexp.MustCompile(`(?Ums)<script\s+type="text/javascript">\s*pageDataObj\s*=\s*({.*});\s*</script>`)
+var (
+	productInfoReg = regexp.MustCompile(`(?Ums)<script\s+type="text/javascript">\s*pageDataObj\s*=\s*({.*});\s*</script>`)
+	imgWidthReg    = regexp.MustCompile(`wid=(\d+|undefined)`)
+	imgHeightReg   = regexp.MustCompile(`hei=(\d+|undefined)`)
+)
 
 // parseProduct do http request for each sku
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -518,14 +522,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			var medias []*pbMedia.Media
-			for ki, mid := range viewData.Product.Images.HiRes {
+			for ki, mid := range viewData.Product.Images.Large {
 				template := mid.URL
 				medias = append(medias, pbMedia.NewImageMedia(
 					strconv.Format(ki),
-					template,
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=1000&hei=1333&"),
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=600&hei=800&"),
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=495&hei=660&"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=600"), "hei=800"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=495"), "hei=660"),
 					"",
 					ki == 0,
 				))
@@ -780,14 +784,14 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 			}
 
 			var medias []*pbMedia.Media
-			for ki, mid := range viewData.Product.Images.HiRes {
+			for ki, mid := range viewData.Product.Images.Large {
 				template := mid.URL
 				medias = append(medias, pbMedia.NewImageMedia(
 					strconv.Format(ki),
-					template,
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=1000&hei=1333&"),
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=600&hei=800&"),
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=495&hei=660&"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=600"), "hei=800"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=495"), "hei=660"),
 					"",
 					ki == 0,
 				))
@@ -864,7 +868,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		// "https://www.saksfifthavenue.com/product/burberry-harlford-logo-boxy-t-shirt-0400013668683.html?dwvar_0400013668683_color=BLACK%20WHITE",
 		// "https://www.saksfifthavenue.com/product/gestuz-lena-smocked-midi-dress-0400013970412.html",
 		// "https://www.saksfifthavenue.com/product/onitsuka-tiger-men-s-ultimate-81-ex-low-top-sneakers-0400013572721.html?dwvar_0400013572721_color=CREAM%20STEEPLE%20GREY",
-		"https://www.saksfifthavenue.com/product/raf-simons-orion-microfiber-sneakers-0400012933782.html?dwvar_0400012933782_color=RED",
+		"https://www.saksfifthavenue.com/product/varley-luna-printed-leggings-0400013298686.html",
+		// "https://www.saksfifthavenue.com/product/raf-simons-orion-microfiber-sneakers-0400012933782.html?dwvar_0400012933782_color=RED",
 		// "https://www.saksfifthavenue.com/c/men?prefn1=isSale&prefv1=Sale",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)

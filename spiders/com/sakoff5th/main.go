@@ -310,24 +310,24 @@ type ProductDataJson struct {
 			HTML           string  `json:"html"`
 		} `json:"price"`
 		Images struct {
-			// Large []struct {
-			// 	Alt      string `json:"alt"`
-			// 	URL      string `json:"url"`
-			// 	Title    string `json:"title"`
-			// 	HiresURL string `json:"hiresURL"`
-			// } `json:"large"`
+			Large []struct {
+				Alt      string `json:"alt"`
+				URL      string `json:"url"`
+				Title    string `json:"title"`
+				HiresURL string `json:"hiresURL"`
+			} `json:"large"`
 			// Small []struct {
 			// 	Alt      string `json:"alt"`
 			// 	URL      string `json:"url"`
 			// 	Title    string `json:"title"`
 			// 	HiresURL string `json:"hiresURL"`
 			// } `json:"small"`
-			HiRes []struct {
-				Alt   string `json:"alt"`
-				URL   string `json:"url"`
-				Title string `json:"title"`
-				// HiresURL string `json:"hiresURL"`
-			} `json:"hi-res"`
+			// HiRes []struct {
+			// 	Alt   string `json:"alt"`
+			// 	URL   string `json:"url"`
+			// 	Title string `json:"title"`
+			// 	// HiresURL string `json:"hiresURL"`
+			// } `json:"hi-res"`
 			// Swatch []struct {
 			// 	Alt      string `json:"alt"`
 			// 	URL      string `json:"url"`
@@ -378,7 +378,11 @@ type ProductDataJson struct {
 	} `json:"product"`
 }
 
-var productInfoReg = regexp.MustCompile(`(?Ums)<script\s+type="text/javascript">\s*pageDataObj\s*=\s*({.*});\s*</script>`)
+var (
+	productInfoReg = regexp.MustCompile(`(?Ums)<script\s+type="text/javascript">\s*pageDataObj\s*=\s*({.*});\s*</script>`)
+	imgWidthReg    = regexp.MustCompile(`wid=(\d+|undefined)`)
+	imgHeightReg   = regexp.MustCompile(`hei=(\d+|undefined)`)
+)
 
 // parseProduct do http request for each sku
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -519,14 +523,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			var medias []*pbMedia.Media
-			for ki, mid := range viewData.Product.Images.HiRes {
+			for ki, mid := range viewData.Product.Images.Large {
 				template := mid.URL
 				medias = append(medias, pbMedia.NewImageMedia(
 					strconv.Format(ki),
-					template,
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=1000&hei=1333&"),
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=600&hei=800&"),
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=495&hei=660&"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=600"), "hei=800"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=495"), "hei=660"),
 					"",
 					ki == 0,
 				))
@@ -781,14 +785,14 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 			}
 
 			var medias []*pbMedia.Media
-			for ki, mid := range viewData.Product.Images.HiRes {
+			for ki, mid := range viewData.Product.Images.Large {
 				template := mid.URL
 				medias = append(medias, pbMedia.NewImageMedia(
 					strconv.Format(ki),
-					template,
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=1000&hei=1333&"),
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=600&hei=800&"),
-					strings.ReplaceAll(template, "wid=undefined&hei=undefined&", "wid=495&hei=660&"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=600"), "hei=800"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=495"), "hei=660"),
 					"",
 					ki == 0,
 				))
@@ -861,8 +865,8 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.saksoff5th.com/c/women/apparel/activewear",
-		// "https://www.saksoff5th.com/product/swims-ms-lace-driving-shoes-0400013974163.html?dwvar_0400013974163_color=ORANGE",
+		// "https://www.saksoff5th.com/c/women/apparel/activewear",
+		"https://www.saksoff5th.com/product/swims-ms-lace-driving-shoes-0400013974163.html?dwvar_0400013974163_color=ORANGE",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
