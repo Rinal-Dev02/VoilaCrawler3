@@ -140,7 +140,7 @@ func (ctrl *ThreadController) TryLock(host string) bool {
 	status := val.(*hostConcurrencyStatus)
 
 	status.Mutex.Lock()
-	flag := status.Count < ctrl.threadPerHost
+	flag := status.Count < status.MaxCount
 	status.Mutex.Unlock()
 
 	return flag
