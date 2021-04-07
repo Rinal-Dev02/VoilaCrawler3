@@ -164,7 +164,7 @@ func (ctrl *ThreadController) Lock(host string, reqId string, ttl int32) bool {
 	status := val.(*hostConcurrencyStatus)
 
 	status.Mutex.Lock()
-	if status.Count < ctrl.threadPerHost {
+	if status.Count < status.MaxCount {
 		ctrl.logger.Debugf("set lock %s %s", host, reqId)
 
 		atomic.AddInt32(&status.Count, 1)
