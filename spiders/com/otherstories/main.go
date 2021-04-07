@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -130,7 +131,7 @@ func isRobotCheckPage(respBody []byte) bool {
 
 // used to extract embaded json data in website page.
 // more about golang regulation see here https://golang.org/pkg/regexp/syntax/
-var productsExtractReg = regexp.MustCompile(`(?U)var\s*productArticleDetails\s*=\s*({.*});\s*`)
+var productsExtractReg = regexp.MustCompile(`(?Ums)var\s*productArticleDetails\s*=\s*({.*});\s*`)
 var articleCodeReg = regexp.MustCompile(`(\d)+`)
 
 // parseCategoryProducts parse api url from web page url
@@ -347,25 +348,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	respBody = bytes.ReplaceAll(respBody, []byte("\n"), []byte(""))
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
 		c.logger.Debugf("%s", respBody)
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
 	}
 
-	var (
-		q parseProductsAvailability
-	)
-
 	vm := otto.New()
 	jsonStr := "var productArticleDetails = " + string(matched[1])
 	_, err = vm.Run(jsonStr)
-
-	vm.Run(`
-		obj = JSON.stringify(productArticleDetails);		
-	`)
-
+	vm.Run(`obj = JSON.stringify(productArticleDetails);`)
 	value, err := vm.Get("obj")
 	responseJS, _ := value.ToString()
 
@@ -375,6 +367,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	var q parseProductsAvailability
 	{
 		aUrl := "https://www.stories.com/webservices_stories/service/product/stories-us/availability/" + viewData.AncestorProductCode + ".json"
 		req, err := http.NewRequest(http.MethodGet, aUrl, nil)
@@ -404,12 +397,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	for key, article := range viewData.Articles {
 		item := pbItem.Product{
 			Source: &pbItem.Source{
-				Id:       key,
-				CrawlUrl: resp.Request.URL.String(),
-				GroupId:  viewData.AncestorProductCode,
+				Id:           key,
+				CrawlUrl:     resp.Request.URL.String(),
+				GroupId:      viewData.AncestorProductCode,
+				CanonicalUrl: doc.Find(`link[rel="canonical"]`).AttrOr("href", ""),
 			},
 			BrandName:   article.BrandName,
-			Title:       article.Name,
+			Title:       article.Title,
 			Description: article.Description,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
@@ -419,7 +413,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		originalPrice, _ := strconv.ParseFloat(article.PriceSaleValue)
 		MSRP, _ := strconv.ParseFloat(article.PriceValue)
 		discount, _ := strconv.ParseInt(strings.TrimPrefix(strings.TrimSuffix(article.PercentageDiscount, "%"), "-"))
-		if originalPrice == 0.0 {
+		if originalPrice == 0 {
 			originalPrice = MSRP
 		}
 
@@ -433,25 +427,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				item.SubCategory = cate
 			case 3:
 				item.SubCategory2 = cate
-			}
-		}
-
-		for _, v := range []string{"woman", "women", "female"} {
-			if strings.Contains(strings.ToLower(item.Category), v) {
-				item.CrowdType = "women"
-				break
-			}
-		}
-		for _, v := range []string{"man", "men", "male"} {
-			if strings.Contains(strings.ToLower(item.Category), v) {
-				item.CrowdType = "men"
-				break
-			}
-		}
-		for _, v := range []string{"kid", "child", "girl", "boy"} {
-			if strings.Contains(strings.ToLower(item.Category), v) {
-				item.CrowdType = "kids"
-				break
+			case 4:
+				item.SubCategory3 = cate
+			case 5:
+				item.SubCategory4 = cate
 			}
 		}
 
@@ -513,8 +492,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
-
-		// yield item result
 		if err = yield(ctx, &item); err != nil {
 			return err
 		}
@@ -525,8 +502,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.stories.com/en_usd/sale/all-sale.html",
+		// "https://www.stories.com/en_usd/sale/all-sale.html",
+		// "https://www.stories.com/en_usd/lingerie/tights.html",
+		// "https://www.stories.com/en_usd/clothing/jeans/slim-fit.html",
+		// "https://www.stories.com/en_usd/clothing/tops/bodies/product.scoop-neck-bodysuit-white.0941351002.html",
 		// "https://www.stories.com/en_usd/clothing/blouses-shirts/shirts/product.oversized-wool-blend-workwear-shirt-brown.0764033007.html",
+		"https://www.stories.com/en_usd/lingerie/tights/product.heart-pattern-denier-tights-black.0977982001.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -551,6 +532,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -565,17 +550,26 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
 
-			// crawler := spider.(*_Crawler)
-			// if crawler.productPathMatcher.MatchString(i.URL.Path) {
-			// 	return nil
-			// }
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -633,7 +627,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
