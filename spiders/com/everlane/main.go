@@ -363,6 +363,10 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			c.logger.Error(err)
 			return err
 		}
+		if respNew.StatusCode != 200 {
+			c.httpClient.Jar().Clear(ctx, req.URL)
+			return fmt.Errorf("status_code=%d, %s", respNew.StatusCode, resp.Status)
+		}
 		respBody, err = io.ReadAll(respNew.Body)
 		if err != nil {
 			c.logger.Error(err)
@@ -681,6 +685,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			c.logger.Error(err)
 			return err
 		} else {
+			if respNew.StatusCode != 200 {
+				c.httpClient.Jar().Clear(ctx, req.URL)
+				return fmt.Errorf("status_code=%d, %s", respNew.StatusCode, resp.Status)
+			}
 			respBody, err = io.ReadAll(respNew.Body)
 			respNew.Body.Close()
 			if err != nil {
@@ -749,6 +757,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			c.logger.Error(err)
 			return err
 		} else {
+			if respNew.StatusCode != 200 {
+				c.httpClient.Jar().Clear(ctx, req.URL)
+				return fmt.Errorf("status_code=%d, %s", respNew.StatusCode, resp.Status)
+			}
 			respBody, err = io.ReadAll(respNew.Body)
 			respNew.Body.Close()
 			if err != nil {
