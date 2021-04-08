@@ -1,16 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
@@ -22,10 +23,36 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )
+
+type atmoicVal struct {
+	val   string
+	mutex sync.RWMutex
+}
+
+func (v *atmoicVal) Get() string {
+	if v == nil {
+		return ""
+	}
+	v.mutex.RLock()
+	val := v.val
+	v.mutex.RUnlock()
+
+	return val
+}
+
+func (v *atmoicVal) Set(val string) {
+	if v == nil {
+		return
+	}
+	v.mutex.Lock()
+	v.val = val
+	v.mutex.Unlock()
+}
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
 type _Crawler struct {
@@ -35,6 +62,7 @@ type _Crawler struct {
 	categoryApiPathMatcher *regexp.Regexp
 	productPathMatcher     *regexp.Regexp
 	productApiPathMatcher  *regexp.Regexp
+	loadConfigXPidVal      *atmoicVal
 	// logger is the log tool
 	logger glog.Log
 }
@@ -46,12 +74,13 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher:    regexp.MustCompile(`^(/collections(/[a-z0-9\-]+){1,6})$`),
-		categoryApiPathMatcher: regexp.MustCompile(`^(/api/v3/collections(/[a-z0-9\-]+){1,6})$`),
+		categoryPathMatcher:    regexp.MustCompile(`^/collections(/[a-z0-9\-]+){1,6}$`),
+		categoryApiPathMatcher: regexp.MustCompile(`^/api/v3/collections(/[a-z0-9\-]+){1,6}$`),
 
 		// this regular used to match product page url path
-		productPathMatcher:    regexp.MustCompile(`^(/products(/[a-z0-9\-]+){1,6})$`),
-		productApiPathMatcher: regexp.MustCompile(`^(/api/v2/product_groups(/[a-z0-9\-]+){0,6})$`),
+		productPathMatcher:    regexp.MustCompile(`^/products(/[a-z0-9\-]+){1,6}$`),
+		productApiPathMatcher: regexp.MustCompile(`^/api/v2/product_groups$`),
+		loadConfigXPidVal:     &atmoicVal{val: "UQQOWV9ACgMGVFhR"},
 		logger:                logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -280,55 +309,75 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return nil
 	}
 
-	// read the response data from http response
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	// doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	// if err != nil {
-	// 	return err
-	// }
-
+	opts := c.CrawlOptions(resp.Request.URL)
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
-		//matched := productsExtractReg.FindSubmatch([]byte(resp.Request.URL.Path))
+		if matched := loadConfigXPidReg.FindStringSubmatch(string(respBody)); len(matched) > 1 && matched[1] != "" {
+			c.logger.Debugf("found xpid %s", matched[1])
+			c.loadConfigXPidVal.Set(matched[1])
+		}
+		xpid := c.loadConfigXPidVal.Get()
+
 		produrl := strings.ReplaceAll(resp.Request.URL.String(), "/collections", "/api/v3/collections")
-
 		req, err := http.NewRequest(http.MethodGet, produrl, nil)
-		req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
-		req.Header.Set("Referer", fmt.Sprintf("%s://%s/%s", resp.Request.URL.Scheme, resp.Request.URL.Host, resp.Request.URL.Path))
-		req.Header.Set("x-requested-with", "XMLHttpRequest")
-		req.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36")
 
-		respNew, err := c.httpClient.Do(ctx, req)
-		if err != nil {
-			panic(err)
+		req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
+		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+		req.Header.Set("Referer", resp.Request.URL.String())
+		req.Header.Set("x-requested-with", "XMLHttpRequest")
+		if resp.Request.Header.Get("User-Agent") != "" {
+			req.Header.Set("user-agent", resp.Request.Header.Get("User-Agent"))
+		}
+		req.Header.Set("dpr", "2")
+		req.Header.Set("viewport-width", "964")
+		req.Header.Set("x-newrelic-id", xpid)
+		referrer := resp.Request.Header.Get("Referrer")
+		if referrer == "" {
+			referrer = resp.Request.URL.String()
+		}
+		req.AddCookie(&http.Cookie{
+			Name:  "referrer",
+			Value: referrer,
+		})
+		if cookies, err := c.httpClient.Jar().Cookies(ctx, resp.Request.URL); err != nil {
+			c.logger.Error(err)
+			return err
+		} else {
+			for _, c := range cookies {
+				if c.Name == "_csrf_token" {
+					req.Header.Set("_csrf_token", c.Value)
+					break
+				}
+			}
 		}
 
-		respBody, err = ioutil.ReadAll(respNew.Body)
+		respNew, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy: true,
+			Reliability: opts.Reliability,
+		})
 		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		respBody, err = io.ReadAll(respNew.Body)
+		if err != nil {
+			c.logger.Error(err)
 			return err
 		}
 	}
 
-	if !bytes.Contains(respBody, []byte(`products`)) {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract category info from %s failed, error=%s", resp.Request.URL, err)
-	}
-
-	var displaygroup []string
-	var listproducts []int
-	if strings.Contains(resp.Request.URL.String(), "style=") {
-		styleList := strings.Split(strings.ReplaceAll(resp.Request.URL.String(), "&style=", "style="), "style=")
-		for i, value := range styleList {
-			if i > 0 {
-				if !contains(displaygroup, value) {
-					strdecode, _ := url.QueryUnescape(value)
-					displaygroup = append(displaygroup, strdecode)
-				}
-			}
-		}
+	var (
+		styleFilter = map[string]struct{}{}
+		groupFilter = map[string]struct{}{}
+		query       = resp.Request.URL.Query()
+		unifyStr    = func(i string) string { return strings.ToLower(strings.TrimSpace(i)) }
+	)
+	for _, val := range query["style"] {
+		styleFilter[unifyStr(val)] = struct{}{}
 	}
 
 	var viewData categoryParse
@@ -337,28 +386,40 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	if len(displaygroup) == 0 {
-		for _, value := range viewData.Groupings.ProductGroup {
-			listproducts = append(listproducts, value.Products...)
-		}
-	} else {
-		for _, value := range viewData.Groupings.DisplayGroup {
-			if contains(displaygroup, value.Name) {
-				listproducts = append(listproducts, value.Products...)
+	if len(styleFilter) > 0 {
+		for _, subCate := range viewData.Subcategories {
+			if _, ok := styleFilter[unifyStr(subCate.Name)]; !ok {
+				continue
+			}
+			for _, name := range subCate.DisplayGroups {
+				groupFilter[unifyStr(name)] = struct{}{}
 			}
 		}
 	}
 
-	lastIndex := nextIndex(ctx)
+	links := map[string]struct{}{}
+	if len(groupFilter) > 0 {
+		for _, group := range viewData.Groupings.DisplayGroup {
+			if _, ok := groupFilter[unifyStr(group.Name)]; ok {
+				for _, link := range group.ProductPermalinks {
+					links[link] = struct{}{}
+				}
+			}
+		}
+	}
 
+	var (
+		lastIndex         = nextIndex(ctx)
+		subCollectionLink = map[string]struct{}{}
+	)
 	for _, value := range viewData.Products {
-
-		if !containsInt(listproducts, value.ID) {
+		_, groupExists := links[value.Permalink]
+		_, itemExists := styleFilter[unifyStr(value.PrimaryCollection.BreadcrumbTitle)]
+		if !(len(styleFilter) == 0 || groupExists || itemExists) {
 			continue
 		}
 
-		rawurl := "https://www.everlane.com/api/v2/product_groups?product_permalink=" + value.Permalink
-		fmt.Println(rawurl)
+		rawurl := fmt.Sprintf("https://www.everlane.com/products/%s?collection=%s", value.Permalink, value.PrimaryCollection.Permalink)
 		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 		if err != nil {
 			c.logger.Error(err)
@@ -370,19 +431,32 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		if err := yield(nctx, req); err != nil {
 			return err
 		}
-
 	}
+	for _, value := range viewData.Products {
+		_, groupExists := links[value.Permalink]
+		_, itemExists := styleFilter[unifyStr(value.PrimaryCollection.BreadcrumbTitle)]
+		if !(len(styleFilter) == 0 || groupExists || itemExists) {
+			continue
+		}
 
+		if viewData.Permalink != value.PrimaryCollection.Permalink {
+			u := fmt.Sprintf("https://www.everlane.com/collections/%s", value.PrimaryCollection.Permalink)
+			if _, ok := subCollectionLink[u]; ok {
+				continue
+			}
+			req, err := http.NewRequest(http.MethodGet, u, nil)
+			if err != nil {
+				return err
+			}
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			lastIndex += 100000
+			if err := yield(nctx, req); err != nil {
+				return err
+			}
+			subCollectionLink[u] = struct{}{}
+		}
+	}
 	return nil
-	// matched := nextPageReg.FindStringSubmatch(string(respBody))
-	// if len(matched) < 2 {
-	// 	return nil
-	// }
-	// nexturl := matched[1]
-	// req, _ := http.NewRequest(http.MethodGet, nexturl, nil)
-	// // update the index of last page
-	// nctx := context.WithValue(ctx, "item.index", lastIndex)
-	// return yield(nctx, req)
 }
 
 type parseProductData struct {
@@ -512,6 +586,20 @@ type parseProductData struct {
 	ProductFits []interface{} `json:"product_fits"`
 }
 
+type productPriceItem struct {
+	ID               int     `json:"id"`
+	PriceInUsd       float64 `json:"price_in_usd"`
+	ConvertedPrice   float64 `json:"converted_price"`
+	OriginalPrice    float64 `json:"original_price"`
+	TraditionalPrice float64 `json:"traditional_price"`
+}
+
+type productPriceData struct {
+	CurrencyCode   string              `json:"currency_code"`
+	CurrencySymbol string              `json:"currency_symbol"`
+	Products       []*productPriceItem `json:"products"`
+}
+
 type parseReviewData struct {
 	Includes struct {
 		Products map[string]struct {
@@ -525,9 +613,7 @@ type parseReviewData struct {
 	} `json:"Includes"`
 }
 
-// used to trim html labels in description
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
-var productsExtractReg = regexp.MustCompile(`([A-Z0-9])+.html`)
+var loadConfigXPidReg = regexp.MustCompile(`(?U)loader_config={xpid:\s*"([a-zA-Z0-9]+)",`)
 
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -535,122 +621,233 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return nil
 	}
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
+	opts := c.CrawlOptions(resp.Request.URL)
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+		if matched := loadConfigXPidReg.FindStringSubmatch(string(respBody)); len(matched) > 1 && matched[1] != "" {
+			c.logger.Debugf("found xpid %s", matched[1])
+			c.loadConfigXPidVal.Set(matched[1])
+		}
+		xpid := c.loadConfigXPidVal.Get()
+
 		matched := strings.Split(resp.Request.URL.Path, "/")
 		produrl := "https://www.everlane.com/api/v2/product_groups?product_permalink=" + matched[len(matched)-1]
 
-		fmt.Println(produrl)
+		c.logger.Infof("Access api %s", produrl)
 		req, err := http.NewRequest(http.MethodGet, produrl, nil)
-		req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
-		req.Header.Set("Referer", fmt.Sprintf("%s://%s/%s", resp.Request.URL.Scheme, resp.Request.URL.Host, resp.Request.URL.Path))
-		req.Header.Set("x-requested-with", "XMLHttpRequest")
-		req.Header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36")
-
-		respNew, err := c.httpClient.Do(ctx, req)
 		if err != nil {
-			panic(err)
-		}
-
-		respBody, err = ioutil.ReadAll(respNew.Body)
-		if err != nil {
+			c.logger.Error(err)
 			return err
 		}
+		req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
+		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+		req.Header.Set("Referer", resp.Request.URL.String())
+		req.Header.Set("x-requested-with", "XMLHttpRequest")
+		if resp.Request.Header.Get("User-Agent") != "" {
+			req.Header.Set("user-agent", resp.Request.Header.Get("User-Agent"))
+		}
+		req.Header.Set("dpr", "2")
+		req.Header.Set("viewport-width", "964")
+		req.Header.Set("x-newrelic-id", xpid)
+		referrer := resp.Request.Header.Get("Referrer")
+		if referrer == "" {
+			referrer = resp.Request.URL.String()
+		}
+		req.AddCookie(&http.Cookie{
+			Name:  "referrer",
+			Value: referrer,
+		})
+
+		if cookies, err := c.httpClient.Jar().Cookies(ctx, resp.Request.URL); err != nil {
+			c.logger.Error(err)
+			return err
+		} else {
+			for _, c := range cookies {
+				if c.Name == "_csrf_token" {
+					req.Header.Set("_csrf_token", c.Value)
+					break
+				}
+			}
+		}
+
+		if respNew, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy: true,
+			Reliability: opts.Reliability,
+		}); err != nil {
+			c.logger.Error(err)
+			return err
+		} else {
+			respBody, err = io.ReadAll(respNew.Body)
+			respNew.Body.Close()
+			if err != nil {
+				return err
+			}
+		}
 	}
 
-	if !bytes.Contains(respBody, []byte(`permalink`)) {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
-	}
-
-	var viewData parseProductData
+	var (
+		viewData  parseProductData
+		priceData productPriceData
+	)
 	if err := json.Unmarshal(respBody, &viewData); err != nil {
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
+	if len(viewData.Products) == 0 {
+		return fmt.Errorf("no product found")
+	}
 
-	for _, proditem := range viewData.Products {
+	groupId := viewData.Products[0].ProductGroupID
+	// get price
+	if groupId > 0 {
+		priceUrl := fmt.Sprintf("https://www.everlane.com/api/v2/product_groups/%v/prices?country=US&currency=USD", groupId)
+		c.logger.Infof("Access api %s", priceUrl)
 
-		//priceURL := "https://www.everlane.com/api/v2/product_groups/" + strconv.Format(proditem.ProductGroupID) + "/prices?country=US&currency=USD"
-		reviewURL := "https://www.everlane.com/api/v2/reviews/filter?reviews[data][Include]=Products&reviews[data][Stats]=Reviews&reviews[data][Limit]=1&reviews[data][Offset]=0&reviews[filters][Filter][]=ProductId:" + strconv.Format(proditem.ID)
-		fmt.Println(reviewURL)
-
-		req, err := http.NewRequest(http.MethodGet, reviewURL, nil)
-		req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
-		req.Header.Set("Referer", fmt.Sprintf("%s://%s/%s", resp.Request.URL.Scheme, resp.Request.URL.Host, resp.Request.URL.Path))
-		req.Header.Set("x-requested-with", "XMLHttpRequest")
-
-		respNew, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-			EnableProxy:       true,
-			EnableHeadless:    true,
-			EnableSessionInit: false,
-			KeepSession:       false,
-			Reliability:       0,
-		})
+		req, err := http.NewRequest(http.MethodGet, priceUrl, nil)
 		if err != nil {
-			panic(err)
-		}
-
-		respBody, err = ioutil.ReadAll(respNew.Body)
-		if err != nil {
+			c.logger.Error(err)
 			return err
 		}
-
-		var viewReviewData parseReviewData
-		if err := json.Unmarshal(respBody, &viewReviewData); err != nil {
-			c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
-			//return err
+		req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
+		req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+		req.Header.Set("Referer", resp.Request.URL.String())
+		req.Header.Set("x-requested-with", "XMLHttpRequest")
+		if resp.Request.Header.Get("User-Agent") != "" {
+			req.Header.Set("user-agent", resp.Request.Header.Get("User-Agent"))
 		}
+		req.Header.Set("dpr", "2")
+		req.Header.Set("viewport-width", "964")
+		req.Header.Set("x-newrelic-id", c.loadConfigXPidVal.Get())
+		referrer := resp.Request.Header.Get("Referrer")
+		if referrer == "" {
+			referrer = strconv.Format("https://www.everlane.com/products/" + viewData.Products[0].Permalink)
+		}
+		req.AddCookie(&http.Cookie{
+			Name:  "referrer",
+			Value: referrer,
+		})
+		if cookies, err := c.httpClient.Jar().Cookies(ctx, resp.Request.URL); err != nil {
+			c.logger.Error(err)
+			return err
+		} else {
+			for _, c := range cookies {
+				if c.Name == "_csrf_token" {
+					req.Header.Set("_csrf_token", c.Value)
+					break
+				}
+			}
+		}
+
+		if respNew, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy: true,
+			Reliability: opts.Reliability,
+		}); err != nil {
+			c.logger.Error(err)
+			return err
+		} else {
+			respBody, err = io.ReadAll(respNew.Body)
+			respNew.Body.Close()
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			if err := json.Unmarshal(respBody, &priceData); err != nil {
+				c.logger.Error(err)
+				return err
+			}
+		}
+	}
+
+	for _, proditem := range viewData.Products {
+		// reviewURL := "https://www.everlane.com/api/v2/reviews/filter?reviews[data][Include]=Products&reviews[data][Stats]=Reviews&reviews[data][Limit]=1&reviews[data][Offset]=0&reviews[filters][Filter][]=ProductId:" + strconv.Format(proditem.ID)
+		// c.logger.Debugf("Access %s", reviewURL)
+
+		// req, err := http.NewRequest(http.MethodGet, reviewURL, nil)
+		// req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
+		// req.Header.Set("Accept-Encoding", "gzip, deflate, br")
+		// req.Header.Set("Referer", resp.Request.URL.String())
+		// req.Header.Set("x-requested-with", "XMLHttpRequest")
+		// req.Header.Set("user-agent", resp.Request.Header.Get("User-Agent"))
+		// req.Header.Set("dpr", "2")
+		// req.Header.Set("viewport-width", "964")
+		// req.Header.Set("x-newrelic-id", "UQQOWV9ACgMGVFhR")
+		// if cookies, err := c.httpClient.Jar().Cookies(ctx, resp.Request.URL); err != nil {
+		// 	c.logger.Error(err)
+		// 	return err
+		// } else {
+		// 	for _, c := range cookies {
+		// 		if c.Name == "_csrf_token" {
+		// 			req.Header.Set("_csrf_token", c.Value)
+		// 			break
+		// 		}
+		// 	}
+		// }
+
+		// if respNew, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		// 	EnableProxy: true,
+		// 	Reliability: opts.Reliability,
+		// }); err != nil {
+		// 	c.logger.Error(err)
+		// 	return err
+		// } else {
+		// 	respBody, err = io.ReadAll(respNew.Body)
+		// 	if err != nil {
+		// 		c.logger.Error(err)
+		// 		return err
+		// 	}
+		// }
+		// var viewReviewData parseReviewData
+		// if err := json.Unmarshal(respBody, &viewReviewData); err != nil {
+		// 	c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
+		// 	return err
+		// }
 
 		review := 0
 		rating := 0.0
+		// if viewReviewData.Includes.Products != nil {
+		// 	review = viewReviewData.Includes.Products[strconv.Format(proditem.ID)].ReviewStatistics.TotalReviewCount
+		// 	rating = (viewReviewData.Includes.Products[strconv.Format(proditem.ID)].ReviewStatistics.AverageOverallRating)
+		// }
 
-		if viewReviewData.Includes.Products != nil {
-			review = viewReviewData.Includes.Products[strconv.Format(proditem.ID)].ReviewStatistics.TotalReviewCount
-			rating = (viewReviewData.Includes.Products[strconv.Format(proditem.ID)].ReviewStatistics.AverageOverallRating)
+		var priceItem *productPriceItem
+		for _, item := range priceData.Products {
+			if item.ID == proditem.ID {
+				priceItem = item
+				break
+			}
 		}
-
-		description := ""
-		if proditem.Details.Model.Height > 0 && proditem.Details.Model.Size != "" {
-			description = "Model is " + strconv.Format(math.Round(float64(proditem.Details.Model.Height)/(12))) +
-				", Wearing size " + strconv.Format(proditem.Details.Model.Size)
-		} else if proditem.Details.Model.Size != "" {
-			description = "Wearing size " + strconv.Format(proditem.Details.Model.Size)
+		var (
+			currentPrice float64
+			msrp         float64
+			discount     float64
+		)
+		if priceItem == nil {
+			currentPrice, _ = strconv.ParsePrice(proditem.Price)
+			msrp = proditem.OriginalPrice
+		} else {
+			currentPrice = priceItem.ConvertedPrice
+			msrp = priceItem.OriginalPrice
 		}
-
-		for _, itemdesc := range proditem.Details.Fit {
-			description = description + ", " + itemdesc
+		if msrp > currentPrice {
+			discount = math.Round((msrp - currentPrice) / msrp * 100)
 		}
-
-		for _, itemdesc := range proditem.Details.AdditionalDetails {
-			description = description + ", " + itemdesc
-		}
-
-		if proditem.Details.Fabric.Type != "" {
-			description = description + ", Type: " + proditem.Details.Fabric.Type
-		}
-		if proditem.Details.Fabric.Care != "" {
-			description = description + ", Care:" + proditem.Details.Fabric.Care
-		}
-
-		description = description + ", Made in " + proditem.Details.Factory.Location + ", " + proditem.Details.Factory.Country
-		description = description + ", " + proditem.Details.Description
 
 		// build product data
 		item := pbItem.Product{
 			Source: &pbItem.Source{
-				Id:       strconv.Format(proditem.ID),
-				CrawlUrl: strconv.Format("https://www.everlane.com/products/" + proditem.Permalink),
+				Id:           strconv.Format(proditem.ID),
+				CrawlUrl:     strconv.Format("https://www.everlane.com/products/" + proditem.Permalink),
+				CanonicalUrl: strconv.Format("https://www.everlane.com/products/" + proditem.Permalink),
+				GroupId:      strconv.Format(proditem.ProductGroupID),
 			},
-
 			CrowdType:   proditem.PrimaryCollection.Gender,
 			BrandName:   "Everlane",
 			Title:       proditem.DisplayName,
-			Description: description,
+			Description: proditem.Details.Description,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
@@ -659,74 +856,59 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Rating:      float32(rating),
 			},
 		}
-
-		item.SubCategory = proditem.PrimaryCollection.BreadcrumbTitle
-
 		if proditem.PrimaryCollection.Gender == "male" {
 			item.Category = "Men"
 		} else if proditem.PrimaryCollection.Gender == "female" {
 			item.Category = "Women"
 		}
+		item.SubCategory = proditem.PrimaryCollection.BreadcrumbTitle
 
-		originalPrice, _ := strconv.ParseFloat(proditem.Price)
-		msrp := proditem.OriginalPrice
-		discount := 0.0
-		if msrp > 0 && msrp > originalPrice {
-			discount = math.Ceil((msrp - originalPrice) / msrp * 100)
+		colorSpec := pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecColor,
+			Id:    proditem.Color.HexValue,
+			Name:  proditem.Color.Name,
+			Value: proditem.Color.Name,
 		}
 
-		for kv, rawSku := range proditem.Variants {
+		var medias []*pbMedia.Media
+		for _, mid := range proditem.Albums.Square {
+			medias = append(medias, pbMedia.NewImageMedia(
+				"",
+				mid.Src,
+				strings.ReplaceAll(mid.Src, ",q_auto,w_auto", ",h_500,q_40,w_500"),
+				strings.ReplaceAll(mid.Src, ",q_auto,w_auto", ",h_300,q_40,w_300"),
+				strings.ReplaceAll(mid.Src, ",q_auto,w_auto", ",h_300,q_40,w_300"),
+				"",
+				mid.Tag == "primary",
+			))
+		}
 
+		for _, rawSku := range proditem.Variants {
 			sku := pbItem.Sku{
 				SourceId: strconv.Format(rawSku.ID),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
-					Current:  int32(originalPrice * 100),
+					Current:  int32(currentPrice * 100),
 					Msrp:     int32(msrp * 100),
 					Discount: int32(discount),
 				},
-				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+				Medias: medias,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
-
 			if rawSku.Available > 0 {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
 				sku.Stock.StockCount = int32(rawSku.Available)
 			}
 
-			// color
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    proditem.Color.HexValue,
-				Name:  proditem.Color.Name,
-				Value: proditem.Color.Name,
-			})
-
-			if kv == 0 {
-				for ki, mid := range proditem.Albums.Square {
-
-					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-						strconv.Format(ki),
-						mid.Src,
-						strings.ReplaceAll(mid.Src, ",q_auto,w_auto", ",h_1333,q_40,w_1000"),
-						strings.ReplaceAll(mid.Src, ",q_auto,w_auto", ",h_1333,q_40,w_500"),
-						strings.ReplaceAll(mid.Src, ",q_auto,w_auto", ",h_1333,q_40,w_600"),
-						"",
-						mid.Tag == "primary",
-					))
-				}
-			}
-
+			sku.Specs = append(sku.Specs, &colorSpec)
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
 				Id:    rawSku.Sku,
 				Name:  rawSku.Name,
 				Value: rawSku.Name,
 			})
-
 			item.SkuItems = append(item.SkuItems, &sku)
-
 		}
-
 		if err = yield(ctx, &item); err != nil {
 			return err
 		}
@@ -737,11 +919,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.everlane.com/collections/womens-outerwear",
-		//"https://www.everlane.com/api/v3/collections/womens-bottoms?style=Slim%2FSkinny+Leg&style=Perform+%26+Sweatpants",
-		//"https://www.everlane.com/api/v2/product_groups?product_permalink=womens-fixed-waist-work-pant-militaryolive",
-		//"https://www.everlane.com/api/v2/product_groups?product_permalink=womens-human-box-cut-tee-white-black",
-		//"https://www.everlane.com/products/womens-human-box-cut-tee-white-black?collection=womens-sale",
+		"https://www.everlane.com/collections/womens-all",
+		// "https://www.everlane.com/collections/womens-outerwear?style=Jackets+%26+Coats",
+		// "https://www.everlane.com/collections/womens-newest-arrivals?style=Outerwear",
+		// "https://www.everlane.com/products/womens-cinchable-chore-jacket-canvas",
+		// "https://www.everlane.com/api/v3/collections/womens-bottoms?style=Slim%2FSkinny+Leg&style=Perform+%26+Sweatpants",
+		// "https://www.everlane.com/api/v2/product_groups?product_permalink=womens-fixed-waist-work-pant-militaryolive",
+		// "https://www.everlane.com/api/v2/product_groups?product_permalink=womens-human-box-cut-tee-white-black",
+		// "https://www.everlane.com/products/womens-human-box-cut-tee-white-black?collection=womens-sale",
+		// "https://www.everlane.com/products/womens-denim-chore-jacket-darkindigo?collection=womens-sale",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -764,12 +950,15 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -780,14 +969,27 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions(nil)
 
+	reqFilter := map[string]struct{}{}
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
+			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
 
@@ -820,19 +1022,20 @@ func main() {
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
+			nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
-				EnableHeadless:    true,
-				EnableSessionInit: spider.CrawlOptions(nil).EnableSessionInit,
-				KeepSession:       spider.CrawlOptions(nil).KeepSession,
-				Reliability:       spider.CrawlOptions(nil).Reliability,
+				EnableHeadless:    opts.EnableHeadless,
+				EnableSessionInit: opts.EnableSessionInit,
+				Reliability:       opts.Reliability,
+				JsWaitDuration:    10,
 			})
 			if err != nil {
 				panic(err)
 			}
 			defer resp.Body.Close()
 
-			return spider.Parse(ctx, resp, callback)
+			return spider.Parse(nctx, resp, callback)
 		default:
 			// output the result
 			data, err := protojson.Marshal(i.(proto.Message))
