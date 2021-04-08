@@ -6,12 +6,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	rhttp "net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/andybalholm/brotli"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
@@ -187,6 +189,18 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 					} else {
 						c.logger.Errorf("decode failed, error=%s", err)
 					}
+				} else {
+					resp.ContentLength = int64(len(res.Body))
+					resp.Body = http.NewReader(res.GetBody())
+				}
+			} else if strings.EqualFold(resp.Header.Get("Content-Encoding"), "br") {
+				reader := brotli.NewReader(bytes.NewReader(res.Body))
+				if data, err := io.ReadAll(reader); err == nil {
+					resp.Body = http.NewReader(data)
+					resp.Header.Del("Content-Encoding")
+					resp.Header.Del("Content-Length")
+					resp.ContentLength = -1
+					resp.Uncompressed = true
 				} else {
 					resp.ContentLength = int64(len(res.Body))
 					resp.Body = http.NewReader(res.GetBody())
