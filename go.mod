@@ -4,6 +4,8 @@ go 1.16
 
 require (
 	github.com/PuerkitoBio/goquery v1.6.1
+	github.com/andybalholm/brotli v1.0.1 // indirect
+	github.com/dsnet/compress v0.0.1 // indirect
 	github.com/gogo/protobuf v1.3.2
 	github.com/gosimple/slug v1.9.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.0.1
