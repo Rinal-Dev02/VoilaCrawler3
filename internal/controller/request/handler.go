@@ -49,14 +49,7 @@ func (h *RequestHander) HandleMessage(msg *nsq.Message) error {
 	session := h.ctrl.engine.NewSession()
 	defer session.Close()
 
-	if err := session.Begin(); err != nil {
-		h.logger.Errorf("begin tx failed, error=%s", err)
-		msg.Requeue(time.Second * 5)
-		return err
-	}
-
 	if req, err = h.ctrl.requestManager.Create(ctx, session, req); err != nil {
-		session.Rollback()
 		if err == pbError.ErrAlreadyExists {
 			h.logger.Warnf("request %s already exists", creq.GetUrl())
 			msg.Finish()
@@ -66,21 +59,24 @@ func (h *RequestHander) HandleMessage(msg *nsq.Message) error {
 		msg.Requeue(time.Second * 5)
 		return err
 	}
+	msg.Finish()
+
+	if err := session.Begin(); err != nil {
+		h.logger.Errorf("begin tx failed, error=%s", err)
+		return err
+	}
 
 	if err := h.ctrl.PublishRequest(ctx, session, req, true); err != nil {
 		h.logger.Errorf("publish request failed, error=%s", err)
 		session.Rollback()
-		msg.Requeue(time.Second * 5)
 		return err
 	}
 
 	if err := session.Commit(); err != nil {
 		h.logger.Errorf("commit tx failed, error=%s", err)
 		session.Rollback()
-		msg.Requeue(time.Second * 5)
 		return err
 	}
-	msg.Finish()
 	return nil
 }
 
