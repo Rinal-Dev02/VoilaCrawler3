@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
+	"flag"
 	"fmt"
+	"html"
+	"io"
 	"io/ioutil"
 	"math"
 	"net/url"
@@ -14,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	uuid "github.com/satori/go.uuid"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -23,6 +26,7 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -31,19 +35,17 @@ import (
 type _Crawler struct {
 	httpClient http.Client
 
-	categoryPathMatcher   *regexp.Regexp
-	productPathAPIMatcher *regexp.Regexp
-	productPathMatcher    *regexp.Regexp
-	logger                glog.Log
+	categoryPathMatcher *regexp.Regexp
+	productPathMatcher  *regexp.Regexp
+	logger              glog.Log
 }
 
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
-		httpClient:            client,
-		categoryPathMatcher:   regexp.MustCompile(`^(/[a-z0-9_\-]+){1,4}/cat(\d)+(/[a-z0-9_\-]+){0,4}$`),
-		productPathAPIMatcher: regexp.MustCompile(`^/graphql/(\d)+$`),
-		productPathMatcher:    regexp.MustCompile(`^(/[a-z0-9_\-]+){1,4}/pro/(\d)+(/[A-Za-z0-9_\- ]+){0,4}`),
-		logger:                logger.New("_Crawler"),
+		httpClient:          client,
+		categoryPathMatcher: regexp.MustCompile(`^(?:/[a-z0-9_\-]+){1,4}/(cat\d+)(?:/[a-z0-9_\-]+){0,4}$`),
+		productPathMatcher:  regexp.MustCompile(`^(/clothing(?:/[.a-zA-Z0-9\pL\pS\-]+){1,4}/pro/([0-9]+))(?:/cat\d+)?(?:/color/[a-zA-Z0-9\s%]+(?:/[a-z0-9]+){0,2})?/?$`),
+		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
 }
@@ -62,10 +64,18 @@ func (c *_Crawler) Version() int32 {
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
-	options.LoginRequired = false
+	options.EnableSessionInit = true
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
 	options.MustCookies = append(options.MustCookies,
-		&http.Cookie{Name: "geoloc", Value: "cc=US,rc=CA,tp=vhigh,tz=PST,la=33.9733,lo=-118.2487"},
+		&http.Cookie{Name: "AKA_A2", Value: "A", Path: "/"},
+		&http.Cookie{Name: "siteType", Value: "A", Path: "/"},
+		&http.Cookie{Name: "isMobile", Value: "false", Path: "/"},
+		&http.Cookie{Name: "isTablet", Value: "false", Path: "/"},
+		&http.Cookie{Name: "AWS_Exp_100", Value: "TRUE", Path: "/"},
+		&http.Cookie{Name: "awsexp", Value: "true", Path: "/"},
+		&http.Cookie{Name: "at_check", Value: "true", Path: "/"},
+		&http.Cookie{Name: "s_sess", Value: "%20s_cc%3Dtrue%3B", Path: "/"},
+		// &http.Cookie{Name: "geoloc", Value: "cc=US,rc=CA,tp=vhigh,tz=PST,la=33.9733,lo=-118.2487"},
 	)
 	return options
 }
@@ -74,12 +84,30 @@ func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.express.com"}
 }
 
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	matched := c.productPathMatcher.FindStringSubmatch(u.Path)
+	if len(matched) == 3 {
+		u.Path = matched[1]
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.express.com"
+	}
+	return u.String(), nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || resp.Request.URL.String() == "https://www.express.com/graphql" {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -146,8 +174,9 @@ type CategoryView struct {
 	} `json:"extensions"`
 }
 
-var productsExtractReg = regexp.MustCompile(`{.*}`)
-var productsReviewExtractReg = regexp.MustCompile(`(?U)<script type="application/ld\+json"([ a-z\-\="])+>({.*})<\/script>`)
+var productsReviewExtractReg = regexp.MustCompile(`(?Ums)<script type="application/ld\+json"([ a-z\-\="])+>({.*})</script>`)
+
+var cateAPIReqBody = `{"operationName":"CategoryQuery","variables":{"categoryId":"%s","filter":"","overrideCatApi":"","rows":56,"sort":"","start":%d},"query":"query CategoryQuery($categoryId: String, $start: Int!, $rows: Int, $filter: String, $sort: String, $overrideCatApi: String, $uc_param: String) {\n  getUnbxdCategory(categoryId: $categoryId, start: $start, rows: $rows, filter: $filter, sort: $sort, overrideCatApi: $overrideCatApi, uc_param: $uc_param) {\n    categoryId\n    categoryName\n    facets {\n      facetId\n      name\n      position\n      values\n      __typename\n    }\n    pagination {\n      totalProductCount\n      pageNumber\n      pageSize\n      start\n      end\n      __typename\n    }\n    products {\n      averageOverallRating\n      colors {\n        color\n        skuUpc\n        defaultSku\n        __typename\n      }\n      EFOProduct\n      ensembleListPrice\n      ensembleSalePrice\n      key\n      isEnsemble\n      listPrice\n      marketplaceProduct\n      name\n      newProduct\n      onlineExclusive\n      onlineExclusivePromoMsg\n      paginationEnd\n      paginationStart\n      productDescription\n      productId\n      productImage\n      productURL\n      promoMessage\n      salePrice\n      totalReviewCount\n      __typename\n    }\n    source\n    __typename\n  }\n}\n"}`
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -156,75 +185,80 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	opts := c.CrawlOptions(resp.Request.URL)
-	// read the response data from http response
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
 
-	matched := productsExtractReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
-		//return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
-	}
+	matched := c.categoryPathMatcher.FindStringSubmatch(resp.Request.URL.Path)
+	cateId := matched[1]
 
-	rawurl := "https://www.express.com/graphql"
-	postSend := "{\"operationName\":\"CategoryQuery\",\"variables\":{\"categoryId\":\"cat550007\",\"filter\":\"\",\"overrideCatApi\":\"\",\"rows\":56,\"sort\":\"\",\"start\":0},\"query\":\"query CategoryQuery($categoryId: String, $start: Int!, $rows: Int, $filter: String, $sort: String, $overrideCatApi: String, $uc_param: String) {\n  getUnbxdCategory(categoryId: $categoryId, start: $start, rows: $rows, filter: $filter, sort: $sort, overrideCatApi: $overrideCatApi, uc_param: $uc_param) {\n    categoryId\n    categoryName\n    facets {\n      facetId\n      name\n      position\n      values\n      __typename\n    }\n    pagination {\n      totalProductCount\n      pageNumber\n      pageSize\n      start\n      end\n      __typename\n    }\n    products {\n      averageOverallRating\n      colors {\n        color\n        skuUpc\n        defaultSku\n        __typename\n      }\n      EFOProduct\n      ensembleListPrice\n      ensembleSalePrice\n      key\n      isEnsemble\n      listPrice\n      marketplaceProduct\n      name\n      newProduct\n      onlineExclusive\n      onlineExclusivePromoMsg\n      paginationEnd\n      paginationStart\n      productDescription\n      productId\n      productImage\n      productURL\n      promoMessage\n      salePrice\n      totalReviewCount\n      __typename\n    }\n    source\n    __typename\n  }\n}\n\"}"
+	var (
+		start  = 0
+		subCtx = ctx
+	)
+	for {
+		reqBody := fmt.Sprintf(cateAPIReqBody, cateId, start)
+		req, _ := http.NewRequest(http.MethodPost, "https://www.express.com/graphql", strings.NewReader(reqBody))
+		req.Header.Add("accept", "*/*")
+		req.Header.Add("referer", resp.Request.URL.String())
+		req.Header.Add("origin", "https://www.express.com")
+		req.Header.Add("content-type", "application/json")
+		req.Header.Add("cache-control", "no-cache")
+		if ua := resp.Request.Header.Get("User-Agent"); ua != "" {
+			req.Header.Set("User-Agent", ua)
+		}
+		req.Header.Add("x-exp-request-id", uuid.NewV4().String())
+		req.Header.Add("x-exp-rvn-cacheable", "false")
+		req.Header.Add("x-exp-rvn-query-classification", "getUnbxdCategory")
+		req.Header.Add("x-exp-rvn-source", "app_express.com")
 
-	req, _ := http.NewRequest(http.MethodPost, rawurl, bytes.NewReader([]byte(postSend)))
-	req.Header.Set("Referer", resp.Request.URL.String())
-	if resp.Request.Header.Get("User-Agent") != "" {
-		req.Header.Set("User-Agent", resp.Request.Header.Get("User-Agent"))
-		req.Header.Set("accept", "*/*")
-		req.Header.Set("content-type", "application/json")
-	}
-	c.logger.Debugf("Access images %s", rawurl)
-	respNew, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-		EnableProxy:       true,
-		EnableHeadless:    opts.EnableHeadless,
-		EnableSessionInit: opts.EnableSessionInit,
-		Reliability:       opts.Reliability,
-	})
+		c.logger.Debugf("Access %s CategoryQuery %d", req.URL, start)
+		resp, err := c.httpClient.DoWithOptions(subCtx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    false,
+			EnableSessionInit: false,
+			Reliability:       opts.Reliability,
+			RequestFilterKeys: []string{"CategoryQuery"},
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusForbidden ||
+			resp.StatusCode == -1 {
+			return fmt.Errorf("net work request failed, %s", resp.Status)
+		}
 
-	respBodyNew, err := ioutil.ReadAll(respNew.Body)
-	if err != nil {
-		return err
-	}
-	// c.logger.Debugf("data: %s", matched[1])
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		var viewData CategoryView
+		if err := json.Unmarshal(respBody, &viewData); err != nil {
+			c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+			return err
+		}
 
-	var viewData CategoryView
-	if err := json.Unmarshal(respBodyNew, &viewData); err != nil {
-		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
-		return err
-	}
+		lastIndex := nextIndex(ctx)
+		for _, idv := range viewData.Data.GetUnbxdCategory.Products {
+			rawurl := idv.ProductURL
+			req, err := http.NewRequest(http.MethodGet, rawurl, nil)
+			if err != nil {
+				c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
+				continue
+			}
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			lastIndex += 1
+			if err := yield(nctx, req); err != nil {
+				return err
+			}
+		}
 
-	lastIndex := nextIndex(ctx)
-	for _, idv := range viewData.Data.GetUnbxdCategory.Products {
-
-		rawurl := idv.ProductURL
-		fmt.Println(rawurl)
-		// req, err := http.NewRequest(http.MethodGet, rawurl, nil)
-		// if err != nil {
-		// 	c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
-		// 	return err
-		// }
-
-		lastIndex += 1
-		// // set the index of the product crawled in the sub response
-		// nctx := context.WithValue(ctx, "item.index", lastIndex)
-		// // yield sub request
-		// if err := yield(nctx, req); err != nil {
-		// 	return err
-		// }
-	}
-
-	if viewData.Data.GetUnbxdCategory.Pagination.TotalProductCount <= lastIndex {
-
-		postSend = "{\"operationName\":\"CategoryQuery\",\"variables\":{\"categoryId\":\"" + strconv.Format(viewData.Data.GetUnbxdCategory.CategoryID) + "\",\"filter\":\"\",\"overrideCatApi\":\"\",\"rows\":56,\"sort\":\"\",\"start\":" + strconv.Format(viewData.Data.GetUnbxdCategory.Pagination.End+1) + "},\"query\":\"query CategoryQuery($categoryId: String, $start: Int!, $rows: Int, $filter: String, $sort: String, $overrideCatApi: String, $uc_param: String) {\n  getUnbxdCategory(categoryId: $categoryId, start: $start, rows: $rows, filter: $filter, sort: $sort, overrideCatApi: $overrideCatApi, uc_param: $uc_param) {\n    categoryId\n    categoryName\n    facets {\n      facetId\n      name\n      position\n      values\n      __typename\n    }\n    pagination {\n      totalProductCount\n      pageNumber\n      pageSize\n      start\n      end\n      __typename\n    }\n    products {\n      averageOverallRating\n      colors {\n        color\n        skuUpc\n        defaultSku\n        __typename\n      }\n      EFOProduct\n      ensembleListPrice\n      ensembleSalePrice\n      key\n      isEnsemble\n      listPrice\n      marketplaceProduct\n      name\n      newProduct\n      onlineExclusive\n      onlineExclusivePromoMsg\n      paginationEnd\n      paginationStart\n      productDescription\n      productId\n      productImage\n      productURL\n      promoMessage\n      salePrice\n      totalReviewCount\n      __typename\n    }\n    source\n    __typename\n  }\n}\n\"}"
-		req, _ := http.NewRequest(http.MethodPost, rawurl, bytes.NewReader([]byte(postSend)))
-		// update the index of last page
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		return yield(nctx, req)
+		if viewData.Data.GetUnbxdCategory.Pagination.End >= viewData.Data.GetUnbxdCategory.Pagination.TotalProductCount ||
+			lastIndex >= viewData.Data.GetUnbxdCategory.Pagination.TotalProductCount {
+			break
+		}
+		start = viewData.Data.GetUnbxdCategory.Pagination.End + 1
+		subCtx = context.WithValue(ctx, "req_id", randutil.MustNewRandomID())
 	}
 	return nil
 }
@@ -365,117 +399,155 @@ type parseProductReviewResponse struct {
 	} `json:"aggregateRating"`
 }
 
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+var productGraphQLQuery string = `{"operationName":"ProductQuery","variables":{"productId":"%v"},"query":"query ProductQuery($productId: String!) {\n  product(id: $productId) {\n    bopisEligible\n    clearancePromoMessage\n    collection\n    crossRelDetailMessage\n    crossRelProductURL\n    EFOProduct\n    expressProductType\n    fabricCare\n    fabricDetailImages {\n      caption\n      image\n      __typename\n    }\n    gender\n    internationalShippingAvailable\n    listPrice\n    marketPlaceProduct\n    name\n    newProduct\n    onlineExclusive\n    onlineExclusivePromoMsg\n    productDescription {\n      type\n      content\n      __typename\n    }\n    productFeatures\n    productId\n    productImage\n    productInventory\n    productURL\n    promoMessage\n    recsAlgorithm\n    originRecsAlgorithm\n    salePrice\n    type\n    breadCrumbCategory {\n      categoryName\n      h1CategoryName\n      links {\n        rel\n        href\n        __typename\n      }\n      breadCrumbCategory {\n        categoryName\n        h1CategoryName\n        links {\n          rel\n          href\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    colorSlices {\n      color\n      defaultSlice\n      ipColorCode\n      hasWaistAndInseam\n      swatchURL\n      imageMap {\n        All {\n          LARGE\n          MAIN\n          __typename\n        }\n        Default {\n          LARGE\n          MAIN\n          __typename\n        }\n        Model1 {\n          LARGE\n          MAIN\n          __typename\n        }\n        Model2 {\n          LARGE\n          MAIN\n          __typename\n        }\n        Model3 {\n          LARGE\n          MAIN\n          __typename\n        }\n        __typename\n      }\n      onlineSkus\n      skus {\n        backOrderable\n        backOrderDate\n        displayMSRP\n        displayPrice\n        ext\n        inseam\n        inStoreInventoryCount\n        inventoryMessage\n        isFinalSale\n        isInStockOnline\n        miraklOffer {\n          minimumShippingPrice\n          sellerId\n          sellerName\n          __typename\n        }\n        marketPlaceSku\n        onClearance\n        onSale\n        onlineExclusive\n        onlineInventoryCount\n        size\n        sizeName\n        skuId\n        __typename\n      }\n      __typename\n    }\n    originRecs {\n      listPrice\n      marketPlaceProduct\n      name\n      productId\n      productImage\n      productURL\n      salePrice\n      __typename\n    }\n    relatedProducts {\n      listPrice\n      marketPlaceProduct\n      name\n      productId\n      productImage\n      productURL\n      salePrice\n      colorSlices {\n        color\n        defaultSlice\n        __typename\n      }\n      __typename\n    }\n    icons {\n      icon\n      category\n      __typename\n    }\n    __typename\n  }\n}\n"}`
 
-func TrimSpaceNewlineInString(s []byte) []byte {
-	re := regexp.MustCompile(`\n`)
-	resp := re.ReplaceAll(s, []byte(" "))
-	resp = bytes.ReplaceAll(resp, []byte("\\n"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("\r"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("\t"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("&lt;"), []byte("<"))
-	resp = bytes.ReplaceAll(resp, []byte("&gt;"), []byte(">"))
-
-	return resp
-}
+var imgWidthReg = regexp.MustCompile(`wid=\d+`)
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
-	if resp.StatusCode == http.StatusForbidden {
-		return errors.New("access denied")
+
+	var viewReviewData parseProductReviewResponse
+	{
+		respBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		matched := productsReviewExtractReg.FindSubmatch([]byte(html.UnescapeString(string(respBody))))
+		if len(matched) > 2 {
+			if err := json.Unmarshal(matched[2], &viewReviewData); err != nil {
+				c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
+			}
+		} else {
+			c.logger.Error("review data not found")
+		}
 	}
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	opts := c.CrawlOptions(resp.Request.URL)
+	matched := c.productPathMatcher.FindStringSubmatch(resp.Request.URL.Path)
+	req, _ := http.NewRequest(http.MethodPost, "https://www.express.com/graphql",
+		bytes.NewReader([]byte(fmt.Sprintf(productGraphQLQuery, matched[2]))))
+
+	c.logger.Infof("Access %s ProductQuery", req.URL)
+	req.Header.Add("accept", "*/*")
+	req.Header.Add("referer", resp.Request.URL.String())
+	req.Header.Add("origin", "https://www.express.com")
+	req.Header.Add("content-type", "application/json")
+	req.Header.Add("cache-control", "no-cache")
+	if ua := resp.Request.Header.Get("User-Agent"); ua != "" {
+		req.Header.Set("User-Agent", resp.Request.Header.Get("User-Agent"))
+	}
+	req.Header.Add("x-exp-request-id", uuid.NewV4().String())
+	req.Header.Add("x-exp-rvn-cacheable", "false")
+	req.Header.Add("x-exp-rvn-query-classification", "product")
+	req.Header.Add("x-exp-rvn-source", "app_express.com")
+
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	for _, c := range opts.MustCookies {
+		if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
+			val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+			if c := req.Header.Get("Cookie"); c != "" {
+				req.Header.Set("Cookie", c+"; "+val)
+			} else {
+				req.Header.Set("Cookie", val)
+			}
+		}
+	}
+	apiResp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    false,
+		EnableSessionInit: false,
+		Reliability:       opts.Reliability,
+		RequestFilterKeys: []string{"ProductQuery"},
+	})
 	if err != nil {
+		c.logger.Errorf("do http request failed, error=%s", err)
 		return err
 	}
+	defer apiResp.Body.Close()
 
-	matched := productsReviewExtractReg.FindSubmatch([]byte(TrimSpaceNewlineInString(respBody)))
-
-	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
-		//return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
-	}
-	var viewReviewData parseProductReviewResponse
-	if err := json.Unmarshal(matched[2], &viewReviewData); err != nil {
-		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
-		//return err
-	}
-	// c.logger.Debugf("data: %s", matched[1])
-
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		prodcodeReg := regexp.MustCompile(`/(\d)+/`)
-		prodCode := prodcodeReg.FindSubmatch([]byte(resp.Request.URL.Path))
-		respBody, err = productRequest(strings.ReplaceAll(string(prodCode[0]), "/", ""), resp.Request.URL.String())
+	var viewData parseProductResponse
+	{
+		data, err := io.ReadAll(apiResp.Body)
 		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		if err := json.Unmarshal(data, &viewData); err != nil {
+			c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 			return err
 		}
 	}
 
-	matched = productsExtractReg.FindSubmatch(respBody)
-	if (matched) == nil {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
-	}
-
-	var viewData parseProductResponse
-	if err := json.Unmarshal(matched[0], &viewData); err != nil {
-		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
-		return err
-	}
-
-	description := viewData.Data.Product.ProductDescription[0].Content[0] + " " + htmlTrimRegp.ReplaceAllString(viewData.Data.Product.FabricCare, " ")
 	reviewCount, _ := strconv.ParseInt(viewReviewData.AggregateRating.ReviewCount)
 	rating, _ := strconv.ParseInt(viewReviewData.AggregateRating.RatingValue)
 
+	canUrl, _ := c.CanonicalUrl(resp.Request.URL.String())
+	prod := viewData.Data.Product
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       viewData.Data.Product.ProductID,
-			CrawlUrl: resp.Request.URL.String(),
+			Id:           prod.ProductID,
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
 		},
 		BrandName:   "Express",
 		Title:       viewData.Data.Product.Name,
-		Description: description,
 		CrowdType:   viewData.Data.Product.Gender,
+		Category:    prod.Gender,
+		SubCategory: prod.BreadCrumbCategory.CategoryName,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
+		},
+		Stock: &pbItem.Stock{
+			StockStatus: pbItem.Stock_OutOfStock,
 		},
 		Stats: &pbItem.Stats{
 			ReviewCount: int32(reviewCount),
 			Rating:      float32(rating),
 		},
 	}
-
-	item.Category = viewData.Data.Product.BreadCrumbCategory.CategoryName
+	for _, desc := range prod.ProductDescription {
+		if item.Description == "" {
+			item.Description = strings.Join(desc.Content, "<br/>")
+		} else {
+			item.Description = "<br/>" + strings.Join(desc.Content, "<br/>")
+		}
+	}
+	item.Description += "<ul><li>" + strings.Join(prod.ProductFeatures, "</li><li>") + "</li></ul>"
+	if prod.ProductInventory > 0 {
+		item.Stock.StockStatus = pbItem.Stock_InStock
+		item.Stock.StockCount = int32(prod.ProductInventory)
+	}
 
 	for _, p := range viewData.Data.Product.ColorSlices {
-
 		colorSpec := pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecColor,
-			Id:    viewData.Data.Product.ProductID + "_" + p.IPColorCode,
+			Id:    p.IPColorCode,
 			Name:  p.Color,
-			Value: p.SwatchURL,
+			Value: p.Color,
+			Icon:  p.SwatchURL,
 		}
 
 		var medias []*pbMedia.Media
 		for ki, m := range p.ImageMap.All.LARGE {
-			template := strings.ReplaceAll(m, "t_default", "t_PDP_864_v1")
 			medias = append(medias, pbMedia.NewImageMedia(
 				strconv.Format(ki),
-				strings.ReplaceAll(m, "t_default", "t_PDP_1280_v1"),
-				strings.ReplaceAll(m, "t_default", "t_PDP_1280_v1"),
-				template,
-				template,
+				m,
+				m,
+				m,
+				imgWidthReg.ReplaceAllString(m, "wid=480"),
 				"",
 				ki == 0,
 			))
 		}
 
 		for _, rawSku := range p.Skus {
-			originalPrice, _ := strconv.ParseFloat(strings.TrimPrefix(rawSku.DisplayPrice, "$"))
-			msrp, _ := strconv.ParseFloat(strings.TrimPrefix(rawSku.DisplayMSRP, "$"))
+			originalPrice, _ := strconv.ParsePrice(rawSku.DisplayPrice)
+			msrp, _ := strconv.ParsePrice(rawSku.DisplayMSRP)
 			discount := 0.0
 			if msrp > originalPrice {
 				discount = math.Ceil((msrp - originalPrice) / msrp * 100)
@@ -498,8 +570,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				sku.Stock.StockCount = int32(rawSku.OnlineInventoryCount)
 			}
 			sku.Specs = append(sku.Specs, &colorSpec)
-
-			// size
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
 				Id:    rawSku.SkuID,
@@ -509,19 +579,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
-	// yield item result
 	if err = yield(ctx, &item); err != nil {
 		return err
 	}
-
 	return nil
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
-		"https://www.express.com/clothing/women/body-contour-cropped-square-neck-cami/pro/06418402/color/Light%20Pink/",
-		//"https://www.express.com/womens-clothing/dresses/cat550007",
+		"https://www.express.com/womens-clothing/dresses/cat550007",
+		// "https://www.express.com/clothing/women/body-contour-cropped-square-neck-cami/pro/06418402/color/Light%20Pink/",
+		// "https://www.express.com/clothing/men/solid-performance-polo/pro/05047075/color/Pitch%20Black",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -540,10 +609,13 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -555,17 +627,25 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
-			logger.Debugf("Access %s", i.URL)
-			// crawler := spider.(*_Crawler)
-			// if crawler.productPathMatcher.MatchString(i.URL.Path) {
-			// 	return nil
-			// }
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
 
+			logger.Debugf("Access %s", i.URL)
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -599,19 +679,20 @@ func main() {
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
+			nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
-				EnableHeadless:    true,
+				EnableHeadless:    false,
 				EnableSessionInit: opts.EnableSessionInit,
 				KeepSession:       opts.KeepSession,
-				Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)
 			}
 			defer resp.Body.Close()
 
-			return spider.Parse(ctx, resp, callback)
+			return spider.Parse(nctx, resp, callback)
 		default:
 			// output the result
 			data, err := protojson.Marshal(i.(proto.Message))
@@ -623,7 +704,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("express_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
