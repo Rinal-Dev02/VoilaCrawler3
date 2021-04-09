@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net/url"
 	"os"
 	"regexp"
@@ -17,6 +18,9 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
+	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
+	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
+	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
@@ -27,19 +31,19 @@ import (
 type _Crawler struct {
 	httpClient http.Client
 
-	categoryPathMatcher *regexp.Regexp
-	categoryAPIMatcher  *regexp.Regexp
-	productPathMatcher  *regexp.Regexp
-	logger              glog.Log
+	categoryPathMatcher   *regexp.Regexp
+	productPathAPIMatcher *regexp.Regexp
+	productPathMatcher    *regexp.Regexp
+	logger                glog.Log
 }
 
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
-		httpClient:          client,
-		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9_\-]+){1,4}/cat(\d)+(/[a-z0-9_\-]+){0,4}$`),
-		categoryAPIMatcher:  regexp.MustCompile(`^/cic/browse/v\d+$`),
-		productPathMatcher:  regexp.MustCompile(`^/(u|t)(/[a-zA-Z0-9_\-]+){2,4}$`),
-		logger:              logger.New("_Crawler"),
+		httpClient:            client,
+		categoryPathMatcher:   regexp.MustCompile(`^(/[a-z0-9_\-]+){1,4}/cat(\d)+(/[a-z0-9_\-]+){0,4}$`),
+		productPathAPIMatcher: regexp.MustCompile(`^/graphql/(\d)+$`),
+		productPathMatcher:    regexp.MustCompile(`^(/[a-z0-9_\-]+){1,4}/pro/(\d)+(/[A-Za-z0-9_\- ]+){0,4}`),
+		logger:                logger.New("_Crawler"),
 	}
 	return &c, nil
 }
@@ -77,8 +81,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.categoryAPIMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryAPIProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
@@ -144,7 +146,8 @@ type CategoryView struct {
 	} `json:"extensions"`
 }
 
-var productsExtractReg = regexp.MustCompile(`window\.INITIAL_REDUX_STATE=({.*});?\s*</script>`)
+var productsExtractReg = regexp.MustCompile(`{.*}`)
+var productsReviewExtractReg = regexp.MustCompile(`(?U)<script type="application/ld\+json"([ a-z\-\="])+>({.*})<\/script>`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -159,7 +162,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\Output.html", respBody, 0644)
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
 		c.logger.Debugf("%s", respBody)
@@ -188,9 +190,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if err != nil {
 		return err
 	}
-
-	ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\Output_1.html", respBodyNew, 0644)
-
 	// c.logger.Debugf("data: %s", matched[1])
 
 	var viewData CategoryView
@@ -227,71 +226,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
 		return yield(nctx, req)
 	}
-	return nil
-}
-
-func (c *_Crawler) parseCategoryAPIProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	var viewData struct {
-		Data struct {
-			Products struct {
-				Products []struct {
-					URL string `json:"url"`
-				} `json:"products"`
-				Pages struct {
-					Prev           string      `json:"prev"`
-					Next           string      `json:"next"`
-					TotalPages     int         `json:"totalPages"`
-					TotalResources int         `json:"totalResources"`
-					SearchSummary  interface{} `json:"searchSummary"`
-				} `json:"pages"`
-				ExternalResponses interface{} `json:"externalResponses"`
-				TraceID           string      `json:"traceId"`
-			} `json:"products"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal([]byte(respBody), &viewData); err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	lastIndex := nextIndex(ctx)
-	for _, prod := range viewData.Data.Products.Products {
-		u := "https://www.nike.com" + strings.ReplaceAll(prod.URL, "{countryLang}", "")
-
-		req, err := http.NewRequest(http.MethodGet, u, nil)
-		if err != nil {
-			c.logger.Error(err)
-			return err
-		}
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		lastIndex += 1
-
-		if err := yield(nctx, req); err != nil {
-			return err
-		}
-	}
-
-	if viewData.Data.Products.Pages.Next != "" {
-		u := *resp.Request.URL
-		vals := u.Query()
-		vals.Set("endpoint", viewData.Data.Products.Pages.Next)
-
-		u.RawQuery = vals.Encode()
-
-		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-		// update the index of last page
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		return yield(nctx, req)
-	}
-
 	return nil
 }
 
@@ -424,6 +358,27 @@ type parseProductResponse struct {
 	} `json:"extensions"`
 }
 
+type parseProductReviewResponse struct {
+	AggregateRating struct {
+		ReviewCount string `json:"reviewCount"`
+		RatingValue string `json:"ratingValue"`
+	} `json:"aggregateRating"`
+}
+
+var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+
+func TrimSpaceNewlineInString(s []byte) []byte {
+	re := regexp.MustCompile(`\n`)
+	resp := re.ReplaceAll(s, []byte(" "))
+	resp = bytes.ReplaceAll(resp, []byte("\\n"), []byte(""))
+	resp = bytes.ReplaceAll(resp, []byte("\r"), []byte(""))
+	resp = bytes.ReplaceAll(resp, []byte("\t"), []byte(""))
+	resp = bytes.ReplaceAll(resp, []byte("&lt;"), []byte("<"))
+	resp = bytes.ReplaceAll(resp, []byte("&gt;"), []byte(">"))
+
+	return resp
+}
+
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -437,105 +392,136 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	matched := productsExtractReg.FindSubmatch(respBody)
+	matched := productsReviewExtractReg.FindSubmatch([]byte(TrimSpaceNewlineInString(respBody)))
+
 	if len(matched) <= 1 {
 		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+		//return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+	}
+	var viewReviewData parseProductReviewResponse
+	if err := json.Unmarshal(matched[2], &viewReviewData); err != nil {
+		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
+		//return err
 	}
 	// c.logger.Debugf("data: %s", matched[1])
 
+	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+		prodcodeReg := regexp.MustCompile(`/(\d)+/`)
+		prodCode := prodcodeReg.FindSubmatch([]byte(resp.Request.URL.Path))
+		respBody, err = productRequest(strings.ReplaceAll(string(prodCode[0]), "/", ""), resp.Request.URL.String())
+		if err != nil {
+			return err
+		}
+	}
+
+	matched = productsExtractReg.FindSubmatch(respBody)
+	if (matched) == nil {
+		c.logger.Debugf("%s", respBody)
+		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+	}
+
 	var viewData parseProductResponse
-	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+	if err := json.Unmarshal(matched[0], &viewData); err != nil {
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
 
-	// var item *pbItem.Product
-	// for _, p := range viewData.Threads.Products {
-	// 	if item == nil {
-	// 		item = &pbItem.Product{
-	// 			Source: &pbItem.Source{
-	// 				Id:       p.ProductGroupID,
-	// 				CrawlUrl: resp.Request.URL.String(),
-	// 			},
-	// 			BrandName:   p.Brand,
-	// 			Title:       p.FullTitle,
-	// 			Description: p.Description,
-	// 			CrowdType:   strings.ToLower(strings.Join(p.Genders, ",")),
-	// 			Price: &pbItem.Price{
-	// 				Currency: regulation.Currency_USD,
-	// 			},
-	// 			Stats: &pbItem.Stats{
-	// 				ReviewCount: int32(viewData.Reviews.Total),
-	// 				Rating:      float32(viewData.Reviews.AverageRating),
-	// 			},
-	// 		}
-	// 	}
+	description := viewData.Data.Product.ProductDescription[0].Content[0] + " " + htmlTrimRegp.ReplaceAllString(viewData.Data.Product.FabricCare, " ")
+	reviewCount, _ := strconv.ParseInt(viewReviewData.AggregateRating.ReviewCount)
+	rating, _ := strconv.ParseInt(viewReviewData.AggregateRating.RatingValue)
 
-	// 	colorSpec := pbItem.SkuSpecOption{
-	// 		Type:  pbItem.SkuSpecType_SkuSpecColor,
-	// 		Id:    p.StyleColor,
-	// 		Name:  p.ColorDescription,
-	// 		Value: p.StyleColor,
-	// 	}
+	item := pbItem.Product{
+		Source: &pbItem.Source{
+			Id:       viewData.Data.Product.ProductID,
+			CrawlUrl: resp.Request.URL.String(),
+		},
+		BrandName:   "Express",
+		Title:       viewData.Data.Product.Name,
+		Description: description,
+		CrowdType:   viewData.Data.Product.Gender,
+		Price: &pbItem.Price{
+			Currency: regulation.Currency_USD,
+		},
+		Stats: &pbItem.Stats{
+			ReviewCount: int32(reviewCount),
+			Rating:      float32(rating),
+		},
+	}
 
-	// 	var medias []*pbMedia.Media
-	// 	for ki, m := range p.Nodes[0].Nodes {
-	// 		template := strings.ReplaceAll(m.Properties.Squarish.URL, "t_default", "t_PDP_864_v1")
-	// 		medias = append(medias, pbMedia.NewImageMedia(
-	// 			strconv.Format(m.ID),
-	// 			strings.ReplaceAll(m.Properties.Squarish.URL, "t_default", "t_PDP_1280_v1"),
-	// 			strings.ReplaceAll(m.Properties.Squarish.URL, "t_default", "t_PDP_1280_v1"),
-	// 			template,
-	// 			template,
-	// 			"",
-	// 			ki == 0,
-	// 		))
-	// 	}
+	item.Category = viewData.Data.Product.BreadCrumbCategory.CategoryName
 
-	// 	for _, rawSku := range p.Skus {
-	// 		originalPrice, _ := strconv.ParseFloat(p.FullPrice)
-	// 		msrp, _ := strconv.ParseFloat(p.FullPrice)
-	// 		discount := math.Ceil((msrp - originalPrice) / msrp * 100)
+	for _, p := range viewData.Data.Product.ColorSlices {
 
-	// 		sku := pbItem.Sku{
-	// 			SourceId:    rawSku.ID,
-	// 			Title:       p.FullTitle,
-	// 			Description: p.Description,
-	// 			Price: &pbItem.Price{
-	// 				Currency: regulation.Currency_USD,
-	// 				Current:  int32(originalPrice * 100),
-	// 				Msrp:     int32(msrp * 100),
-	// 				Discount: int32(discount),
-	// 			},
-	// 			Medias: medias,
-	// 			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
-	// 		}
-	// 		if p.State == "IN_STOCK" {
-	// 			sku.Stock.StockStatus = pbItem.Stock_InStock
-	// 		}
-	// 		sku.Specs = append(sku.Specs, &colorSpec)
+		colorSpec := pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecColor,
+			Id:    viewData.Data.Product.ProductID + "_" + p.IPColorCode,
+			Name:  p.Color,
+			Value: p.SwatchURL,
+		}
 
-	// 		// size
-	// 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-	// 			Type:  pbItem.SkuSpecType_SkuSpecSize,
-	// 			Id:    rawSku.NikeSize,
-	// 			Name:  rawSku.LocalizedSize,
-	// 			Value: rawSku.LocalizedSize,
-	// 		})
-	// 		item.SkuItems = append(item.SkuItems, &sku)
-	// 	}
-	// }
-	// if item != nil {
-	// 	return yield(ctx, item)
-	// }
-	return errors.New("no product found")
+		var medias []*pbMedia.Media
+		for ki, m := range p.ImageMap.All.LARGE {
+			template := strings.ReplaceAll(m, "t_default", "t_PDP_864_v1")
+			medias = append(medias, pbMedia.NewImageMedia(
+				strconv.Format(ki),
+				strings.ReplaceAll(m, "t_default", "t_PDP_1280_v1"),
+				strings.ReplaceAll(m, "t_default", "t_PDP_1280_v1"),
+				template,
+				template,
+				"",
+				ki == 0,
+			))
+		}
+
+		for _, rawSku := range p.Skus {
+			originalPrice, _ := strconv.ParseFloat(strings.TrimPrefix(rawSku.DisplayPrice, "$"))
+			msrp, _ := strconv.ParseFloat(strings.TrimPrefix(rawSku.DisplayMSRP, "$"))
+			discount := 0.0
+			if msrp > originalPrice {
+				discount = math.Ceil((msrp - originalPrice) / msrp * 100)
+			}
+
+			sku := pbItem.Sku{
+				SourceId: rawSku.SkuID,
+				Title:    viewData.Data.Product.Name,
+				Price: &pbItem.Price{
+					Currency: regulation.Currency_USD,
+					Current:  int32(originalPrice * 100),
+					Msrp:     int32(msrp * 100),
+					Discount: int32(discount),
+				},
+				Medias: medias,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			}
+			if rawSku.OnlineInventoryCount > 0 {
+				sku.Stock.StockStatus = pbItem.Stock_InStock
+				sku.Stock.StockCount = int32(rawSku.OnlineInventoryCount)
+			}
+			sku.Specs = append(sku.Specs, &colorSpec)
+
+			// size
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Id:    rawSku.SkuID,
+				Name:  rawSku.SizeName,
+				Value: rawSku.SizeName,
+			})
+			item.SkuItems = append(item.SkuItems, &sku)
+		}
+	}
+	// yield item result
+	if err = yield(ctx, &item); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
-		"https://www.express.com/womens-clothing/dresses/cat550007",
+		"https://www.express.com/clothing/women/body-contour-cropped-square-neck-cami/pro/06418402/color/Light%20Pink/",
+		//"https://www.express.com/womens-clothing/dresses/cat550007",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -615,10 +601,10 @@ func main() {
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
-				EnableHeadless:    false,
+				EnableHeadless:    true,
 				EnableSessionInit: opts.EnableSessionInit,
 				KeepSession:       opts.KeepSession,
-				Reliability:       opts.Reliability,
+				Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
 			})
 			if err != nil {
 				panic(err)
