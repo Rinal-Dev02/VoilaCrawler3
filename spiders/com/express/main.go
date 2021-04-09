@@ -35,6 +35,7 @@ import (
 type _Crawler struct {
 	httpClient http.Client
 
+	searchPathMatcher   *regexp.Regexp
 	categoryPathMatcher *regexp.Regexp
 	productPathMatcher  *regexp.Regexp
 	logger              glog.Log
@@ -43,6 +44,7 @@ type _Crawler struct {
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
+		searchPathMatcher:   regexp.MustCompile(`^/exp/search$`),
 		categoryPathMatcher: regexp.MustCompile(`^(?:/[a-z0-9_\-]+){1,4}/(cat\d+)(?:/[a-z0-9_\-]+){0,4}$`),
 		productPathMatcher:  regexp.MustCompile(`^(/clothing(?:/[.a-zA-Z0-9\pL\pS\-]+){1,4}/pro/([0-9]+))(?:/cat\d+)?(?:/color/[a-zA-Z0-9\s%]+(?:/[a-z0-9]+){0,2})?/?$`),
 		logger:              logger.New("_Crawler"),
@@ -107,12 +109,167 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || resp.Request.URL.String() == "https://www.express.com/graphql" {
+	if c.searchPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseSearch(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || resp.Request.URL.String() == "https://www.express.com/graphql" {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+}
+
+type product struct {
+	AverageOverallRating float64 `json:"averageOverallRating"`
+	Colors               []struct {
+		Color      string `json:"color"`
+		SkuUpc     string `json:"skuUpc"`
+		DefaultSku bool   `json:"defaultSku"`
+		Typename   string `json:"__typename"`
+	} `json:"colors"`
+	EFOProduct              bool        `json:"EFOProduct"`
+	EnsembleListPrice       interface{} `json:"ensembleListPrice"`
+	EnsembleSalePrice       interface{} `json:"ensembleSalePrice"`
+	Key                     string      `json:"key"`
+	IsEnsemble              bool        `json:"isEnsemble"`
+	ListPrice               string      `json:"listPrice"`
+	MarketplaceProduct      interface{} `json:"marketplaceProduct"`
+	Name                    string      `json:"name"`
+	NewProduct              bool        `json:"newProduct"`
+	OnlineExclusive         bool        `json:"onlineExclusive"`
+	OnlineExclusivePromoMsg interface{} `json:"onlineExclusivePromoMsg"`
+	PaginationEnd           interface{} `json:"paginationEnd"`
+	PaginationStart         int         `json:"paginationStart"`
+	ProductDescription      string      `json:"productDescription"`
+	ProductID               string      `json:"productId"`
+	ProductImage            string      `json:"productImage"`
+	ProductURL              string      `json:"productURL"`
+	PromoMessage            string      `json:"promoMessage"`
+	SalePrice               string      `json:"salePrice"`
+	TotalReviewCount        int         `json:"totalReviewCount"`
+	Typename                string      `json:"__typename"`
+}
+
+var productsReviewExtractReg = regexp.MustCompile(`(?Ums)<script type="application/ld\+json"([ a-z\-\="])+>({.*})</script>`)
+
+type SearchView struct {
+	Data struct {
+		GetUnbxdSearch struct {
+			Facets []struct {
+				FacetID  string   `json:"facetId"`
+				Name     string   `json:"name"`
+				Position int      `json:"position"`
+				Values   []string `json:"values"`
+				Typename string   `json:"__typename"`
+			} `json:"facets"`
+			DidYouMean interface{} `json:"didYouMean"`
+			Pagination struct {
+				TotalProductCount int    `json:"totalProductCount"`
+				PageNumber        int    `json:"pageNumber"`
+				PageSize          int    `json:"pageSize"`
+				Start             int    `json:"start"`
+				End               int    `json:"end"`
+				Typename          string `json:"__typename"`
+			} `json:"pagination"`
+			Products []*product  `json:"products"`
+			Redirect interface{} `json:"redirect"`
+			Source   string      `json:"source"`
+			Typename string      `json:"__typename"`
+		} `json:"getUnbxdSearch"`
+	} `json:"data"`
+	Extensions struct {
+		Platform string `json:"platform"`
+	} `json:"extensions"`
+}
+
+var searchAPIReqBody = `{"operationName":"SearchQuery","variables":{"filter":"","rows":56,"searchTerm":"%s","sort":"","start":%d},"query":"query SearchQuery($searchTerm: String!, $start: Int!, $rows: Int, $filter: String, $sort: String) {\n  getUnbxdSearch(searchTerm: $searchTerm, start: $start, rows: $rows, filter: $filter, sort: $sort) {\n    facets {\n      facetId\n      name\n      position\n      values\n      __typename\n    }\n    didYouMean {\n      suggestion\n      frequency\n      __typename\n    }\n    pagination {\n      totalProductCount\n      pageNumber\n      pageSize\n      start\n      end\n      __typename\n    }\n    products {\n      colors {\n        color\n        skuUpc\n        defaultSku\n        __typename\n      }\n      isEnsemble\n      ensembleListPrice\n      ensembleSalePrice\n      key\n      listPrice\n      name\n      newProduct\n      onlineExclusive\n      onlineExclusivePromoMsg\n      paginationEnd\n      paginationStart\n      productDescription\n      productId\n      productImage\n      productURL\n      promoMessage\n      salePrice\n      __typename\n    }\n    redirect {\n      type\n      value\n      __typename\n    }\n    source\n    __typename\n  }\n}\n"}`
+
+// parseSearch parse api url from web page url
+func (c *_Crawler) parseSearch(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	opts := c.CrawlOptions(resp.Request.URL)
+
+	vals := resp.Request.URL.Query()
+	q := strings.TrimSpace(vals.Get("q"))
+	if q == "" {
+		return nil
+	}
+
+	var (
+		start  = 0
+		subCtx = ctx
+	)
+	for {
+		reqBody := fmt.Sprintf(searchAPIReqBody, q, start)
+		req, _ := http.NewRequest(http.MethodPost, "https://www.express.com/graphql", strings.NewReader(reqBody))
+		req.Header.Add("accept", "*/*")
+		req.Header.Add("referer", resp.Request.URL.String())
+		req.Header.Add("origin", "https://www.express.com")
+		req.Header.Add("content-type", "application/json")
+		req.Header.Add("cache-control", "no-cache")
+		if ua := resp.Request.Header.Get("User-Agent"); ua != "" {
+			req.Header.Set("User-Agent", ua)
+		}
+		req.Header.Add("x-exp-request-id", uuid.NewV4().String())
+		req.Header.Add("x-exp-rvn-cacheable", "false")
+		req.Header.Add("x-exp-rvn-query-classification", "getUnbxdCategory")
+		req.Header.Add("x-exp-rvn-source", "app_express.com")
+
+		c.logger.Debugf("Access %s CategoryQuery %d", req.URL, start)
+		resp, err := c.httpClient.DoWithOptions(subCtx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    false,
+			EnableSessionInit: false,
+			Reliability:       opts.Reliability,
+			RequestFilterKeys: []string{"CategoryQuery"},
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode == http.StatusForbidden ||
+			resp.StatusCode == -1 {
+			return fmt.Errorf("net work request failed, %s", resp.Status)
+		}
+
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		var viewData SearchView
+		if err := json.Unmarshal(respBody, &viewData); err != nil {
+			c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+			return err
+		}
+
+		lastIndex := nextIndex(ctx)
+		for _, idv := range viewData.Data.GetUnbxdSearch.Products {
+			rawurl := idv.ProductURL
+			req, err := http.NewRequest(http.MethodGet, rawurl, nil)
+			if err != nil {
+				c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
+				continue
+			}
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			lastIndex += 1
+			if err := yield(nctx, req); err != nil {
+				return err
+			}
+		}
+
+		if viewData.Data.GetUnbxdSearch.Pagination.End >= viewData.Data.GetUnbxdSearch.Pagination.TotalProductCount ||
+			lastIndex >= viewData.Data.GetUnbxdSearch.Pagination.TotalProductCount {
+			break
+		}
+		start = viewData.Data.GetUnbxdSearch.Pagination.End + 1
+		subCtx = context.WithValue(ctx, "req_id", randutil.MustNewRandomID())
+	}
+	return nil
 }
 
 type CategoryView struct {
@@ -135,46 +292,15 @@ type CategoryView struct {
 				End               int    `json:"end"`
 				Typename          string `json:"__typename"`
 			} `json:"pagination"`
-			Products []struct {
-				AverageOverallRating float64 `json:"averageOverallRating"`
-				Colors               []struct {
-					Color      string `json:"color"`
-					SkuUpc     string `json:"skuUpc"`
-					DefaultSku bool   `json:"defaultSku"`
-					Typename   string `json:"__typename"`
-				} `json:"colors"`
-				EFOProduct              bool        `json:"EFOProduct"`
-				EnsembleListPrice       interface{} `json:"ensembleListPrice"`
-				EnsembleSalePrice       interface{} `json:"ensembleSalePrice"`
-				Key                     string      `json:"key"`
-				IsEnsemble              bool        `json:"isEnsemble"`
-				ListPrice               string      `json:"listPrice"`
-				MarketplaceProduct      interface{} `json:"marketplaceProduct"`
-				Name                    string      `json:"name"`
-				NewProduct              bool        `json:"newProduct"`
-				OnlineExclusive         bool        `json:"onlineExclusive"`
-				OnlineExclusivePromoMsg interface{} `json:"onlineExclusivePromoMsg"`
-				PaginationEnd           interface{} `json:"paginationEnd"`
-				PaginationStart         int         `json:"paginationStart"`
-				ProductDescription      string      `json:"productDescription"`
-				ProductID               string      `json:"productId"`
-				ProductImage            string      `json:"productImage"`
-				ProductURL              string      `json:"productURL"`
-				PromoMessage            string      `json:"promoMessage"`
-				SalePrice               string      `json:"salePrice"`
-				TotalReviewCount        int         `json:"totalReviewCount"`
-				Typename                string      `json:"__typename"`
-			} `json:"products"`
-			Source   string `json:"source"`
-			Typename string `json:"__typename"`
+			Products []*product `json:"products"`
+			Source   string     `json:"source"`
+			Typename string     `json:"__typename"`
 		} `json:"getUnbxdCategory"`
 	} `json:"data"`
 	Extensions struct {
 		Platform string `json:"platform"`
 	} `json:"extensions"`
 }
-
-var productsReviewExtractReg = regexp.MustCompile(`(?Ums)<script type="application/ld\+json"([ a-z\-\="])+>({.*})</script>`)
 
 var cateAPIReqBody = `{"operationName":"CategoryQuery","variables":{"categoryId":"%s","filter":"","overrideCatApi":"","rows":56,"sort":"","start":%d},"query":"query CategoryQuery($categoryId: String, $start: Int!, $rows: Int, $filter: String, $sort: String, $overrideCatApi: String, $uc_param: String) {\n  getUnbxdCategory(categoryId: $categoryId, start: $start, rows: $rows, filter: $filter, sort: $sort, overrideCatApi: $overrideCatApi, uc_param: $uc_param) {\n    categoryId\n    categoryName\n    facets {\n      facetId\n      name\n      position\n      values\n      __typename\n    }\n    pagination {\n      totalProductCount\n      pageNumber\n      pageSize\n      start\n      end\n      __typename\n    }\n    products {\n      averageOverallRating\n      colors {\n        color\n        skuUpc\n        defaultSku\n        __typename\n      }\n      EFOProduct\n      ensembleListPrice\n      ensembleSalePrice\n      key\n      isEnsemble\n      listPrice\n      marketplaceProduct\n      name\n      newProduct\n      onlineExclusive\n      onlineExclusivePromoMsg\n      paginationEnd\n      paginationStart\n      productDescription\n      productId\n      productImage\n      productURL\n      promoMessage\n      salePrice\n      totalReviewCount\n      __typename\n    }\n    source\n    __typename\n  }\n}\n"}`
 
@@ -588,7 +714,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
-		"https://www.express.com/womens-clothing/dresses/cat550007",
+		"https://www.express.com/exp/search?q=Totes",
+		// "https://www.express.com/womens-clothing/dresses/cat550007",
 		// "https://www.express.com/clothing/women/body-contour-cropped-square-neck-cami/pro/06418402/color/Light%20Pink/",
 		// "https://www.express.com/clothing/men/solid-performance-polo/pro/05047075/color/Pitch%20Black",
 	} {
