@@ -361,8 +361,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://coupons.businessinsider.com/sephora",
-		// "https://coupons.businessinsider.com/asos",
+		"https://coupons.businessinsider.com/asos",
+		// "https://coupons.businessinsider.com/sephora",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)

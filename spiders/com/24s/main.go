@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -25,6 +26,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -557,12 +559,15 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -574,13 +579,25 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
-			logger.Debugf("Access %s", i.URL)
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
 
+			logger.Debugf("Access %s", i.URL)
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -614,9 +631,10 @@ func main() {
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
+			nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
-				EnableHeadless:    true,
+				EnableHeadless:    false,
 				EnableSessionInit: opts.EnableSessionInit,
 				KeepSession:       opts.KeepSession,
 				Reliability:       opts.Reliability,
@@ -626,7 +644,7 @@ func main() {
 			}
 			defer resp.Body.Close()
 
-			return spider.Parse(ctx, resp, callback)
+			return spider.Parse(nctx, resp, callback)
 		default:
 			// output the result
 			data, err := protojson.Marshal(i.(proto.Message))
