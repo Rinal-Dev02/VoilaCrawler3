@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -16,15 +17,13 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
-
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -44,7 +43,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`-c-[0-9]+.html`),
+		categoryPathMatcher: regexp.MustCompile(`-(c|sc)-[0-9]+.html`),
 		// this regular used to match product page url path
 		productPathMatcher: regexp.MustCompile(`-p-[0-9]+-cat-[0-9]+.html`),
 		logger:             logger.New("_Crawler"),
@@ -82,6 +81,24 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.shein.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		if u.Scheme == "" {
+			u.Scheme = "https"
+		}
+		if u.Host == "" {
+			u.Host = "us.shein.com"
+		}
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 // Parse is the entry to run the spider.
@@ -140,11 +157,11 @@ type ProductCategoryStructure struct {
 		TraceID      string `json:"trace_id"`
 		GoodsCrowID  struct {
 		} `json:"goodsCrowId"`
-		Nlkt            int  `json:"nlkt"`
-		PdeCacheControl bool `json:"pdeCacheControl"`
-		MinPrice        int  `json:"min_price"`
-		MaxPrice        int  `json:"max_price"`
-		IsPlusSize      bool `json:"isPlusSize"`
+		Nlkt int `json:"nlkt"`
+		// PdeCacheControl bool `json:"pdeCacheControl"`
+		MinPrice   int  `json:"min_price"`
+		MaxPrice   int  `json:"max_price"`
+		IsPlusSize bool `json:"isPlusSize"`
 	} `json:"results"`
 }
 
@@ -290,16 +307,16 @@ type parseProductData struct {
 		IsPreSale             string `json:"is_pre_sale"`
 		IsPreSaleEnd          string `json:"is_pre_sale_end"`
 		ProductDetails        []struct {
-			AttrID      int    `json:"attr_id"`
-			AttrValueID string `json:"attr_value_id"`
-			AttrName    string `json:"attr_name"`
-			AttrNameEn  string `json:"attr_name_en"`
-			ValueSort   int    `json:"value_sort"`
-			AttrSelect  int    `json:"attr_select"`
-			AttrSort    int    `json:"attr_sort"`
-			LeftShow    int    `json:"left_show"`
-			AttrValue   string `json:"attr_value"`
-			AttrValueEn string `json:"attr_value_en"`
+			AttrID      interface{} `json:"attr_id"`
+			AttrValueID string      `json:"attr_value_id"`
+			AttrName    string      `json:"attr_name"`
+			AttrNameEn  string      `json:"attr_name_en"`
+			ValueSort   int         `json:"value_sort"`
+			AttrSelect  int         `json:"attr_select"`
+			AttrSort    int         `json:"attr_sort"`
+			LeftShow    int         `json:"left_show"`
+			AttrValue   string      `json:"attr_value"`
+			AttrValueEn string      `json:"attr_value_en"`
 		} `json:"productDetails"`
 		Comment struct {
 			CommentNum  string `json:"comment_num"`
@@ -340,20 +357,20 @@ type parseProductData struct {
 		AppPromotion      []interface{} `json:"appPromotion"`
 		RewardPoints      int           `json:"rewardPoints"`
 		DoublePoints      int           `json:"doublePoints"`
-		ColorType         string        `json:"color_type"`
+		ColorType         interface{}   `json:"color_type"`
 		BeautyCategory    bool          `json:"beautyCategory"`
 		NeedAttrRelation  bool          `json:"needAttrRelation"`
 		BrandInfo         interface{}   `json:"brandInfo"`
 		Series            interface{}   `json:"series"`
 	} `json:"detail"`
 	AttrSizeList []struct {
-		AttrID       string `json:"attr_id"`
-		AttrValueID  string `json:"attr_value_id"`
-		AttrName     string `json:"attr_name"`
-		AttrValue    string `json:"attr_value"`
-		AttrValueEn  string `json:"attr_value_en"`
-		Stock        int    `json:"stock"`
-		AttrStdValue string `json:"attr_std_value"`
+		AttrID       string      `json:"attr_id"`
+		AttrValueID  string      `json:"attr_value_id"`
+		AttrName     string      `json:"attr_name"`
+		AttrValue    string      `json:"attr_value"`
+		AttrValueEn  string      `json:"attr_value_en"`
+		Stock        interface{} `json:"stock"`
+		AttrStdValue string      `json:"attr_std_value"`
 		Price        struct {
 			RetailPrice struct {
 				Amount              string `json:"amount"`
@@ -417,14 +434,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
-	c.logger.Debugf("%s", matched[1])
 
 	rating, _ := strconv.ParseFloat(viewData.CommentInfo.CommentRankAverage)
+	canUrl, _ := c.CanonicalUrl(resp.Request.URL.String())
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(viewData.Detail.GoodsID),
-			CrawlUrl: resp.Request.URL.String(),
-			GroupId:  viewData.Detail.ProductRelationID,
+			Id:           strconv.Format(viewData.Detail.GoodsID),
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
+			GroupId:      viewData.Detail.ProductRelationID,
 		},
 		BrandName:   viewData.Detail.Brand,
 		Title:       viewData.Detail.GoodsName,
@@ -438,14 +456,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 	}
 	item.CrowdType = viewData.ParentCats.CatName
+	item.Category = viewData.ParentCats.CatName
 	if len(viewData.ParentCats.Children) > 0 {
-		item.Category = viewData.ParentCats.Children[0].CatName
-	}
-	if len(viewData.ParentCats.Children[0].Children) > 0 {
-		item.SubCategory = viewData.ParentCats.Children[0].Children[0].CatName
-	}
-	if len(viewData.ParentCats.Children[0].Children[0].Children) > 0 {
-		item.SubCategory2 = viewData.ParentCats.Children[0].Children[0].Children[0].CatName
+		item.SubCategory = viewData.ParentCats.Children[0].CatName
+		if len(viewData.ParentCats.Children[0].Children) > 0 {
+			item.SubCategory2 = viewData.ParentCats.Children[0].Children[0].CatName
+			if len(viewData.ParentCats.Children[0].Children[0].Children) > 0 {
+				item.SubCategory3 = viewData.ParentCats.Children[0].Children[0].Children[0].CatName
+				if len(viewData.ParentCats.Children[0].Children[0].Children[0].Children) > 0 {
+					item.SubCategory4 = viewData.ParentCats.Children[0].Children[0].Children[0].Children[0].CatName
+				}
+			}
+		}
 	}
 
 	colorName := ""
@@ -507,9 +529,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Medias: medias,
 				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
-			if rawSku.Stock > 0 {
+			stock, _ := strconv.ParseInt(rawSku.Stock)
+			c.logger.Debugf("%s %d", rawSku.Stock, stock)
+			if stock > 0 {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
-				sku.Stock.StockCount = int32(rawSku.Stock)
+				sku.Stock.StockCount = int32(stock)
 			}
 			sku.Specs = append(sku.Specs, &colorSpec, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
@@ -586,7 +610,9 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		// "https://us.shein.com/T-Shirts-c-1738.html?ici=us_tab01navbar04menu01dir02&scici=navbar_WomenHomePage~~tab01navbar04menu01dir02~~4_1_2~~real_1738~~~~0~~50001&srctype=category&userpath=category%3ECLOTHING%3ETOPS%3ET-Shirts",
 		// "https://us.shein.com//Slogan-Graphic-Crop-Tee-p-1854713-cat-1738.html?scici=navbar_WomenHomePage~~tab01navbar04menu01dir02~~4_1_2~~real_1738~~~~0~~50001",
 		// "https://us.shein.com/Rhinestone-Decor-Hair-Hoop-p-1315510-cat-1778.html?scici=navbar_2~~tab01navbar08menu11~~8_11~~real_1765~~SPcCccWomenCategory_default~~0~~0",
-		"https://us.shein.com/Allover-Print-Surplice-Front-Layered-Hem-Dress-p-1575863-cat-1727.html?scici=navbar_WomenHomePage~~tab01navbar06menu05dir01~~6_5_1~~itemPicking_00109364~~~~0~~50001",
+		// "https://us.shein.com/Allover-Print-Surplice-Front-Layered-Hem-Dress-p-1575863-cat-1727.html?scici=navbar_WomenHomePage~~tab01navbar06menu05dir01~~6_5_1~~itemPicking_00109364~~~~0~~50001",
+		// "https://us.shein.com//Planet-Embroidered-Bucket-Hat-p-2127810-cat-1772.html?scici=navbar_2~~tab01navbar08menu11dir06~~8_11_6~~real_1772~~SPcCccWomenCategory_default~~0~~0",
+		"https://us.shein.com/category/Sleepwear-and-Nightwear-sc-00821505.html?icn=category&ici=us_tab01navbar02menu14dir02&srctype=category&userpath=category%3EWOMEN%3ECLOTHING%3ELoungewear-Sleepwear%3ESleepwear&scici=navbar_2~~tab01navbar02menu14dir02~~2_14_2~~itemPicking_00821505~~SPcCccWomenCategory_default~~0~~0",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -611,6 +637,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -625,12 +655,26 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -688,7 +732,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("shein_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
