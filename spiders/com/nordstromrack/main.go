@@ -45,9 +45,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 		httpClient: client,
 		// this regular used to match category page url path
 		///shop/Women/Clothing/Tops
-		categoryPathMatcher: regexp.MustCompile(`^/(category|shop|c|events)(/[,\s%&a-zA-Z0-9\-]+){1,6}$`),
+		categoryPathMatcher: regexp.MustCompile(`^/(category|shop|c|events)(/[,\s%&a-zA-Z0-9_\-]+){1,6}$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^/s([/a-z0-9_-]+){0,4}/n?\d+$`),
+		productPathMatcher: regexp.MustCompile(`^/s(/.*){0,4}/n?\d+$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -101,6 +101,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	c.logger.Debugf("%s", resp.Request.URL.Path)
 
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -577,7 +578,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.nordstromrack.com/s/free-people-riptide-tie-dye-print-t-shirt/n3327050?color=SEAFOAM%20COMBO",
+		"https://www.nordstromrack.com/s/levis-512-%E2%84%A2-slim-taper-marshmallow-burn-out-jeans/n3298652?color=MARSHMALLOW%20BURNOUT%20DX&eid=482253",
+		// "https://www.nordstromrack.com/s/free-people-riptide-tie-dye-print-t-shirt/n3327050?color=SEAFOAM%20COMBO",
 		// "https://www.nordstromrack.com/shop/Women/Clothing/Tops",
 		// "https://www.nordstromrack.com/events/472159",
 		// "https://www.nordstromrack.com/shop/Women/Accessories/Hats,%20Gloves%20&%20Scarves/Gloves",
