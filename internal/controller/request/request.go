@@ -205,7 +205,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 
 				for _, req := range reqs {
 					if err := ctrl.PublishRequest(ctx, nil, req, false); err != nil {
-						ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0,
+						ctrl.historyCtrl.Publish(ctx, req.GetId(), "", 0, 0,
 							ctrl.logger.Errorf("publish request failed, error=%s", err).ToError().Error())
 					}
 				}
@@ -253,7 +253,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 					return req, nil
 				}()
 				if err != nil {
-					ctrl.historyCtrl.Publish(ctx, reqId, 0, 0, err.Error())
+					ctrl.historyCtrl.Publish(ctx, reqId, "", 0, 0, err.Error())
 					if _, err := ctrl.redisClient.Do("SREM", config.CrawlRequestQueueSet, reqId); err != nil {
 						ctrl.logger.Errorf("remove req %s cache set failed, error=%s", reqId, err)
 					}
@@ -283,12 +283,12 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							crawlers, err := ctrl.crawlerCtrl.GetCrawlerByUrl(ctx, req.GetUrl())
 							if err != nil {
 								ctrl.logger.Errorf("check crawler for %s failed, error=%s", req.GetUrl(), err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, err.Error())
+								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
 								return err
 							}
 							if len(crawlers) == 0 {
 								ctrl.logger.Warnf("not crawler found for %s", req.GetUrl())
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, "no useable crawler")
+								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, "no useable crawler")
 								err = fmt.Errorf("no crawler usable for %s", req.GetUrl())
 								return
 							}
@@ -297,7 +297,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							var proxyReq pbProxy.Request
 							if err := req.Unmarshal(&proxyReq); err != nil {
 								ctrl.logger.Errorf("unmarshal request to proxy.Request failed, error=%s", err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, err.Error())
+								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
 								return err
 							}
 
@@ -360,10 +360,10 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							duration := int32((time.Now().UnixNano() - startTimestamp) / 1000000)
 							if err != nil {
 								ctrl.logger.Errorf("do %s request failed, error=%s", req.GetUrl(), err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), duration, 0, err.Error())
+								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), duration, 0, err.Error())
 								return
 							}
-							ctrl.historyCtrl.Publish(ctx, req.GetId(), duration, proxyResp.StatusCode, "")
+							ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), duration, proxyResp.StatusCode, "")
 
 							if proxyResp.GetStatusCode() == -1 ||
 								proxyResp.GetStatusCode() == http.StatusForbidden ||
@@ -391,7 +391,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 
 							// parse respose, if failed, queue the request again
 							if err = ctrl.crawlerCtrl.Parse(ctx, req, proxyResp); err != nil {
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, err.Error())
+								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
 								ctrl.logger.Errorf("parse response from %s failed, error=%s", req.GetUrl(), err)
 								return err
 							}
@@ -410,7 +410,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							isSucceed = false
 							if err := ctrl.PublishRequest(ctx, nil, req, true); err != nil {
 								ctrl.logger.Errorf("publish request %s failed, error=%s", req.GetId(), err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, err.Error())
+								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
 							} else {
 								isRepublished = true
 							}
@@ -420,18 +420,18 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 								req.GetId(), status, isSucceed); err != nil {
 
 								ctrl.logger.Errorf("update status of request %s failed, error=%s", req.GetId(), err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, err.Error())
+								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
 							}
 							if _, err := ctrl.redisClient.Do("SREM", config.CrawlRequestQueueSet, req.GetId()); err != nil {
 								ctrl.logger.Errorf("remove req cache key failed, error=%s", err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), 0, 0, err.Error())
+								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
 							}
 						}
 					}(ctx, req)
 				} else if _, err := ctrl.redisClient.Do("EVAL", requestPushScript, 3,
 					config.CrawlStoreList, key, config.CrawlRequestQueueSet, reqId); err != nil {
 					ctrl.logger.Errorf("requeue request %s failed, error=%s", reqId, err)
-					ctrl.historyCtrl.Publish(ctx, reqId, 0, 0, err.Error())
+					ctrl.historyCtrl.Publish(ctx, reqId, req.GetStoreId(), 0, 0, err.Error())
 				}
 			}
 			if len(stores) == 0 {

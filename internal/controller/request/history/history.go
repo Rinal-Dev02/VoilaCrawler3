@@ -66,13 +66,14 @@ func NewRequestHistoryController(ctx context.Context, historyManager *historyMan
 	return &ctrl, nil
 }
 
-func (ctrl *RequestHistoryController) Publish(ctx context.Context, reqId string, duration, statusCode int32, errMsg string) error {
+func (ctrl *RequestHistoryController) Publish(ctx context.Context, reqId, storeId string, duration, statusCode int32, errMsg string) error {
 	if reqId == "" {
 		return pbError.ErrInvalidArgument.New("invalid request id")
 	}
 	data, _ := json.Marshal(&types.RequestHistory{
 		Id:         reqId,
 		Timestamp:  time.Now().UnixNano() / 1000000,
+		StoreId:    storeId,
 		StatusCode: statusCode,
 		ErrMsg:     errMsg,
 		Duration:   duration,

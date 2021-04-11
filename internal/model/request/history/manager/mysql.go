@@ -58,9 +58,9 @@ func (m *HistoryManager) Save(ctx context.Context, session *xorm.Session, his *t
 		defer session.Close()
 	}
 
-	sql := `INSERT INTO request_history (id,timestamp,status_code,err_msg,duration) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE status_code=?,err_msg=?,duration=?`
+	sql := `INSERT INTO request_history (id,timestamp,store_id,status_code,err_msg,duration) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE status_code=?,err_msg=?,duration=?`
 	if _, err := session.Context(ctx).Exec(sql,
-		his.Id, his.Timestamp, his.StatusCode, his.ErrMsg, his.Duration,
+		his.Id, his.Timestamp, his.StoreId, his.StatusCode, his.ErrMsg, his.Duration,
 		his.StatusCode, his.ErrMsg, his.Duration,
 	); err != nil {
 		logger.Errorf("save request history failed, error=%s", err)
