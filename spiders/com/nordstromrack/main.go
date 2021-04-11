@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -16,15 +17,14 @@ import (
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
-
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -45,7 +45,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 		httpClient: client,
 		// this regular used to match category page url path
 		///shop/Women/Clothing/Tops
-		categoryPathMatcher: regexp.MustCompile(`^/(category|shop|c|events)(/[a-zA-Z0-9\-]+){1,6}$`),
+		categoryPathMatcher: regexp.MustCompile(`^/(category|shop|c|events)(/[,\s%&a-zA-Z0-9\-]+){1,6}$`),
 		// this regular used to match product page url path
 		productPathMatcher: regexp.MustCompile(`^/s([/a-z0-9_-]+){0,4}/n?\d+$`),
 		logger:             logger.New("_Crawler"),
@@ -274,10 +274,12 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	lastPageNo := len(viewData.Catalog.Pages)
+	if lastPageNo < 2 {
+		return nil
+	}
 	lastPageNo = viewData.Catalog.Pages[lastPageNo-2].PageNumber
 	// check if this is the last page
-	if len(viewData.Catalog.Products) > viewData.Catalog.Total ||
-		page >= int64(lastPageNo) {
+	if page >= int64(lastPageNo) {
 		return nil
 	}
 
@@ -473,6 +475,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
+	c.logger.Debugf("%s", bytesResult)
 
 	item := pbItem.Product{
 		Source: &pbItem.Source{
@@ -491,31 +494,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		// },
 	}
 	links := viewData.ProductPage.BreadcrumbLinks
-	crowdIndex := -1
 	for i, l := range links {
-		t := strings.ToLower(l.Text)
-		if t == "women" || t == "men" || t == "kids" {
-			item.CrowdType = t
-			crowdIndex = i
-			break
-		}
-	}
-	for i, l := range links {
-		if crowdIndex >= 0 && i < crowdIndex {
-			continue
-		}
-		j := i
-		if crowdIndex >= 0 {
-			j = i - crowdIndex - 1
-		}
-
-		switch j {
+		switch i {
 		case 0:
 			item.Category = l.Text
 		case 1:
 			item.SubCategory = l.Text
 		case 2:
 			item.SubCategory2 = l.Text
+		case 3:
+			item.SubCategory3 = l.Text
+		case 4:
+			item.SubCategory4 = l.Text
 		}
 	}
 
@@ -587,9 +577,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		// "https://www.nordstromrack.com/s/free-people-riptide-tie-dye-print-t-shirt/n3327050?color=SEAFOAM%20COMBO",
+		"https://www.nordstromrack.com/s/free-people-riptide-tie-dye-print-t-shirt/n3327050?color=SEAFOAM%20COMBO",
 		// "https://www.nordstromrack.com/shop/Women/Clothing/Tops",
-		"https://www.nordstromrack.com/events/472159",
+		// "https://www.nordstromrack.com/events/472159",
+		// "https://www.nordstromrack.com/shop/Women/Accessories/Hats,%20Gloves%20&%20Scarves/Gloves",
+		// "https://www.nordstromrack.com/c/women/clothing/skirts/pencil",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -612,12 +604,15 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	logger := glog.New(glog.LogLevelDebug)
-	// build a http client.
-	// get proxy's microservice address from env
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
 
+	logger := glog.New(glog.LogLevelDebug)
+	// build a http client
+	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -629,12 +624,25 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -668,10 +676,11 @@ func main() {
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
+			nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
-				EnableSessionInit: false,
+				EnableSessionInit: opts.EnableSessionInit,
 				KeepSession:       opts.KeepSession,
 				Reliability:       opts.Reliability,
 			})
@@ -680,7 +689,7 @@ func main() {
 			}
 			defer resp.Body.Close()
 
-			return spider.Parse(ctx, resp, callback)
+			return spider.Parse(nctx, resp, callback)
 		default:
 			// output the result
 			data, err := protojson.Marshal(i.(proto.Message))
