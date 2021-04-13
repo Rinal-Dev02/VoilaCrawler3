@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -20,6 +23,7 @@ import (
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -85,6 +89,18 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.dior.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 // Parse is the entry to run the spider.
@@ -372,9 +388,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	var viewData parseProductData
-
 	if err := json.Unmarshal(matched[1], &viewData); err != nil {
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
+		return err
+	}
+	dom, err := goquery.NewDocumentFromReader(bytes.NewBuffer(respBody))
+	if err != nil {
 		return err
 	}
 
@@ -394,11 +413,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	contentIndex = getIndex(viewData, "PRODUCTSECTIONDESCRIPTION")
 	contentDescriptionData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       contentData.Reference,
-			CrawlUrl: resp.Request.URL.String(),
+			Id:           contentData.Reference,
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
 		},
 		BrandName:   "DIOR",
 		Title:       contentData.Title,
@@ -556,6 +580,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -582,13 +610,14 @@ func main() {
 			}
 			reqFilter[i.URL.String()] = struct{}{}
 
-			logger.Debugf("Access %s", i.URL)
-
-			crawler := spider.(*_Crawler)
-			if crawler.productPathMatcher.MatchString(i.URL.Path) {
-				return nil
+			canUrl, _ := spider.CanonicalUrl(i.URL.String())
+			logger.Debugf("Access %s %s", i.URL, canUrl)
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
 			}
-
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -622,6 +651,7 @@ func main() {
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
+			nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
@@ -634,7 +664,7 @@ func main() {
 			}
 			defer resp.Body.Close()
 
-			return spider.Parse(ctx, resp, callback)
+			return spider.Parse(nctx, resp, callback)
 		default:
 			// output the result
 			data, err := protojson.Marshal(i.(proto.Message))
