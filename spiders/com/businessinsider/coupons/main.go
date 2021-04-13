@@ -298,9 +298,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 			var targetUrl string
 			if affUrl.Path == "/deeplink" && affUrl.Query().Get("murl") != "" {
 				targetUrl, _ = url.QueryUnescape(affUrl.Query().Get("murl"))
-			} else {
-				// TODO: need more check
-				item.IsApplyToAll = true
 			}
 
 			if targetUrl == "" {
@@ -361,7 +358,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://coupons.businessinsider.com/asos",
+		"https://coupons.businessinsider.com/shein",
+		//	"https://coupons.businessinsider.com/asos",
 		// "https://coupons.businessinsider.com/sephora",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)

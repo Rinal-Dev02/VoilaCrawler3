@@ -34,6 +34,8 @@ import (
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
 type _Crawler struct {
+	crawler.MustImplementCrawler
+
 	// httpClient is the object of an http client
 	httpClient          http.Client
 	categoryPathMatcher *regexp.Regexp
@@ -88,6 +90,19 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.24s.com"}
+}
+
+// CanonicalUrl
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 // Parse is the entry to run the spider.
@@ -393,6 +408,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		return err
+	}
+
 	var (
 		p        = viewData.Props.InitialState.Pdp.ProductFormated
 		colorSku *pbItem.SkuSpecOption
@@ -406,6 +426,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
@@ -419,17 +443,20 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Currency: regulation.Currency_USD,
 		},
 	}
-	if len(p.Breadcrumbs) > 0 {
-		item.CrowdType = p.Breadcrumbs[0].Label
-	}
-	if len(p.Breadcrumbs) > 1 {
-		item.Category = p.Breadcrumbs[1].Label
-	}
-	if len(p.Breadcrumbs) > 2 {
-		item.SubCategory = p.Breadcrumbs[2].Label
-	}
-	if len(p.Breadcrumbs) > 3 {
-		item.SubCategory2 = p.Breadcrumbs[3].Label
+	for i, bread := range p.Breadcrumbs {
+		switch i {
+		case 0:
+			item.CrowdType = bread.Label
+			item.Category = bread.Label
+		case 1:
+			item.SubCategory = bread.Label
+		case 2:
+			item.SubCategory2 = bread.Label
+		case 3:
+			item.SubCategory3 = bread.Label
+		case 4:
+			item.SubCategory4 = bread.Label
+		}
 	}
 
 	description := p.Description

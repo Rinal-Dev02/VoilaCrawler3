@@ -85,11 +85,22 @@ type Crawler interface {
 	// if matched, the can use crawler to extract info from the response of this url.
 	// IsUrlMatch(*url.URL) bool
 
+	// CanonicalUrl returns canonical url the proviced url
+	CanonicalUrl(rawurl string) (string, error)
+
 	// Parser used to parse http request parse.
 	//   param ctx used to share info between parent and child. and it can set the max ttl for parse job.
 	//   param resp represents the http response, with act as a real http response.
 	//   param yield use to yield data with can be final data or an other http request
 	Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error
+}
+
+// MustImplementCrawler
+type MustImplementCrawler struct{}
+
+// CanonicalUrl
+func (c *MustImplementCrawler) CanonicalUrl(rawurl string) (string, error) {
+	return "", nil
 }
 
 type New func(client http.Client, logger glog.Log) (Crawler, error)
