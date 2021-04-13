@@ -4,8 +4,9 @@ import (
 	//"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"net/url"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gosimple/slug"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -22,6 +24,7 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -83,6 +86,18 @@ func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.dsw.com"}
 }
 
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -125,10 +140,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 		req.Header.Set("Referer", resp.Request.URL.String())
 		subresp, err = c.httpClient.DoWithOptions(ctx, req, http.Options{
-			EnableProxy:       true,
-			EnableHeadless:    false,
-			EnableSessionInit: false,
-			Reliability:       c.CrawlOptions(resp.Request.URL).Reliability,
+			EnableProxy: true,
+			Reliability: c.CrawlOptions(resp.Request.URL).Reliability,
 		})
 		if err != nil {
 			c.logger.Error(err)
@@ -137,7 +150,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		defer subresp.Body.Close()
 	}
 
-	respBody, err := ioutil.ReadAll(subresp.Body)
+	respBody, err := io.ReadAll(subresp.Body)
 	if err != nil {
 		c.logger.Debug(err)
 		return err
@@ -174,6 +187,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 								NonMemberPrice               []string `json:"nonMemberPrice"`
 								ProductOriginalStyleID       []string `json:"product.originalStyleId"`
 								ProductDisplayName           []string `json:"product.displayName"`
+								Brand                        []string `json:"brand"`
 								Rating                       []string `json:"rating"`
 								AllAncestorsRepositoryID     []string `json:"allAncestors.repositoryId"`
 								ProductHasAnimatedImage      []string `json:"product.hasAnimatedImage"`
@@ -182,7 +196,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 								IsClearance                  []string `json:"isClearance"`
 								Msrp                         []string `json:"msrp"`
 								ProductDswBrandRepositoryID  []string `json:"product.dswBrand.repositoryId"`
-								Brand                        []string `json:"brand"`
 								ProductOriginalPrice         []string `json:"product.originalPrice"`
 								ProductReviewCount           []string `json:"product.reviewCount"`
 								ProductShowPriceInCart       []string `json:"product.showPriceInCart"`
@@ -286,7 +299,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	totalrecords := 0
 	nrpp := 0
 
-	//nexturl := ""
 	lastIndex := nextIndex(ctx)
 	for _, prod := range r.PageContentItem.Contents[0].MainContent {
 		if prod.Name != "ResultList Zone" {
@@ -304,7 +316,10 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 				continue
 			}
 
-			rawurl := fmt.Sprintf("%s://%s/api/v1/products/%s?locale=en_US&pushSite=DSW", resp.Request.URL.Scheme, resp.Request.URL.Host, result.Attributes.ProductOriginalStyleID[0])
+			nameSlug := slug.Make(fmt.Sprintf("%s %s",
+				result.Attributes.Brand[0], result.Attributes.ProductDisplayName[0]))
+			rawurl := fmt.Sprintf("https://www.dsw.com/en/us/product/%s/%v",
+				nameSlug, result.Attributes.ProductOriginalStyleID[0])
 
 			req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 			if err != nil {
@@ -490,9 +505,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if c == nil {
 		return nil
 	}
+
 	var (
-		subresp *http.Response = resp
-		err     error
+		subresp  *http.Response = resp
+		err      error
+		crawlUrl string
+		canUrl   string
 	)
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		fields := strings.Split(strings.TrimSuffix(resp.Request.URL.Path, "/"), "/")
@@ -500,19 +518,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
 		req.Header.Set("Referer", resp.Request.URL.String())
 		subresp, err = c.httpClient.DoWithOptions(ctx, req, http.Options{
-			EnableProxy:       false,
-			EnableHeadless:    false,
-			EnableSessionInit: false,
-			Reliability:       c.CrawlOptions(resp.Request.URL).Reliability,
+			EnableProxy: true,
+			Reliability: c.CrawlOptions(resp.Request.URL).Reliability,
 		})
 		if err != nil {
 			c.logger.Error(err)
 			return err
 		}
 		defer subresp.Body.Close()
+
+		crawlUrl = resp.Request.URL.String()
 	}
 
-	respBody, err := ioutil.ReadAll(subresp.Body)
+	respBody, err := io.ReadAll(subresp.Body)
 	if err != nil {
 		return err
 	}
@@ -521,13 +539,24 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
-
 	req_product_id := strconv.Format(viewData.Response.Product.ID)
+
+	if crawlUrl == "" {
+		// the slug may not the same as the org slug
+		canUrl = fmt.Sprintf("https://www.dsw.com/en/us/product/%s/%v",
+			slug.Make(fmt.Sprintf("%s %s", viewData.Response.Product.DswBrand.DisplayNameDefault, viewData.Response.Product.DisplayName)),
+			viewData.Response.Product.ID,
+		)
+		crawlUrl = canUrl
+	} else {
+		canUrl, _ = c.CanonicalUrl(crawlUrl)
+	}
 	//Prepare product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(viewData.Response.Product.ID),
-			CrawlUrl: "https://www.dsw.com/en/us/product/a/" + strconv.Format(viewData.Response.Product.ID),
+			Id:           strconv.Format(viewData.Response.Product.ID),
+			CrawlUrl:     crawlUrl,
+			CanonicalUrl: canUrl,
 		},
 		BrandName:   viewData.Response.Product.DswBrand.DisplayNameDefault,
 		Title:       viewData.Response.Product.DisplayName,
@@ -604,7 +633,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			defer imgreq.Body.Close()
 
-			respBodyImg, err := ioutil.ReadAll(imgreq.Body)
+			respBodyImg, err := io.ReadAll(imgreq.Body)
 			if err != nil {
 				c.logger.Error(err)
 				return err
@@ -657,9 +686,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.dsw.com/en/us/product/aston-grey-leu-oxford/386780?activeColor=240",
+		// "https://www.dsw.com/en/us/product/aston-grey-leu-oxford/386780?activeColor=240",
 		// "https://www.dsw.com/en/us/product/birkenstock-cotton-slub-womens-crew-socks/497778?activeColor=050",
-		// "https://www.dsw.com/en/us/category/womens-socks/N-1z141jrZ1z128ueZ1z141dn?No=0",
+		"https://www.dsw.com/en/us/category/womens-socks/N-1z141jrZ1z128ueZ1z141dn?No=0",
 		// "https://www.dsw.com/api/v1/content/pages/_/N-1z141hwZ1z128ujZ1z141ju?pagePath=/pages/DSW/category&skipHeaderFooterContent=true&No=0&locale=en_US&pushSite=DSW&tier=GUEST",
 		//"https://www.dsw.com/api/v1/products/499002?locale=en_US&pushSite=DSW",
 	} {
@@ -680,6 +709,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -694,13 +727,29 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
-			logger.Debugf("Access %s", i.URL)
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
+			canUrl, _ := spider.CanonicalUrl(i.URL.String())
+			logger.Debugf("Access %s %s", i.URL, canUrl)
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
+
+			// process logic of sub request
 
 			// init custom headers
 			for k := range opts.MustHeader {
@@ -731,6 +780,7 @@ func main() {
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
+			nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
@@ -743,7 +793,7 @@ func main() {
 			}
 			defer resp.Body.Close()
 
-			return spider.Parse(ctx, resp, callback)
+			return spider.Parse(nctx, resp, callback)
 		default:
 			// output the result
 			data, err := protojson.Marshal(i.(proto.Message))
@@ -755,7 +805,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
