@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -22,8 +23,10 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+
 	// pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -41,8 +44,8 @@ type _Crawler struct {
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
-		categoryPathMatcher: regexp.MustCompile(`^((\?!product).)*`),
-		productPathMatcher:  regexp.MustCompile(`^(/[.a-z0-9_\-]+)?/shop((\/product\/))([/.a-z0-9_\-]+)$`),
+		categoryPathMatcher: regexp.MustCompile(`^/shop(/[a-z0-9\pL\pS._\-]+){2,6}$`),
+		productPathMatcher:  regexp.MustCompile(`^/shop/product/[a-z0-9\pL\pS._\-]+$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -85,6 +88,26 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.bloomingdales.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.bloomingdales.com"
+	}
+
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = fmt.Sprintf("ID=%s", u.Query().Get("ID"))
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -517,19 +540,28 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Error(err)
 		return err
 	}
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		return err
+	}
 
 	reviewCount, _ := strconv.ParseFloat(pd.UtagData.ProductReviews[0])
 	rating, _ := strconv.ParseFloat(pd.UtagData.ProductRating[0])
 
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
+
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(pd.Product.ID),
-			CrawlUrl: resp.Request.URL.String(),
+			Id:           strconv.Format(pd.Product.ID),
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
 		},
 		Title:       pd.Product.Detail.Name,
 		Description: pd.Product.Detail.Description,
 		BrandName:   pd.Product.Detail.Brand.Name,
-		//CrowdType:    i.Details.GenderName,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
@@ -546,6 +578,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.SubCategory = cate.Name
 		case 2:
 			item.SubCategory2 = cate.Name
+		case 3:
+			item.SubCategory3 = cate.Name
+		case 4:
+			item.SubCategory4 = cate.Name
 		}
 	}
 	for skuId, rawSku := range pd.Product.Relationships.Upcs {
@@ -646,10 +682,14 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
-	// build a http client.
+	// build a http client
 	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
@@ -662,19 +702,33 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
-			logger.Debugf("Access %s", i.URL)
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
+			canUrl, _ := spider.CanonicalUrl(i.URL.String())
+			logger.Debugf("Access %s %s", i.URL, canUrl)
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
+
+			// process logic of sub request
 
 			// init custom headers
 			for k := range opts.MustHeader {
-				if i.Header.Get(k) == "" {
-					i.Header.Set(k, opts.MustHeader.Get(k))
-				}
+				i.Header.Set(k, opts.MustHeader.Get(k))
 			}
 
 			// init custom cookies
@@ -701,11 +755,10 @@ func main() {
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
-
+			nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
-				DisableCookieJar:  opts.DisableCookieJar,
 				EnableSessionInit: opts.EnableSessionInit,
 				KeepSession:       opts.KeepSession,
 				Reliability:       opts.Reliability,
@@ -715,7 +768,7 @@ func main() {
 			}
 			defer resp.Body.Close()
 
-			return spider.Parse(ctx, resp, callback)
+			return spider.Parse(nctx, resp, callback)
 		default:
 			// output the result
 			data, err := protojson.Marshal(i.(proto.Message))
@@ -727,7 +780,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("bloomingdales_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
