@@ -23,8 +23,9 @@ import (
 )
 
 type _Crawler struct {
-	httpClient http.Client
+	crawler.MustImplementCrawler
 
+	httpClient              http.Client
 	categoryPathMatcher     *regexp.Regexp
 	categoryJsonPathMatcher *regexp.Regexp
 	productGroupPathMatcher *regexp.Regexp
