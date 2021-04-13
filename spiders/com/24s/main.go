@@ -466,6 +466,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	item.Description = description
 
 	currentPrice := 0
+	if len(p.ShippingExpress) == 0 {
+		return fmt.Errorf("no longer available")
+	}
 	if p.ShippingExpress[0].DiscountPriceInclVat > 0 {
 		currentPrice = p.ShippingExpress[0].DiscountPriceInclVat
 	} else {
@@ -618,7 +621,8 @@ func main() {
 			}
 			reqFilter[i.URL.String()] = struct{}{}
 
-			logger.Debugf("Access %s", i.URL)
+			canUrl, _ := spider.CanonicalUrl(i.URL.String())
+			logger.Debugf("Access %s %s", i.URL, canUrl)
 			if disableParseDetail {
 				crawler := spider.(*_Crawler)
 				if crawler.productPathMatcher.MatchString(i.URL.Path) {
