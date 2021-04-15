@@ -114,7 +114,10 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")) + 1)
 }
 
-var productsExtractReg = regexp.MustCompile(`(?U)<script\s*>window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
+var (
+	productsExtractReg  = regexp.MustCompile(`(?U)<script\s*>window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
+	productQuickViewReg = regexp.MustCompile(`(?Ums)\(new window\.tsr\.quickview\(\s*({.*})\s*\)\s*\)\.initQuickview\(null,\s*true\);?`)
+)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -208,7 +211,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 }
 
-type productPageStructure struct {
+type productStructure struct {
 	PixelServer struct {
 		Data struct {
 			CustomerCountryCode string `json:"customerCountryCode"`
@@ -496,6 +499,227 @@ type productPageStructure struct {
 	} `json:"product"`
 }
 
+type productQuickViewStructure struct {
+	ReviewSummary struct {
+		ReviewWithMostVotes   interface{} `json:"reviewWithMostVotes"`
+		ReviewWithLeastVotes  interface{} `json:"reviewWithLeastVotes"`
+		TotalCriticalReviews  string      `json:"totalCriticalReviews"`
+		TotalFavorableReviews string      `json:"totalFavorableReviews"`
+		TotalReviews          string      `json:"totalReviews"`
+		TotalReviewScore      interface{} `json:"totalReviewScore"`
+		AverageOverallRating  string      `json:"averageOverallRating"`
+		ComfortRating         struct {
+		} `json:"comfortRating"`
+		OverallRating struct {
+		} `json:"overallRating"`
+		LookRating struct {
+		} `json:"lookRating"`
+		ArchRatingCounts struct {
+		} `json:"archRatingCounts"`
+		OverallRatingCounts struct {
+		} `json:"overallRatingCounts"`
+		SizeRatingCounts struct {
+		} `json:"sizeRatingCounts"`
+		WidthRatingCounts struct {
+		} `json:"widthRatingCounts"`
+		ArchRatingPercentages    interface{} `json:"archRatingPercentages"`
+		OverallRatingPercentages struct {
+		} `json:"overallRatingPercentages"`
+		SizeRatingPercentages      interface{} `json:"sizeRatingPercentages"`
+		WidthRatingPercentages     interface{} `json:"widthRatingPercentages"`
+		MaxArchRatingPercentage    interface{} `json:"maxArchRatingPercentage"`
+		MaxOverallRatingPercentage struct {
+			Percentage string      `json:"percentage"`
+			Text       interface{} `json:"text"`
+		} `json:"maxOverallRatingPercentage"`
+		MaxSizeRatingPercentage  interface{} `json:"maxSizeRatingPercentage"`
+		MaxWidthRatingPercentage interface{} `json:"maxWidthRatingPercentage"`
+		ReviewingAShoe           string      `json:"reviewingAShoe"`
+		HasFitRatings            string      `json:"hasFitRatings"`
+	} `json:"reviewSummary"`
+	Videos             []interface{} `json:"videos"`
+	Genders            []string      `json:"genders"`
+	Description        string        `json:"description"`
+	DefaultCategory    string        `json:"defaultCategory"`
+	ProductRating      string        `json:"productRating"`
+	DefaultSubCategory string        `json:"defaultSubCategory"`
+	DefaultImageURL    string        `json:"defaultImageUrl"`
+	BrandID            string        `json:"brandId"`
+	Zombie             bool          `json:"zombie"`
+	DefaultProductType string        `json:"defaultProductType"`
+	ProductID          string        `json:"productId"`
+	BrandName          string        `json:"brandName"`
+	SizeFit            struct {
+		Text       string `json:"text"`
+		Percentage string `json:"percentage"`
+	} `json:"sizeFit"`
+	WidthFit struct {
+		Percentage string `json:"percentage"`
+		Text       string `json:"text"`
+	} `json:"widthFit"`
+	ArchFit struct {
+		Text       string `json:"text"`
+		Percentage string `json:"percentage"`
+	} `json:"archFit"`
+	ReviewCount   string `json:"reviewCount"`
+	OverallRating struct {
+	} `json:"overallRating"`
+	DefaultProductURL string `json:"defaultProductUrl"`
+	ProductName       string `json:"productName"`
+	Styles            []struct {
+		StyleDescription interface{} `json:"styleDescription"`
+		Color            string      `json:"color"`
+		OriginalPrice    string      `json:"originalPrice"`
+		PercentOff       string      `json:"percentOff"`
+		Price            string      `json:"price"`
+		ProductURL       string      `json:"productUrl"`
+		Stocks           []struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"stocks"`
+		ProductID string `json:"productId"`
+		ImageURL  string `json:"imageUrl"`
+		OnSale    string `json:"onSale"`
+		StyleID   string `json:"styleId"`
+		ColorID   string `json:"colorId"`
+		IsNew     string `json:"isNew"`
+		Images    []struct {
+			ImageID string `json:"imageId"`
+			Type    string `json:"type"`
+		} `json:"images"`
+		Oos      bool `json:"oos"`
+		Features struct {
+		} `json:"features"`
+	} `json:"styles"`
+	VideoURL              interface{} `json:"videoUrl"`
+	Oos                   bool        `json:"oos"`
+	IsReviewableWithMedia bool        `json:"isReviewableWithMedia"`
+	Color                 string      `json:"color"`
+	ColorID               string      `json:"colorId"`
+	Features              struct {
+	} `json:"features"`
+	OriginalPrice  string `json:"originalPrice"`
+	PercentOff     string `json:"percentOff"`
+	Price          string `json:"price"`
+	StyleID        string `json:"styleId"`
+	AllSortedSizes struct {
+		XS struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"XS"`
+		SM struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"SM"`
+		MD struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"MD"`
+		LG struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"LG"`
+	} `json:"allSortedSizes"`
+	AllSortedWidths struct {
+		OneSize struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"One Size"`
+	} `json:"allSortedWidths"`
+	SortedSizes struct {
+		XS struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"XS"`
+		SM struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"SM"`
+		MD struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"MD"`
+		LG struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"LG"`
+	} `json:"sortedSizes"`
+	SortedWidths struct {
+		OneSize struct {
+			OnHand  string `json:"onHand"`
+			StockID string `json:"stockId"`
+			Upc     string `json:"upc"`
+			SizeID  string `json:"sizeId"`
+			Width   string `json:"width"`
+			Size    string `json:"size"`
+			Asin    string `json:"asin"`
+		} `json:"One Size"`
+	} `json:"sortedWidths"`
+	ImageURL   string `json:"imageUrl"`
+	MetaImgURL string `json:"metaImgUrl"`
+	Thumbnails []struct {
+		ImageID     string `json:"imageId"`
+		ThumbURL    string `json:"thumbUrl"`
+		SmallImgURL string `json:"smallImgUrl"`
+		LargeImgURL string `json:"largeImgUrl"`
+		Type        string `json:"type"`
+	} `json:"thumbnails"`
+	BrandLink struct {
+		URL      string `json:"url"`
+		External bool   `json:"external"`
+	} `json:"brandLink"`
+}
+
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil {
@@ -507,108 +731,209 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 	matched := productsExtractReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
+	qvMatched := productQuickViewReg.FindSubmatch(respBody)
+
+	if len(matched) > 1 {
+		var viewData productStructure
+		if err := json.Unmarshal(matched[1], &viewData); err != nil {
+			c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
+			return err
+		}
+
+		dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+		if canUrl == "" {
+			canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+		}
+		reviews, _ := strconv.ParseInt(viewData.Product.Detail.ReviewSummary.TotalReviews)
+		// build product data
+		item := pbItem.Product{
+			Source: &pbItem.Source{
+				Id:           strconv.Format(viewData.Product.Detail.ProductID),
+				CrawlUrl:     resp.Request.URL.String(),
+				CanonicalUrl: canUrl,
+			},
+			BrandName:   viewData.Product.Detail.BrandName,
+			Title:       viewData.Product.Detail.ProductName,
+			Description: viewData.Product.Detail.ReceivedDescription,
+			Price: &pbItem.Price{
+				Currency: regulation.Currency_USD,
+			},
+			CrowdType:   viewData.PixelServer.Data.Product.Gender,
+			Category:    viewData.PixelServer.Data.Product.Category,
+			SubCategory: viewData.PixelServer.Data.Product.SubCategory,
+			Stats: &pbItem.Stats{
+				ReviewCount: int32(reviews),
+				Rating:      float32(viewData.Product.Detail.ReviewSummary.AggregateRating),
+			},
+		}
+
+		for _, rawSku := range viewData.Product.Detail.Styles {
+			originalPrice, _ := strconv.ParsePrice(rawSku.OriginalPrice)
+			price, _ := strconv.ParsePrice(rawSku.Price)
+			discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.PercentOff, "%"))
+
+			var medias []*pbMedia.Media
+			for _, m := range rawSku.Images {
+				medias = append(medias, pbMedia.NewImageMedia(
+					m.ImageID,
+					fmt.Sprintf("https://m.media-amazon.com/images/I/%s.jpg", m.ImageID),
+					fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR1000,750_.jpg", m.ImageID),
+					fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR700,525_.jpg", m.ImageID),
+					fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR500,375_.jpg", m.ImageID),
+					"",
+					m.Type == "Main",
+				))
+			}
+
+			for _, stock := range rawSku.Stocks {
+				sku := pbItem.Sku{
+					SourceId: rawSku.StyleID,
+					Price: &pbItem.Price{
+						Currency: regulation.Currency_USD,
+						Current:  int32(price * 100),
+						Msrp:     int32(originalPrice * 100),
+						Discount: int32(discount),
+					},
+					Medias: medias,
+					Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+				}
+				onhandCount, _ := strconv.ParseInt(stock.OnHand)
+				if onhandCount > 0 {
+					sku.Stock.StockStatus = pbItem.Stock_InStock
+					sku.Stock.StockCount = int32(onhandCount)
+				}
+
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
+					Id:    strconv.Format(rawSku.ColorID),
+					Name:  rawSku.Color,
+					Value: rawSku.Color,
+				})
+
+				if len(rawSku.Stocks) > 0 {
+					stock := rawSku.Stocks[0]
+					sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+						Type:  pbItem.SkuSpecType_SkuSpecSize,
+						Id:    stock.SizeID,
+						Name:  stock.Size,
+						Value: stock.Size,
+					})
+				}
+				item.SkuItems = append(item.SkuItems, &sku)
+			}
+		}
+
+		// yield item result
+		if err = yield(ctx, &item); err != nil {
+			return err
+		}
+	} else if len(qvMatched) > 1 {
+		var viewData productQuickViewStructure
+		if err := json.Unmarshal(qvMatched[1], &viewData); err != nil {
+			c.logger.Error(err)
+			return err
+		}
+
+		dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+		if canUrl == "" {
+			canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+		}
+		reviews, _ := strconv.ParseInt(viewData.ReviewSummary.TotalReviews)
+		rating, _ := strconv.ParseFloat(viewData.ReviewSummary.AverageOverallRating)
+		// build product data
+		item := pbItem.Product{
+			Source: &pbItem.Source{
+				Id:           strconv.Format(viewData.ProductID),
+				CrawlUrl:     resp.Request.URL.String(),
+				CanonicalUrl: canUrl,
+			},
+			BrandName:   viewData.BrandName,
+			Title:       viewData.ProductName,
+			Description: viewData.Description,
+			Price: &pbItem.Price{
+				Currency: regulation.Currency_USD,
+			},
+			CrowdType:   strings.Join(viewData.Genders, ","),
+			Category:    viewData.DefaultCategory,
+			SubCategory: viewData.DefaultSubCategory,
+			Stats: &pbItem.Stats{
+				ReviewCount: int32(reviews),
+				Rating:      float32(rating),
+			},
+		}
+
+		for _, rawSku := range viewData.Styles {
+			originalPrice, _ := strconv.ParsePrice(rawSku.OriginalPrice)
+			price, _ := strconv.ParsePrice(rawSku.Price)
+			discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.PercentOff, "%"))
+
+			var medias []*pbMedia.Media
+			for _, m := range rawSku.Images {
+				medias = append(medias, pbMedia.NewImageMedia(
+					m.ImageID,
+					fmt.Sprintf("https://m.media-amazon.com/images/I/%s.jpg", m.ImageID),
+					fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR1000,750_.jpg", m.ImageID),
+					fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR700,525_.jpg", m.ImageID),
+					fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR500,375_.jpg", m.ImageID),
+					"",
+					m.Type == "Main",
+				))
+			}
+
+			for _, stock := range rawSku.Stocks {
+				sku := pbItem.Sku{
+					SourceId: rawSku.StyleID,
+					Price: &pbItem.Price{
+						Currency: regulation.Currency_USD,
+						Current:  int32(price * 100),
+						Msrp:     int32(originalPrice * 100),
+						Discount: int32(discount),
+					},
+					Medias: medias,
+					Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+				}
+				onhandCount, _ := strconv.ParseInt(stock.OnHand)
+				if onhandCount > 0 {
+					sku.Stock.StockStatus = pbItem.Stock_InStock
+					sku.Stock.StockCount = int32(onhandCount)
+				}
+
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
+					Id:    strconv.Format(rawSku.ColorID),
+					Name:  rawSku.Color,
+					Value: rawSku.Color,
+				})
+
+				if len(rawSku.Stocks) > 0 {
+					stock := rawSku.Stocks[0]
+					sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+						Type:  pbItem.SkuSpecType_SkuSpecSize,
+						Id:    stock.SizeID,
+						Name:  stock.Size,
+						Value: stock.Size,
+					})
+				}
+				item.SkuItems = append(item.SkuItems, &sku)
+			}
+		}
+		// yield item result
+		if err = yield(ctx, &item); err != nil {
+			return err
+		}
+	} else {
 		c.logger.Debugf("%s", respBody)
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
-	}
-
-	var viewData productPageStructure
-	if err := json.Unmarshal(matched[1], &viewData); err != nil {
-		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
-	if canUrl == "" {
-		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
-	}
-	reviews, _ := strconv.ParseInt(viewData.Product.Detail.ReviewSummary.TotalReviews)
-	// build product data
-	item := pbItem.Product{
-		Source: &pbItem.Source{
-			Id:           strconv.Format(viewData.Product.Detail.ProductID),
-			CrawlUrl:     resp.Request.URL.String(),
-			CanonicalUrl: canUrl,
-		},
-		BrandName:   viewData.Product.Detail.BrandName,
-		Title:       viewData.Product.Detail.ProductName,
-		Description: viewData.Product.Detail.ReceivedDescription,
-		Price: &pbItem.Price{
-			Currency: regulation.Currency_USD,
-		},
-		CrowdType:   viewData.PixelServer.Data.Product.Gender,
-		Category:    viewData.PixelServer.Data.Product.Category,
-		SubCategory: viewData.PixelServer.Data.Product.SubCategory,
-		Stats: &pbItem.Stats{
-			ReviewCount: int32(reviews),
-			Rating:      float32(viewData.Product.Detail.ReviewSummary.AggregateRating),
-		},
-	}
-
-	for _, rawSku := range viewData.Product.Detail.Styles {
-		originalPrice, _ := strconv.ParsePrice(rawSku.OriginalPrice)
-		price, _ := strconv.ParsePrice(rawSku.Price)
-		discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.PercentOff, "%"))
-
-		var medias []*pbMedia.Media
-		for _, m := range rawSku.Images {
-			medias = append(medias, pbMedia.NewImageMedia(
-				m.ImageID,
-				fmt.Sprintf("https://m.media-amazon.com/images/I/%s.jpg", m.ImageID),
-				fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR1000,750_.jpg", m.ImageID),
-				fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR700,525_.jpg", m.ImageID),
-				fmt.Sprintf("https://m.media-amazon.com/images/I/%s._AC_SR500,375_.jpg", m.ImageID),
-				"",
-				m.Type == "Main",
-			))
-		}
-
-		for _, stock := range rawSku.Stocks {
-			sku := pbItem.Sku{
-				SourceId: rawSku.StyleID,
-				Price: &pbItem.Price{
-					Currency: regulation.Currency_USD,
-					Current:  int32(price * 100),
-					Msrp:     int32(originalPrice * 100),
-					Discount: int32(discount),
-				},
-				Medias: medias,
-				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
-			}
-			onhandCount, _ := strconv.ParseInt(stock.OnHand)
-			if onhandCount > 0 {
-				sku.Stock.StockStatus = pbItem.Stock_InStock
-				sku.Stock.StockCount = int32(onhandCount)
-			}
-
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    strconv.Format(rawSku.ColorID),
-				Name:  rawSku.Color,
-				Value: rawSku.Color,
-			})
-
-			if len(rawSku.Stocks) > 0 {
-				stock := rawSku.Stocks[0]
-				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecSize,
-					Id:    stock.SizeID,
-					Name:  stock.Size,
-					Value: stock.Size,
-				})
-			}
-			item.SkuItems = append(item.SkuItems, &sku)
-		}
-	}
-
-	// yield item result
-	if err = yield(ctx, &item); err != nil {
-		return err
 	}
 
 	return nil
@@ -617,8 +942,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		// "https://www.zappos.com/men-bags/COjWAcABAuICAgEY.zso",
-		"https://www.zappos.com/p/nike-tanjun-black-white/product/8619473/color/151",
-		// "https://www.zappos.com/a/the-style-room/p/rag-bone-watch-belt-black/product/9532098/color/3",
+		// "https://www.zappos.com/p/nike-tanjun-black-white/product/8619473/color/151",
+		"https://www.zappos.com/a/the-style-room/p/rag-bone-watch-belt-black/product/9532098/color/3",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
