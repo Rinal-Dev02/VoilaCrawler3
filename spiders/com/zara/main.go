@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -13,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -20,11 +23,10 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
-
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -87,6 +89,26 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.zara.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.zara.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		// NOTE: this site may got some bug, canonical url not work
+		// so here keep the raw url
+		// u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 // Parse is the entry to run the spider.
@@ -486,11 +508,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		return err
+	}
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
 	//Prepare Product Data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(viewData.Product.ID),
-			CrawlUrl: resp.Request.URL.String(),
+			Id:           strconv.Format(viewData.Product.ID),
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
 		},
 		BrandName:   viewData.Product.Brand.BrandGroupCode,
 		CrowdType:   viewData.Category.SectionName,
@@ -620,6 +648,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -634,19 +666,29 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
-			logger.Debugf("Access %s", i.URL)
-
-			crawler := spider.(*_Crawler)
-			if crawler.productPathMatcher.MatchString(i.URL.Path) {
+			if _, ok := reqFilter[i.URL.String()]; ok {
 				return nil
 			}
+			reqFilter[i.URL.String()] = struct{}{}
 
+			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
+
+			// process logic of sub request
 
 			// init custom headers
 			for k := range opts.MustHeader {
@@ -701,7 +743,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
