@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -98,6 +99,24 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.jcrew.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.jcrew.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 // Parse is the entry to run the spider.
@@ -629,8 +648,19 @@ type productPageResponse struct {
 						SidecarCanonicalURL string `json:"sidecarCanonicalUrl"`
 						ParentCategory      string `json:"parentCategory"`
 					} `json:"seoProperties"`
-					ShotTypes []string `json:"shotTypes"`
-					Skus      map[string]struct {
+					ShotTypes  []string `json:"shotTypes"`
+					Variations []struct {
+						APILink         string `json:"apiLink"`
+						Name            string `json:"name"`
+						ProductName     string `json:"productName"`
+						ATRFreeShipping string `json:"ATR_free_shipping"`
+						Label           string `json:"label"`
+						URL             string `json:"url"`
+						ProductCode     string `json:"productCode"`
+						PrdID           int64  `json:"prd_id"`
+						CanonicalURL    string `json:"canonicalUrl"`
+					} `json:"variations"`
+					Skus map[string]struct {
 						ShowOnSale    bool   `json:"show-on-sale"`
 						ColorName     string `json:"colorName"`
 						Variant       string `json:"variant"`
@@ -1314,10 +1344,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	colorImgs := map[string][]*pbMedia.Media{}
 	for code, prod := range viewData.Props.InitialState.Products.ProductsByProductCode {
+		canUrl, _ := c.CanonicalUrl("https://www.jcrew.com" + prod.URL)
 		item := pbItem.Product{
 			Source: &pbItem.Source{
-				Id:       code,
-				CrawlUrl: "https://www.jcrew.com" + prod.URL,
+				Id:           code,
+				CrawlUrl:     "https://www.jcrew.com" + prod.URL,
+				CanonicalUrl: canUrl,
 			},
 			BrandName:   prod.Brand,
 			Title:       prod.ProductName,
@@ -1362,9 +1394,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		for _, rawSku := range prod.Skus {
-			// TODO: check
-			originalPrice, _ := strconv.ParseFloat(rawSku.Price.Amount)
-			msrp, _ := strconv.ParseFloat(rawSku.ListPrice.Amount)
+			originalPrice, _ := strconv.ParsePrice(rawSku.Price.Amount)
+			msrp, _ := strconv.ParsePrice(rawSku.ListPrice.Amount)
 			discount := math.Ceil((msrp - originalPrice) * 100 / msrp)
 
 			sku := pbItem.Sku{
@@ -1403,8 +1434,24 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if err = yield(ctx, &item); err != nil {
 			return err
 		}
-	}
 
+		if prod.HasVariations {
+			for _, variation := range prod.Variations {
+				if variation.ProductCode == code {
+					continue
+				}
+
+				req, err := http.NewRequest(http.MethodGet, variation.URL, nil)
+				if err != nil {
+					c.logger.Error(err)
+					return err
+				}
+				if err := yield(ctx, req); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -1421,7 +1468,8 @@ func Contains(a []string, x string) bool {
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		// "https://www.jcrew.com/c/womens_category/sweatshirts_sweatpants",
-		"https://www.jcrew.com/r/sale/men/discount-60-70-off/discount-70-and-above",
+		// "https://www.jcrew.com/r/sale/men/discount-60-70-off/discount-70-and-above",
+		"https://www.jcrew.com/p/mens_category/shirts/secret_wash/slim-stretch-secret-wash-shirt-in-organic-cotton-gingham/AA429",
 		// "https://www.jcrew.com/p/womens_category/sweatshirts_sweatpants/pullovers/mariner-cloth-buttonup-hoodie/AW153?color_name=white-navy-mira-stripe",
 		// "https://www.jcrew.com/p/girls_category/pajamas/nightgowns/girls-flannel-nightgown-in-tartan/AE512?color_name=white-out-plaid-red-navy",
 	} {
@@ -1448,6 +1496,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -1462,20 +1514,29 @@ func main() {
 		panic(err)
 	}
 
-	skip := false
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
-			if skip {
-				return nil
-			}
-			skip = true
 
 			// init custom headers
 			for k := range opts.MustHeader {
