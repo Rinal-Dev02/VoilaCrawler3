@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -28,6 +29,8 @@ import (
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 type _Crawler struct {
@@ -80,6 +83,24 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.neimanmarcus.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.neimanmarcus.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -587,11 +608,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 		c.logger.Debugf("found %d", len(prods))
 
+		canUrl := doc.Find(`link[rel="canonical"]`).AttrOr("href", "")
+		if canUrl == "" {
+			canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+		}
 		for _, i := range prods {
 			item := pbItem.Product{
 				Source: &pbItem.Source{
-					Id:       i.ID,
-					CrawlUrl: resp.Request.URL.String(),
+					Id:           i.ID,
+					CrawlUrl:     resp.Request.URL.String(),
+					CanonicalUrl: canUrl,
 				},
 				Title:       i.Name,
 				Description: i.LinkedData.Description,
@@ -601,31 +627,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					Currency: regulation.Currency_USD,
 				},
 			}
-			if len(pageData.Navigation.Breadcrumbs) >= 1 {
-				item.Category = pageData.Navigation.Breadcrumbs[0].Name
-			}
-			if len(pageData.Navigation.Breadcrumbs) >= 2 {
-				item.SubCategory = pageData.Navigation.Breadcrumbs[1].Name
-			}
-			if len(pageData.Navigation.Breadcrumbs) >= 3 {
-				item.SubCategory2 = pageData.Navigation.Breadcrumbs[2].Name
-			}
-			for _, v := range []string{"woman", "women", "female"} {
-				if strings.Contains(strings.ToLower(item.Category), v) {
-					item.CrowdType = "women"
-					break
-				}
-			}
-			for _, v := range []string{"man", "men", "male"} {
-				if strings.Contains(strings.ToLower(item.Category), v) {
-					item.CrowdType = "men"
-					break
-				}
-			}
-			for _, v := range []string{"kid", "child", "girl", "boy"} {
-				if strings.Contains(strings.ToLower(item.Category), v) {
-					item.CrowdType = "kids"
-					break
+			for i, bread := range pageData.Navigation.Breadcrumbs {
+				switch i {
+				case 0:
+					item.Category = bread.Name
+				case 1:
+					item.SubCategory = bread.Name
+				case 2:
+					item.SubCategory2 = bread.Name
+				case 3:
+					item.SubCategory3 = bread.Name
+				case 4:
+					item.SubCategory4 = bread.Name
 				}
 			}
 
@@ -827,8 +840,12 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -843,12 +860,26 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -897,7 +928,7 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			data, err := json.Marshal(i)
+			data, err := protojson.Marshal(i.(proto.Message))
 			if err != nil {
 				return err
 			}
