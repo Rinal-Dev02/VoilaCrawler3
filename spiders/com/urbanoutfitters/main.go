@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"html"
 	"io/ioutil"
@@ -24,6 +25,8 @@ import (
 	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -86,6 +89,24 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.urbanoutfitters.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.urbanoutfitters.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -516,10 +537,20 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return fmt.Errorf("extract product info from %s failed, not product info found", resp.Request.URL)
 	}
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       p.CatalogData.ProductID,
-			CrawlUrl: resp.Request.URL.String(),
+			Id:           p.CatalogData.ProductID,
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
 		},
 		BrandName:   p.CatalogData.Product.Brand,
 		Title:       p.CatalogData.Product.DisplayName,
@@ -545,6 +576,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.SubCategory = cate.DisplayName
 		case 2:
 			item.SubCategory2 = cate.DisplayName
+		case 3:
+			item.SubCategory3 = cate.DisplayName
+		case 4:
+			item.SubCategory4 = cate.DisplayName
 		}
 	}
 
@@ -631,6 +666,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -645,12 +684,26 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -686,13 +739,12 @@ func main() {
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
-				EnableHeadless:    opts.EnableHeadless,
+				EnableHeadless:    false,
 				EnableSessionInit: opts.EnableSessionInit,
 				KeepSession:       opts.KeepSession,
 				Reliability:       opts.Reliability,
 			})
 			if err != nil {
-				logger.Error(err)
 				panic(err)
 			}
 			defer resp.Body.Close()
@@ -700,11 +752,11 @@ func main() {
 			return spider.Parse(ctx, resp, callback)
 		default:
 			// output the result
-			// data, err := json.Marshal(i)
-			// if err != nil {
-			// 	return err
-			// }
-			logger.Infof("got one item")
+			data, err := protojson.Marshal(i.(proto.Message))
+			if err != nil {
+				return err
+			}
+			logger.Infof("data: %s", data)
 		}
 		return nil
 	}
