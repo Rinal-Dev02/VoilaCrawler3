@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"html"
 	"io/ioutil"
@@ -85,6 +86,24 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.fentybeauty.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.fentybeauty.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 // Parse is the entry to run the spider.
@@ -240,11 +259,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	canUrl := doc.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	item := pbItem.Product{
 		Source: &pbItem.Source{
 			Id:           prodInfo.ID,
 			CrawlUrl:     resp.Request.URL.String(),
-			CanonicalUrl: doc.Find(`link[rel="canonical"]`).AttrOr("href", ""),
+			CanonicalUrl: canUrl,
 		},
 		Title:       prodInfo.Name,
 		Description: strings.TrimSpace(doc.Find(`div[itemprop="description"]`).Text()),
@@ -491,6 +514,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -519,11 +546,12 @@ func main() {
 
 			logger.Debugf("Access %s", i.URL)
 
-			crawler := spider.(*_Crawler)
-			if crawler.productPathMatcher.MatchString(i.URL.Path) {
-				return nil
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
 			}
-
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
