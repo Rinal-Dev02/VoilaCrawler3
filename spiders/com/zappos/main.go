@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -71,20 +74,26 @@ func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.zappos.com"}
 }
 
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
 	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.categoryPathMatcher,
-		c.productPathMatcher,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.zappos.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		index := strings.Index(u.Path, "/color/")
+		if index > 0 {
+			u.Path = u.Path[0:index]
 		}
+		u.RawQuery = ""
+		return u.String(), nil
 	}
-	return false
+	return rawurl, nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -509,12 +518,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	reviews, _ := strconv.ParseInt(viewData.Product.Detail.ReviewSummary.TotalReviews)
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(viewData.Product.Detail.ProductID),
-			CrawlUrl: resp.Request.URL.String(),
+			Id:           strconv.Format(viewData.Product.Detail.ProductID),
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
 		},
 		BrandName:   viewData.Product.Detail.BrandName,
 		Title:       viewData.Product.Detail.ProductName,
@@ -598,8 +617,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		// "https://www.zappos.com/men-bags/COjWAcABAuICAgEY.zso",
-		// "https://www.zappos.com/p/nike-tanjun-black-white/product/8619473/color/151",
-		"https://www.zappos.com/a/the-style-room/p/rag-bone-watch-belt-black/product/9532098/color/3",
+		"https://www.zappos.com/p/nike-tanjun-black-white/product/8619473/color/151",
+		// "https://www.zappos.com/a/the-style-room/p/rag-bone-watch-belt-black/product/9532098/color/3",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -618,6 +637,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -632,12 +655,26 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
-			logger.Debugf("Access %s", i.URL)
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+			canUrl, _ := spider.CanonicalUrl(i.URL.String())
+			logger.Debugf("Access %s %s", i.URL, canUrl)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
