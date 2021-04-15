@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -76,21 +77,22 @@ func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.footlocker.com"}
 }
 
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
 	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.categoryPathMatcher,
-		c.productPathMatcher,
-		c.imagePathMatcher,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
-		}
+	if u.Scheme == "" {
+		u.Scheme = "https"
 	}
-	return false
+	if u.Host == "" {
+		u.Host = "www.footlocker.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -249,24 +251,6 @@ type parseProductResponse struct {
 			} `json:"products"`
 			Style string `json:"style"`
 		} `json:"data"`
-		Sizes struct {
-			P566155CHTML []struct {
-				Name       string `json:"name"`
-				Code       string `json:"code"`
-				IsDisabled bool   `json:"isDisabled"`
-			} `json:"/product/converse-all-star-lugged-hi-womens/566155C.html"`
-		} `json:"sizes"`
-		Styles struct {
-			P566155CHTML []struct {
-				Sku        string `json:"sku"`
-				Code       string `json:"code"`
-				Name       string `json:"name"`
-				IsDisabled bool   `json:"isDisabled"`
-			} `json:"/product/converse-all-star-lugged-hi-womens/566155C.html"`
-		} `json:"styles"`
-		Failed struct {
-			P566155CHTML bool `json:"/product/converse-all-star-lugged-hi-womens/566155C.html"`
-		} `json:"failed"`
 		Product map[string]struct {
 			Name       string `json:"name"`
 			Brand      string `json:"brand"`
@@ -395,12 +379,24 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 	router := i.Router.Location.Pathname
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
+
 	for _, p := range i.Details.Data[strconv.Format(router)] {
 		Sku := p.Sku
 		item := pbItem.Product{
 			Source: &pbItem.Source{
-				Id:       strconv.Format(p.Sku),
-				CrawlUrl: resp.Request.URL.String(),
+				Id:           strconv.Format(p.Sku),
+				CrawlUrl:     resp.Request.URL.String(),
+				CanonicalUrl: canUrl,
 			},
 			Title:       i.Details.Product[router].Name,
 			Description: i.Details.Product[router].Description,
@@ -410,19 +406,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			},
 		}
 		for j, cate := range i.Details.Product[router].Categories {
-			if strings.ToLower(cate.Name) == strings.ToLower(i.Details.Product[router].Brand) {
-				continue
-			}
 			switch j {
 			case 0:
-				item.CrowdType = strings.TrimSuffix(strings.ToLower(cate.Name), "'s")
-			case 1:
 				item.Category = cate.Name
-			case 2:
+			case 1:
 				item.SubCategory = cate.Name
-			default:
+			case 2:
 				item.SubCategory2 = cate.Name
-				break
+			case 3:
+				item.SubCategory3 = cate.Name
+			case 4:
+				item.SubCategory4 = cate.Name
 			}
 		}
 
@@ -552,6 +546,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -566,12 +564,26 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -605,8 +617,6 @@ func main() {
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
-
-			// nctx = context.WithValue(nctx, "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
