@@ -27,6 +27,7 @@ import (
 )
 
 type _Crawler struct {
+	crawler.MustImplementCrawler
 	httpClient http.Client
 
 	personalVideoList      *regexp.Regexp
