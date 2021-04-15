@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	uuid "github.com/satori/go.uuid"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
@@ -78,6 +80,24 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.nike.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.nike.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -527,18 +547,29 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	var item *pbItem.Product
 	for _, p := range viewData.Threads.Products {
 		if item == nil {
 			item = &pbItem.Product{
 				Source: &pbItem.Source{
-					Id:       p.ProductGroupID,
-					CrawlUrl: resp.Request.URL.String(),
+					Id:           p.ProductGroupID,
+					CrawlUrl:     resp.Request.URL.String(),
+					CanonicalUrl: canUrl,
 				},
 				BrandName:   p.Brand,
 				Title:       p.FullTitle,
 				Description: p.Description,
 				CrowdType:   strings.ToLower(strings.Join(p.Genders, ",")),
+				Category:    p.Category,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 				},
@@ -633,6 +664,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -647,17 +682,26 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
-			logger.Debugf("Access %s", i.URL)
-			// crawler := spider.(*_Crawler)
-			// if crawler.productPathMatcher.MatchString(i.URL.Path) {
-			// 	return nil
-			// }
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
 
+			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -715,7 +759,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("asos_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
