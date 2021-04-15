@@ -88,14 +88,14 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "us.shein.com"
+	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
-		if u.Scheme == "" {
-			u.Scheme = "https"
-		}
-		if u.Host == "" {
-			u.Host = "us.shein.com"
-		}
 		return u.String(), nil
 	}
 	return rawurl, nil
