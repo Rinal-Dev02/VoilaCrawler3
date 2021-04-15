@@ -93,6 +93,24 @@ func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.stories.com"}
 }
 
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.stories.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -394,13 +412,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
+	canUrl := doc.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	for key, article := range viewData.Articles {
 		item := pbItem.Product{
 			Source: &pbItem.Source{
 				Id:           key,
 				CrawlUrl:     resp.Request.URL.String(),
 				GroupId:      viewData.AncestorProductCode,
-				CanonicalUrl: doc.Find(`link[rel="canonical"]`).AttrOr("href", ""),
+				CanonicalUrl: canUrl,
 			},
 			BrandName:   article.BrandName,
 			Title:       article.Title,
