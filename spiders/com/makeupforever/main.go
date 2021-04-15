@@ -420,6 +420,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.SubCategory = l
 		case 5:
 			item.SubCategory2 = l
+		case 6:
+			item.SubCategory3 = l
+		case 7:
+			item.SubCategory4 = l
 		}
 	}
 
