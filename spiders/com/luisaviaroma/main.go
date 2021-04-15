@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -11,16 +13,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
-
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -69,11 +70,16 @@ func (c *_Crawler) Version() int32 {
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
-	return &crawler.CrawlOptions{
+	opts := &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
-		EnableSessionInit: true,
+		EnableSessionInit: false,
+		Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
+		MustHeader:        make(http.Header),
 	}
+	opts.MustHeader.Set("accept-encoding", "gzip, deflate, br")
+	opts.MustHeader.Set("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
+	return opts
 }
 
 // AllowedDomains return the domains this spider process will.
@@ -82,6 +88,24 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.luisaviaroma.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.luisaviaroma.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 // Parse is the entry to run the spider.
@@ -637,11 +661,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		descriptions = descriptions + " " + desc.Text + " " + strings.Join(desc.SubList, " ")
 	}
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(prodid),
-			CrawlUrl: resp.Request.URL.String(),
+			Id:           strconv.Format(prodid),
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
 		},
 		BrandName:   viewData.MetaSharing[indexMetaSharing].Brand,
 		Title:       viewData.ShortDescription,
@@ -678,9 +713,28 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	// Note: Color variation is available on product list page therefor not considering multiple color of a product
 	for _, rawcolor := range viewData.AvailabilityByColor {
+		colorcode := strconv.Format(rawcolor.ComColorID) + "|" + rawcolor.VendorColorID
+
+		var medias []*pbMedia.Media
+		for i, mid := range viewData.PhotosByColor[colorcode] {
+			medias = append(medias, pbMedia.NewImageMedia(
+				strconv.Format(i),
+				"https://images.lvrcdn.com/zoom"+mid,
+				"https://images.lvrcdn.com/zoom"+mid,
+				"https://images.lvrcdn.com/zoom"+mid,
+				"https://images.lvrcdn.com/Big"+mid,
+				"",
+				i == 0,
+			))
+		}
+		colorSpec := pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecColor,
+			Id:    strconv.Format(rawcolor.ComColorID),
+			Name:  rawcolor.Description,
+			Value: rawcolor.Description,
+		}
 
 		for ks, rawSku := range rawcolor.SizeAvailability {
-
 			originalPrice := (rawSku.Pricing.Prices[0].FinalPrice)
 			msrp := (rawSku.Pricing.Prices[0].ListPrice)
 			discount := (rawSku.Pricing.Discount)
@@ -692,40 +746,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					Msrp:     int32(msrp * 100),
 					Discount: int32(discount),
 				},
-				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+				Medias: medias,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
 			if rawSku.QuantitiesTotal.Available > 0 {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
 				sku.Stock.StockCount = int32(rawSku.QuantitiesTotal.Available)
 			}
-
 			// color
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    strconv.Format(rawcolor.ComColorID),
-				Name:  rawcolor.Description,
-				Value: rawcolor.Description,
-				//Icon:  color.SwatchMedia.Mobile,
-			})
-
-			if ks == 0 {
-				colorcode := strconv.Format(rawcolor.ComColorID) + "|" + rawcolor.VendorColorID
-				isDefault := true
-				for i, mid := range viewData.PhotosByColor[colorcode] {
-					if i > 0 {
-						isDefault = false
-					}
-					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-						strconv.Format(i),
-						"https://images.lvrcdn.com/zoom"+mid,
-						"https://images.lvrcdn.com/zoom"+mid,
-						"https://images.lvrcdn.com/zoom"+mid,
-						"https://images.lvrcdn.com/Big"+mid,
-						"",
-						isDefault,
-					))
-				}
-			}
+			sku.Specs = append(sku.Specs, &colorSpec)
 
 			// size
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
@@ -734,7 +763,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Name:  rawSku.Description + "_" + rawSku.SizeCorrValue,
 				Value: rawSku.Description + "_" + rawSku.SizeCorrValue,
 			})
-
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
@@ -775,12 +803,15 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -791,14 +822,28 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	opts := spider.CrawlOptions(nil)
+
+	reqFilter := map[string]struct{}{}
 
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
+			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
 
@@ -833,10 +878,10 @@ func main() {
 			defer cancel()
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
-				EnableHeadless:    true,
-				EnableSessionInit: true,
-				KeepSession:       spider.CrawlOptions(nil).KeepSession,
-				Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
+				EnableHeadless:    opts.EnableHeadless,
+				EnableSessionInit: opts.EnableSessionInit,
+				KeepSession:       opts.KeepSession,
+				Reliability:       opts.Reliability,
 			})
 			if err != nil {
 				panic(err)
