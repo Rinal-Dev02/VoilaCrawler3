@@ -97,6 +97,24 @@ func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.makeupforever.com"}
 }
 
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.makeupforever.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -368,13 +386,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	canUrl, _ := c.CanonicalUrl(resp.Request.URL.String())
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
 			Id: viewData.Product.MasterID,
 			//CrawlUrl: resp.Request.URL.String(),  // not found
 			//https://www.makeupforever.com/us/en/a-MI000044405.html?dwvar_MI000044405_color=368&pid=MI000044405&quantity=1
-			CrawlUrl: resp.Request.URL.String(),
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
 		},
 		BrandName:   viewData.Product.Brand,
 		Title:       viewData.Product.ProductName,
@@ -518,12 +538,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		// "https://www.makeupforever.com/us/en/tools",
-		"https://www.makeupforever.com/us/en/face/bronzer/pro-sculpting-palette-MI000014320.html",
+		"https://www.makeupforever.com/us/en/tools",
+		// "https://www.makeupforever.com/us/en/face/bronzer/pro-sculpting-palette-MI000014320.html",
 		// "https://www.makeupforever.com/us/en/eyes/eyeshadow/artist-color-shadow-refill-MI000079830.html",
 		// "https://www.makeupforever.com/us/en/face/foundation/make-up-for-ever-%E2%80%93-reboot-MI000028230.html",
 		// "https://www.makeupforever.com/us/en/face/foundation",
-		//"https://www.makeupforever.com/on/demandware.store/Sites-MakeUpForEver-US-Site/en_US/Product-Variation?pid=MI000044405&quantity=0",
+		// "https://www.makeupforever.com/on/demandware.store/Sites-MakeUpForEver-US-Site/en_US/Product-Variation?pid=MI000044405&quantity=0",
 		// "https://www.makeupforever.com/us/en/face/foundation/ultra-hd-foundation-palette-MI000041000.html",
 		// "https://www.makeupforever.com/us/en/tools/sponge/matte-velvet-skin-sponge-MI000015023.html",
 	} {
