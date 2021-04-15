@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -11,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
@@ -85,6 +88,24 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.theoutnet.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.theoutnet.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 // Parse is the entry to run the spider.
@@ -210,6 +231,13 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	// update the index of last page
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
+}
+
+type productCategory struct {
+	CategoryID string           `json:"categoryId"`
+	Label      string           `json:"label"`
+	Identifier string           `json:"identifier"`
+	Child      *productCategory `json:"child"`
 }
 
 type parseProductResponse struct {
@@ -507,23 +535,9 @@ type parseProductResponse struct {
 						} `json:"price"`
 						Thumbnail string `json:"thumbnail"`
 						Tracking  struct {
-							PrimaryCategory struct {
-								Child struct {
-									Child struct {
-										CategoryID string `json:"categoryId"`
-										Label      string `json:"label"`
-										Identifier string `json:"identifier"`
-									} `json:"child"`
-									CategoryID string `json:"categoryId"`
-									Label      string `json:"label"`
-									Identifier string `json:"identifier"`
-								} `json:"child"`
-								CategoryID string `json:"categoryId"`
-								Label      string `json:"label"`
-								Identifier string `json:"identifier"`
-							} `json:"primaryCategory"`
-							DesignerName string `json:"designerName"`
-							Name         string `json:"name"`
+							PrimaryCategory *productCategory `json:"primaryCategory"`
+							DesignerName    string           `json:"designerName"`
+							Name            string           `json:"name"`
 						} `json:"tracking"`
 						DesignerName string `json:"designerName"`
 						Buyable      bool   `json:"buyable"`
@@ -607,6 +621,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
+
 	for _, p := range viewData.Pdp.DetailsState.Response.Body.Products[0].ProductColours {
 		if !p.Visible {
 			continue
@@ -615,18 +639,30 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		tracking := viewData.Pdp.DetailsState.Response.Body.Products[0].Tracking
 		item := pbItem.Product{
 			Source: &pbItem.Source{
-				Id:       strconv.Format(p.PartNumber),
-				CrawlUrl: resp.Request.URL.String(),
+				Id:           strconv.Format(p.PartNumber),
+				CrawlUrl:     resp.Request.URL.String(),
+				CanonicalUrl: canUrl,
 			},
-			BrandName:    viewData.Pdp.DetailsState.Response.Body.Products[0].DesignerName,
-			Title:        p.ShortDescription,
-			Description:  p.TechnicalDescription,
-			Category:     tracking.PrimaryCategory.Label,
-			SubCategory:  tracking.PrimaryCategory.Child.Label,
-			SubCategory2: tracking.PrimaryCategory.Child.Child.Label,
+			BrandName:   viewData.Pdp.DetailsState.Response.Body.Products[0].DesignerName,
+			Title:       p.ShortDescription,
+			Description: p.TechnicalDescription,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
+		}
+		for p, i := tracking.PrimaryCategory, 0; p != nil; p, i = p.Child, i+1 {
+			switch i {
+			case 0:
+				item.Category = p.Label
+			case 1:
+				item.SubCategory = p.Label
+			case 2:
+				item.SubCategory2 = p.Label
+			case 3:
+				item.SubCategory3 = p.Label
+			case 4:
+				item.SubCategory4 = p.Label
+			}
 		}
 
 		for ki, mid := range p.ImageViews {
@@ -724,12 +760,15 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 	return nil
 }
 
-// local test
+// main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	logger := glog.New(glog.LogLevelDebug)
-	// build a http client.
-	// get proxy's microservice address from env
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
 
+	logger := glog.New(glog.LogLevelDebug)
+	// build a http client
+	// get proxy's microservice address from env
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -741,12 +780,26 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -783,7 +836,7 @@ func main() {
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
-				EnableSessionInit: false,
+				EnableSessionInit: opts.EnableSessionInit,
 				KeepSession:       opts.KeepSession,
 				Reliability:       opts.Reliability,
 			})
