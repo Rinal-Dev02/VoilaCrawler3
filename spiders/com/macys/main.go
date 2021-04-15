@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -79,20 +80,28 @@ func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.macys.com"}
 }
 
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
 	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.categoryPathMatcher,
-		c.productPathMatcher,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.macys.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		vals := u.Query()
+		id := vals.Get("ID")
+		if id == "" {
+			id = vals.Get("id")
 		}
+		u.RawQuery = "ID=" + id
+
+		return u.String(), nil
 	}
-	return false
+	return rawurl, nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -648,10 +657,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		rating, _ = strconv.ParseFloat(pd.UtagData.ProductRating[0])
 	}
 
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
+
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       strconv.Format(pd.Product.ID),
-			CrawlUrl: resp.Request.URL.String(),
+			Id:           strconv.Format(pd.Product.ID),
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
 		},
 		Title:       pd.Product.Detail.Name,
 		Description: pd.Product.Detail.Description,
@@ -667,13 +688,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	for i, cate := range pd.Product.Relationships.Taxonomy.Categories {
 		switch i {
 		case 0:
-			item.CrowdType = strings.ToLower(cate.Name)
-		case 1:
 			item.Category = cate.Name
-		case 2:
+		case 1:
 			item.SubCategory = cate.Name
-		case 3:
+		case 2:
 			item.SubCategory2 = cate.Name
+		case 3:
+			item.SubCategory3 = cate.Name
+		case 4:
+			item.SubCategory4 = cate.Name
 		}
 	}
 
@@ -763,6 +786,10 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
@@ -777,13 +804,29 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
+
+			// process logic of sub request
 
 			// init custom headers
 			for k := range opts.MustHeader {
@@ -814,12 +857,9 @@ func main() {
 			// do http requests here.
 			nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 			defer cancel()
-
-			// nctx = context.WithValue(nctx, "tracing_id", fmt.Sprintf("macy_%d", time.Now().UnixNano()))
 			resp, err := client.DoWithOptions(nctx, i, http.Options{
 				EnableProxy:       true,
 				EnableHeadless:    false,
-				DisableCookieJar:  opts.DisableCookieJar,
 				EnableSessionInit: opts.EnableSessionInit,
 				KeepSession:       opts.KeepSession,
 				Reliability:       opts.Reliability,
@@ -841,7 +881,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("macy_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
