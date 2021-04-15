@@ -77,6 +77,24 @@ func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.finishline.com"}
 }
 
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.finishline.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -206,16 +224,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 	brandName := strings.TrimSpace(string(matched[1]))
 
+	canUrl := doc.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	item := pbItem.Product{
 		Source: &pbItem.Source{
 			Id:           doc.Find("#productItemId").AttrOr("value", doc.Find("#tfc_productid").AttrOr("value", "")),
 			CrawlUrl:     resp.Request.URL.String(),
-			CanonicalUrl: doc.Find(`link[rel="canonical"]`).AttrOr("href", ""),
+			CanonicalUrl: canUrl,
 		},
-		Title:       doc.Find(`.hmb-2.titleDesk`).Text(),
-		Description: doc.Find(`#productDescription`).Text(),
+		Title:       strings.Trim(doc.Find(`.hmb-2.titleDesk`).Text(), " \n\r"),
+		Description: strings.Trim(doc.Find(`#productDescription`).Text(), " \n\r"),
 		BrandName:   brandName,
-		CrowdType:   "",
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
