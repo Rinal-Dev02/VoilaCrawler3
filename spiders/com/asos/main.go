@@ -94,6 +94,12 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.asos.com"
+	}
 	if c.productPathMatcher.MatchString(u.Path) || c.productGroupPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
 		return u.String(), nil
