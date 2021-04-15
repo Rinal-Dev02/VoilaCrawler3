@@ -1,3 +1,0 @@
-# topshop
-
-redirected to asos
