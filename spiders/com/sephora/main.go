@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -12,25 +15,26 @@ import (
 	"strings"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawl/pkg/crawler"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http"
 	"github.com/voiladev/VoilaCrawl/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawl/pkg/proxy"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
-
 	pbMedia "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-
+	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
 type _Crawler struct {
 	// httpClient is the object of an http client
 	httpClient          http.Client
+	searchPathMatcher   *regexp.Regexp
 	categoryPathMatcher *regexp.Regexp
 	productPathMatcher  *regexp.Regexp
 	// logger is the log tool
@@ -42,11 +46,12 @@ type _Crawler struct {
 // view pkg/crawler/spec.go to know more about the interface `Crawler`
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
-		httpClient: client,
+		httpClient:        client,
+		searchPathMatcher: regexp.MustCompile(`^/search/?$`),
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`/shop(/[a-z0-9_\-]+){0,4}`),
+		categoryPathMatcher: regexp.MustCompile(`^/(shop|beauty|brand)(/[a-z0-9_\-]+){0,4}$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`/product(/[a-z0-9_\-]+){0,4}`),
+		productPathMatcher: regexp.MustCompile(`^/product(/[a-zA-Z0-9\pL\pS_\-]+){0,4}$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -69,11 +74,19 @@ func (c *_Crawler) Version() int32 {
 // And defined the public headers/cookies.
 // for the means of every options please see the definition.
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
-	return &crawler.CrawlOptions{
+	opts := &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
+		Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
 	}
+	opts.MustCookies = append(opts.MustCookies,
+		&http.Cookie{Name: "site_language", Value: "en"},
+		&http.Cookie{Name: "device_type", Value: "desktop"},
+		&http.Cookie{Name: "site_locale", Value: "us"},
+		&http.Cookie{Name: "current_country", Value: "US"},
+	)
+	return opts
 }
 
 // AllowedDomains return the domains this spider process will.
@@ -82,6 +95,24 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.sephora.com"}
+}
+
+func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.sephora.com"
+	}
+	if c.productPathMatcher.MatchString(u.Path) {
+		u.RawQuery = ""
+		return u.String(), nil
+	}
+	return rawurl, nil
 }
 
 // Parse is the entry to run the spider.
@@ -101,7 +132,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.searchPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseSearch(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -113,6 +146,167 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 // item.index is a const key for item index.
 func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")))
+}
+
+type rawSearchResponse struct {
+	Categories []struct {
+		DisplayName string `json:"displayName"`
+		Level       int    `json:"level"`
+		NodeStr     string `json:"nodeStr"`
+		RecordCount string `json:"recordCount"`
+	} `json:"categories"`
+	Keyword  string `json:"keyword"`
+	Products []struct {
+		BrandName   string `json:"brandName"`
+		DisplayName string `json:"displayName"`
+		HeroImage   string `json:"heroImage"`
+		Image135    string `json:"image135"`
+		Image250    string `json:"image250"`
+		Image450    string `json:"image450"`
+		ProductID   string `json:"productId"`
+		ProductName string `json:"productName"`
+		Rating      string `json:"rating"`
+		Reviews     string `json:"reviews"`
+		TargetURL   string `json:"targetUrl"`
+		URL         string `json:"url"`
+		MoreColors  int    `json:"moreColors,omitempty"`
+		// CurrentSku  struct {
+		// 	ImageAltText       string `json:"imageAltText"`
+		// 	IsAppExclusive     bool   `json:"isAppExclusive"`
+		// 	IsBI               bool   `json:"isBI"`
+		// 	IsBest             bool   `json:"isBest"`
+		// 	IsFirstAccess      bool   `json:"isFirstAccess"`
+		// 	IsLimitedEdition   bool   `json:"isLimitedEdition"`
+		// 	IsLimitedTimeOffer bool   `json:"isLimitedTimeOffer"`
+		// 	IsNatural          bool   `json:"isNatural"`
+		// 	IsNew              bool   `json:"isNew"`
+		// 	IsOnlineOnly       bool   `json:"isOnlineOnly"`
+		// 	IsOrganic          bool   `json:"isOrganic"`
+		// 	IsSephoraExclusive bool   `json:"isSephoraExclusive"`
+		// 	ListPrice          string `json:"listPrice"`
+		// 	SalePrice          string `json:"salePrice"`
+		// 	SkuID              string `json:"skuId"`
+		// 	SkuType            string `json:"skuType"`
+		// 	ValuePrice         string `json:"valuePrice"`
+		// } `json:"currentSku,omitempty"`
+	} `json:"products"`
+	Refinements []struct {
+		DisplayName string `json:"displayName"`
+		Type        string `json:"type"`
+		Values      []struct {
+			Low  int `json:"low,omitempty"`
+			High int `json:"high,omitempty"`
+		} `json:"values"`
+	} `json:"refinements"`
+	ResponseSource string `json:"responseSource"`
+	TotalProducts  int    `json:"totalProducts"`
+	UserSegment    string `json:"userSegment"`
+}
+
+func (c *_Crawler) parseSearch(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || resp == nil || yield == nil {
+		return nil
+	}
+
+	keywords := strings.TrimSpace(resp.Request.URL.Query().Get("keyword"))
+	if keywords == "" {
+		return nil
+	}
+	currentPage, _ := strconv.ParseInt(resp.Request.URL.Query().Get("currentPage"))
+	if currentPage == 0 {
+		currentPage = 1
+	}
+
+	const pageSize = 60
+
+	apiUrl, _ := url.Parse("https://www.sephora.com/api/catalog/search?type=keyword&q=&content=true&includeRegionsMap=true&targetSearchEngine=nlp")
+	// TODO: &constructorSessionID=8&constructorClientID=3298983f-8d6b-4d57-85d6-329f3f60e6e4&
+	vals := apiUrl.Query()
+	vals.Set("q", keywords)
+	vals.Set("currentPage", strconv.Format(currentPage))
+	vals.Set("page", strconv.Format(pageSize))
+
+	if cookies, _ := c.httpClient.Jar().Cookies(ctx, resp.Request.URL); len(cookies) > 0 {
+		for _, c := range cookies {
+			if c.Name == "ConstructorioID_client_id" {
+				vals.Set("constructorClientID", c.Value)
+				break
+			}
+		}
+	}
+	apiUrl.RawQuery = vals.Encode()
+
+	req, _ := http.NewRequest(http.MethodGet, apiUrl.String(), nil)
+	req.Header.Set("Referer", resp.Request.URL.String())
+
+	opts := c.CrawlOptions(req.URL)
+	// init custom headers
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	// init custom cookies
+	for _, c := range opts.MustCookies {
+		if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
+			val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+			if c := req.Header.Get("Cookie"); c != "" {
+				req.Header.Set("Cookie", c+"; "+val)
+			} else {
+				req.Header.Set("Cookie", val)
+			}
+		}
+	}
+
+	apiResp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy: true,
+		Reliability: opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	defer apiResp.Body.Close()
+
+	rawData, err := io.ReadAll(apiResp.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	if apiResp.StatusCode == http.StatusForbidden ||
+		apiResp.StatusCode == -1 {
+		return fmt.Errorf("api request failed, status=%d, %s", apiResp.StatusCode, rawData)
+	}
+
+	var viewData rawSearchResponse
+	if err := json.Unmarshal(rawData, &viewData); err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	lastIndex := nextIndex(ctx)
+	for _, prod := range viewData.Products {
+		req, err := http.NewRequest(http.MethodGet, prod.TargetURL, nil)
+		if err != nil {
+			c.logger.Error(err)
+			continue
+		}
+
+		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		lastIndex += 1
+		if err := yield(nctx, req); err != nil {
+			return err
+		}
+	}
+	if pageSize*currentPage >= int64(viewData.TotalProducts) {
+		return nil
+	}
+
+	vals = resp.Request.URL.Query()
+	vals.Set("currentPage", strconv.Format(currentPage+1))
+	u := *resp.Request.URL
+	u.RawQuery = vals.Encode()
+
+	nextReq, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	nctx := context.WithValue(ctx, "item.index", lastIndex)
+	return yield(nctx, nextReq)
 }
 
 // below are the golang json data struct of raw website.
@@ -151,7 +345,7 @@ type ProductCategoryStructure struct {
 			Displayname          string `json:"displayName"`
 			Enablenoindexmetatag bool   `json:"enableNoindexMetaTag"`
 			Navigationseojsonld  string `json:"navigationSeoJsonLd"`
-			Pagesize             int    `json:"pageSize"`
+			Pagesize             int64  `json:"pageSize"`
 			Parentcategory       struct {
 				Categoryid  string `json:"categoryId"`
 				Displayname string `json:"displayName"`
@@ -181,7 +375,7 @@ type ProductCategoryStructure struct {
 			Seotitle                   string        `json:"seoTitle"`
 			Targeturl                  string        `json:"targetUrl"`
 			Template                   int           `json:"template"`
-			Totalproducts              int           `json:"totalProducts"`
+			Totalproducts              int64         `json:"totalProducts"`
 			URL                        string        `json:"url"`
 			Thirdpartyimagehost        string        `json:"thirdpartyImageHost"`
 		} `json:"props"`
@@ -191,13 +385,13 @@ type ProductCategoryStructure struct {
 // used to extract embaded json data in website page.
 // more about golang regulation see here https://golang.org/pkg/regexp/syntax/
 var productsExtractReg = regexp.MustCompile(`(?U)<script id="linkSPA" type="text/json" data-comp="PageJSON\s*">({.*})</script>`)
-var productDataExtractReg = regexp.MustCompile(`(?U)<script id="linkStore" type="text/json" data-comp="PageJSON\s*">({.*})</script>`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
+	c.logger.Debugf("%s", resp.Request.URL)
 
 	// read the response data from http response
 	respBody, err := ioutil.ReadAll(resp.Body)
@@ -220,7 +414,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	lastIndex := nextIndex(ctx)
 	for _, idv := range viewData.Nthcategory.Props.Products {
 		rawurl := idv.Targeturl
-		c.logger.Debugf(rawurl)
 		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 		if err != nil {
 			c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
@@ -229,10 +422,9 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		if strings.HasSuffix(req.URL.Path, ".html") {
 			req.URL.RawQuery = ""
 		}
-
-		lastIndex += 1
 		// set the index of the product crawled in the sub response
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		lastIndex += 1
 		// yield sub request
 		if err := yield(nctx, req); err != nil {
 			return err
@@ -244,11 +436,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if page == 0 {
 		page = 1
 	}
-
 	totalPageCount := viewData.Nthcategory.Props.Totalproducts
-
-	// check if this is the last page
-	if lastIndex >= int(totalPageCount) {
+	if viewData.Nthcategory.Props.Pagesize*page > totalPageCount {
 		return nil
 	}
 
@@ -460,46 +649,50 @@ type parseProductData struct {
 	} `json:"page"`
 }
 
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
-
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil {
 		return nil
 	}
-
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 
-	matched := productDataExtractReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	linkStoreData := strings.Trim(dom.Find(`#linkStore`).Text(), " \r\n\b")
+	if linkStoreData == "" {
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
 	}
 
 	var viewData parseProductData
-
-	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+	if err := json.Unmarshal([]byte(linkStoreData), &viewData); err != nil {
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 		return err
 	}
 
 	var productBreadCrumb parseProductBreadCrumbData
-
 	if err := json.Unmarshal([]byte(viewData.Page.Product.Breadcrumbsseojsonld), &productBreadCrumb); err != nil {
 		c.logger.Errorf("unmarshal product breadcrumb data fialed, error=%s", err)
 	}
 
+	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       viewData.Page.Product.Productdetails.Productid,
-			CrawlUrl: resp.Request.URL.String(),
+			Id:           viewData.Page.Product.Productdetails.Productid,
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
 		},
 		BrandName:   viewData.Page.Product.Productdetails.Brand.Displayname,
 		Title:       viewData.Page.Product.Productdetails.Displayname,
-		Description: htmlTrimRegp.ReplaceAllString(viewData.Page.Product.Productdetails.Longdescription, " "),
+		Description: viewData.Page.Product.Productdetails.Longdescription,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
@@ -509,15 +702,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 	}
 
-	//item.CrowdType = viewData.ParentCats.CatName
-
 	for i, prodBreadcrumb := range productBreadCrumb.ItemListElement {
-		if i == 0 {
+		switch i {
+		case 0:
 			item.Category = prodBreadcrumb.Item.Name
-		} else if i == 1 {
+		case 1:
 			item.SubCategory = prodBreadcrumb.Item.Name
-		} else if i == 2 {
+		case 2:
 			item.SubCategory2 = prodBreadcrumb.Item.Name
+		case 3:
+			item.SubCategory3 = prodBreadcrumb.Item.Name
+		case 4:
+			item.SubCategory4 = prodBreadcrumb.Item.Name
 		}
 	}
 
@@ -527,12 +723,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	for _, rawSku := range childSkuList {
-
-		originalPrice, _ := strconv.ParseFloat(strings.ReplaceAll(rawSku.SalePrice, "$", ""))
-		msrp, _ := strconv.ParseFloat(strings.ReplaceAll(rawSku.ListPrice, "$", ""))
+		originalPrice, _ := strconv.ParsePrice(rawSku.SalePrice)
+		msrp, _ := strconv.ParsePrice(rawSku.ListPrice)
+		if originalPrice == 0 {
+			originalPrice = msrp
+		}
 		discount := 0.0
 		if msrp > originalPrice {
-			discount = ((originalPrice - msrp) / msrp) * 100
+			discount = ((msrp - originalPrice) / msrp) * 100
 		}
 		sku := pbItem.Sku{
 			SourceId: rawSku.SkuID,
@@ -552,8 +750,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if rawSku.VariationType == "Color" {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    viewData.Page.Product.Productdetails.Productid + "_" + rawSku.SkuID,
-				Name:  rawSku.VariationDesc,
+				Id:    rawSku.VariationValue,
+				Name:  fmt.Sprintf("%s - %s", rawSku.VariationValue, rawSku.VariationDesc),
 				Value: rawSku.VariationValue,
 				Icon:  "https://www.sephora.com/" + rawSku.SmallImage,
 			})
@@ -562,7 +760,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if rawSku.Size != "" {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    rawSku.SkuID,
+				Id:    rawSku.Size,
 				Name:  rawSku.Size,
 				Value: rawSku.Size,
 			})
@@ -572,17 +770,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		template := "https://www.sephora.com/" + rawSku.SkuImages.ImageURL
 		sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
 			strconv.Format(0),
-			template, template, template, template, "", true,
+			template, template+"?imwidth=1000", template+"?imwidth=600", template+"?imwidth=500", "", true,
 		))
 		// secondary images
 		for ki, m := range rawSku.AlternateImages {
 			template := "https://www.sephora.com/" + m.ImageURL
 			sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
 				strconv.Format(ki+1),
-				template, template, template, template, "", false,
+				template, template+"?imwidth=1000", template+"?imwidth=600", template+"?imwidth=500", "", false,
 			))
 		}
-
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
@@ -600,10 +797,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		//"https://www.sephora.com/shop/foundation-makeup",
-		//"https://www.sephora.com/product/make-no-mistake-foundation-concealer-stick-P420440?skuId=1887520&icid2=products%20grid:p420440",
-		//"https://www.sephora.com/product/briogeo-scalp-revival-charcoal-tea-tree-cooling-hydration-mask-dry-itchy-scalp-mask-P469440?icid2=products%20grid:p469440",
-		"https://www.sephora.com/product/marc-jacobs-beauty-extra-shot-caffeine-concealer-foundation-P468838?icid2=products%20grid:p468838",
+		"https://www.sephora.com/search?keyword=skin",
+		// "https://www.sephora.com/shop/foundation-makeup",
+		// "https://www.sephora.com/product/make-no-mistake-foundation-concealer-stick-P420440?skuId=1887520&icid2=products%20grid:p420440",
+		// "https://www.sephora.com/product/briogeo-scalp-revival-charcoal-tea-tree-cooling-hydration-mask-dry-itchy-scalp-mask-P469440?icid2=products%20grid:p469440",
+		// "https://www.sephora.com/product/marc-jacobs-beauty-extra-shot-caffeine-concealer-foundation-P468838?icid2=products%20grid:p468838",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -628,10 +826,13 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	var disableParseDetail bool
+	flag.BoolVar(&disableParseDetail, "disable-detail", false, "disable parse detail")
+	flag.Parse()
+
 	logger := glog.New(glog.LogLevelDebug)
 	// build a http client
 	// get proxy's microservice address from env
-
 	client, err := proxy.NewProxyClient(os.Getenv("VOILA_PROXY_URL"), cookiejar.New(), logger)
 	if err != nil {
 		panic(err)
@@ -643,12 +844,26 @@ func main() {
 		panic(err)
 	}
 
+	reqFilter := map[string]struct{}{}
+
 	// this callback func is used to do recursion call of sub requests.
 	var callback func(ctx context.Context, val interface{}) error
 	callback = func(ctx context.Context, val interface{}) error {
 		switch i := val.(type) {
 		case *http.Request:
+			if _, ok := reqFilter[i.URL.String()]; ok {
+				return nil
+			}
+			reqFilter[i.URL.String()] = struct{}{}
+
 			logger.Debugf("Access %s", i.URL)
+
+			if disableParseDetail {
+				crawler := spider.(*_Crawler)
+				if crawler.productPathMatcher.MatchString(i.URL.Path) {
+					return nil
+				}
+			}
 			opts := spider.CrawlOptions(i.URL)
 
 			// process logic of sub request
@@ -676,7 +891,7 @@ func main() {
 				i.URL.Scheme = "https"
 			}
 			if i.URL.Host == "" {
-				i.URL.Host = "us.shein.com"
+				i.URL.Host = "www.sephora.com"
 			}
 
 			// do http requests here.
@@ -706,7 +921,7 @@ func main() {
 		return nil
 	}
 
-	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("shein_%d", time.Now().UnixNano()))
+	ctx := context.WithValue(context.Background(), "tracing_id", fmt.Sprintf("tracing_%d", time.Now().UnixNano()))
 	// start the crawl request
 	for _, req := range spider.NewTestRequest(context.Background()) {
 		if err := callback(ctx, req); err != nil {
