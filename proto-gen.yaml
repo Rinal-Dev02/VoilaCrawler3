@@ -1,0 +1,50 @@
+version: v1
+spec:
+  project:
+    name: go-crawler
+    version: "1.0"
+    packages:
+    - path: ""
+      name: chameleon.smelter.v1.crawl
+      version: "1.0"
+      files:
+      - '*.proto'
+      targets:
+      - type: go
+        output_path: protoc-gen-go/
+        with_grpc: true
+        with_grpc_gateway: true
+    - path: ""
+      name: chameleon.smelter.v1.crawl.item
+      version: "1.0"
+      files:
+      - '*.proto'
+      targets:
+      - type: go
+        output_path: protoc-gen-go/
+    - path: ""
+      name: chameleon.smelter.v1.crawl.session
+      version: "1.0"
+      files:
+      - '*.proto'
+      targets:
+      - type: go
+        with_grpc: true
+        with_grpc_gateway: true
+        output_path: protoc-gen-go/
+    - path: ""
+      name: chameleon.smelter.v1.crawl.proxy
+      version: "1.0"
+      files:
+      - '*.proto'
+      targets:
+      - type: go
+        output_path: protoc-gen-go/
+    - path: ""
+      name: chameleon.api.event
+      version: "1.0"
+      files:
+      - '*.proto'
+      targets:
+      - type: go
+        output_path: protoc-gen-go/
