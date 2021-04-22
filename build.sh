@@ -1,10 +1,10 @@
 #/usr/bin/env bash
 
-cd spiders || exit 1
-
+spider_dir="./spiders"
 target_dir="./releases"
 
-for root in `ls`; do
+for domain in `ls $spider_dir`; do
+    root="$spider_dir/$domain"
     if [ ! -d $root ]; then
         continue
     fi
@@ -14,8 +14,8 @@ for root in `ls`; do
         fi
 
         if [ -f "$root/$sub/main.go" ]; then
-            echo go build -buildmode=plugin -o $target_dir/$root.$sub.so ./$root/$sub/
-            go build -buildmode=plugin -o $target_dir/$root.$sub.so ./$root/$sub/ || exit 1
+            echo go build -buildmode=plugin -o $target_dir/$domain.$sub.so $root/$sub/
+            go build -buildmode=plugin -o $target_dir/$domain.$sub.so $root/$sub/ || exit 1
         fi
 
         for sub2 in `ls "$root/$sub"`; do
@@ -24,8 +24,8 @@ for root in `ls`; do
             fi
 
             if [ -f "$root/$sub/$sub2/main.go" ]; then
-                echo go build -buildmode=plugin -o $target_dir/plugins/$root.$sub.$sub2.so ./$root/$sub/$sub2
-                go build -buildmode=plugin -o $target_dir/$root.$sub.$sub2.so ./$root/$sub/$sub2 || exit 1
+                echo go build -buildmode=plugin -o $target_dir/$domain.$sub.$sub2.so $root/$sub/$sub2
+                go build -buildmode=plugin -o $target_dir/$domain.$sub.$sub2.so $root/$sub/$sub2 || exit 1
             fi
         done
     done

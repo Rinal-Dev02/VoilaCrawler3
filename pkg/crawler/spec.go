@@ -3,9 +3,12 @@ package crawler
 import (
 	"context"
 	"errors"
-	"net/http"
+	rhttp "net/http"
 	"net/url"
 
+	"github.com/voiladev/go-crawler/pkg/net/http"
+	pbHttp "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/http"
+	pbCrawl "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 )
@@ -39,26 +42,58 @@ type CrawlOptions struct {
 	// LoginRequired bool `json:"loginRequired"`
 
 	// MustHeader specify the musted http headers
-	MustHeader http.Header `json:"mustHeader"`
+	MustHeader rhttp.Header `json:"mustHeader"`
 
 	// MustCookies specify the musted cookies
-	MustCookies []*http.Cookie `json:"mustCookies"`
+	MustCookies []*rhttp.Cookie `json:"mustCookies"`
 
 	// ProxyReliability
 	Reliability proxy.ProxyReliability
 }
 
+func (opts *CrawlOptions) Unmarshal(ret interface{}) error {
+	if opts == nil || ret == nil {
+		return nil
+	}
+
+	switch v := ret.(type) {
+	case *pbCrawl.CrawlerOptions:
+		v.EnableHeadless = opts.EnableHeadless
+		v.EnableSessionInit = opts.EnableSessionInit
+		v.KeepSession = opts.KeepSession
+		v.SessoinTtl = int64(opts.SessionTtl)
+		v.DisableCookieJar = opts.DisableCookieJar
+		v.DisableRedirect = opts.DisableRedirect
+		v.Reliability = opts.Reliability
+		v.Headers = map[string]string{}
+		for k := range opts.MustHeader {
+			v.Headers[k] = opts.MustHeader.Get(k)
+		}
+		for _, c := range opts.MustCookies {
+			v.Cookies = append(v.Cookies, &pbHttp.Cookie{
+				Name:   c.Name,
+				Value:  c.Value,
+				Domain: c.Domain,
+				Path:   c.Path,
+			})
+		}
+	default:
+		return errors.New("unsupported type")
+	}
+	return nil
+}
+
 func NewCrawlOptions() *CrawlOptions {
-	return &CrawlOptions{MustHeader: http.Header{}}
+	return &CrawlOptions{MustHeader: rhttp.Header{}}
 }
 
 // HealthChecker used to test if website struct changed
 type HealthChecker interface {
 	// NewTestRequest generate a test request
-	NewTestRequest(ctx context.Context) []*http.Request
+	NewTestRequest(ctx context.Context) []*rhttp.Request
 
 	// CheckTestResponse used to check whether website struct changed
-	CheckTestResponse(ctx context.Context, resp *http.Response) error
+	CheckTestResponse(ctx context.Context, resp *rhttp.Response) error
 }
 
 // Crawler
@@ -92,7 +127,7 @@ type Crawler interface {
 	//   param ctx used to share info between parent and child. and it can set the max ttl for parse job.
 	//   param resp represents the http response, with act as a real http response.
 	//   param yield use to yield data with can be final data or an other http request
-	Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error
+	Parse(ctx context.Context, resp *rhttp.Response, yield func(context.Context, interface{}) error) error
 }
 
 // MustImplementCrawler
