@@ -25,7 +25,7 @@ func NewRequest(req interface{}) (*Request, error) {
 
 	r := Request{}
 	switch i := req.(type) {
-	case *pbCrawl.Command_Request:
+	case *pbCrawl.Request:
 		r.TracingId = i.GetTracingId()
 		r.JobId = i.GetJobId()
 		r.StoreId = i.GetStoreId()

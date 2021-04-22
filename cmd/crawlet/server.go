@@ -3,34 +3,39 @@ package main
 import (
 	"context"
 	"errors"
-	"net/url"
+	"fmt"
+	"io"
+	"net"
+	"time"
 
 	"github.com/nsqio/go-nsq"
-	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
-	"github.com/voiladev/VoilaCrawl/pkg/crawler"
-	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
+	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
+	storeCtrl "github.com/voiladev/VoilaCrawl/internal/controller/store"
+	"github.com/voiladev/VoilaCrawl/internal/model/crawler"
+	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/protoutil"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/proto"
-	anypb "google.golang.org/protobuf/types/known/anypb"
 )
 
 type CrawlerServer struct {
 	pbCrawl.UnimplementedCrawlerManagerServer
+	pbCrawl.UnimplementedGatewayServer
 
+	storeCtrl      *storeCtrl.StoreController
+	crawlerCtrl    *crawlerCtrl.CrawlerController
+	crawlerManager *crawlerManager.CrawlerManager
 	producer       *nsq.Producer
-	crawlerManager *CrawlerManager
-	crawlerCtrl    *CrawlerController
 	logger         glog.Log
 }
 
-func NewCrawlerServer(producer *nsq.Producer, crawlerCtrl *CrawlerController, crawlerManager *CrawlerManager, logger glog.Log) (pbCrawl.CrawlerManagerServer, error) {
-	if producer == nil {
-		return nil, errors.New("invalid producer")
-	}
-	if crawlerCtrl == nil {
-		return nil, errors.New("invalid crawler controller")
+func NewCrawlerServer(storeCtrl *storeCtrl.StoreController,
+	crawlerManager *crawlerManager.CrawlerManager, logger glog.Log) (*CrawlerServer, error) {
+	if storeCtrl == nil {
+		return nil, errors.New("invalid store controller")
 	}
 	if crawlerManager == nil {
 		return nil, errors.New("invalid crawler manager")
@@ -39,8 +44,7 @@ func NewCrawlerServer(producer *nsq.Producer, crawlerCtrl *CrawlerController, cr
 		return nil, errors.New("invalid logger")
 	}
 	s := CrawlerServer{
-		producer:       producer,
-		crawlerCtrl:    crawlerCtrl,
+		storeCtrl:      storeCtrl,
 		crawlerManager: crawlerManager,
 		logger:         logger,
 	}
@@ -51,69 +55,80 @@ func (s *CrawlerServer) GetCrawlers(ctx context.Context, req *pbCrawl.GetCrawler
 	if s == nil {
 		return nil, nil
 	}
-	u, err := url.Parse(req.GetUrl())
-	if err != nil {
-		return nil, pbError.ErrInvalidArgument.New(err)
-	}
-	if u.Host == "" {
-		return nil, pbError.ErrInvalidArgument.New("no host found")
-	}
 
-	crawlers, err := s.crawlerManager.GetByHost(ctx, u.Host)
-	if err != nil {
-		s.logger.Errorf("get crawlers of host %s failed, error=%s", u.Host, err)
-		return nil, err
+	crawlers, _ := s.crawlerManager.List(ctx)
+	resp := pbCrawl.GetCrawlersResponse{
+		Data: map[string]*pbCrawl.GetCrawlersResponse_CrawlerGroup{},
 	}
-	var resp pbCrawl.GetCrawlersResponse
-	for _, c := range crawlers {
-		options := c.CrawlOptions(u)
-		if options == nil {
-			options = &crawler.CrawlOptions{}
+	for storeId, cws := range crawlers {
+		group := pbCrawl.GetCrawlersResponse_CrawlerGroup{
+			StoreId: storeId,
 		}
-		item := pbCrawl.Crawler{
-			Id:             c.GlobalID(),
-			Version:        c.Version(),
-			AllowedDomains: c.AllowedDomains(),
-			Options: &pbCrawl.Crawler_Options{
-				EnableHeadless:    options.EnableHeadless,
-				EnableSessionInit: options.EnableSessionInit,
-				KeepSession:       options.KeepSession,
-				SessoinTtl:        int64(options.SessionTtl),
-				DisableRedirect:   options.DisableRedirect,
-				LoginRequired:     options.LoginRequired,
-				Headers:           map[string]string{},
-				Reliability:       options.Reliability,
-			},
+		for _, cw := range cws {
+			var item pbCrawl.Crawler
+			cw.Unmarshal(&item)
+			group.Data = append(group.Data, &item)
 		}
-		for k, vs := range options.MustHeader {
-			v := ""
-			if len(vs) > 0 {
-				v = vs[0]
-			}
-			item.Options.Headers[k] = v
-		}
-		for _, c := range options.MustCookies {
-			item.Options.Cookies = append(item.Options.Cookies, &pbHttp.Cookie{
-				Name:   c.Name,
-				Value:  c.Value,
-				Domain: c.Domain,
-				Path:   c.Path,
-			})
-		}
-		resp.Data = append(resp.Data, &item)
 	}
 	return &resp, nil
 }
 
-func (s *CrawlerServer) Parse(ctx context.Context, req *pbCrawl.ParseRequest) (*pbCrawl.ParseResponse, error) {
+func (s *CrawlerServer) GetCrawler(ctx context.Context, req *pbCrawl.GetCrawlerRequest) (*pbCrawl.GetCrawlerResponse, error) {
 	if s == nil {
 		return nil, nil
 	}
-	logger := s.logger.New("Parse")
 
-	var (
-		shareCtx = ctx
-	)
+	crawlers, _ := s.crawlerManager.GetByStore(ctx, req.GetStoreId())
+
+	var ret pbCrawl.GetCrawlerResponse
+	for _, cw := range crawlers {
+		var item pbCrawl.Crawler
+		cw.Unmarshal(&item)
+		ret.Data = append(ret.Data, &item)
+	}
+	return &ret, nil
+}
+
+func (s *CrawlerServer) GetCrawlerOptions(ctx context.Context, req *pbCrawl.GetCrawlerOptionsRequest) (*pbCrawl.GetCrawlerOptionsResponse, error) {
+	if s == nil {
+		return nil, nil
+	}
+	logger := s.logger.New("GetCrawlerOptions")
+
+	opts, err := s.crawlerCtrl.CrawlerOptions(ctx, req.GetStoreId(), req.GetUrl())
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	return &pbCrawl.GetCrawlerOptionsResponse{Data: opts}, nil
+}
+
+func (s *CrawlerServer) GetCanonicalUrl(ctx context.Context, req *pbCrawl.GetCanonicalUrlRequest) (*pbCrawl.GetCanonicalUrlResponse, error) {
+	if s == nil {
+		return nil, nil
+	}
+	logger := s.logger.New("GetCanonicalUrl")
+
+	u, err := s.crawlerCtrl.CanonicalUrl(ctx, req.GetStoreId(), req.GetUrl())
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+	return &pbCrawl.GetCanonicalUrlResponse{
+		Data: &pbCrawl.GetCanonicalUrlResponse_Data{Url: u},
+	}, nil
+}
+
+func (s *CrawlerServer) DoParse(ctx context.Context, req *pbCrawl.DoParseRequest) (*pbCrawl.DoParseResponse, error) {
+	if s == nil {
+		return nil, nil
+	}
+	logger := s.logger.New("DoParse")
+
+	ttl := time.Duration(req.GetRequest().GetOptions().GetMaxTtlPerRequest()) * time.Second
+	shareCtx, cancel := context.WithTimeout(ctx, ttl)
+	defer cancel()
+
 	for k, v := range req.GetRequest().SharingData {
 		shareCtx = context.WithValue(shareCtx, k, v)
 	}
@@ -122,49 +137,52 @@ func (s *CrawlerServer) Parse(ctx context.Context, req *pbCrawl.ParseRequest) (*
 	shareCtx = context.WithValue(shareCtx, "req_id", req.GetRequest().GetReqId())
 	shareCtx = context.WithValue(shareCtx, "store_id", req.GetRequest().GetStoreId())
 
-	var (
-		ret         []*anypb.Any
-		subReqCount int32
-		itemCount   int32
-	)
-	if err := s.crawlerCtrl.Parse(shareCtx, req, func(ctx context.Context, msg proto.Message) error {
-		var topic string
-		switch msg.(type) {
-		case *pbCrawl.Command_Request:
-			topic = config.CrawlRequestTopic
-			subReqCount += 1
-		case *pbCrawl.Item:
-			itemCount += 1
-			topic = config.CrawlItemProductTopic
-		default:
-			return errors.New("unsupported data type")
-		}
-
-		if req.GetEnableBlockForItems() {
-			data, err := anypb.New(msg)
-			if err != nil {
-				return err
-			}
-			ret = append(ret, data)
-			return nil
-		}
-
-		data, err := proto.Marshal(msg)
-		if err != nil {
-			return err
-		}
-		if err := s.producer.Publish(topic, data); err != nil {
-			logger.Errorf("publish ret of %s failed, error=%s", req.GetRequest().GetUrl(), err)
-			return err
-		}
-		return nil
-	}); err != nil {
+	if err := s.storeCtrl.Parse(shareCtx, req.GetRequest().GetStoreId(), req.GetRequest()); err != nil {
 		logger.Errorf("parse response from %s failed, error=%v", req.GetRequest().GetUrl(), err)
 		return nil, pbError.ErrInternal.New(err.Error())
 	}
-	return &pbCrawl.ParseResponse{
-		Data:        ret,
-		ItemCount:   itemCount,
-		SubReqCount: subReqCount,
-	}, nil
+	return &pbCrawl.DoParseResponse{}, nil
+}
+
+func (s *CrawlerServer) Connect(srv pbCrawl.Gateway_ConnectServer) (err error) {
+	if s == nil {
+		return nil
+	}
+	logger := s.logger.New("Connect")
+
+	var (
+		ip  string
+		ctx = srv.Context()
+	)
+	if peer, _ := peer.FromContext(ctx); peer != nil {
+		ip, _, _ = net.SplitHostPort(peer.Addr.String())
+	} else {
+		return fmt.Errorf("get peer info failed")
+	}
+
+	anyData, err := srv.Recv()
+	if err != nil {
+		if err == io.EOF {
+			return nil
+		}
+		return err
+	}
+
+	if anyData.GetTypeUrl() != protoutil.GetTypeUrl(&pbCrawl.ConnectRequest_Ping{}) {
+		logger.Errorf("crawler node not registered yet.")
+		return pbError.ErrFailedPrecondition.New("crawler node not registered")
+	}
+
+	var data pbCrawl.ConnectRequest_Ping
+	if err := proto.Unmarshal(anyData.GetValue(), &data); err != nil {
+		logger.Error(err)
+		return err
+	}
+
+	cw, err := crawler.NewCrawler(&data, ip)
+	if err != nil {
+		logger.Error(err)
+		return err
+	}
+	return s.crawlerCtrl.Watch(ctx, srv, cw)
 }

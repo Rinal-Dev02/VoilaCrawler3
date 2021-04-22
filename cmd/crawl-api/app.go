@@ -294,7 +294,6 @@ func (app *App) loadBackends(c *cli.Context) (opts []fx.Option, err error) {
 			return redisClient
 		}))
 	}
-
 	return
 }
 

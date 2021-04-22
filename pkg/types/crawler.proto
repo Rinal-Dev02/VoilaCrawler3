@@ -1,0 +1,28 @@
+syntax="proto3";
+
+package voiladev.voilacrawl.pkg.types;
+
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+option (gogoproto.populate_all) = true;
+option go_package = "types";
+
+// Crawler
+message Crawler {
+    // ID
+    string id         = 1;
+    // Version
+    int32  version    = 2;
+    // rawId
+    string rawId      = 3;
+    // StoreId
+    string storeId    = 4;
+    // AllowedDomains
+    repeated string allowedDomains = 6;
+
+    // ServeAddr
+    string serveAddr  = 11;
+
+    // OnlineUtc
+    int64  onlineUtc  = 16;
+}

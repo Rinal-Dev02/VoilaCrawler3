@@ -7,7 +7,7 @@
 package crawl
 
 import (
-	http "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
+	_ "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	proxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -23,18 +23,18 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// GetCrawlersRequest
-type GetCrawlersRequest struct {
+// VersionResponse
+type VersionResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Url
-	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	// Version
+	Version int32 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 }
 
-func (x *GetCrawlersRequest) Reset() {
-	*x = GetCrawlersRequest{}
+func (x *VersionResponse) Reset() {
+	*x = VersionResponse{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[0]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -42,13 +42,13 @@ func (x *GetCrawlersRequest) Reset() {
 	}
 }
 
-func (x *GetCrawlersRequest) String() string {
+func (x *VersionResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetCrawlersRequest) ProtoMessage() {}
+func (*VersionResponse) ProtoMessage() {}
 
-func (x *GetCrawlersRequest) ProtoReflect() protoreflect.Message {
+func (x *VersionResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[0]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -60,30 +60,30 @@ func (x *GetCrawlersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetCrawlersRequest.ProtoReflect.Descriptor instead.
-func (*GetCrawlersRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use VersionResponse.ProtoReflect.Descriptor instead.
+func (*VersionResponse) Descriptor() ([]byte, []int) {
 	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *GetCrawlersRequest) GetUrl() string {
+func (x *VersionResponse) GetVersion() int32 {
 	if x != nil {
-		return x.Url
+		return x.Version
 	}
-	return ""
+	return 0
 }
 
-// GetCrawlersResponse
-type GetCrawlersResponse struct {
+// CrawlerOptionsRequest
+type CrawlerOptionsRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// Data
-	Data []*Crawler `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`
+	// Url
+	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 }
 
-func (x *GetCrawlersResponse) Reset() {
-	*x = GetCrawlersResponse{}
+func (x *CrawlerOptionsRequest) Reset() {
+	*x = CrawlerOptionsRequest{}
 	if protoimpl.UnsafeEnabled {
 		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[1]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -91,13 +91,13 @@ func (x *GetCrawlersResponse) Reset() {
 	}
 }
 
-func (x *GetCrawlersResponse) String() string {
+func (x *CrawlerOptionsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetCrawlersResponse) ProtoMessage() {}
+func (*CrawlerOptionsRequest) ProtoMessage() {}
 
-func (x *GetCrawlersResponse) ProtoReflect() protoreflect.Message {
+func (x *CrawlerOptionsRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[1]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -109,12 +109,208 @@ func (x *GetCrawlersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetCrawlersResponse.ProtoReflect.Descriptor instead.
-func (*GetCrawlersResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use CrawlerOptionsRequest.ProtoReflect.Descriptor instead.
+func (*CrawlerOptionsRequest) Descriptor() ([]byte, []int) {
 	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *GetCrawlersResponse) GetData() []*Crawler {
+func (x *CrawlerOptionsRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+// CrawlerOptionsResponse
+type CrawlerOptionsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Data
+	Data *CrawlerOptions `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+}
+
+func (x *CrawlerOptionsResponse) Reset() {
+	*x = CrawlerOptionsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CrawlerOptionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CrawlerOptionsResponse) ProtoMessage() {}
+
+func (x *CrawlerOptionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CrawlerOptionsResponse.ProtoReflect.Descriptor instead.
+func (*CrawlerOptionsResponse) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *CrawlerOptionsResponse) GetData() *CrawlerOptions {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// AllowedDomainsResponse
+type AllowedDomainsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Data
+	Data []string `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+}
+
+func (x *AllowedDomainsResponse) Reset() {
+	*x = AllowedDomainsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *AllowedDomainsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AllowedDomainsResponse) ProtoMessage() {}
+
+func (x *AllowedDomainsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AllowedDomainsResponse.ProtoReflect.Descriptor instead.
+func (*AllowedDomainsResponse) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *AllowedDomainsResponse) GetData() []string {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// CanonicalUrlRequest
+type CanonicalUrlRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Url
+	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+}
+
+func (x *CanonicalUrlRequest) Reset() {
+	*x = CanonicalUrlRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CanonicalUrlRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CanonicalUrlRequest) ProtoMessage() {}
+
+func (x *CanonicalUrlRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CanonicalUrlRequest.ProtoReflect.Descriptor instead.
+func (*CanonicalUrlRequest) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *CanonicalUrlRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+// CanonicalUrlResponse
+type CanonicalUrlResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Data
+	Data *CanonicalUrlResponse_Data `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+}
+
+func (x *CanonicalUrlResponse) Reset() {
+	*x = CanonicalUrlResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CanonicalUrlResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CanonicalUrlResponse) ProtoMessage() {}
+
+func (x *CanonicalUrlResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CanonicalUrlResponse.ProtoReflect.Descriptor instead.
+func (*CanonicalUrlResponse) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *CanonicalUrlResponse) GetData() *CanonicalUrlResponse_Data {
 	if x != nil {
 		return x.Data
 	}
@@ -128,17 +324,15 @@ type ParseRequest struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Request
-	Request *Command_Request `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
+	Request *Request `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 	// Respose
 	Response *proxy.Response `protobuf:"bytes,2,opt,name=response,proto3" json:"response,omitempty"`
-	// 等待响应结果 如果开启此项，则结果会直接通过此通道返回
-	EnableBlockForItems bool `protobuf:"varint,6,opt,name=enableBlockForItems,proto3" json:"enableBlockForItems,omitempty"`
 }
 
 func (x *ParseRequest) Reset() {
 	*x = ParseRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[2]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[6]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -151,7 +345,7 @@ func (x *ParseRequest) String() string {
 func (*ParseRequest) ProtoMessage() {}
 
 func (x *ParseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[2]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[6]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -164,10 +358,10 @@ func (x *ParseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParseRequest.ProtoReflect.Descriptor instead.
 func (*ParseRequest) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{2}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ParseRequest) GetRequest() *Command_Request {
+func (x *ParseRequest) GetRequest() *Request {
 	if x != nil {
 		return x.Request
 	}
@@ -181,15 +375,466 @@ func (x *ParseRequest) GetResponse() *proxy.Response {
 	return nil
 }
 
-func (x *ParseRequest) GetEnableBlockForItems() bool {
+// GetCrawlersRequest
+type GetCrawlersRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *GetCrawlersRequest) Reset() {
+	*x = GetCrawlersRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[7]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCrawlersRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCrawlersRequest) ProtoMessage() {}
+
+func (x *GetCrawlersRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[7]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCrawlersRequest.ProtoReflect.Descriptor instead.
+func (*GetCrawlersRequest) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{7}
+}
+
+// GetCrawlersResponse
+type GetCrawlersResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Data
+	Data map[string]*GetCrawlersResponse_CrawlerGroup `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *GetCrawlersResponse) Reset() {
+	*x = GetCrawlersResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCrawlersResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCrawlersResponse) ProtoMessage() {}
+
+func (x *GetCrawlersResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCrawlersResponse.ProtoReflect.Descriptor instead.
+func (*GetCrawlersResponse) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetCrawlersResponse) GetData() map[string]*GetCrawlersResponse_CrawlerGroup {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// GetCrawlerRequest
+type GetCrawlerRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// StoreId
+	StoreId string `protobuf:"bytes,1,opt,name=storeId,proto3" json:"storeId,omitempty"`
+}
+
+func (x *GetCrawlerRequest) Reset() {
+	*x = GetCrawlerRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[9]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCrawlerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCrawlerRequest) ProtoMessage() {}
+
+func (x *GetCrawlerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[9]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCrawlerRequest.ProtoReflect.Descriptor instead.
+func (*GetCrawlerRequest) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *GetCrawlerRequest) GetStoreId() string {
+	if x != nil {
+		return x.StoreId
+	}
+	return ""
+}
+
+// GetCrawlerResponse
+type GetCrawlerResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Crawler
+	Data []*Crawler `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+}
+
+func (x *GetCrawlerResponse) Reset() {
+	*x = GetCrawlerResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCrawlerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCrawlerResponse) ProtoMessage() {}
+
+func (x *GetCrawlerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCrawlerResponse.ProtoReflect.Descriptor instead.
+func (*GetCrawlerResponse) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetCrawlerResponse) GetData() []*Crawler {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// GetCrawlerOptionsRequest
+type GetCrawlerOptionsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// StoreId
+	StoreId string `protobuf:"bytes,1,opt,name=storeId,proto3" json:"storeId,omitempty"`
+	// Url
+	Url string `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+}
+
+func (x *GetCrawlerOptionsRequest) Reset() {
+	*x = GetCrawlerOptionsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCrawlerOptionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCrawlerOptionsRequest) ProtoMessage() {}
+
+func (x *GetCrawlerOptionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCrawlerOptionsRequest.ProtoReflect.Descriptor instead.
+func (*GetCrawlerOptionsRequest) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *GetCrawlerOptionsRequest) GetStoreId() string {
+	if x != nil {
+		return x.StoreId
+	}
+	return ""
+}
+
+func (x *GetCrawlerOptionsRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+// GetCrawlerOptionsResponse
+type GetCrawlerOptionsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Data
+	Data *CrawlerOptions `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+}
+
+func (x *GetCrawlerOptionsResponse) Reset() {
+	*x = GetCrawlerOptionsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[12]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCrawlerOptionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCrawlerOptionsResponse) ProtoMessage() {}
+
+func (x *GetCrawlerOptionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[12]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCrawlerOptionsResponse.ProtoReflect.Descriptor instead.
+func (*GetCrawlerOptionsResponse) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *GetCrawlerOptionsResponse) GetData() *CrawlerOptions {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// GetCanonicalUrlRequest
+type GetCanonicalUrlRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// StoreId
+	StoreId string `protobuf:"bytes,1,opt,name=storeId,proto3" json:"storeId,omitempty"`
+	// Url
+	Url string `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+}
+
+func (x *GetCanonicalUrlRequest) Reset() {
+	*x = GetCanonicalUrlRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCanonicalUrlRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCanonicalUrlRequest) ProtoMessage() {}
+
+func (x *GetCanonicalUrlRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCanonicalUrlRequest.ProtoReflect.Descriptor instead.
+func (*GetCanonicalUrlRequest) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *GetCanonicalUrlRequest) GetStoreId() string {
+	if x != nil {
+		return x.StoreId
+	}
+	return ""
+}
+
+func (x *GetCanonicalUrlRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+// GetCanonicalUrlResponse
+type GetCanonicalUrlResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Data
+	Data *GetCanonicalUrlResponse_Data `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+}
+
+func (x *GetCanonicalUrlResponse) Reset() {
+	*x = GetCanonicalUrlResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCanonicalUrlResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCanonicalUrlResponse) ProtoMessage() {}
+
+func (x *GetCanonicalUrlResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCanonicalUrlResponse.ProtoReflect.Descriptor instead.
+func (*GetCanonicalUrlResponse) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetCanonicalUrlResponse) GetData() *GetCanonicalUrlResponse_Data {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// DoParseRequest
+type DoParseRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Request
+	Request *Request `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
+	// 等待响应结果 如果开启此项，则结果会直接通过此通道返回
+	EnableBlockForItems bool `protobuf:"varint,6,opt,name=enableBlockForItems,proto3" json:"enableBlockForItems,omitempty"`
+}
+
+func (x *DoParseRequest) Reset() {
+	*x = DoParseRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DoParseRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DoParseRequest) ProtoMessage() {}
+
+func (x *DoParseRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DoParseRequest.ProtoReflect.Descriptor instead.
+func (*DoParseRequest) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *DoParseRequest) GetRequest() *Request {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
+func (x *DoParseRequest) GetEnableBlockForItems() bool {
 	if x != nil {
 		return x.EnableBlockForItems
 	}
 	return false
 }
 
-// ParseResponse
-type ParseResponse struct {
+// DoParseResponse
+type DoParseResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
@@ -202,23 +847,23 @@ type ParseResponse struct {
 	SubReqCount int32 `protobuf:"varint,12,opt,name=subReqCount,proto3" json:"subReqCount,omitempty"`
 }
 
-func (x *ParseResponse) Reset() {
-	*x = ParseResponse{}
+func (x *DoParseResponse) Reset() {
+	*x = DoParseResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[3]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *ParseResponse) String() string {
+func (x *DoParseResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ParseResponse) ProtoMessage() {}
+func (*DoParseResponse) ProtoMessage() {}
 
-func (x *ParseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[3]
+func (x *DoParseResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -229,73 +874,56 @@ func (x *ParseResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ParseResponse.ProtoReflect.Descriptor instead.
-func (*ParseResponse) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{3}
+// Deprecated: Use DoParseResponse.ProtoReflect.Descriptor instead.
+func (*DoParseResponse) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *ParseResponse) GetData() []*anypb.Any {
+func (x *DoParseResponse) GetData() []*anypb.Any {
 	if x != nil {
 		return x.Data
 	}
 	return nil
 }
 
-func (x *ParseResponse) GetItemCount() int32 {
+func (x *DoParseResponse) GetItemCount() int32 {
 	if x != nil {
 		return x.ItemCount
 	}
 	return 0
 }
 
-func (x *ParseResponse) GetSubReqCount() int32 {
+func (x *DoParseResponse) GetSubReqCount() int32 {
 	if x != nil {
 		return x.SubReqCount
 	}
 	return 0
 }
 
-// FetchRequest
-type FetchRequest struct {
+// ConnectRequest
+type ConnectRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
-
-	// JobId
-	JobId string `protobuf:"bytes,2,opt,name=jobId,proto3" json:"jobId,omitempty"`
-	// StoreId
-	StoreId string `protobuf:"bytes,3,opt,name=storeId,proto3" json:"storeId,omitempty"`
-	// Method
-	Method string `protobuf:"bytes,12,opt,name=method,proto3" json:"method,omitempty"`
-	// URL
-	Url string `protobuf:"bytes,13,opt,name=url,proto3" json:"url,omitempty"`
-	// CustomHeaders
-	CustomHeaders map[string]string `protobuf:"bytes,14,rep,name=customHeaders,proto3" json:"customHeaders,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
-	// CustomCookies
-	CustomCookies []*http.Cookie `protobuf:"bytes,15,rep,name=customCookies,proto3" json:"customCookies,omitempty"`
-	// Body http request body for post/put/patch/delete method
-	Body string `protobuf:"bytes,20,opt,name=body,proto3" json:"body,omitempty"`
-	// Options
-	Options *FetchRequest_Options `protobuf:"bytes,51,opt,name=options,proto3" json:"options,omitempty"`
 }
 
-func (x *FetchRequest) Reset() {
-	*x = FetchRequest{}
+func (x *ConnectRequest) Reset() {
+	*x = ConnectRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[4]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *FetchRequest) String() string {
+func (x *ConnectRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*FetchRequest) ProtoMessage() {}
+func (*ConnectRequest) ProtoMessage() {}
 
-func (x *FetchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[4]
+func (x *ConnectRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -306,94 +934,128 @@ func (x *FetchRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FetchRequest.ProtoReflect.Descriptor instead.
-func (*FetchRequest) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{4}
+// Deprecated: Use ConnectRequest.ProtoReflect.Descriptor instead.
+func (*ConnectRequest) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *FetchRequest) GetJobId() string {
-	if x != nil {
-		return x.JobId
+// ConnectResponse
+type ConnectResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *ConnectResponse) Reset() {
+	*x = ConnectResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[18]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
 	}
-	return ""
 }
 
-func (x *FetchRequest) GetStoreId() string {
-	if x != nil {
-		return x.StoreId
+func (x *ConnectResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectResponse) ProtoMessage() {}
+
+func (x *ConnectResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[18]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
 	}
-	return ""
+	return mi.MessageOf(x)
 }
 
-func (x *FetchRequest) GetMethod() string {
-	if x != nil {
-		return x.Method
+// Deprecated: Use ConnectResponse.ProtoReflect.Descriptor instead.
+func (*ConnectResponse) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{18}
+}
+
+// Data
+type CanonicalUrlResponse_Data struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Url
+	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+}
+
+func (x *CanonicalUrlResponse_Data) Reset() {
+	*x = CanonicalUrlResponse_Data{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[19]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
 	}
-	return ""
 }
 
-func (x *FetchRequest) GetUrl() string {
+func (x *CanonicalUrlResponse_Data) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CanonicalUrlResponse_Data) ProtoMessage() {}
+
+func (x *CanonicalUrlResponse_Data) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[19]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CanonicalUrlResponse_Data.ProtoReflect.Descriptor instead.
+func (*CanonicalUrlResponse_Data) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{5, 0}
+}
+
+func (x *CanonicalUrlResponse_Data) GetUrl() string {
 	if x != nil {
 		return x.Url
 	}
 	return ""
 }
 
-func (x *FetchRequest) GetCustomHeaders() map[string]string {
-	if x != nil {
-		return x.CustomHeaders
-	}
-	return nil
-}
-
-func (x *FetchRequest) GetCustomCookies() []*http.Cookie {
-	if x != nil {
-		return x.CustomCookies
-	}
-	return nil
-}
-
-func (x *FetchRequest) GetBody() string {
-	if x != nil {
-		return x.Body
-	}
-	return ""
-}
-
-func (x *FetchRequest) GetOptions() *FetchRequest_Options {
-	if x != nil {
-		return x.Options
-	}
-	return nil
-}
-
-// FetchResponse
-type FetchResponse struct {
+// CrawlerGroup
+type GetCrawlersResponse_CrawlerGroup struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
+	// StoreId
+	StoreId string `protobuf:"bytes,1,opt,name=storeId,proto3" json:"storeId,omitempty"`
 	// Data
-	Data []*Item `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+	Data []*Crawler `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`
 }
 
-func (x *FetchResponse) Reset() {
-	*x = FetchResponse{}
+func (x *GetCrawlersResponse_CrawlerGroup) Reset() {
+	*x = GetCrawlersResponse_CrawlerGroup{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[5]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *FetchResponse) String() string {
+func (x *GetCrawlersResponse_CrawlerGroup) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*FetchResponse) ProtoMessage() {}
+func (*GetCrawlersResponse_CrawlerGroup) ProtoMessage() {}
 
-func (x *FetchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[5]
+func (x *GetCrawlersResponse_CrawlerGroup) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -404,57 +1066,52 @@ func (x *FetchResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FetchResponse.ProtoReflect.Descriptor instead.
-func (*FetchResponse) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{5}
+// Deprecated: Use GetCrawlersResponse_CrawlerGroup.ProtoReflect.Descriptor instead.
+func (*GetCrawlersResponse_CrawlerGroup) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{8, 0}
 }
 
-func (x *FetchResponse) GetData() []*Item {
+func (x *GetCrawlersResponse_CrawlerGroup) GetStoreId() string {
+	if x != nil {
+		return x.StoreId
+	}
+	return ""
+}
+
+func (x *GetCrawlersResponse_CrawlerGroup) GetData() []*Crawler {
 	if x != nil {
 		return x.Data
 	}
 	return nil
 }
 
-// Options
-type FetchRequest_Options struct {
+// Data
+type GetCanonicalUrlResponse_Data struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// DisableProxy proxy is enabled by default
-	DisableProxy bool `protobuf:"varint,1,opt,name=disableProxy,proto3" json:"disableProxy,omitempty"`
-	// MaxTtlPerRequest @default 5mins
-	MaxTtlPerRequest int32 `protobuf:"varint,6,opt,name=maxTtlPerRequest,proto3" json:"maxTtlPerRequest,omitempty"`
-	// MaxRetryCount  @default 3
-	MaxRetryCount int32 `protobuf:"varint,8,opt,name=maxRetryCount,proto3" json:"maxRetryCount,omitempty"`
-	// MaxRequestDepth @default 6
-	MaxRequestDepth int32 `protobuf:"varint,10,opt,name=maxRequestDepth,proto3" json:"maxRequestDepth,omitempty"`
-	// EnableBlockForItems
-	EnableBlockForItems bool `protobuf:"varint,13,opt,name=enableBlockForItems,proto3" json:"enableBlockForItems,omitempty"`
-	// MaxBlockTtl
-	MaxBlockTtl int32 `protobuf:"varint,14,opt,name=maxBlockTtl,proto3" json:"maxBlockTtl,omitempty"`
-	// MaxItemCount
-	MaxItemCount int32 `protobuf:"varint,15,opt,name=maxItemCount,proto3" json:"maxItemCount,omitempty"`
+	// Url
+	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
 }
 
-func (x *FetchRequest_Options) Reset() {
-	*x = FetchRequest_Options{}
+func (x *GetCanonicalUrlResponse_Data) Reset() {
+	*x = GetCanonicalUrlResponse_Data{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[6]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
 }
 
-func (x *FetchRequest_Options) String() string {
+func (x *GetCanonicalUrlResponse_Data) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*FetchRequest_Options) ProtoMessage() {}
+func (*GetCanonicalUrlResponse_Data) ProtoMessage() {}
 
-func (x *FetchRequest_Options) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[6]
+func (x *GetCanonicalUrlResponse_Data) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -465,56 +1122,242 @@ func (x *FetchRequest_Options) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FetchRequest_Options.ProtoReflect.Descriptor instead.
-func (*FetchRequest_Options) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{4, 0}
+// Deprecated: Use GetCanonicalUrlResponse_Data.ProtoReflect.Descriptor instead.
+func (*GetCanonicalUrlResponse_Data) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{14, 0}
 }
 
-func (x *FetchRequest_Options) GetDisableProxy() bool {
+func (x *GetCanonicalUrlResponse_Data) GetUrl() string {
 	if x != nil {
-		return x.DisableProxy
+		return x.Url
 	}
-	return false
+	return ""
 }
 
-func (x *FetchRequest_Options) GetMaxTtlPerRequest() int32 {
+// Ping
+type ConnectRequest_Ping struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Timestamp
+	Timestamp int64 `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// Id
+	Id string `protobuf:"bytes,6,opt,name=id,proto3" json:"id,omitempty"`
+	// StoreId
+	StoreId string `protobuf:"bytes,7,opt,name=storeId,proto3" json:"storeId,omitempty"`
+	// Version
+	Version int32 `protobuf:"varint,8,opt,name=version,proto3" json:"version,omitempty"`
+	// AllowedDomains
+	AllowedDomains []string `protobuf:"bytes,9,rep,name=allowedDomains,proto3" json:"allowedDomains,omitempty"`
+	// ServeIP
+	ServeIP string `protobuf:"bytes,14,opt,name=serveIP,proto3" json:"serveIP,omitempty"`
+	// ServePort
+	ServePort int32 `protobuf:"varint,15,opt,name=servePort,proto3" json:"servePort,omitempty"`
+}
+
+func (x *ConnectRequest_Ping) Reset() {
+	*x = ConnectRequest_Ping{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[23]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ConnectRequest_Ping) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectRequest_Ping) ProtoMessage() {}
+
+func (x *ConnectRequest_Ping) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[23]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectRequest_Ping.ProtoReflect.Descriptor instead.
+func (*ConnectRequest_Ping) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{17, 0}
+}
+
+func (x *ConnectRequest_Ping) GetTimestamp() int64 {
 	if x != nil {
-		return x.MaxTtlPerRequest
+		return x.Timestamp
 	}
 	return 0
 }
 
-func (x *FetchRequest_Options) GetMaxRetryCount() int32 {
+func (x *ConnectRequest_Ping) GetId() string {
 	if x != nil {
-		return x.MaxRetryCount
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ConnectRequest_Ping) GetStoreId() string {
+	if x != nil {
+		return x.StoreId
+	}
+	return ""
+}
+
+func (x *ConnectRequest_Ping) GetVersion() int32 {
+	if x != nil {
+		return x.Version
 	}
 	return 0
 }
 
-func (x *FetchRequest_Options) GetMaxRequestDepth() int32 {
+func (x *ConnectRequest_Ping) GetAllowedDomains() []string {
 	if x != nil {
-		return x.MaxRequestDepth
+		return x.AllowedDomains
+	}
+	return nil
+}
+
+func (x *ConnectRequest_Ping) GetServeIP() string {
+	if x != nil {
+		return x.ServeIP
+	}
+	return ""
+}
+
+func (x *ConnectRequest_Ping) GetServePort() int32 {
+	if x != nil {
+		return x.ServePort
 	}
 	return 0
 }
 
-func (x *FetchRequest_Options) GetEnableBlockForItems() bool {
-	if x != nil {
-		return x.EnableBlockForItems
-	}
-	return false
+// Heartbeat
+type ConnectRequest_Heartbeat struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Timestamp
+	Timestamp int64 `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// NetworkDelay
+	NetworkDelay int64 `protobuf:"varint,4,opt,name=networkDelay,proto3" json:"networkDelay,omitempty"`
 }
 
-func (x *FetchRequest_Options) GetMaxBlockTtl() int32 {
+func (x *ConnectRequest_Heartbeat) Reset() {
+	*x = ConnectRequest_Heartbeat{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[24]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ConnectRequest_Heartbeat) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectRequest_Heartbeat) ProtoMessage() {}
+
+func (x *ConnectRequest_Heartbeat) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[24]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectRequest_Heartbeat.ProtoReflect.Descriptor instead.
+func (*ConnectRequest_Heartbeat) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{17, 1}
+}
+
+func (x *ConnectRequest_Heartbeat) GetTimestamp() int64 {
 	if x != nil {
-		return x.MaxBlockTtl
+		return x.Timestamp
 	}
 	return 0
 }
 
-func (x *FetchRequest_Options) GetMaxItemCount() int32 {
+func (x *ConnectRequest_Heartbeat) GetNetworkDelay() int64 {
 	if x != nil {
-		return x.MaxItemCount
+		return x.NetworkDelay
+	}
+	return 0
+}
+
+// Pong
+type ConnectResponse_Pong struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Timestamp
+	Timestamp int64 `protobuf:"varint,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	// NetworkDelay
+	NetworkDelay int64 `protobuf:"varint,4,opt,name=networkDelay,proto3" json:"networkDelay,omitempty"`
+	// HeartbetaInterval 心跳间隔时间, 单位毫秒
+	HeartbeatInterval int64 `protobuf:"varint,11,opt,name=heartbeatInterval,proto3" json:"heartbeatInterval,omitempty"`
+}
+
+func (x *ConnectResponse_Pong) Reset() {
+	*x = ConnectResponse_Pong{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[25]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *ConnectResponse_Pong) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConnectResponse_Pong) ProtoMessage() {}
+
+func (x *ConnectResponse_Pong) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[25]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConnectResponse_Pong.ProtoReflect.Descriptor instead.
+func (*ConnectResponse_Pong) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{18, 0}
+}
+
+func (x *ConnectResponse_Pong) GetTimestamp() int64 {
+	if x != nil {
+		return x.Timestamp
+	}
+	return 0
+}
+
+func (x *ConnectResponse_Pong) GetNetworkDelay() int64 {
+	if x != nil {
+		return x.NetworkDelay
+	}
+	return 0
+}
+
+func (x *ConnectResponse_Pong) GetHeartbeatInterval() int64 {
+	if x != nil {
+		return x.HeartbeatInterval
 	}
 	return 0
 }
@@ -535,88 +1378,140 @@ var file_chameleon_smelter_v1_crawl_service_message_proto_rawDesc = []byte{
 	0x72, 0x61, 0x77, 0x6c, 0x2f, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a,
 	0x2b, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c, 0x74,
 	0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2f, 0x70, 0x72, 0x6f, 0x78,
-	0x79, 0x2f, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x26, 0x0a, 0x12,
-	0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x79, 0x2f, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x2b, 0x0a, 0x0f,
+	0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05,
+	0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x22, 0x29, 0x0a, 0x15, 0x43, 0x72, 0x61,
+	0x77, 0x6c, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65,
 	0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x03, 0x75, 0x72, 0x6c, 0x22, 0x4e, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c,
-	0x65, 0x72, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x37, 0x0a, 0x04, 0x64,
-	0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x63, 0x68, 0x61, 0x6d,
-	0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31,
-	0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x52, 0x04,
-	0x64, 0x61, 0x74, 0x61, 0x22, 0xcf, 0x01, 0x0a, 0x0c, 0x50, 0x61, 0x72, 0x73, 0x65, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x45, 0x0a, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2b, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65,
+	0x03, 0x75, 0x72, 0x6c, 0x22, 0x58, 0x0a, 0x16, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x4f,
+	0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3e,
+	0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x63,
+	0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72,
+	0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65,
+	0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x2c,
+	0x0a, 0x16, 0x41, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61,
+	0x18, 0x01, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x27, 0x0a, 0x13,
+	0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63, 0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x03, 0x75, 0x72, 0x6c, 0x22, 0x7b, 0x0a, 0x14, 0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63,
+	0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x49, 0x0a,
+	0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x35, 0x2e, 0x63, 0x68,
+	0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e,
+	0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63,
+	0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x44, 0x61,
+	0x74, 0x61, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x1a, 0x18, 0x0a, 0x04, 0x44, 0x61, 0x74, 0x61,
+	0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x75,
+	0x72, 0x6c, 0x22, 0x95, 0x01, 0x0a, 0x0c, 0x50, 0x61, 0x72, 0x73, 0x65, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x3d, 0x0a, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e,
+	0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77,
+	0x6c, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x52, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x12, 0x46, 0x0a, 0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x18, 0x02,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e,
+	0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77,
+	0x6c, 0x2e, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x52, 0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x14, 0x0a, 0x12, 0x47, 0x65,
+	0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x22, 0xbe, 0x02, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x73,
+	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4d, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61,
+	0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x39, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65,
 	0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72,
-	0x61, 0x77, 0x6c, 0x2e, 0x43, 0x6f, 0x6d, 0x6d, 0x61, 0x6e, 0x64, 0x2e, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x52, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x46, 0x0a, 0x08,
-	0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a,
-	0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74,
-	0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x70, 0x72, 0x6f, 0x78,
-	0x79, 0x2e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x52, 0x08, 0x72, 0x65, 0x73, 0x70,
-	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x30, 0x0a, 0x13, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x42, 0x6c,
-	0x6f, 0x63, 0x6b, 0x46, 0x6f, 0x72, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x18, 0x06, 0x20, 0x01, 0x28,
-	0x08, 0x52, 0x13, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x46, 0x6f,
-	0x72, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x22, 0x79, 0x0a, 0x0d, 0x50, 0x61, 0x72, 0x73, 0x65, 0x52,
-	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x28, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18,
-	0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x41, 0x6e, 0x79, 0x52, 0x04, 0x64, 0x61, 0x74,
-	0x61, 0x12, 0x1c, 0x0a, 0x09, 0x69, 0x74, 0x65, 0x6d, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x0b,
-	0x20, 0x01, 0x28, 0x05, 0x52, 0x09, 0x69, 0x74, 0x65, 0x6d, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x12,
-	0x20, 0x0a, 0x0b, 0x73, 0x75, 0x62, 0x52, 0x65, 0x71, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x0c,
-	0x20, 0x01, 0x28, 0x05, 0x52, 0x0b, 0x73, 0x75, 0x62, 0x52, 0x65, 0x71, 0x43, 0x6f, 0x75, 0x6e,
-	0x74, 0x22, 0xd3, 0x05, 0x0a, 0x0c, 0x46, 0x65, 0x74, 0x63, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x6a, 0x6f, 0x62, 0x49, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x09, 0x52, 0x05, 0x6a, 0x6f, 0x62, 0x49, 0x64, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x74, 0x6f, 0x72,
-	0x65, 0x49, 0x64, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x73, 0x74, 0x6f, 0x72, 0x65,
-	0x49, 0x64, 0x12, 0x16, 0x0a, 0x06, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x18, 0x0c, 0x20, 0x01,
-	0x28, 0x09, 0x52, 0x06, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72,
-	0x6c, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x75, 0x72, 0x6c, 0x12, 0x61, 0x0a, 0x0d,
-	0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x48, 0x65, 0x61, 0x64, 0x65, 0x72, 0x73, 0x18, 0x0e, 0x20,
-	0x03, 0x28, 0x0b, 0x32, 0x3b, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e,
-	0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c,
-	0x2e, 0x46, 0x65, 0x74, 0x63, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x2e, 0x43, 0x75,
-	0x73, 0x74, 0x6f, 0x6d, 0x48, 0x65, 0x61, 0x64, 0x65, 0x72, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79,
-	0x52, 0x0d, 0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x48, 0x65, 0x61, 0x64, 0x65, 0x72, 0x73, 0x12,
-	0x40, 0x0a, 0x0d, 0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x43, 0x6f, 0x6f, 0x6b, 0x69, 0x65, 0x73,
-	0x18, 0x0f, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1a, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65,
-	0x6f, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x2e, 0x68, 0x74, 0x74, 0x70, 0x2e, 0x43, 0x6f, 0x6f, 0x6b,
-	0x69, 0x65, 0x52, 0x0d, 0x63, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x43, 0x6f, 0x6f, 0x6b, 0x69, 0x65,
-	0x73, 0x12, 0x12, 0x0a, 0x04, 0x62, 0x6f, 0x64, 0x79, 0x18, 0x14, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x04, 0x62, 0x6f, 0x64, 0x79, 0x12, 0x4a, 0x0a, 0x07, 0x6f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73,
-	0x18, 0x33, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x30, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65,
-	0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72,
-	0x61, 0x77, 0x6c, 0x2e, 0x46, 0x65, 0x74, 0x63, 0x68, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
-	0x2e, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x07, 0x6f, 0x70, 0x74, 0x69, 0x6f, 0x6e,
-	0x73, 0x1a, 0xa1, 0x02, 0x0a, 0x07, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x12, 0x22, 0x0a,
-	0x0c, 0x64, 0x69, 0x73, 0x61, 0x62, 0x6c, 0x65, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x18, 0x01, 0x20,
-	0x01, 0x28, 0x08, 0x52, 0x0c, 0x64, 0x69, 0x73, 0x61, 0x62, 0x6c, 0x65, 0x50, 0x72, 0x6f, 0x78,
-	0x79, 0x12, 0x2a, 0x0a, 0x10, 0x6d, 0x61, 0x78, 0x54, 0x74, 0x6c, 0x50, 0x65, 0x72, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x06, 0x20, 0x01, 0x28, 0x05, 0x52, 0x10, 0x6d, 0x61, 0x78,
-	0x54, 0x74, 0x6c, 0x50, 0x65, 0x72, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x24, 0x0a,
-	0x0d, 0x6d, 0x61, 0x78, 0x52, 0x65, 0x74, 0x72, 0x79, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x08,
-	0x20, 0x01, 0x28, 0x05, 0x52, 0x0d, 0x6d, 0x61, 0x78, 0x52, 0x65, 0x74, 0x72, 0x79, 0x43, 0x6f,
-	0x75, 0x6e, 0x74, 0x12, 0x28, 0x0a, 0x0f, 0x6d, 0x61, 0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
-	0x74, 0x44, 0x65, 0x70, 0x74, 0x68, 0x18, 0x0a, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0f, 0x6d, 0x61,
-	0x78, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x44, 0x65, 0x70, 0x74, 0x68, 0x12, 0x30, 0x0a,
-	0x13, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x46, 0x6f, 0x72, 0x49,
-	0x74, 0x65, 0x6d, 0x73, 0x18, 0x0d, 0x20, 0x01, 0x28, 0x08, 0x52, 0x13, 0x65, 0x6e, 0x61, 0x62,
-	0x6c, 0x65, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x46, 0x6f, 0x72, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x12,
-	0x20, 0x0a, 0x0b, 0x6d, 0x61, 0x78, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x54, 0x74, 0x6c, 0x18, 0x0e,
-	0x20, 0x01, 0x28, 0x05, 0x52, 0x0b, 0x6d, 0x61, 0x78, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x54, 0x74,
-	0x6c, 0x12, 0x22, 0x0a, 0x0c, 0x6d, 0x61, 0x78, 0x49, 0x74, 0x65, 0x6d, 0x43, 0x6f, 0x75, 0x6e,
-	0x74, 0x18, 0x0f, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0c, 0x6d, 0x61, 0x78, 0x49, 0x74, 0x65, 0x6d,
-	0x43, 0x6f, 0x75, 0x6e, 0x74, 0x1a, 0x40, 0x0a, 0x12, 0x43, 0x75, 0x73, 0x74, 0x6f, 0x6d, 0x48,
-	0x65, 0x61, 0x64, 0x65, 0x72, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b,
-	0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a,
-	0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61,
-	0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x45, 0x0a, 0x0d, 0x46, 0x65, 0x74, 0x63, 0x68,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x34, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61,
-	0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65,
-	0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72,
-	0x61, 0x77, 0x6c, 0x2e, 0x49, 0x74, 0x65, 0x6d, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x42, 0x22,
-	0x5a, 0x20, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c,
-	0x74, 0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x3b, 0x63, 0x72, 0x61,
-	0x77, 0x6c, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x61, 0x77, 0x6c, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x73, 0x52,
+	0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x44, 0x61, 0x74, 0x61, 0x45, 0x6e, 0x74, 0x72,
+	0x79, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x1a, 0x61, 0x0a, 0x0c, 0x43, 0x72, 0x61, 0x77, 0x6c,
+	0x65, 0x72, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x74, 0x6f, 0x72, 0x65,
+	0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x73, 0x74, 0x6f, 0x72, 0x65, 0x49,
+	0x64, 0x12, 0x37, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x23, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c,
+	0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x43, 0x72, 0x61,
+	0x77, 0x6c, 0x65, 0x72, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x1a, 0x75, 0x0a, 0x09, 0x44, 0x61,
+	0x74, 0x61, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x52, 0x0a, 0x05, 0x76, 0x61, 0x6c,
+	0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x3c, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65,
+	0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e,
+	0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72,
+	0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65,
+	0x72, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38,
+	0x01, 0x22, 0x2d, 0x0a, 0x11, 0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x74, 0x6f, 0x72, 0x65, 0x49,
+	0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x73, 0x74, 0x6f, 0x72, 0x65, 0x49, 0x64,
+	0x22, 0x4d, 0x0a, 0x12, 0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x37, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01,
+	0x20, 0x03, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e,
+	0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77,
+	0x6c, 0x2e, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22,
+	0x46, 0x0a, 0x18, 0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x4f, 0x70, 0x74,
+	0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x18, 0x0a, 0x07, 0x73,
+	0x74, 0x6f, 0x72, 0x65, 0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x73, 0x74,
+	0x6f, 0x72, 0x65, 0x49, 0x64, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x03, 0x75, 0x72, 0x6c, 0x22, 0x5b, 0x0a, 0x19, 0x47, 0x65, 0x74, 0x43, 0x72,
+	0x61, 0x77, 0x6c, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70,
+	0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3e, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73,
+	0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e,
+	0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x04,
+	0x64, 0x61, 0x74, 0x61, 0x22, 0x44, 0x0a, 0x16, 0x47, 0x65, 0x74, 0x43, 0x61, 0x6e, 0x6f, 0x6e,
+	0x69, 0x63, 0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x18,
+	0x0a, 0x07, 0x73, 0x74, 0x6f, 0x72, 0x65, 0x49, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x07, 0x73, 0x74, 0x6f, 0x72, 0x65, 0x49, 0x64, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x75, 0x72, 0x6c, 0x22, 0x81, 0x01, 0x0a, 0x17, 0x47,
+	0x65, 0x74, 0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63, 0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4c, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x38, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e,
+	0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77,
+	0x6c, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63, 0x61, 0x6c, 0x55, 0x72,
+	0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x44, 0x61, 0x74, 0x61, 0x52, 0x04,
+	0x64, 0x61, 0x74, 0x61, 0x1a, 0x18, 0x0a, 0x04, 0x44, 0x61, 0x74, 0x61, 0x12, 0x10, 0x0a, 0x03,
+	0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x75, 0x72, 0x6c, 0x22, 0x81,
+	0x01, 0x0a, 0x0e, 0x44, 0x6f, 0x50, 0x61, 0x72, 0x73, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
+	0x74, 0x12, 0x3d, 0x0a, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x0b, 0x32, 0x23, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73,
+	0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e,
+	0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x52, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x12, 0x30, 0x0a, 0x13, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x46,
+	0x6f, 0x72, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x18, 0x06, 0x20, 0x01, 0x28, 0x08, 0x52, 0x13, 0x65,
+	0x6e, 0x61, 0x62, 0x6c, 0x65, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x46, 0x6f, 0x72, 0x49, 0x74, 0x65,
+	0x6d, 0x73, 0x22, 0x7b, 0x0a, 0x0f, 0x44, 0x6f, 0x50, 0x61, 0x72, 0x73, 0x65, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x28, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20,
+	0x03, 0x28, 0x0b, 0x32, 0x14, 0x2e, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f,
+	0x74, 0x6f, 0x62, 0x75, 0x66, 0x2e, 0x41, 0x6e, 0x79, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x12,
+	0x1c, 0x0a, 0x09, 0x69, 0x74, 0x65, 0x6d, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x0b, 0x20, 0x01,
+	0x28, 0x05, 0x52, 0x09, 0x69, 0x74, 0x65, 0x6d, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x20, 0x0a,
+	0x0b, 0x73, 0x75, 0x62, 0x52, 0x65, 0x71, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x0c, 0x20, 0x01,
+	0x28, 0x05, 0x52, 0x0b, 0x73, 0x75, 0x62, 0x52, 0x65, 0x71, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x22,
+	0xaa, 0x02, 0x0a, 0x0e, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65,
+	0x73, 0x74, 0x1a, 0xc8, 0x01, 0x0a, 0x04, 0x50, 0x69, 0x6e, 0x67, 0x12, 0x1c, 0x0a, 0x09, 0x74,
+	0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09,
+	0x74, 0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18,
+	0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x74, 0x6f,
+	0x72, 0x65, 0x49, 0x64, 0x18, 0x07, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x73, 0x74, 0x6f, 0x72,
+	0x65, 0x49, 0x64, 0x12, 0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x08,
+	0x20, 0x01, 0x28, 0x05, 0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x26, 0x0a,
+	0x0e, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73, 0x18,
+	0x09, 0x20, 0x03, 0x28, 0x09, 0x52, 0x0e, 0x61, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x44, 0x6f,
+	0x6d, 0x61, 0x69, 0x6e, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x65, 0x72, 0x76, 0x65, 0x49, 0x50,
+	0x18, 0x0e, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x73, 0x65, 0x72, 0x76, 0x65, 0x49, 0x50, 0x12,
+	0x1c, 0x0a, 0x09, 0x73, 0x65, 0x72, 0x76, 0x65, 0x50, 0x6f, 0x72, 0x74, 0x18, 0x0f, 0x20, 0x01,
+	0x28, 0x05, 0x52, 0x09, 0x73, 0x65, 0x72, 0x76, 0x65, 0x50, 0x6f, 0x72, 0x74, 0x1a, 0x4d, 0x0a,
+	0x09, 0x48, 0x65, 0x61, 0x72, 0x74, 0x62, 0x65, 0x61, 0x74, 0x12, 0x1c, 0x0a, 0x09, 0x74, 0x69,
+	0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x74,
+	0x69, 0x6d, 0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x12, 0x22, 0x0a, 0x0c, 0x6e, 0x65, 0x74, 0x77,
+	0x6f, 0x72, 0x6b, 0x44, 0x65, 0x6c, 0x61, 0x79, 0x18, 0x04, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0c,
+	0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x44, 0x65, 0x6c, 0x61, 0x79, 0x22, 0x89, 0x01, 0x0a,
+	0x0f, 0x43, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x1a, 0x76, 0x0a, 0x04, 0x50, 0x6f, 0x6e, 0x67, 0x12, 0x1c, 0x0a, 0x09, 0x74, 0x69, 0x6d, 0x65,
+	0x73, 0x74, 0x61, 0x6d, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x09, 0x74, 0x69, 0x6d,
+	0x65, 0x73, 0x74, 0x61, 0x6d, 0x70, 0x12, 0x22, 0x0a, 0x0c, 0x6e, 0x65, 0x74, 0x77, 0x6f, 0x72,
+	0x6b, 0x44, 0x65, 0x6c, 0x61, 0x79, 0x18, 0x04, 0x20, 0x01, 0x28, 0x03, 0x52, 0x0c, 0x6e, 0x65,
+	0x74, 0x77, 0x6f, 0x72, 0x6b, 0x44, 0x65, 0x6c, 0x61, 0x79, 0x12, 0x2c, 0x0a, 0x11, 0x68, 0x65,
+	0x61, 0x72, 0x74, 0x62, 0x65, 0x61, 0x74, 0x49, 0x6e, 0x74, 0x65, 0x72, 0x76, 0x61, 0x6c, 0x18,
+	0x0b, 0x20, 0x01, 0x28, 0x03, 0x52, 0x11, 0x68, 0x65, 0x61, 0x72, 0x74, 0x62, 0x65, 0x61, 0x74,
+	0x49, 0x6e, 0x74, 0x65, 0x72, 0x76, 0x61, 0x6c, 0x42, 0x22, 0x5a, 0x20, 0x63, 0x68, 0x61, 0x6d,
+	0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2f, 0x76, 0x31,
+	0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x3b, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -631,37 +1526,58 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP() []byte 
 	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescData
 }
 
-var file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes = make([]protoimpl.MessageInfo, 26)
 var file_chameleon_smelter_v1_crawl_service_message_proto_goTypes = []interface{}{
-	(*GetCrawlersRequest)(nil),   // 0: chameleon.smelter.v1.crawl.GetCrawlersRequest
-	(*GetCrawlersResponse)(nil),  // 1: chameleon.smelter.v1.crawl.GetCrawlersResponse
-	(*ParseRequest)(nil),         // 2: chameleon.smelter.v1.crawl.ParseRequest
-	(*ParseResponse)(nil),        // 3: chameleon.smelter.v1.crawl.ParseResponse
-	(*FetchRequest)(nil),         // 4: chameleon.smelter.v1.crawl.FetchRequest
-	(*FetchResponse)(nil),        // 5: chameleon.smelter.v1.crawl.FetchResponse
-	(*FetchRequest_Options)(nil), // 6: chameleon.smelter.v1.crawl.FetchRequest.Options
-	nil,                          // 7: chameleon.smelter.v1.crawl.FetchRequest.CustomHeadersEntry
-	(*Crawler)(nil),              // 8: chameleon.smelter.v1.crawl.Crawler
-	(*Command_Request)(nil),      // 9: chameleon.smelter.v1.crawl.Command.Request
-	(*proxy.Response)(nil),       // 10: chameleon.smelter.v1.crawl.proxy.Response
-	(*anypb.Any)(nil),            // 11: google.protobuf.Any
-	(*http.Cookie)(nil),          // 12: chameleon.api.http.Cookie
-	(*Item)(nil),                 // 13: chameleon.smelter.v1.crawl.Item
+	(*VersionResponse)(nil),                  // 0: chameleon.smelter.v1.crawl.VersionResponse
+	(*CrawlerOptionsRequest)(nil),            // 1: chameleon.smelter.v1.crawl.CrawlerOptionsRequest
+	(*CrawlerOptionsResponse)(nil),           // 2: chameleon.smelter.v1.crawl.CrawlerOptionsResponse
+	(*AllowedDomainsResponse)(nil),           // 3: chameleon.smelter.v1.crawl.AllowedDomainsResponse
+	(*CanonicalUrlRequest)(nil),              // 4: chameleon.smelter.v1.crawl.CanonicalUrlRequest
+	(*CanonicalUrlResponse)(nil),             // 5: chameleon.smelter.v1.crawl.CanonicalUrlResponse
+	(*ParseRequest)(nil),                     // 6: chameleon.smelter.v1.crawl.ParseRequest
+	(*GetCrawlersRequest)(nil),               // 7: chameleon.smelter.v1.crawl.GetCrawlersRequest
+	(*GetCrawlersResponse)(nil),              // 8: chameleon.smelter.v1.crawl.GetCrawlersResponse
+	(*GetCrawlerRequest)(nil),                // 9: chameleon.smelter.v1.crawl.GetCrawlerRequest
+	(*GetCrawlerResponse)(nil),               // 10: chameleon.smelter.v1.crawl.GetCrawlerResponse
+	(*GetCrawlerOptionsRequest)(nil),         // 11: chameleon.smelter.v1.crawl.GetCrawlerOptionsRequest
+	(*GetCrawlerOptionsResponse)(nil),        // 12: chameleon.smelter.v1.crawl.GetCrawlerOptionsResponse
+	(*GetCanonicalUrlRequest)(nil),           // 13: chameleon.smelter.v1.crawl.GetCanonicalUrlRequest
+	(*GetCanonicalUrlResponse)(nil),          // 14: chameleon.smelter.v1.crawl.GetCanonicalUrlResponse
+	(*DoParseRequest)(nil),                   // 15: chameleon.smelter.v1.crawl.DoParseRequest
+	(*DoParseResponse)(nil),                  // 16: chameleon.smelter.v1.crawl.DoParseResponse
+	(*ConnectRequest)(nil),                   // 17: chameleon.smelter.v1.crawl.ConnectRequest
+	(*ConnectResponse)(nil),                  // 18: chameleon.smelter.v1.crawl.ConnectResponse
+	(*CanonicalUrlResponse_Data)(nil),        // 19: chameleon.smelter.v1.crawl.CanonicalUrlResponse.Data
+	(*GetCrawlersResponse_CrawlerGroup)(nil), // 20: chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup
+	nil,                                      // 21: chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry
+	(*GetCanonicalUrlResponse_Data)(nil),     // 22: chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.Data
+	(*ConnectRequest_Ping)(nil),              // 23: chameleon.smelter.v1.crawl.ConnectRequest.Ping
+	(*ConnectRequest_Heartbeat)(nil),         // 24: chameleon.smelter.v1.crawl.ConnectRequest.Heartbeat
+	(*ConnectResponse_Pong)(nil),             // 25: chameleon.smelter.v1.crawl.ConnectResponse.Pong
+	(*CrawlerOptions)(nil),                   // 26: chameleon.smelter.v1.crawl.CrawlerOptions
+	(*Request)(nil),                          // 27: chameleon.smelter.v1.crawl.Request
+	(*proxy.Response)(nil),                   // 28: chameleon.smelter.v1.crawl.proxy.Response
+	(*Crawler)(nil),                          // 29: chameleon.smelter.v1.crawl.Crawler
+	(*anypb.Any)(nil),                        // 30: google.protobuf.Any
 }
 var file_chameleon_smelter_v1_crawl_service_message_proto_depIdxs = []int32{
-	8,  // 0: chameleon.smelter.v1.crawl.GetCrawlersResponse.data:type_name -> chameleon.smelter.v1.crawl.Crawler
-	9,  // 1: chameleon.smelter.v1.crawl.ParseRequest.request:type_name -> chameleon.smelter.v1.crawl.Command.Request
-	10, // 2: chameleon.smelter.v1.crawl.ParseRequest.response:type_name -> chameleon.smelter.v1.crawl.proxy.Response
-	11, // 3: chameleon.smelter.v1.crawl.ParseResponse.data:type_name -> google.protobuf.Any
-	7,  // 4: chameleon.smelter.v1.crawl.FetchRequest.customHeaders:type_name -> chameleon.smelter.v1.crawl.FetchRequest.CustomHeadersEntry
-	12, // 5: chameleon.smelter.v1.crawl.FetchRequest.customCookies:type_name -> chameleon.api.http.Cookie
-	6,  // 6: chameleon.smelter.v1.crawl.FetchRequest.options:type_name -> chameleon.smelter.v1.crawl.FetchRequest.Options
-	13, // 7: chameleon.smelter.v1.crawl.FetchResponse.data:type_name -> chameleon.smelter.v1.crawl.Item
-	8,  // [8:8] is the sub-list for method output_type
-	8,  // [8:8] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	26, // 0: chameleon.smelter.v1.crawl.CrawlerOptionsResponse.data:type_name -> chameleon.smelter.v1.crawl.CrawlerOptions
+	19, // 1: chameleon.smelter.v1.crawl.CanonicalUrlResponse.data:type_name -> chameleon.smelter.v1.crawl.CanonicalUrlResponse.Data
+	27, // 2: chameleon.smelter.v1.crawl.ParseRequest.request:type_name -> chameleon.smelter.v1.crawl.Request
+	28, // 3: chameleon.smelter.v1.crawl.ParseRequest.response:type_name -> chameleon.smelter.v1.crawl.proxy.Response
+	21, // 4: chameleon.smelter.v1.crawl.GetCrawlersResponse.data:type_name -> chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry
+	29, // 5: chameleon.smelter.v1.crawl.GetCrawlerResponse.data:type_name -> chameleon.smelter.v1.crawl.Crawler
+	26, // 6: chameleon.smelter.v1.crawl.GetCrawlerOptionsResponse.data:type_name -> chameleon.smelter.v1.crawl.CrawlerOptions
+	22, // 7: chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.data:type_name -> chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.Data
+	27, // 8: chameleon.smelter.v1.crawl.DoParseRequest.request:type_name -> chameleon.smelter.v1.crawl.Request
+	30, // 9: chameleon.smelter.v1.crawl.DoParseResponse.data:type_name -> google.protobuf.Any
+	29, // 10: chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup.data:type_name -> chameleon.smelter.v1.crawl.Crawler
+	20, // 11: chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry.value:type_name -> chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_chameleon_smelter_v1_crawl_service_message_proto_init() }
@@ -672,7 +1588,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 	file_chameleon_smelter_v1_crawl_data_proto_init()
 	if !protoimpl.UnsafeEnabled {
 		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[0].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetCrawlersRequest); i {
+			switch v := v.(*VersionResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -684,7 +1600,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[1].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GetCrawlersResponse); i {
+			switch v := v.(*CrawlerOptionsRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -696,7 +1612,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ParseRequest); i {
+			switch v := v.(*CrawlerOptionsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -708,7 +1624,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*ParseResponse); i {
+			switch v := v.(*AllowedDomainsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -720,7 +1636,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FetchRequest); i {
+			switch v := v.(*CanonicalUrlRequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -732,7 +1648,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FetchResponse); i {
+			switch v := v.(*CanonicalUrlResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -744,7 +1660,223 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*FetchRequest_Options); i {
+			switch v := v.(*ParseRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCrawlersRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCrawlersResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCrawlerRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCrawlerResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCrawlerOptionsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCrawlerOptionsResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCanonicalUrlRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCanonicalUrlResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DoParseRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DoParseResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ConnectRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ConnectResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CanonicalUrlResponse_Data); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCrawlersResponse_CrawlerGroup); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCanonicalUrlResponse_Data); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ConnectRequest_Ping); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ConnectRequest_Heartbeat); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*ConnectResponse_Pong); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -762,7 +1894,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_chameleon_smelter_v1_crawl_service_message_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   26,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

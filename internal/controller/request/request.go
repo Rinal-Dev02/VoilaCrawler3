@@ -390,7 +390,7 @@ func (ctrl *RequestController) Run(ctx context.Context) error {
 							}
 
 							// parse respose, if failed, queue the request again
-							if err = ctrl.crawlerCtrl.Parse(ctx, req, proxyResp); err != nil {
+							if _, err := ctrl.crawlerCtrl.Parse(ctx, req, proxyResp, false); err != nil {
 								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
 								ctrl.logger.Errorf("parse response from %s failed, error=%s", req.GetUrl(), err)
 								return err

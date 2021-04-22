@@ -9,20 +9,18 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/nsqio/go-nsq"
 	"github.com/urfave/cli/v2"
-	"github.com/voiladev/VoilaCrawl/internal/pkg/cookiejar"
-	chttp "github.com/voiladev/VoilaCrawl/pkg/net/http"
-	"github.com/voiladev/VoilaCrawl/pkg/proxy"
+	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
+	storeCtrl "github.com/voiladev/VoilaCrawl/internal/controller/store"
+	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
-	pbSession "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/grpcutil"
 	"github.com/voiladev/go-framework/invocation"
+	"github.com/voiladev/go-framework/redis"
 	pbDesc "github.com/voiladev/protobuf/protoc-gen-go/protobuf"
 	"go.uber.org/fx"
 	grpc "google.golang.org/grpc"
@@ -88,19 +86,14 @@ func (app *App) Run(args []string) {
 			Value: 8080,
 		},
 		&cli.StringFlag{
-			Name:     "session-addr",
-			Usage:    "session server grpc address",
-			Required: true,
+			Name:  "redis-addr",
+			Usage: "redis server address",
+			Value: "voiladev.com:6379",
 		},
-		&cli.StringFlag{
-			Name:     "proxy-addr",
-			Usage:    "proxy server address",
-			Required: true,
-		},
-		&cli.StringFlag{
-			Name:  "plugins",
-			Usage: "the dir of plugins",
-			Value: "./plugins",
+		&cli.StringSliceFlag{
+			Name:  "nsqlookupd-http-addr",
+			Usage: "nsqlookupd http address",
+			Value: cli.NewStringSlice("voiladev.com:4161"),
 		},
 		&cli.StringFlag{
 			Name:  "nsqd-tcp-addr",
@@ -145,63 +138,29 @@ func (app *App) Run(args []string) {
 			fx.Provide(app.newHttpServer(c)),
 
 			// Managers
-			fx.Provide(NewCrawlerManager),
-
-			fx.Provide(func(logger glog.Log) (chttp.Client, error) {
-				grpcConn, err := grpc.DialContext(app.ctx, c.String("session-addr"), grpc.WithInsecure())
-				if err != nil {
-					logger.Errorf("connect to %s failed, error=%s", c.String("session-addr"), err)
-					return nil, cli.NewExitError(err, 1)
-				}
-				sessionClient := pbSession.NewSessionManagerClient(grpcConn)
-
-				jar, err := cookiejar.New(sessionClient, logger)
-				if err != nil {
-					logger.Errorf("create cookie jar failed, error=%s", err)
-					return nil, cli.NewExitError(err, 1)
-				}
-
-				httpClient, err := proxy.NewProxyClient(c.String("proxy-addr"), jar, logger)
-				if err != nil {
-					logger.Error(err)
-					return nil, cli.NewExitError(err, 1)
-				}
-				return httpClient, nil
-			}),
-
+			fx.Provide(crawlerManager.NewCrawlerManager),
 			// Controller
-			fx.Provide(NewCrawlerController),
+			fx.Provide(crawlerCtrl.NewCrawlerController),
+			fx.Provide(func() storeCtrl.StoreControllerOptions {
+				return storeCtrl.StoreControllerOptions{
+					NsqLookupdAddresses: c.StringSlice("nsqlookupd-http-addr"),
+					NsqdAddress:         c.String("nsqd-tcp-addr"),
+					MaxCurrency:         20,
+				}
+			}),
+			fx.Provide(storeCtrl.NewStoreController),
 
 			// Register services
-			fx.Provide(NewCrawlerServer),
+			fx.Provide(func(storeCtrl *storeCtrl.StoreController,
+				crawlerManager *crawlerManager.CrawlerManager,
+				logger glog.Log) (pbCrawl.CrawlerManagerServer, pbCrawl.GatewayServer, error) {
 
-			// load plugins
-			fx.Invoke(func(httpClient chttp.Client, crawlerManager *CrawlerManager) error {
-				// load plugins
-				var loadedPlugintCount int
-				if err := filepath.Walk(c.String("plugins"), func(p string, info os.FileInfo, err error) error {
-					if info == nil || info.IsDir() || filepath.Ext(p) != ".so" {
-						return nil
-					}
-
-					if cl, err := NewCrawler(httpClient, p, logger); err != nil {
-						logger.Errorf("load plugin %s failed, error=%s", p, err)
-						return err
-					} else {
-						crawlerManager.Save(app.ctx, cl)
-						logger.Infof("loaded plugin %s", cl.ID())
-						loadedPlugintCount += 1
-					}
-					return nil
-				}); err != nil {
-					return cli.NewExitError(err, 1)
+				server, err := NewCrawlerServer(storeCtrl, crawlerManager, logger)
+				if err != nil {
+					return nil, nil, err
 				}
-				if loadedPlugintCount == 0 {
-					return cli.NewExitError("no usable plugins", 1)
-				}
-				return nil
+				return pbCrawl.CrawlerManagerServer(server), pbCrawl.GatewayServer(server), nil
 			}),
-
 			// Register grpc handler
 			fx.Invoke(pbCrawl.RegisterCrawlerManagerServer),
 
@@ -226,20 +185,17 @@ func (app *App) loadBackends(c *cli.Context) (opts []fx.Option, err error) {
 	if app == nil {
 		return nil, nil
 	}
-
-	nsqAddr := c.String("nsqd-tcp-addr")
-	if nsqAddr == "" {
-		return nil, errors.New("invalid nsq address")
-	}
-
-	nsqConf := nsq.NewConfig()
-	if producer, err := nsq.NewProducer(c.String("nsqd-tcp-addr"), nsqConf); err != nil {
+	if redisClient, err := redis.NewRedisClient(redis.RedisClientOptions{
+		URI:          c.String("redis-addr"),
+		MaxIdelConns: 10,
+	}); err != nil {
 		return nil, err
 	} else {
-		opts = append(opts, fx.Provide(func() *nsq.Producer {
-			return producer
+		opts = append(opts, fx.Provide(func() *redis.RedisClient {
+			return redisClient
 		}))
 	}
+
 	return
 }
 
