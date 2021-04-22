@@ -51,7 +51,7 @@ func NewCrawlerController(
 // when ends, the function need to clean:
 // 1. the registed spider pod.
 // 2. the client instance
-func (ctrl *CrawlerController) Watch(ctx context.Context, srv pbCrawl.Gateway_ConnectServer, cw *crawler.Crawler) error {
+func (ctrl *CrawlerController) Watch(ctx context.Context, srv pbCrawl.CrawlerRegister_ConnectServer, cw *crawler.Crawler) error {
 	if ctrl == nil {
 		return nil
 	}

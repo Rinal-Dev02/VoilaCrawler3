@@ -4,22 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
-	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/nsqio/go-nsq"
 	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
 	historyCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request/history"
-	threadCtrl "github.com/voiladev/VoilaCrawl/internal/controller/thread"
 	"github.com/voiladev/VoilaCrawl/internal/model/request"
 	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
 	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
 	"github.com/voiladev/VoilaCrawl/pkg/pigate"
-	pbHttp "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
-	pbProxy "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
-	pbSession "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/session"
+	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/redis"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
@@ -27,42 +22,39 @@ import (
 )
 
 type RequestControllerOptions struct {
+	NsqdAddress         string
 	NsqLookupdAddresses []string
 }
 
 type RequestController struct {
 	ctx            context.Context
 	engine         *xorm.Engine
-	threadCtrl     *threadCtrl.ThreadController
 	crawlerCtrl    *crawlerCtrl.CrawlerController
 	historyCtrl    *historyCtrl.RequestHistoryController
 	requestManager *reqManager.RequestManager
 	redisClient    *redis.RedisClient
 	pigate         *pigate.PigateClient
-	sessionManager pbSession.SessionManagerClient
-	nsqConsumer    *nsq.Consumer
-	options        RequestControllerOptions
-	logger         glog.Log
+
+	nsqConsumer *nsq.Consumer
+	producer    *nsq.Producer
+
+	options RequestControllerOptions
+	logger  glog.Log
 }
 
 func NewRequestController(
 	ctx context.Context,
 	engine *xorm.Engine,
-	threadCtrl *threadCtrl.ThreadController,
 	historyCtrl *historyCtrl.RequestHistoryController,
 	crawlerCtrl *crawlerCtrl.CrawlerController,
 	requestManager *reqManager.RequestManager,
 	redisClient *redis.RedisClient,
 	pigate *pigate.PigateClient,
-	sessionManager pbSession.SessionManagerClient,
 	options RequestControllerOptions,
 	logger glog.Log) (*RequestController, error) {
 
 	if engine == nil {
 		return nil, errors.New("invalid xorm engine")
-	}
-	if threadCtrl == nil {
-		return nil, errors.New("invalid thread controller")
 	}
 	if historyCtrl == nil {
 		return nil, errors.New("invalid history controller")
@@ -79,9 +71,6 @@ func NewRequestController(
 	if pigate == nil {
 		return nil, errors.New("invalid pigate client")
 	}
-	if sessionManager == nil {
-		return nil, errors.New("invalid session manager")
-	}
 	if len(options.NsqLookupdAddresses) == 0 {
 		return nil, errors.New("invalid nsq lookupd address")
 	}
@@ -89,18 +78,24 @@ func NewRequestController(
 	ctrl := RequestController{
 		ctx:            ctx,
 		engine:         engine,
-		threadCtrl:     threadCtrl,
 		historyCtrl:    historyCtrl,
 		crawlerCtrl:    crawlerCtrl,
 		requestManager: requestManager,
 		redisClient:    redisClient,
 		pigate:         pigate,
-		sessionManager: sessionManager,
 		options:        options,
 		logger:         logger.New("RequestController"),
 	}
 
 	var err error
+	conf := nsq.NewConfig()
+	conf.MsgTimeout = time.Minute * 5
+	conf.MaxAttempts = 3
+
+	if ctrl.producer, err = nsq.NewProducer(options.NsqdAddress, conf); err != nil {
+		return nil, err
+	}
+
 	if ctrl.nsqConsumer, err = nsq.NewConsumer(config.CrawlRequestTopic, "crawl-api", nsq.NewConfig()); err != nil {
 		return nil, err
 	}
@@ -127,13 +122,19 @@ func (ctrl *RequestController) PublishRequest(ctx context.Context, session *xorm
 		return pbError.ErrInvalidArgument.New("invalid request")
 	}
 
+	var req pbCrawl.Request
+	if err := r.Unmarshal(&req); err != nil {
+		ctrl.logger.Error(err)
+		return pbError.ErrInternal.New(err)
+	}
+
 	if !force {
-		isMem, err := redis.Bool(ctrl.redisClient.Do("SISMEMBER", config.CrawlRequestQueueSet, r.GetId()))
+		isMeb, err := redis.Bool(ctrl.redisClient.Do("SISMEMBER", config.CrawlRequestQueueSet, r.GetId()))
 		if err != nil {
 			logger.Errorf("check if request %s is queued failed, error=%s", r.GetId(), err)
 			return err
 		}
-		if isMem {
+		if isMeb {
 			return nil
 		}
 	}
@@ -148,295 +149,13 @@ func (ctrl *RequestController) PublishRequest(ctx context.Context, session *xorm
 		session.Rollback()
 		return err
 	} else if succeed {
-		key := fmt.Sprintf(config.CrawlRequestStoreQueue, r.GetStoreId())
-		if _, err := ctrl.redisClient.Do("EVAL", requestPushScript, 3,
-			config.CrawlStoreList, key, config.CrawlRequestQueueSet, r.GetId()); err != nil {
-			ctrl.logger.Errorf("requeue request %s failed, error=%s", r.GetId(), err)
-			return err
+		key := fmt.Sprintf("%s-%s", config.CrawlRequestTopic, r.GetStoreId())
+		data, _ := proto.Marshal(&req)
+		if err := ctrl.producer.Publish(key, data); err != nil {
+			ctrl.logger.Error(err)
+			return pbError.ErrInternal.New(err)
 		}
 		return nil
 	}
 	return pbError.ErrFailedPrecondition.New("max retry count reached")
-}
-
-const (
-	defaultCheckTimeoutRequestInterval = time.Second * 5
-
-	// KEYS[1]-Stores, KEYS[2]-StoreQueue, KEYS[3]-Set
-	// ARGV[1]-reqId
-	requestPushScript = `local ret = redis.call("LPUSH", KEYS[2], ARGV[1])
-redis.call("SADD", KEYS[3], ARGV[1])
-local count = redis.call("LLEN", KEYS[2])
-redis.call("ZADD", KEYS[1], count, KEYS[2])
-return ret`
-
-	// KEYS[1]-Stores, KEYS[2]-StoreQueue
-	requestPopScript = `local ret = redis.call("RPOP", KEYS[2])
-local count = redis.call("LLEN", KEYS[2])
-if count == nil or count == 0 then
-    redis.call("ZREM", KEYS[1], KEYS[2])
-else
-    redis.call("ZADD", KEYS[1], count, KEYS[2])
-end
-return ret`
-)
-
-func (ctrl *RequestController) Run(ctx context.Context) error {
-	if ctrl == nil {
-		return nil
-	}
-
-	go func() {
-		timer := time.NewTimer(defaultCheckTimeoutRequestInterval)
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-timer.C:
-				reqs, err := ctrl.requestManager.List(ctx, nil, reqManager.ListRequest{
-					Page: 1, Count: 200, Retryable: true,
-				})
-				if err != nil {
-					ctrl.logger.Errorf("list request failed, error=%s", err)
-					timer.Reset(defaultCheckTimeoutRequestInterval)
-					continue
-				}
-
-				for _, req := range reqs {
-					if err := ctrl.PublishRequest(ctx, nil, req, false); err != nil {
-						ctrl.historyCtrl.Publish(ctx, req.GetId(), "", 0, 0,
-							ctrl.logger.Errorf("publish request failed, error=%s", err).ToError().Error())
-					}
-				}
-				timer.Reset(defaultCheckTimeoutRequestInterval)
-			}
-		}
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			ctrl.logger.Error(ctx.Err())
-			return ctx.Err()
-		default:
-			stores, err := redis.Strings(ctrl.redisClient.Do("ZRANGE", config.CrawlStoreList, 0, -1))
-			if err != nil {
-				ctrl.logger.Errorf("get queues failed, error=%s", err)
-				time.Sleep(time.Millisecond * 200)
-				continue
-			}
-
-			for _, key := range stores {
-				host := strings.TrimPrefix(key, config.CrawlRequestStoreQueuePrefix)
-				if !ctrl.threadCtrl.TryLock(host) {
-					continue
-				}
-
-				reqId, err := redis.String(ctrl.redisClient.Do("EVAL", requestPopScript, 2, config.CrawlStoreList, key))
-				if err == redis.ErrNil {
-					continue
-				} else if err != nil {
-					ctrl.logger.Errorf("pop data from %s failed, error=%s", key, err)
-					continue
-				}
-
-				req, err := func() (*request.Request, error) {
-					req, err := ctrl.requestManager.GetById(ctx, reqId)
-					if err != nil {
-						ctrl.logger.Errorf("get request %s failed, error=%s", reqId, err)
-						return nil, err
-					}
-					if req == nil {
-						return nil, ctrl.logger.Errorf("request %s not found", reqId).ToError()
-					}
-					return req, nil
-				}()
-				if err != nil {
-					ctrl.historyCtrl.Publish(ctx, reqId, "", 0, 0, err.Error())
-					if _, err := ctrl.redisClient.Do("SREM", config.CrawlRequestQueueSet, reqId); err != nil {
-						ctrl.logger.Errorf("remove req %s cache set failed, error=%s", reqId, err)
-					}
-					continue
-				}
-
-				// lock at most 5mins
-				if ctrl.threadCtrl.Lock(req.GetStoreId(), req.GetId(), req.GetOptions().GetMaxTtlPerRequest()) {
-					ctrl.logger.Debugf("locked %s %s", req.GetStoreId(), req.GetId())
-
-					// get crawl options
-					// TODO: check crawl options
-					go func(ctx context.Context, req *request.Request) {
-						ctrl.logger.Infof("%s %s", req.GetMethod(), req.GetUrl())
-
-						if _, err := ctrl.requestManager.UpdateStatus(ctx, nil, reqId, 2, false); err != nil {
-							ctrl.logger.Errorf("update request status failed, error=%s", err)
-						}
-
-						err := func() (err error) {
-							defer func() {
-								if e := recover(); e != nil {
-									err = fmt.Errorf("%v", e)
-								}
-							}()
-
-							crawlers, err := ctrl.crawlerCtrl.GetCrawlerByUrl(ctx, req.GetUrl())
-							if err != nil {
-								ctrl.logger.Errorf("check crawler for %s failed, error=%s", req.GetUrl(), err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
-								return err
-							}
-							if len(crawlers) == 0 {
-								ctrl.logger.Warnf("not crawler found for %s", req.GetUrl())
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, "no useable crawler")
-								err = fmt.Errorf("no crawler usable for %s", req.GetUrl())
-								return
-							}
-							options := crawlers[0].GetOptions()
-
-							var proxyReq pbProxy.Request
-							if err := req.Unmarshal(&proxyReq); err != nil {
-								ctrl.logger.Errorf("unmarshal request to proxy.Request failed, error=%s", err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
-								return err
-							}
-
-							for k, v := range options.GetHeaders() {
-								if lv, ok := proxyReq.GetHeaders()[k]; ok {
-									lv.Values = lv.Values[0:0]
-									lv.Values = append(lv.Values, v)
-								} else {
-									proxyReq.Headers[k] = &pbHttp.ListValue{Values: []string{v}}
-								}
-							}
-
-							var (
-								cookie    string
-								cookieMap = map[string]string{}
-								reqUrl, _ = url.Parse(req.GetUrl())
-							)
-							for _, c := range req.Cookies() {
-								if c.Path == "" || c.Path == "/" || strings.HasPrefix(reqUrl.Path, c.Path) {
-									cookieMap[c.Name] = c.Value
-								}
-							}
-							for _, c := range options.GetCookies() {
-								if c.Path == "" || c.Path == "/" || strings.HasPrefix(reqUrl.Path, c.Path) {
-									cookieMap[c.Name] = c.Value
-								}
-							}
-							for k, v := range cookieMap {
-								v := fmt.Sprintf("%s=%s", k, v)
-								if cookie == "" {
-									cookie = v
-								} else {
-									cookie = cookie + "; " + v
-								}
-							}
-							if cookie != "" {
-								proxyReq.GetHeaders()["Cookie"] = &pbHttp.ListValue{Values: []string{cookie}}
-							}
-
-							// EnableProxy, MaxTtlPerRequest set in Unmarshal
-							proxyReq.Options.Reliability = options.Reliability
-							proxyReq.Options.EnableHeadless = options.EnableHeadless
-							proxyReq.Options.JsWaitDuration = options.JsWaitDuration
-							proxyReq.Options.EnableSessionInit = options.EnableSessionInit
-							proxyReq.Options.KeepSession = options.KeepSession
-							proxyReq.Options.DisableCookieJar = options.DisableCookieJar
-							proxyReq.Options.DisableRedirect = options.DisableRedirect
-							proxyReq.Options.RequestFilterKeys = options.RequestFilterKeys
-
-							reqCtx := context.WithValue(ctx, "tracing_id", req.GetTracingId())
-							reqCtx = context.WithValue(reqCtx, "job_id", req.GetJobId())
-							reqCtx = context.WithValue(reqCtx, "req_id", req.GetId())
-
-							reqCtx, cancelFunc := context.WithTimeout(reqCtx,
-								time.Duration(proxyReq.GetOptions().GetMaxTtlPerRequest())*time.Second)
-							defer cancelFunc()
-
-							startTimestamp := time.Now().UnixNano()
-							proxyResp, err := ctrl.pigate.Do(reqCtx, &proxyReq)
-							duration := int32((time.Now().UnixNano() - startTimestamp) / 1000000)
-							if err != nil {
-								ctrl.logger.Errorf("do %s request failed, error=%s", req.GetUrl(), err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), duration, 0, err.Error())
-								return
-							}
-							ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), duration, proxyResp.StatusCode, "")
-
-							if proxyResp.GetStatusCode() == -1 ||
-								proxyResp.GetStatusCode() == http.StatusForbidden ||
-								proxyResp.GetStatusCode() == http.StatusTooManyRequests {
-
-								if _, err := ctrl.sessionManager.ClearCookies(ctx, &pbSession.ClearCookiesRequest{
-									TracingId: req.GetTracingId(),
-									Url:       req.GetUrl(),
-								}); err != nil {
-									ctrl.logger.Errorf("clear cookie for %s failed, error=%s", req.GetUrl(), err)
-								}
-
-								if proxyResp.GetStatusCode() == -1 {
-									err = errors.New(proxyResp.GetStatus())
-									return
-								}
-								// to requeue again
-								err = errors.New("access forbidden")
-								return
-							}
-							if proxyResp.GetRequest() == nil {
-								err = fmt.Errorf("request info missing for %s", req.GetUrl())
-								return
-							}
-
-							// parse respose, if failed, queue the request again
-							if _, err := ctrl.crawlerCtrl.Parse(ctx, req, proxyResp, false); err != nil {
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
-								ctrl.logger.Errorf("parse response from %s failed, error=%s", req.GetUrl(), err)
-								return err
-							}
-							return
-						}()
-
-						ctrl.threadCtrl.Unlock(req.GetStoreId(), req.GetId(), err)
-						ctrl.logger.Debugf("unlocked %s %s", req.GetStoreId(), req.GetId())
-
-						var (
-							status        int32 = 3
-							isSucceed           = true
-							isRepublished       = false
-						)
-						if err != nil {
-							isSucceed = false
-							if err := ctrl.PublishRequest(ctx, nil, req, true); err != nil {
-								ctrl.logger.Errorf("publish request %s failed, error=%s", req.GetId(), err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
-							} else {
-								isRepublished = true
-							}
-						}
-						if !isRepublished {
-							if _, err := ctrl.requestManager.UpdateStatus(ctx, nil,
-								req.GetId(), status, isSucceed); err != nil {
-
-								ctrl.logger.Errorf("update status of request %s failed, error=%s", req.GetId(), err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
-							}
-							if _, err := ctrl.redisClient.Do("SREM", config.CrawlRequestQueueSet, req.GetId()); err != nil {
-								ctrl.logger.Errorf("remove req cache key failed, error=%s", err)
-								ctrl.historyCtrl.Publish(ctx, req.GetId(), req.GetStoreId(), 0, 0, err.Error())
-							}
-						}
-					}(ctx, req)
-				} else if _, err := ctrl.redisClient.Do("EVAL", requestPushScript, 3,
-					config.CrawlStoreList, key, config.CrawlRequestQueueSet, reqId); err != nil {
-					ctrl.logger.Errorf("requeue request %s failed, error=%s", reqId, err)
-					ctrl.historyCtrl.Publish(ctx, reqId, req.GetStoreId(), 0, 0, err.Error())
-				}
-			}
-			if len(stores) == 0 {
-				time.Sleep(time.Millisecond * 100)
-			}
-		}
-	}
 }

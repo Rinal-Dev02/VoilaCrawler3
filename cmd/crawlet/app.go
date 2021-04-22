@@ -13,6 +13,7 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/urfave/cli/v2"
+	"github.com/voiladev/VoilaCrawl/internal/api/crawlet/manager"
 	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
 	storeCtrl "github.com/voiladev/VoilaCrawl/internal/controller/store"
 	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
@@ -151,16 +152,7 @@ func (app *App) Run(args []string) {
 			fx.Provide(storeCtrl.NewStoreController),
 
 			// Register services
-			fx.Provide(func(storeCtrl *storeCtrl.StoreController,
-				crawlerManager *crawlerManager.CrawlerManager,
-				logger glog.Log) (pbCrawl.CrawlerManagerServer, pbCrawl.GatewayServer, error) {
-
-				server, err := NewCrawlerServer(storeCtrl, crawlerManager, logger)
-				if err != nil {
-					return nil, nil, err
-				}
-				return pbCrawl.CrawlerManagerServer(server), pbCrawl.GatewayServer(server), nil
-			}),
+			fx.Provide(manager.NewCrawlerServer),
 			// Register grpc handler
 			fx.Invoke(pbCrawl.RegisterCrawlerManagerServer),
 

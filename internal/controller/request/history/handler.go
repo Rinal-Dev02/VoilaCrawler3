@@ -2,13 +2,14 @@ package history
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/nsqio/go-nsq"
 	"github.com/voiladev/VoilaCrawl/pkg/types"
+	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
+	"google.golang.org/protobuf/proto"
 )
 
 var (
@@ -26,18 +27,26 @@ func (h *RequestHistoryHandler) HandleMessage(msg *nsq.Message) error {
 	if h == nil {
 		return nil
 	}
-	msg.DisableAutoResponse()
 
 	ctx, cancel := context.WithTimeout(h.ctrl.ctx, time.Minute)
 	defer cancel()
 
-	var his types.RequestHistory
-	if err := json.Unmarshal(msg.Body, &his); err != nil {
-		h.logger.Errorf("unmarshal request failed, error=%s", err)
-		msg.Finish()
+	var errData pbCrawl.Error
+	if err := proto.Unmarshal(msg.Body, &errData); err != nil {
+		h.logger.Errorf("invalid data format, error=%s", err)
 		return err
 	}
 
+	his := types.RequestHistory{
+		Id:        errData.GetReqId(),
+		Timestamp: errData.GetTimestamp(),
+		TracingId: errData.GetTracingId(),
+		StoreId:   errData.GetStoreId(),
+		JobId:     errData.GetJobId(),
+		Code:      errData.GetCode(),
+		ErrMsg:    errData.GetErrMsg(),
+		Duration:  int32(errData.GetDuration()),
+	}
 	if err := h.ctrl.historyManager.Save(ctx, nil, &his); err != nil {
 		e := pbError.NewFromError(err)
 		if e.Code() == int(pbError.Code_Internal) {

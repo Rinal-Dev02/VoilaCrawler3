@@ -83,13 +83,17 @@ message RequestHistory {
 	string id   = 1 [(gogoproto.moretags) = "xorm:\"varchar(64) pk\""];
     // Timestamp
 	int64 timestamp = 2 [(gogoproto.moretags) = "xorm:\"pk\""];
+	// TracingId
+	string tracingId = 3 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
 	// StoreId
-	string storeId = 3 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
+	string storeId = 4 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
+	// JobId
+	string jobId   = 5 [(gogoproto.moretags) = "xorm:\"varchar(64) index\""];
 
-    // StatusCode
-	int32  statusCode = 6;
+    // Code status code or error code
+	int32  code   = 6 [(gogoproto.moretags) = "xorm:\"index\""];
 	// ErrMsg
 	string errMsg = 7 [(gogoproto.moretags) = "xorm:\"text\""];
 	// Duration
-	int32  duration   = 10;
+	int32  duration = 10;
 }

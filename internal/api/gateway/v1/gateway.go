@@ -3,24 +3,14 @@ package v1
 import (
 	"context"
 	"errors"
-	"fmt"
-	"io"
-	"net"
-	"time"
 
-	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
 	reqCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request"
-	"github.com/voiladev/VoilaCrawl/internal/model/crawler"
-	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
 	"github.com/voiladev/VoilaCrawl/internal/model/request"
 	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
-	"github.com/voiladev/go-framework/protoutil"
 	"github.com/voiladev/go-framework/redis"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/protobuf/proto"
 	"xorm.io/xorm"
 )
 
@@ -28,22 +18,34 @@ type GatewayServer struct {
 	pbCrawl.UnimplementedGatewayServer
 
 	ctx            context.Context
-	crawlerCtrl    *crawlerCtrl.CrawlerController
-	crawlerManager *crawlerManager.CrawlerManager
+	engine         *xorm.Engine
+	redisClient    *redis.RedisClient
+	requestManager *reqManager.RequestManager
+	requestCtrl    *reqCtrl.RequestController
+	crawlerClient  pbCrawl.CrawlerManagerClient
 	logger         glog.Log
 }
 
 func NewGatewayServer(
 	ctx context.Context,
-	crawlerCtrl *crawlerCtrl.CrawlerController,
-	crawlerManager *crawlerManager.CrawlerManager,
+	engine *xorm.Engine,
+	crawlerClient pbCrawl.CrawlerManagerClient,
+	redisClient *redis.RedisClient,
+	requestCtrl *reqCtrl.RequestController,
+	requestManager *reqManager.RequestManager,
 	logger glog.Log,
 ) (pbCrawl.GatewayServer, error) {
-	if crawlerCtrl == nil {
-		return nil, errors.New("invalid crawler controller")
+	if crawlerClient == nil {
+		return nil, errors.New("invalid crawler client")
 	}
-	if crawlerManager == nil {
-		return nil, errors.New("invalid crawler manager")
+	if requestCtrl == nil {
+		return nil, errors.New("invalid request controller")
+	}
+	if redisClient == nil {
+		return nil, errors.New("invalid redis client")
+	}
+	if requestManager == nil {
+		return nil, errors.New("invalid request manager")
 	}
 	if logger == nil {
 		return nil, errors.New("invalid logger")
@@ -51,79 +53,76 @@ func NewGatewayServer(
 
 	s := GatewayServer{
 		ctx:            ctx,
-		crawlerCtrl:    crawlerCtrl,
-		crawlerManager: crawlerManager,
+		engine:         engine,
+		crawlerClient:  crawlerClient,
+		requestCtrl:    requestCtrl,
+		redisClient:    redisClient,
+		requestManager: requestManager,
 		logger:         logger.New("GatewayServer"),
 	}
 	return &s, nil
 }
 
-func (s *GatewayServer) Connect(srv pbCrawl.Gateway_ConnectServer) (err error) {
+// Crawlers
+func (s *GatewayServer) GetCrawlers(ctx context.Context, req *pbCrawl.GetCrawlersRequest) (*pbCrawl.GetCrawlersResponse, error) {
 	if s == nil {
-		return nil
+		return nil, nil
 	}
-	logger := s.logger.New("Connect")
+	return s.crawlerClient.GetCrawlers(ctx, req)
+}
 
-	defer func() {
-		if e := recover(); e != nil {
-			err = fmt.Errorf("%s", e)
-		}
-		// TODO: remove crawler
-	}()
+// GetCrawler
+func (s *GatewayServer) GetCrawler(ctx context.Context, req *pbCrawl.GetCrawlerRequest) (*pbCrawl.GetCrawlerResponse, error) {
+	if s == nil {
+		return nil, nil
+	}
+	return s.crawlerClient.GetCrawler(ctx, req)
+}
 
-	var (
-		ip           string
-		isRegistered bool
-		ctx          = srv.Context()
-	)
-	if peer, _ := peer.FromContext(srv.Context()); peer != nil {
-		ip, _, _ = net.SplitHostPort(peer.Addr.String())
-	} else {
-		return fmt.Errorf("get peer info failed")
+// GetCanonicalUrl
+func (s *GatewayServer) GetCanonicalUrl(ctx context.Context, req *pbCrawl.GetCanonicalUrlRequest) (*pbCrawl.GetCanonicalUrlResponse, error) {
+	if s == nil {
+		return nil, nil
+	}
+	return s.crawlerClient.GetCanonicalUrl(ctx, req)
+}
+
+func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*pbCrawl.FetchResponse, error) {
+	if s == nil {
+		return nil, nil
+	}
+	logger := s.logger.New("Fetch")
+
+	r, err := request.NewRequest(req)
+	if err != nil {
+		logger.Errorf("load request failed, error=%s", err)
+		return nil, pbError.ErrInvalidArgument.New(err)
+	}
+	if r.GetJobId() == "" {
+		return nil, pbError.ErrInvalidArgument.New("invalid job id")
 	}
 
-	for {
-		anyData, err := srv.Recv()
-		if err != nil {
-			if err == io.EOF {
-				return nil
-			}
-			return err
-		}
+	session := s.engine.NewSession()
+	defer session.Close()
 
-		switch anyData.GetTypeUrl() {
-		case protoutil.GetTypeUrl(&pbCrawl.ConnectRequest_Ping{}):
-			if isRegistered {
-				logger.Errorf("dumplicate register request")
-				continue
-			}
-
-			var data pbCrawl.ConnectRequest_Ping
-			if err := proto.Unmarshal(anyData.GetValue(), &data); err != nil {
-				logger.Error(err)
-				return err
-			}
-
-			cw, err := crawler.NewCrawler(&data)
-			if err != nil {
-				logger.Error(err)
-				return err
-			}
-			cw.ServeIP = ip
-
-			s.crawlerManager.Delete()
-
-			isRegistered = true
-		case protoutil.GetTypeUrl(&pbCrawl.ConnectRequest_Heartbeat{}):
-			var data pbCrawl.ConnectRequest_Heartbeat
-			if err := proto.Unmarshal(anyData.GetValue(), &data); err != nil {
-				logger.Error(err)
-				return err
-			}
-		default:
-			logger.Errorf("unsupported type %s", anyData.GetTypeUrl())
-			continue
-		}
+	if r, err = s.requestManager.Create(ctx, session, r); err != nil && err != pbError.ErrAlreadyExists {
+		logger.Errorf("save request failed, error=%s", err)
+		return nil, err
 	}
-	return nil
+
+	if err := session.Begin(); err != nil {
+		logger.Errorf("begin tx failed, error=%s", err)
+		return nil, pbError.ErrDatabase.New("begin tx failed")
+	}
+	if err := s.requestCtrl.PublishRequest(ctx, session, r, true); err != nil {
+		logger.Errorf("publish request failed, error=%s", err)
+		session.Rollback()
+		return nil, err
+	}
+
+	if err := session.Commit(); err != nil {
+		logger.Errorf("commit tx failed, error=%s", err)
+		return nil, pbError.ErrDatabase.New("commit tx failed")
+	}
+	return &pbCrawl.FetchResponse{}, nil
 }

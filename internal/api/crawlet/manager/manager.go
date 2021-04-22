@@ -1,4 +1,4 @@
-package main
+package manager
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 
 type CrawlerServer struct {
 	pbCrawl.UnimplementedCrawlerManagerServer
-	pbCrawl.UnimplementedGatewayServer
+	pbCrawl.UnimplementedCrawlerRegisterServer
 
 	storeCtrl      *storeCtrl.StoreController
 	crawlerCtrl    *crawlerCtrl.CrawlerController
@@ -33,22 +33,22 @@ type CrawlerServer struct {
 }
 
 func NewCrawlerServer(storeCtrl *storeCtrl.StoreController,
-	crawlerManager *crawlerManager.CrawlerManager, logger glog.Log) (*CrawlerServer, error) {
+	crawlerManager *crawlerManager.CrawlerManager, logger glog.Log) (pbCrawl.CrawlerManagerServer, pbCrawl.CrawlerRegisterServer, error) {
 	if storeCtrl == nil {
-		return nil, errors.New("invalid store controller")
+		return nil, nil, errors.New("invalid store controller")
 	}
 	if crawlerManager == nil {
-		return nil, errors.New("invalid crawler manager")
+		return nil, nil, errors.New("invalid crawler manager")
 	}
 	if logger == nil {
-		return nil, errors.New("invalid logger")
+		return nil, nil, errors.New("invalid logger")
 	}
 	s := CrawlerServer{
 		storeCtrl:      storeCtrl,
 		crawlerManager: crawlerManager,
 		logger:         logger,
 	}
-	return &s, nil
+	return &s, &s, nil
 }
 
 func (s *CrawlerServer) GetCrawlers(ctx context.Context, req *pbCrawl.GetCrawlersRequest) (*pbCrawl.GetCrawlersResponse, error) {
@@ -144,7 +144,7 @@ func (s *CrawlerServer) DoParse(ctx context.Context, req *pbCrawl.DoParseRequest
 	return &pbCrawl.DoParseResponse{}, nil
 }
 
-func (s *CrawlerServer) Connect(srv pbCrawl.Gateway_ConnectServer) (err error) {
+func (s *CrawlerServer) Connect(srv pbCrawl.CrawlerRegister_ConnectServer) (err error) {
 	if s == nil {
 		return nil
 	}

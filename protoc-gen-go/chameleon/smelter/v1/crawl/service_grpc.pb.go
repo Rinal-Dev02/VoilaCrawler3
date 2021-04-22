@@ -283,46 +283,46 @@ var CrawlerNode_ServiceDesc = grpc.ServiceDesc{
 	Metadata: "chameleon/smelter/v1/crawl/service.proto",
 }
 
-// GatewayClient is the client API for Gateway service.
+// CrawlerRegisterClient is the client API for CrawlerRegister service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type GatewayClient interface {
+type CrawlerRegisterClient interface {
 	// Connect
-	Connect(ctx context.Context, opts ...grpc.CallOption) (Gateway_ConnectClient, error)
+	Connect(ctx context.Context, opts ...grpc.CallOption) (CrawlerRegister_ConnectClient, error)
 }
 
-type gatewayClient struct {
+type crawlerRegisterClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewGatewayClient(cc grpc.ClientConnInterface) GatewayClient {
-	return &gatewayClient{cc}
+func NewCrawlerRegisterClient(cc grpc.ClientConnInterface) CrawlerRegisterClient {
+	return &crawlerRegisterClient{cc}
 }
 
-func (c *gatewayClient) Connect(ctx context.Context, opts ...grpc.CallOption) (Gateway_ConnectClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Gateway_ServiceDesc.Streams[0], "/chameleon.smelter.v1.crawl.Gateway/Connect", opts...)
+func (c *crawlerRegisterClient) Connect(ctx context.Context, opts ...grpc.CallOption) (CrawlerRegister_ConnectClient, error) {
+	stream, err := c.cc.NewStream(ctx, &CrawlerRegister_ServiceDesc.Streams[0], "/chameleon.smelter.v1.crawl.CrawlerRegister/Connect", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &gatewayConnectClient{stream}
+	x := &crawlerRegisterConnectClient{stream}
 	return x, nil
 }
 
-type Gateway_ConnectClient interface {
+type CrawlerRegister_ConnectClient interface {
 	Send(*anypb.Any) error
 	Recv() (*anypb.Any, error)
 	grpc.ClientStream
 }
 
-type gatewayConnectClient struct {
+type crawlerRegisterConnectClient struct {
 	grpc.ClientStream
 }
 
-func (x *gatewayConnectClient) Send(m *anypb.Any) error {
+func (x *crawlerRegisterConnectClient) Send(m *anypb.Any) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *gatewayConnectClient) Recv() (*anypb.Any, error) {
+func (x *crawlerRegisterConnectClient) Recv() (*anypb.Any, error) {
 	m := new(anypb.Any)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -330,54 +330,54 @@ func (x *gatewayConnectClient) Recv() (*anypb.Any, error) {
 	return m, nil
 }
 
-// GatewayServer is the server API for Gateway service.
-// All implementations must embed UnimplementedGatewayServer
+// CrawlerRegisterServer is the server API for CrawlerRegister service.
+// All implementations must embed UnimplementedCrawlerRegisterServer
 // for forward compatibility
-type GatewayServer interface {
+type CrawlerRegisterServer interface {
 	// Connect
-	Connect(Gateway_ConnectServer) error
-	mustEmbedUnimplementedGatewayServer()
+	Connect(CrawlerRegister_ConnectServer) error
+	mustEmbedUnimplementedCrawlerRegisterServer()
 }
 
-// UnimplementedGatewayServer must be embedded to have forward compatible implementations.
-type UnimplementedGatewayServer struct {
+// UnimplementedCrawlerRegisterServer must be embedded to have forward compatible implementations.
+type UnimplementedCrawlerRegisterServer struct {
 }
 
-func (UnimplementedGatewayServer) Connect(Gateway_ConnectServer) error {
+func (UnimplementedCrawlerRegisterServer) Connect(CrawlerRegister_ConnectServer) error {
 	return status.Errorf(codes.Unimplemented, "method Connect not implemented")
 }
-func (UnimplementedGatewayServer) mustEmbedUnimplementedGatewayServer() {}
+func (UnimplementedCrawlerRegisterServer) mustEmbedUnimplementedCrawlerRegisterServer() {}
 
-// UnsafeGatewayServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to GatewayServer will
+// UnsafeCrawlerRegisterServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to CrawlerRegisterServer will
 // result in compilation errors.
-type UnsafeGatewayServer interface {
-	mustEmbedUnimplementedGatewayServer()
+type UnsafeCrawlerRegisterServer interface {
+	mustEmbedUnimplementedCrawlerRegisterServer()
 }
 
-func RegisterGatewayServer(s grpc.ServiceRegistrar, srv GatewayServer) {
-	s.RegisterService(&Gateway_ServiceDesc, srv)
+func RegisterCrawlerRegisterServer(s grpc.ServiceRegistrar, srv CrawlerRegisterServer) {
+	s.RegisterService(&CrawlerRegister_ServiceDesc, srv)
 }
 
-func _Gateway_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(GatewayServer).Connect(&gatewayConnectServer{stream})
+func _CrawlerRegister_Connect_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(CrawlerRegisterServer).Connect(&crawlerRegisterConnectServer{stream})
 }
 
-type Gateway_ConnectServer interface {
+type CrawlerRegister_ConnectServer interface {
 	Send(*anypb.Any) error
 	Recv() (*anypb.Any, error)
 	grpc.ServerStream
 }
 
-type gatewayConnectServer struct {
+type crawlerRegisterConnectServer struct {
 	grpc.ServerStream
 }
 
-func (x *gatewayConnectServer) Send(m *anypb.Any) error {
+func (x *crawlerRegisterConnectServer) Send(m *anypb.Any) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *gatewayConnectServer) Recv() (*anypb.Any, error) {
+func (x *crawlerRegisterConnectServer) Recv() (*anypb.Any, error) {
 	m := new(anypb.Any)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
@@ -385,17 +385,17 @@ func (x *gatewayConnectServer) Recv() (*anypb.Any, error) {
 	return m, nil
 }
 
-// Gateway_ServiceDesc is the grpc.ServiceDesc for Gateway service.
+// CrawlerRegister_ServiceDesc is the grpc.ServiceDesc for CrawlerRegister service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var Gateway_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "chameleon.smelter.v1.crawl.Gateway",
-	HandlerType: (*GatewayServer)(nil),
+var CrawlerRegister_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "chameleon.smelter.v1.crawl.CrawlerRegister",
+	HandlerType: (*CrawlerRegisterServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Connect",
-			Handler:       _Gateway_Connect_Handler,
+			Handler:       _CrawlerRegister_Connect_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},
@@ -647,6 +647,220 @@ var CrawlerManager_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DoParse",
 			Handler:    _CrawlerManager_DoParse_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "chameleon/smelter/v1/crawl/service.proto",
+}
+
+// GatewayClient is the client API for Gateway service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type GatewayClient interface {
+	// Crawlers
+	GetCrawlers(ctx context.Context, in *GetCrawlersRequest, opts ...grpc.CallOption) (*GetCrawlersResponse, error)
+	// GetCrawler
+	GetCrawler(ctx context.Context, in *GetCrawlerRequest, opts ...grpc.CallOption) (*GetCrawlerResponse, error)
+	// GetCanonicalUrl
+	GetCanonicalUrl(ctx context.Context, in *GetCanonicalUrlRequest, opts ...grpc.CallOption) (*GetCanonicalUrlResponse, error)
+	// 抓取 @desc 提交URL地址
+	// 对于不同情况下，抓取的数据响应处理方式不同;
+	// 对于定时抓取任务，或者全库抓取任务，抓取数据通过MQ提交给处理逻辑
+	// 对于及时抓取，比如获取商品的价格，直接返回结果
+	//
+	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
+	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
+	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
+}
+
+type gatewayClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewGatewayClient(cc grpc.ClientConnInterface) GatewayClient {
+	return &gatewayClient{cc}
+}
+
+func (c *gatewayClient) GetCrawlers(ctx context.Context, in *GetCrawlersRequest, opts ...grpc.CallOption) (*GetCrawlersResponse, error) {
+	out := new(GetCrawlersResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.Gateway/GetCrawlers", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayClient) GetCrawler(ctx context.Context, in *GetCrawlerRequest, opts ...grpc.CallOption) (*GetCrawlerResponse, error) {
+	out := new(GetCrawlerResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.Gateway/GetCrawler", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayClient) GetCanonicalUrl(ctx context.Context, in *GetCanonicalUrlRequest, opts ...grpc.CallOption) (*GetCanonicalUrlResponse, error) {
+	out := new(GetCanonicalUrlResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.Gateway/GetCanonicalUrl", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *gatewayClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error) {
+	out := new(FetchResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.Gateway/Fetch", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// GatewayServer is the server API for Gateway service.
+// All implementations must embed UnimplementedGatewayServer
+// for forward compatibility
+type GatewayServer interface {
+	// Crawlers
+	GetCrawlers(context.Context, *GetCrawlersRequest) (*GetCrawlersResponse, error)
+	// GetCrawler
+	GetCrawler(context.Context, *GetCrawlerRequest) (*GetCrawlerResponse, error)
+	// GetCanonicalUrl
+	GetCanonicalUrl(context.Context, *GetCanonicalUrlRequest) (*GetCanonicalUrlResponse, error)
+	// 抓取 @desc 提交URL地址
+	// 对于不同情况下，抓取的数据响应处理方式不同;
+	// 对于定时抓取任务，或者全库抓取任务，抓取数据通过MQ提交给处理逻辑
+	// 对于及时抓取，比如获取商品的价格，直接返回结果
+	//
+	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
+	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
+	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
+	mustEmbedUnimplementedGatewayServer()
+}
+
+// UnimplementedGatewayServer must be embedded to have forward compatible implementations.
+type UnimplementedGatewayServer struct {
+}
+
+func (UnimplementedGatewayServer) GetCrawlers(context.Context, *GetCrawlersRequest) (*GetCrawlersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCrawlers not implemented")
+}
+func (UnimplementedGatewayServer) GetCrawler(context.Context, *GetCrawlerRequest) (*GetCrawlerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCrawler not implemented")
+}
+func (UnimplementedGatewayServer) GetCanonicalUrl(context.Context, *GetCanonicalUrlRequest) (*GetCanonicalUrlResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCanonicalUrl not implemented")
+}
+func (UnimplementedGatewayServer) Fetch(context.Context, *FetchRequest) (*FetchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Fetch not implemented")
+}
+func (UnimplementedGatewayServer) mustEmbedUnimplementedGatewayServer() {}
+
+// UnsafeGatewayServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to GatewayServer will
+// result in compilation errors.
+type UnsafeGatewayServer interface {
+	mustEmbedUnimplementedGatewayServer()
+}
+
+func RegisterGatewayServer(s grpc.ServiceRegistrar, srv GatewayServer) {
+	s.RegisterService(&Gateway_ServiceDesc, srv)
+}
+
+func _Gateway_GetCrawlers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCrawlersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServer).GetCrawlers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawl.Gateway/GetCrawlers",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServer).GetCrawlers(ctx, req.(*GetCrawlersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Gateway_GetCrawler_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCrawlerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServer).GetCrawler(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawl.Gateway/GetCrawler",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServer).GetCrawler(ctx, req.(*GetCrawlerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Gateway_GetCanonicalUrl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCanonicalUrlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServer).GetCanonicalUrl(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawl.Gateway/GetCanonicalUrl",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServer).GetCanonicalUrl(ctx, req.(*GetCanonicalUrlRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Gateway_Fetch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServer).Fetch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawl.Gateway/Fetch",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServer).Fetch(ctx, req.(*FetchRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Gateway_ServiceDesc is the grpc.ServiceDesc for Gateway service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Gateway_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "chameleon.smelter.v1.crawl.Gateway",
+	HandlerType: (*GatewayServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetCrawlers",
+			Handler:    _Gateway_GetCrawlers_Handler,
+		},
+		{
+			MethodName: "GetCrawler",
+			Handler:    _Gateway_GetCrawler_Handler,
+		},
+		{
+			MethodName: "GetCanonicalUrl",
+			Handler:    _Gateway_GetCanonicalUrl_Handler,
+		},
+		{
+			MethodName: "Fetch",
+			Handler:    _Gateway_Fetch_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -12,20 +12,15 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
-	"github.com/nsqio/go-nsq"
 	"github.com/urfave/cli/v2"
 	svcGateway "github.com/voiladev/VoilaCrawl/internal/api/gateway/v1"
-	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
 	reqCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request"
 	"github.com/voiladev/VoilaCrawl/internal/controller/request/history"
 	historyCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request/history"
-	threadCtrl "github.com/voiladev/VoilaCrawl/internal/controller/thread"
 	historyManager "github.com/voiladev/VoilaCrawl/internal/model/request/history/manager"
 	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
-	"github.com/voiladev/VoilaCrawl/pkg/pigate"
 	"github.com/voiladev/VoilaCrawl/pkg/types"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
-	pbSession "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/grpcutil"
 	"github.com/voiladev/go-framework/invocation"
@@ -116,21 +111,10 @@ func (app *App) Run(args []string) {
 			Value: "voiladev.com:4150",
 		},
 		&cli.StringFlag{
+			// TODO: added support for crawlet client group
+			// currently, only support one grpc
 			Name:  "crawlet-addr",
 			Usage: "crawlet server grpc address",
-		},
-		&cli.StringFlag{
-			Name:  "pigate-addr",
-			Usage: "pigate server addresss",
-		},
-		&cli.StringFlag{
-			Name:  "session-addr",
-			Usage: "session server grpc address",
-		},
-		&cli.IntFlag{
-			Name:  "host-concurrency",
-			Usage: "max connections per host",
-			Value: 2,
 		},
 		&cli.BoolFlag{
 			Name:  "disable-access-control",
@@ -173,18 +157,6 @@ func (app *App) Run(args []string) {
 			fx.Provide(reqManager.NewRequestManager),
 			fx.Provide(historyManager.NewHistoryManager),
 
-			fx.Provide(func() (pbSession.SessionManagerClient, error) {
-				if c.String("session-addr") == "" {
-					return nil, cli.NewExitError("invalid session address", 1)
-				}
-				conn, err := grpc.DialContext(app.ctx, c.String("session-addr"), grpc.WithInsecure())
-				if err != nil {
-					logger.Error(err)
-					return nil, cli.NewExitError(err, 1)
-				}
-				return pbSession.NewSessionManagerClient(conn), nil
-			}),
-
 			// Controller
 			fx.Provide(func() (pbCrawl.CrawlerManagerClient, error) {
 				crawletAddr := c.String("crawlet-addr")
@@ -201,22 +173,6 @@ func (app *App) Run(args []string) {
 				}
 				return pbCrawl.NewCrawlerManagerClient(conn), nil
 			}),
-			fx.Provide(crawlerCtrl.NewCrawlerController),
-			fx.Provide(func(logger glog.Log) (*pigate.PigateClient, error) {
-				pigateAddr := c.String("pigate-addr")
-				if pigateAddr == "" {
-					return nil, errors.New("invalid pigate addr")
-				}
-				return pigate.NewPigateClient(pigateAddr, logger)
-			}),
-
-			fx.Provide(func() (*nsq.Producer, error) {
-				nsqdAddr := c.String("nsqd-tcp-addr")
-				if nsqdAddr == "" {
-					return nil, errors.New("invalid nsqd address")
-				}
-				return nsq.NewProducer(nsqdAddr, nsq.NewConfig())
-			}),
 			fx.Provide(func() historyCtrl.RequestHistoryControllerOptions {
 				return historyCtrl.RequestHistoryControllerOptions{NsqLookupdAddresses: c.StringSlice("nsqlookupd-http-addr")}
 			}),
@@ -227,28 +183,14 @@ func (app *App) Run(args []string) {
 			}),
 			fx.Provide(reqCtrl.NewRequestController),
 
-			fx.Provide(func() (*threadCtrl.ThreadController, error) {
-				return threadCtrl.NewThreadController(app.ctx, int32(c.Int("host-concurrency")), logger)
-			}),
-
 			// Register services
 			fx.Provide(svcGateway.NewGatewayServer),
 
 			// Register grpc handler
 			fx.Invoke(pbCrawl.RegisterGatewayServer),
-			// fx.Invoke(pbCrawl.RegisterCrawlerManagerServer),
-			// fx.Invoke(pbCrawl.RegisterNodeManagerServer),
 
 			// Register http handler
 			fx.Invoke(pbCrawl.RegisterGatewayHandler),
-			fx.Invoke(func(reqCtrl *reqCtrl.RequestController) error {
-				go func() {
-					if err := reqCtrl.Run(app.ctx); err != nil {
-						logger.Fatal(err)
-					}
-				}()
-				return nil
-			}),
 		)
 
 		depInj := fx.New(options...)

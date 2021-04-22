@@ -33,7 +33,7 @@ func (h *RequestHander) HandleMessage(msg *nsq.Message) error {
 	ctx, cancel := context.WithTimeout(h.ctrl.ctx, time.Minute)
 	defer cancel()
 
-	var creq pbCrawl.Command_Request
+	var creq pbCrawl.Request
 	if err := proto.Unmarshal(msg.Body, &creq); err != nil {
 		h.logger.Errorf("unmarshal request failed, error=%s", err)
 		msg.Finish()
@@ -85,7 +85,7 @@ func (h *RequestHander) LogFailedMessage(msg *nsq.Message) {
 		return
 	}
 
-	var creq pbCrawl.Command_Request
+	var creq pbCrawl.Request
 	if err := proto.Unmarshal(msg.Body, &creq); err != nil {
 		h.logger.Errorf("unmarshal request failed, error=%s", err)
 		return

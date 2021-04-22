@@ -146,14 +146,14 @@ func (r *Request) Cookies() []*pbHttp.Cookie {
 
 func (r *Request) Unmarshal(ret interface{}) error {
 	if r == nil {
-		return errors.New("empty")
+		return errors.New("nil request")
 	}
 	if ret == nil {
 		return nil
 	}
 
 	switch val := ret.(type) {
-	case *pbCrawl.Command_Request:
+	case *pbCrawl.Request:
 		val.TracingId = r.GetTracingId()
 		val.JobId = r.GetJobId()
 		val.ReqId = r.GetId()
@@ -176,7 +176,7 @@ func (r *Request) Unmarshal(ret interface{}) error {
 				return err
 			}
 		}
-		val.Options = &pbCrawl.Command_Request_Options{
+		val.Options = &pbCrawl.Request_Options{
 			DisableProxy:     r.GetOptions().GetDisableProxy(),
 			MaxTtlPerRequest: r.GetOptions().GetMaxTtlPerRequest(),
 			MaxRetryCount:    r.GetOptions().GetMaxRetryCount(),
