@@ -18,10 +18,6 @@ jobs:
     - name: Granting private modules access
       run: git config --global url."https://${{ secrets.GO_MOD_TOKEN }}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
 
-    - name: Lint
-      run: |
-        go env -w GOPRIVATE=github.com/voiladev GONOPROXY="github.com/voiladev"
-        go vet ./cmd/...
     - name: Build
       run: make all
       
