@@ -140,7 +140,7 @@ func (m *CrawlerManager) GetByStore(ctx context.Context, storeId string) ([]*cra
 			continue
 		}
 		if cw == nil {
-			logger.Errorf("data not consitent, crawler %s registered in store list but instance is expired", id)
+			logger.Warnf("data not consitent, crawler %s registered in store list but instance is expired", id)
 			continue
 		}
 		cw.LastHeartbeatUtc = heartbeatUtc
@@ -223,14 +223,14 @@ func (m *CrawlerManager) Cache(ctx context.Context, crawler *crawler.Crawler, tt
 	t := time.Now().Unix()
 
 	// KEYS[1]=crawlersKey, [2]=storeKey, [3]=cacheKey
-	// ARGV[1]=storeId, [2]=detailData, [3]=TTL, [4]=timestamp
-	script := `redis.call("SET", KEYS[3], ARGV[2], "EX", ARGV[3])
-redis.call("ZADD", KEYS[2], ARGV[4], ARGV[1])
-redis.call("ZADD", KEYS[1], ARGV[4], ARGV[1])`
+	// ARGV[1]=storeId, [2]=crawlerId [3]=detailData, [4]=TTL, [5]=timestamp
+	script := `redis.call("SET", KEYS[3], ARGV[3], "EX", ARGV[4])
+redis.call("ZADD", KEYS[2], ARGV[5], ARGV[2])
+redis.call("ZADD", KEYS[1], ARGV[5], ARGV[1])`
 
 	if _, err := m.redisClient.Do("EVAL", script, 3,
 		crawlersKey, storeKey, cacheKey,
-		crawler.GetStoreId(), detailData, ttl, t); err != nil {
+		crawler.GetStoreId(), crawler.GetId(), detailData, ttl, t); err != nil {
 		logger.Error(err)
 		return pbError.ErrInternal.New(err)
 	}
@@ -247,13 +247,47 @@ func (m *CrawlerManager) Delete(ctx context.Context, storeId, id string) error {
 	}
 	logger := m.logger.New("Delete")
 
+	crawlersKey := crawlerStoresCacheKey()
 	cacheKey := crawlerDetailCacheKey(id)
 	storeKey := crawlerStoreCacheKey(storeId)
 
-	script := `redis.call("DEL", KEYS[2])
-redis.call("ZREM", KEYS[1], ARGV[1])`
+	script := `redis.call("DEL", KEYS[3])
+redis.call("ZREM", KEYS[2], ARGV[2])
+local count=redis.call("ZCARD", KEYS[2])
+if count == 0 then
+    redis.call("ZREM", KEYS[1], ARGV[1])
+end
+return 1
+`
 
-	if _, err := m.redisClient.Do("EVAL", script, 2, storeKey, cacheKey, id); err != nil {
+	if _, err := m.redisClient.Do("EVAL", script, 3, crawlersKey, storeKey, cacheKey, storeId, id); err != nil {
+		logger.Error(err)
+		return pbError.ErrInternal.New(err)
+	}
+	return nil
+}
+
+// Clean
+func (m *CrawlerManager) Clean(ctx context.Context, storeId string) error {
+	if m == nil {
+		return nil
+	}
+	if storeId == "" {
+		return pbError.ErrInvalidArgument.New("invalid storeId")
+	}
+	logger := m.logger.New("Clean")
+
+	storeKey := crawlerStoreCacheKey(storeId)
+
+	script := `local ids = redis.call("ZRANGE", KEYS[1], 0, -1)
+for _,id in ipairs(ids) do
+	if redis.call("EXISTS", "cache://stores/-/crawlers/"..id) ~= 1 then
+	    redis.call("ZREM", KEYS[1], id)
+	end
+end
+return 1`
+
+	if _, err := m.redisClient.Do("EVAL", script, 1, storeKey); err != nil {
 		logger.Error(err)
 		return pbError.ErrInternal.New(err)
 	}

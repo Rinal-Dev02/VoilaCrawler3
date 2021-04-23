@@ -155,9 +155,14 @@ func (app *App) Run(args []string) {
 			fx.Provide(manager.NewCrawlerServer),
 			// Register grpc handler
 			fx.Invoke(pbCrawl.RegisterCrawlerManagerServer),
+			fx.Invoke(pbCrawl.RegisterCrawlerRegisterServer),
 
 			// Register http handler
 			fx.Invoke(pbCrawl.RegisterCrawlerManagerHandler),
+			fx.Invoke(func(ctrl *storeCtrl.StoreController) error {
+				go ctrl.Run(app.ctx)
+				return nil
+			}),
 		)
 
 		depInj := fx.New(options...)

@@ -14,11 +14,13 @@ import (
 	"github.com/voiladev/VoilaCrawl/internal/model/crawler"
 	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
+	_ "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/protoutil"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 )
 
 type CrawlerServer struct {
@@ -32,10 +34,13 @@ type CrawlerServer struct {
 	logger         glog.Log
 }
 
-func NewCrawlerServer(storeCtrl *storeCtrl.StoreController,
+func NewCrawlerServer(storeCtrl *storeCtrl.StoreController, crawlerCtrl *crawlerCtrl.CrawlerController,
 	crawlerManager *crawlerManager.CrawlerManager, logger glog.Log) (pbCrawl.CrawlerManagerServer, pbCrawl.CrawlerRegisterServer, error) {
 	if storeCtrl == nil {
 		return nil, nil, errors.New("invalid store controller")
+	}
+	if crawlerCtrl == nil {
+		return nil, nil, errors.New("invalid crawler controller")
 	}
 	if crawlerManager == nil {
 		return nil, nil, errors.New("invalid crawler manager")
@@ -45,6 +50,7 @@ func NewCrawlerServer(storeCtrl *storeCtrl.StoreController,
 	}
 	s := CrawlerServer{
 		storeCtrl:      storeCtrl,
+		crawlerCtrl:    crawlerCtrl,
 		crawlerManager: crawlerManager,
 		logger:         logger,
 	}
@@ -137,11 +143,24 @@ func (s *CrawlerServer) DoParse(ctx context.Context, req *pbCrawl.DoParseRequest
 	shareCtx = context.WithValue(shareCtx, "req_id", req.GetRequest().GetReqId())
 	shareCtx = context.WithValue(shareCtx, "store_id", req.GetRequest().GetStoreId())
 
-	if err := s.storeCtrl.Parse(shareCtx, req.GetRequest().GetStoreId(), req.GetRequest()); err != nil {
+	var resp pbCrawl.DoParseResponse
+	if itemCount, subreqCount, err := s.storeCtrl.Parse(shareCtx,
+		req.GetRequest().GetStoreId(), req.GetRequest(), func(ctx context.Context, item *pbCrawl.Item) error {
+			if item == nil {
+				return nil
+			}
+			data, _ := anypb.New(item)
+			resp.Data = append(resp.Data, data)
+			return nil
+		},
+	); err != nil {
 		logger.Errorf("parse response from %s failed, error=%v", req.GetRequest().GetUrl(), err)
 		return nil, pbError.ErrInternal.New(err.Error())
+	} else {
+		resp.ItemCount = int32(itemCount)
+		resp.SubReqCount = int32(subreqCount)
 	}
-	return &pbCrawl.DoParseResponse{}, nil
+	return &resp, nil
 }
 
 func (s *CrawlerServer) Connect(srv pbCrawl.CrawlerRegister_ConnectServer) (err error) {
@@ -154,6 +173,7 @@ func (s *CrawlerServer) Connect(srv pbCrawl.CrawlerRegister_ConnectServer) (err 
 		ip  string
 		ctx = srv.Context()
 	)
+
 	if peer, _ := peer.FromContext(ctx); peer != nil {
 		ip, _, _ = net.SplitHostPort(peer.Addr.String())
 	} else {
@@ -163,8 +183,10 @@ func (s *CrawlerServer) Connect(srv pbCrawl.CrawlerRegister_ConnectServer) (err 
 	anyData, err := srv.Recv()
 	if err != nil {
 		if err == io.EOF {
+			logger.Debugf("connect EOF")
 			return nil
 		}
+		logger.Errorf("receive pkg failed, error=%s", err)
 		return err
 	}
 

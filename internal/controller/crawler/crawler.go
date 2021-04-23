@@ -70,6 +70,7 @@ func (ctrl *CrawlerController) Watch(ctx context.Context, srv pbCrawl.CrawlerReg
 	}(); err != nil {
 		return err
 	}
+	logger.Debugf("got crawler %s %s %s", cw.GetStoreId(), cw.GetId(), cw.GetServeAddr())
 
 	// cache for 10 seconds, the crawler need to ping in 10 seconds
 	// the crawler will check the existence of the cached info,
@@ -77,15 +78,11 @@ func (ctrl *CrawlerController) Watch(ctx context.Context, srv pbCrawl.CrawlerReg
 	ctrl.crawlerManager.Cache(ctx, cw, 10)
 	defer ctrl.crawlerManager.Delete(ctx, cw.GetStoreId(), cw.GetId())
 
-	var (
-		pkgChan = make(chan interface{})
-	)
-	defer func() {
-		close(pkgChan)
-	}()
+	pkgChan := make(chan interface{})
 
 	go func() {
 		defer func() {
+			close(pkgChan)
 			// this recover is used in case that send to close chan
 			if e := recover(); e != nil {
 				logger.Error(e)

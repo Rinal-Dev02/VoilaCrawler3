@@ -92,7 +92,7 @@ func NewStoreRequestHandler(ctx context.Context, storeId string, storeCtrl *Stor
 
 	var (
 		err   error
-		topic = fmt.Sprintf("%s-%s", config.CrawlRequestTopic, storeId)
+		topic = fmt.Sprintf("%s-%s", config.CrawlStoreRequestTopicPrefix, storeId)
 		conf  = nsq.NewConfig()
 	)
 	conf.MsgTimeout = defaultMsgTimeout
@@ -109,9 +109,11 @@ func NewStoreRequestHandler(ctx context.Context, storeId string, storeCtrl *Stor
 	h.consumer.ChangeMaxInFlight(0)
 
 	go func() {
-		const speedCheckInterval = 5 * 60 // 5mins
-		ticker := time.NewTicker(speedCheckInterval)
-		mqConcurrencyCheckTicker := time.NewTicker(time.Second * 5)
+		const speedCheckInterval = time.Minute * 5 * 60 // 5mins
+		var (
+			ticker                   = time.NewTicker(speedCheckInterval)
+			mqConcurrencyCheckTicker = time.NewTicker(time.Second * 5)
+		)
 		for {
 			select {
 			case <-ctx.Done():
@@ -262,9 +264,9 @@ type parseOptions struct {
 	EnableBlockForItems bool
 }
 
-func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, options parseOptions) error {
+func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, callback func(context.Context, *pbCrawl.Item) error) (int, int, error) {
 	if h == nil || req == nil {
-		return nil
+		return 0, 0, nil
 	}
 
 	atomic.AddInt32(&h.currentConcurrency, 1)
@@ -272,7 +274,11 @@ func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, o
 		atomic.AddInt32(&h.currentConcurrency, -1)
 	}()
 
-	var retCount int
+	var (
+		retCount    int
+		subreqCount int
+		itemCount   int
+	)
 	err := h.crawlerCtrl.Parse(ctx, h.storeId, req, func(ctx context.Context, data proto.Message) error {
 		if data == nil {
 			return nil
@@ -287,13 +293,18 @@ func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, o
 			topic = config.CrawlRequestTopic
 			msgData, _ = proto.Marshal(v)
 			retCount += 1
+			subreqCount += 1
 		case *pbCrawl.Item:
 			topic = config.CrawlItemTopic
-			if options.EnableBlockForItems {
+			if callback != nil {
 				topic = config.CrawlItemRealtimeTopic
+				if err := callback(ctx, v); err != nil {
+					return err
+				}
 			}
 			msgData, _ = proto.Marshal(v)
 			retCount += 1
+			itemCount += 1
 		case *pbCrawl.Error:
 			topic = config.CrawlErrorTopic
 			msgData, _ = proto.Marshal(v)
@@ -306,39 +317,39 @@ func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, o
 		return nil
 	})
 	if err != nil {
-		return err
+		return itemCount, subreqCount, err
 	}
 
 	if retCount == 0 {
-		return fmt.Errorf("no item or subrequest got of url %s", req.GetUrl())
+		return 0, 0, fmt.Errorf("no item or subrequest got of url %s", req.GetUrl())
 	}
-	return nil
+	return itemCount, subreqCount, nil
 }
 
 // Parse note that this func may exists change race
-func (h *StoreRequestHandler) Parse(ctx context.Context, req *pbCrawl.Request) error {
+func (h *StoreRequestHandler) Parse(ctx context.Context, req *pbCrawl.Request, callback func(context.Context, *pbCrawl.Item) error) (int, int, error) {
 	if h == nil {
-		return nil
+		return 0, 0, nil
 	}
 
 	decreased := false
 	for {
 		select {
 		case <-ctx.Done():
-			return pbError.ErrDeadlineExceeded
+			return 0, 0, pbError.ErrDeadlineExceeded
 		default:
 		}
 
 		maxCon := atomic.LoadInt32(&h.maxConcurrency)
 		if maxCon == 0 {
-			return pbError.ErrUnavailable.New("no crawler available")
+			return 0, 0, pbError.ErrUnavailable.New("no crawler available")
 		}
 		maxMQCon := atomic.LoadInt32(&h.maxMQConcurrency)
 		currentCon := atomic.LoadInt32(&h.currentConcurrency)
 		currentMQCon := atomic.LoadInt32(&h.currentMQConcurrency)
 		gap1, gap2 := maxCon-maxMQCon, currentCon-currentMQCon
 		if gap2 < gap1 {
-			return h.parse(ctx, req, parseOptions{EnableBlockForItems: true})
+			return h.parse(ctx, req, callback)
 		}
 
 		if maxMQCon > 0 && !decreased {
@@ -385,7 +396,7 @@ func (h *StoreRequestHandler) HandleMessage(msg *nsq.Message) error {
 		}
 	}()
 
-	if err := h.parse(ctx, &req, parseOptions{}); err != nil {
+	if _, _, err := h.parse(ctx, &req, nil); err != nil {
 		e := pbError.NewFromError(err)
 		if e.Code() == pbError.ErrUnavailable.Code() {
 			// stop the handler and requeue the message

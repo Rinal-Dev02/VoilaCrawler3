@@ -36,14 +36,14 @@ func NewCrawler(i *pbCrawl.ConnectRequest_Ping, ip string) (*Crawler, error) {
 
 	crawler := Crawler{}
 	crawler.RawId = i.GetId()
-	crawler.Id = fmt.Sprintf("%x", md5.Sum([]byte(fmt.Sprintf("%s-%d-%s-%d",
-		i.GetId(), crawler.Version, crawler.ServeAddr, crawler.OnlineUtc))))
 	crawler.StoreId = i.GetStoreId()
 	crawler.Version = i.GetVersion()
 	crawler.AllowedDomains = i.GetAllowedDomains()
 	crawler.ServeAddr = fmt.Sprintf("%s:%d", ip, i.ServePort)
 	crawler.OnlineUtc = time.Now().Unix()
 	crawler.LastHeartbeatUtc = crawler.OnlineUtc
+	crawler.Id = fmt.Sprintf("%x",
+		md5.Sum([]byte(fmt.Sprintf("%s-%d-%s", i.GetStoreId(), crawler.Version, crawler.ServeAddr))))
 
 	return &crawler, nil
 }

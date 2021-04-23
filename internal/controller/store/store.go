@@ -77,19 +77,19 @@ func NewStoreController(
 }
 
 // Parse note that this func may exists change race
-func (ctrl *StoreController) Parse(ctx context.Context, storeId string, req *pbCrawl.Request) error {
+func (ctrl *StoreController) Parse(ctx context.Context, storeId string, req *pbCrawl.Request, callback func(context.Context, *pbCrawl.Item) error) (int, int, error) {
 	if ctrl == nil {
-		return nil
+		return 0, 0, nil
 	}
 
 	if storeId == "" {
-		return pbError.ErrInvalidArgument.New("invalid store id")
+		return 0, 0, pbError.ErrInvalidArgument.New("invalid store id")
 	}
 	if val, ok := ctrl.storeHandlers.Load(storeId); ok {
 		handler, _ := val.(*StoreRequestHandler)
-		return handler.Parse(ctx, req)
+		return handler.Parse(ctx, req, callback)
 	}
-	return pbError.ErrUnavailable.New(fmt.Sprintf("no crawler available for store %s", req.GetStoreId()))
+	return 0, 0, pbError.ErrUnavailable.New(fmt.Sprintf("no crawler available for store %s", req.GetStoreId()))
 }
 
 func (ctrl *StoreController) Run(ctx context.Context) error {
@@ -110,6 +110,14 @@ func (ctrl *StoreController) Run(ctx context.Context) error {
 				continue
 			}
 			for _, id := range storeIds {
+				if id == "" {
+					continue
+				}
+
+				if err := ctrl.crawlerManager.Clean(ctx, id); err != nil {
+					ctrl.logger.Error(err)
+				}
+
 				var handler *StoreRequestHandler
 				if val, ok := ctrl.storeHandlers.Load(id); ok {
 					handler, _ = val.(*StoreRequestHandler)
