@@ -267,7 +267,7 @@ func buildRequest(r *pbCrawl.Request) (*http.Request, error) {
 	if r == nil {
 		return nil, errors.New("invalid request")
 	}
-	var reader *bytes.Reader
+	var reader io.Reader
 	if r.GetBody() != "" {
 		reader = bytes.NewReader([]byte(r.GetBody()))
 	}

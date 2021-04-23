@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"os"
@@ -23,6 +24,16 @@ import (
 	"go.uber.org/fx"
 	grpc "google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/anypb"
+)
+
+var (
+	buildName   string
+	buildBranch string
+	buildCommit string
+	buildTime   string
+
+	// BuildVersion
+	Version = fmt.Sprintf("Branch [%s] Commit [%s] Build Time [%s]", buildBranch, buildCommit, buildTime)
 )
 
 var _ServiceDescs = map[string]*pbDesc.ServiceDesc{}
@@ -58,14 +69,17 @@ type App struct {
 	servePort int
 }
 
-func NewApp(ctx context.Context, newFunc crawler.New, version string) *App {
+func NewApp(ctx context.Context, newFunc crawler.New) *App {
 	app := App{
 		cliApp:  cli.NewApp(),
 		ctx:     ctx,
-		version: version,
+		version: Version,
 		newFunc: newFunc,
 	}
 	app.cliApp.Name = "crawler"
+	if buildName != "" {
+		app.cliApp.Name = buildName
+	}
 	app.cliApp.Usage = "crawler node"
 	app.cliApp.Version = app.version
 	app.cliApp.Commands = []*cli.Command{
@@ -159,6 +173,7 @@ func (app *App) Run(args []string) error {
 					}
 					conn, err := grpc.DialContext(app.ctx, crawletAddr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(time.Second*10))
 					if err != nil {
+						logger.Errorf("connect %s failed, error=%s", crawletAddr, err)
 						return err
 					}
 
@@ -166,10 +181,11 @@ func (app *App) Run(args []string) error {
 						defer conn.Close()
 
 						for {
-							if err := func() error {
+							func() error {
 								registerClient := pbCrawl.NewCrawlerRegisterClient(conn)
 								client, err := registerClient.Connect(app.ctx)
 								if err != nil {
+									logger.Errorf("connect to crawlet failed, error=%s", err)
 									return err
 								}
 								data, _ := anypb.New(&pbCrawl.ConnectRequest_Ping{
@@ -181,8 +197,10 @@ func (app *App) Run(args []string) error {
 									ServePort:      int32(app.servePort),
 								})
 								if err := client.Send(data); err != nil {
+									logger.Errorf("register info to crawlet failed, error=%s", err)
 									return err
 								}
+								logger.Infof("connected to crawlet")
 
 								ticker := time.NewTicker(time.Second * 5)
 								for {
@@ -192,21 +210,24 @@ func (app *App) Run(args []string) error {
 									case <-ticker.C:
 										data, _ := anypb.New(&pbCrawl.ConnectRequest_Heartbeat{Timestamp: time.Now().Unix()})
 										if err := client.Send(data); err != nil {
+											if err == io.EOF {
+												logger.Errorf("connection closed")
+												return err
+											}
+											logger.Errorf("send heartbeat failed, error=%s", err)
 											return err
 										}
 									}
 								}
-							}(); err != nil {
-								logger.Error(err)
-							}
+							}()
 
 							select {
 							case <-app.ctx.Done():
 								return
 							default:
 							}
-							logger.Infof("retry connect after 10 seconds")
-							time.Sleep(time.Second * 10)
+							logger.Infof("reconnect after 10 seconds")
+							time.Sleep(time.Second * 5)
 
 							select {
 							case <-app.ctx.Done():

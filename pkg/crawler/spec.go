@@ -100,7 +100,7 @@ type HealthChecker interface {
 type Crawler interface {
 	HealthChecker
 
-	// ID returns crawler unique id, which must be the same for all the version.
+	// ID returns crawler unique id, this commonly should be the hosted id of this site called store Id.
 	ID() string
 
 	// Version returns the version of current this crawler, which should be an active number.
