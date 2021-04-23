@@ -23,6 +23,7 @@ import (
 	pbItem "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type _Crawler struct {
@@ -209,15 +210,38 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 		}
 	}
 
+	userInfo := interData.Props.PageProps.UserInfo
+	auth := pbItem.Tiktok_Author{
+		Id:          userInfo.User.ID,
+		Name:        userInfo.User.UniqueID,
+		Nickname:    userInfo.User.Nickname,
+		Avatar:      userInfo.User.AvatarLarger,
+		Description: userInfo.User.Signature,
+		Stats: &pbItem.Tiktok_Author_Stats{
+			FollowingCount: int32(userInfo.Stats.FollowingCount),
+			FollowerCount:  int32(userInfo.Stats.FollowerCount),
+			LikeCount:      int32(userInfo.Stats.HeartCount),
+			VideoCount:     int32(userInfo.Stats.VideoCount),
+			DiggCount:      int32(userInfo.Stats.DiggCount),
+		},
+	}
+
+	authData, _ := protojson.Marshal(&auth)
+	ctx = context.WithValue(ctx, "author", authData)
 	lastIndex := nextIndex(ctx)
 	for _, prop := range interData.Props.PageProps.Items {
-
 		item := pbItem.Tiktok_Item{
 			Source: &pbItem.Tiktok_Source{},
 			Video:  &media.Media_Video{Cover: &media.Media_Image{}},
-			Author: &pbItem.Tiktok_Author{},
+			Author: &auth,
 			Headers: map[string]string{
 				"Referer": resp.Request.URL.String(),
+			},
+			Stats: &pbItem.Tiktok_Stats{
+				ShareCount:   int32(prop.Stats.ShareCount),
+				CommentCount: int32(prop.Stats.CommentCount),
+				PlayCount:    int32(prop.Stats.PlayCount),
+				DiggCount:    int32(prop.Stats.DiggCount),
 			},
 			CrawledUtc: time.Now().Unix(),
 		}
@@ -239,9 +263,6 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 		} else if prop.Video.Cover != "" {
 			item.Video.Cover.OriginalUrl = prop.Video.Cover
 		}
-		item.Author.Id = prop.Author.ID
-		item.Author.Name = prop.Author.Nickname
-		item.Author.Icon = prop.Author.AvatarLarger
 
 		cookie, expiresAt, err := c.getCookies(ctx, item.Video.OriginalUrl)
 		if err != nil {
@@ -329,6 +350,17 @@ func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Re
 		return fmt.Errorf("api statusCode is %v", respData.StatusCode)
 	}
 
+	var auth *pbItem.Tiktok_Author
+	if val := ctx.Value("author"); val != nil {
+		if data, _ := val.(string); data != "" {
+			auth = &pbItem.Tiktok_Author{}
+			if err := protojson.Unmarshal([]byte(data), auth); err != nil {
+				c.logger.Errorf("unmarshal shared author failed, error=%s", err)
+				auth = nil
+			}
+		}
+	}
+
 	lastIndex := nextIndex(ctx)
 	for _, prop := range respData.ItemList {
 		item := pbItem.Tiktok_Item{
@@ -337,12 +369,33 @@ func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Re
 				PublishUtc: prop.CreateTime,
 			},
 			Title:  prop.Desc,
+			Author: auth,
 			Video:  &media.Media_Video{Cover: &media.Media_Image{}},
-			Author: &pbItem.Tiktok_Author{},
 			Headers: map[string]string{
 				"Referer": resp.Request.Header.Get("Referer"),
 			},
+			Stats: &pbItem.Tiktok_Stats{
+				ShareCount:   int32(prop.Stats.ShareCount),
+				CommentCount: int32(prop.Stats.CommentCount),
+				PlayCount:    int32(prop.Stats.PlayCount),
+				DiggCount:    int32(prop.Stats.DiggCount),
+			},
 			CrawledUtc: time.Now().Unix(),
+		}
+		if item.Author == nil {
+			item.Author = &pbItem.Tiktok_Author{
+				Stats: &pbItem.Tiktok_Author_Stats{},
+			}
+			item.Author.Id = prop.Author.ID
+			item.Author.Name = prop.Author.UniqueID
+			item.Author.Nickname = prop.Author.Nickname
+			item.Author.Avatar = prop.Author.AvatarLarger
+			item.Author.Description = prop.Author.Signature
+			item.Author.Stats.FollowingCount = int32(prop.AuthorStats.FollowingCount)
+			item.Author.Stats.FollowerCount = int32(prop.AuthorStats.FollowerCount)
+			item.Author.Stats.LikeCount = int32(prop.AuthorStats.HeartCount)
+			item.Author.Stats.VideoCount = int32(prop.AuthorStats.VideoCount)
+			item.Author.Stats.DiggCount = int32(prop.AuthorStats.DiggCount)
 		}
 		if prop.Video.DownloadAddr != "" {
 			item.Video.OriginalUrl = prop.Video.DownloadAddr
@@ -359,9 +412,6 @@ func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Re
 		} else if prop.Video.Cover != "" {
 			item.Video.Cover.OriginalUrl = prop.Video.Cover
 		}
-		item.Author.Id = prop.Author.ID
-		item.Author.Name = prop.Author.Nickname
-		item.Author.Icon = prop.Author.AvatarLarger
 
 		cookie, expiresAt, err := c.getCookies(ctx, item.Video.OriginalUrl)
 		if err != nil {

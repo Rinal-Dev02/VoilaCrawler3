@@ -371,8 +371,12 @@ type PropDataV2 struct {
 			Covers     []string `json:"covers"`
 		} `json:"musicInfos"`
 		AuthorStats struct {
-			FollowerCount int    `json:"followerCount"`
-			HeartCount    string `json:"heartCount"`
+			FollowerCount  int `json:"followerCount"`
+			FollowingCount int `json:"followingCount"`
+			Heart          int `json:"heart"`
+			HeartCount     int `json:"heartCount"`
+			VideoCount     int `json:"videoCount"`
+			DiggCount      int `json:"diggCount"`
 		} `json:"authorStats"`
 		DuetInfo        string        `json:"duetInfo"`
 		StickerTextList []interface{} `json:"stickerTextList"`
@@ -413,8 +417,11 @@ func parsePropData(data []byte) (string, *pbItem.Tiktok_Item, error) {
 
 	item := &pbItem.Tiktok_Item{
 		Source: &pbItem.Tiktok_Source{},
-		Author: &pbItem.Tiktok_Author{},
-		Video:  &media.Media_Video{Cover: &media.Media_Image{}},
+		Author: &pbItem.Tiktok_Author{
+			Stats: &pbItem.Tiktok_Author_Stats{},
+		},
+		Video: &media.Media_Video{Cover: &media.Media_Image{}},
+		Stats: &pbItem.Tiktok_Stats{},
 	}
 	for key, val := range interData {
 		if val == nil {
@@ -447,8 +454,16 @@ func parsePropData(data []byte) (string, *pbItem.Tiktok_Item, error) {
 			}
 			author := prop.Props.PageProps.ItemInfo.ItemStruct.Author
 			item.Author.Id = author.ID
-			item.Author.Name = author.Nickname
-			item.Author.Icon = author.AvatarLarger
+			item.Author.Name = author.UniqueID
+			item.Author.Nickname = author.Nickname
+			item.Author.Avatar = author.AvatarLarger
+			item.Author.Description = author.Signature
+			authorStats := prop.Props.PageProps.ItemInfo.ItemStruct.AuthorStats
+			item.Author.Stats.FollowerCount = int32(authorStats.FollowerCount)
+			item.Author.Stats.FollowingCount = int32(authorStats.FollowingCount)
+			item.Author.Stats.LikeCount = int32(authorStats.HeartCount)
+			item.Author.Stats.VideoCount = int32(authorStats.VideoCount)
+			item.Author.Stats.DiggCount = int32(authorStats.DiggCount)
 
 			return prop.Props.InitialProps.FullURL, item, nil
 		} else if strings.HasPrefix(key, "/v/") {
@@ -480,14 +495,21 @@ func parsePropData(data []byte) (string, *pbItem.Tiktok_Item, error) {
 			}
 
 			author := prop.VideoData.AuthorInfos
+			authorStats := prop.VideoData.AuthorStats
 			item.Author.Id = author.UserID
-			item.Author.Name = author.NickName
+			item.Author.Name = author.UniqueID
+			item.Author.Nickname = author.NickName
 			for _, u := range author.Covers {
 				if u != "" {
-					item.Author.Icon = u
+					item.Author.Avatar = u
 					break
 				}
 			}
+			item.Author.Stats.FollowerCount = int32(authorStats.FollowerCount)
+			item.Author.Stats.FollowingCount = int32(authorStats.FollowingCount)
+			item.Author.Stats.LikeCount = int32(authorStats.HeartCount)
+			item.Author.Stats.VideoCount = int32(authorStats.VideoCount)
+			item.Author.Stats.DiggCount = int32(authorStats.DiggCount)
 			return prop.PageState.FullURL, item, nil
 		}
 	}
