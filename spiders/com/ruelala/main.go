@@ -55,7 +55,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 
 // ID
 func (c *_Crawler) ID() string {
-	return "70cf93e2c360816ba186c294fecbba06"
+	return "40908fc41a3a2092282b64734c76c285"
 }
 
 // Version

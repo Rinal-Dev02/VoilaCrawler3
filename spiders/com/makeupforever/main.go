@@ -57,7 +57,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 // ID
 func (c *_Crawler) ID() string {
 	// every spider should got an unique id which should not larget than 64 in length
-	return "baf02094073b457d9434f929b119ee30"
+	return "e32f11228f383dc88fc6f722d2f60587"
 }
 
 // Version
