@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"os/signal"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -25,6 +26,14 @@ import (
 	grpc "google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/anypb"
 )
+
+var (
+	c = make(chan os.Signal, 1)
+)
+
+func init() {
+	signal.Notify(c, os.Interrupt)
+}
 
 var (
 	buildName   string
@@ -69,7 +78,13 @@ type App struct {
 	servePort int
 }
 
-func NewApp(ctx context.Context, newFunc crawler.New) *App {
+func NewApp(newFunc crawler.New) *App {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-c
+		cancel()
+	}()
+
 	app := App{
 		cliApp:  cli.NewApp(),
 		ctx:     ctx,
@@ -173,7 +188,9 @@ func (app *App) Run(args []string) error {
 					}
 					conn, err := grpc.DialContext(app.ctx, crawletAddr, grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(time.Second*10))
 					if err != nil {
-						logger.Errorf("connect %s failed, error=%s", crawletAddr, err)
+						if err != context.Canceled {
+							logger.Errorf("connect %s failed, error=%s", crawletAddr, err)
+						}
 						return err
 					}
 
