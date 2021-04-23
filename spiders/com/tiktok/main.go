@@ -21,6 +21,7 @@ import (
 	"github.com/voiladev/go-crawler/pkg/net/http"
 	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/media"
 	pbItem "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -68,6 +69,7 @@ func (c *_Crawler) Version() int32 {
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
 	options.MustHeader.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	options.MustHeader.Set("Accept-Charset", "UTF-8,*;q=0.5")
 	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
