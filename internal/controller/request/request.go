@@ -35,8 +35,9 @@ type RequestController struct {
 	redisClient    *redis.RedisClient
 	pigate         *pigate.PigateClient
 
-	nsqConsumer *nsq.Consumer
-	producer    *nsq.Producer
+	nsqConsumer       *nsq.Consumer
+	nsqStatusConsumer *nsq.Consumer
+	producer          *nsq.Producer
 
 	options RequestControllerOptions
 	logger  glog.Log
@@ -96,11 +97,17 @@ func NewRequestController(
 		return nil, err
 	}
 
-	if ctrl.nsqConsumer, err = nsq.NewConsumer(config.CrawlRequestTopic, "crawl-api", nsq.NewConfig()); err != nil {
+	if ctrl.nsqConsumer, err = nsq.NewConsumer(config.CrawlRequestTopic, "crawl-api", conf); err != nil {
 		return nil, err
 	}
 	ctrl.nsqConsumer.AddHandler(&RequestHander{ctrl: &ctrl, logger: ctrl.logger.New("RequestHander")})
 	ctrl.nsqConsumer.ConnectToNSQLookupds(options.NsqLookupdAddresses)
+
+	if ctrl.nsqStatusConsumer, err = nsq.NewConsumer(config.CrawlRequestStatusTopic, "crawl-api", conf); err != nil {
+		return nil, err
+	}
+	ctrl.nsqStatusConsumer.AddHandler(&RequestStatusHander{ctrl: &ctrl, logger: ctrl.logger.New("RequestStatusHander")})
+	ctrl.nsqStatusConsumer.ConnectToNSQLookupds(options.NsqLookupdAddresses)
 
 	go func() {
 		select {

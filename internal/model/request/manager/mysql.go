@@ -26,14 +26,19 @@ func NewRequestManager(engine *xorm.Engine, logger glog.Log) (*RequestManager, e
 	return &m, nil
 }
 
-func (m *RequestManager) GetById(ctx context.Context, id string) (*request.Request, error) {
+func (m *RequestManager) GetById(ctx context.Context, session *xorm.Session, id string) (*request.Request, error) {
 	if m == nil {
 		return nil, nil
 	}
 	logger := m.logger.New("GetById")
 
+	if session == nil {
+		session = m.engine.NewSession()
+		defer session.Close()
+	}
+
 	var req request.Request
-	if exists, err := m.engine.Context(ctx).ID(id).Get(&req.Request); err != nil {
+	if exists, err := session.Context(ctx).ID(id).Get(&req.Request); err != nil {
 		logger.Errorf("get request by id %s failed, error=%s", err)
 		return nil, pbError.ErrDatabase.New(err)
 	} else if exists {
@@ -98,7 +103,7 @@ func (m *RequestManager) Create(ctx context.Context, session *xorm.Session, req 
 	logger := m.logger.New("Create")
 
 	req.Id = fmt.Sprintf("%x", md5.Sum([]byte(req.GetJobId()+"-"+req.GetTracingId()+"-"+req.GetUrl())))
-	if oldReq, err := m.GetById(ctx, req.GetId()); err != nil {
+	if oldReq, err := m.GetById(ctx, session, req.GetId()); err != nil {
 		return nil, err
 	} else if oldReq != nil {
 		return nil, pbError.ErrAlreadyExists

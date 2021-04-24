@@ -94,3 +94,85 @@ func (h *RequestHander) LogFailedMessage(msg *nsq.Message) {
 	data, _ := protojson.Marshal(&creq)
 	h.logger.Errorf("process msg %s failed", data)
 }
+
+// RequestStatusHander use to handle new requests emit by crawlet
+type RequestStatusHander struct {
+	ctrl   *RequestController
+	logger glog.Log
+}
+
+func (h *RequestStatusHander) HandleMessage(msg *nsq.Message) error {
+	if h == nil {
+		return nil
+	}
+	msg.DisableAutoResponse()
+
+	ctx, cancel := context.WithTimeout(h.ctrl.ctx, time.Minute)
+	defer cancel()
+
+	var status pbCrawl.RequestStatus
+	if err := proto.Unmarshal(msg.Body, &status); err != nil {
+		h.logger.Errorf("unmarshal request failed, error=%s", err)
+		msg.Finish()
+		return err
+	}
+
+	session := h.ctrl.engine.NewSession()
+	defer session.Close()
+
+	if err := session.Begin(); err != nil {
+		h.logger.Errorf("begin tx failed, error=%s", err)
+		msg.RequeueWithoutBackoff(time.Second * 30)
+		return err
+	}
+
+	req, err := h.ctrl.requestManager.GetById(ctx, session, status.GetReqId())
+	if err != nil {
+		h.logger.Errorf("get req %s failed, error=%s", status.GetReqId(), err)
+		session.Rollback()
+		msg.RequeueWithoutBackoff(time.Second * 30)
+		return err
+	}
+	if req == nil {
+		h.logger.Warnf("req %s not found", status.GetReqId())
+		session.Rollback()
+		msg.Finish()
+		return nil
+	}
+
+	if _, err := h.ctrl.requestManager.UpdateStatus(ctx, session, status.GetReqId(), 3, status.GetIsSucceed()); err != nil {
+		h.logger.Errorf("update status of req %s failed, error=%s", status.GetReqId(), err)
+		session.Rollback()
+		msg.RequeueWithoutBackoff(time.Second * 30)
+		return nil
+	}
+
+	if !status.GetIsSucceed() {
+		if err := h.ctrl.PublishRequest(ctx, session, req, true); err != nil {
+			h.logger.Errorf("publish request failed, error=%s", err)
+			session.Rollback()
+			msg.RequeueWithoutBackoff(time.Second * 30)
+			return err
+		}
+	}
+	if err := session.Commit(); err != nil {
+		h.logger.Errorf("commit tx failed, error=%s", err)
+		session.Rollback()
+		msg.RequeueWithoutBackoff(time.Second * 30)
+		return err
+	}
+	return nil
+}
+
+func (h *RequestStatusHander) LogFailedMessage(msg *nsq.Message) {
+	if h == nil {
+		return
+	}
+
+	var status pbCrawl.RequestStatus
+	if err := proto.Unmarshal(msg.Body, &status); err != nil {
+		h.logger.Errorf("unmarshal request failed, error=%s", err)
+	} else {
+		h.logger.Errorf("process msg %+v failed", &status)
+	}
+}
