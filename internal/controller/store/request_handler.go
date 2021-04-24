@@ -316,12 +316,13 @@ func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, c
 		}
 		return nil
 	})
+	if err == nil {
+		if retCount == 0 {
+			err = fmt.Errorf("no item or subrequest got of url %s", req.GetUrl())
+		}
+	}
 	if err != nil {
 		return itemCount, subreqCount, err
-	}
-
-	if retCount == 0 {
-		return 0, 0, fmt.Errorf("no item or subrequest got of url %s", req.GetUrl())
 	}
 	return itemCount, subreqCount, nil
 }
@@ -396,7 +397,12 @@ func (h *StoreRequestHandler) HandleMessage(msg *nsq.Message) error {
 		}
 	}()
 
-	if _, _, err := h.parse(ctx, &req, nil); err != nil {
+	var (
+		isSucceed              = true
+		err                    error
+		itemCount, subReqCount int
+	)
+	if itemCount, subReqCount, err = h.parse(ctx, &req, nil); err != nil {
 		e := pbError.NewFromError(err)
 		if e.Code() == pbError.ErrUnavailable.Code() {
 			// stop the handler and requeue the message
@@ -408,24 +414,41 @@ func (h *StoreRequestHandler) HandleMessage(msg *nsq.Message) error {
 
 		// record the error message
 		errItemData, _ := proto.Marshal(&pbCrawl.Error{
+			StoreId:   req.GetStoreId(),
 			TracingId: req.GetTracingId(),
 			JobId:     req.GetJobId(),
 			ReqId:     req.GetReqId(),
 			Timestamp: time.Now().Unix(),
 			ErrMsg:    err.Error(),
 		})
+
+		isSucceed = false
 		if err := h.producer.Publish(config.CrawlErrorTopic, errItemData); err != nil {
 			h.logger.Error(err)
 		}
-		msg.Finish()
-		return err
+	}
+
+	reqStatusData, _ := proto.Marshal(&pbCrawl.RequestStatus{
+		StoreId:     req.GetStoreId(),
+		TracingId:   req.GetTracingId(),
+		JobId:       req.GetJobId(),
+		ReqId:       req.GetReqId(),
+		Timestamp:   time.Now().Unix(),
+		IsSucceed:   isSucceed,
+		SubReqCount: int32(subReqCount),
+		ItemCount:   int32(itemCount),
+	})
+	if err := h.producer.Publish(config.CrawlRequestStatusTopic, reqStatusData); err != nil {
+		h.logger.Error(err)
 	}
 	msg.Finish()
-	return nil
+	return err
 }
 
 func (h *StoreRequestHandler) LogFailedMessage(msg *nsq.Message) {
 	if h == nil {
 		return
 	}
+
+	// pass
 }

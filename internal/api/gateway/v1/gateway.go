@@ -9,6 +9,7 @@ import (
 	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/protoutil"
 	"github.com/voiladev/go-framework/redis"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 	"xorm.io/xorm"
@@ -98,31 +99,54 @@ func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*
 		logger.Errorf("load request failed, error=%s", err)
 		return nil, pbError.ErrInvalidArgument.New(err)
 	}
-	if r.GetJobId() == "" {
-		return nil, pbError.ErrInvalidArgument.New("invalid job id")
-	}
 
-	session := s.engine.NewSession()
-	defer session.Close()
+	resp := pbCrawl.FetchResponse{}
+	if req.GetOptions().GetEnableBlockForItems() {
+		var creq pbCrawl.Request
+		if err := r.Unmarshal(&creq); err != nil {
+			logger.Errorf("unmarshal request failed, error=%s", err)
+			return nil, pbError.ErrInternal.New(err)
+		}
+		resp, err := s.crawlerClient.DoParse(ctx, &pbCrawl.DoParseRequest{
+			Request:             &creq,
+			EnableBlockForItems: true,
+		})
+		if err != nil {
+			logger.Error(err)
+			return nil, err
+		}
+		for _, item := range resp.GetData() {
+			if item.GetTypeUrl() != protoutil.GetTypeUrl(&pbCrawl.Item{}) {
+				continue
+			}
+			resp.Data = append(resp.Data, item)
+		}
+	} else {
+		if r.GetJobId() == "" {
+			return nil, pbError.ErrInvalidArgument.New("invalid job id")
+		}
 
-	if r, err = s.requestManager.Create(ctx, session, r); err != nil && err != pbError.ErrAlreadyExists {
-		logger.Errorf("save request failed, error=%s", err)
-		return nil, err
-	}
+		session := s.engine.NewSession()
+		defer session.Close()
 
-	if err := session.Begin(); err != nil {
-		logger.Errorf("begin tx failed, error=%s", err)
-		return nil, pbError.ErrDatabase.New("begin tx failed")
-	}
-	if err := s.requestCtrl.PublishRequest(ctx, session, r, true); err != nil {
-		logger.Errorf("publish request failed, error=%s", err)
-		session.Rollback()
-		return nil, err
-	}
+		if r, err = s.requestManager.Create(ctx, session, r); err != nil && err != pbError.ErrAlreadyExists {
+			logger.Errorf("save request failed, error=%s", err)
+			return nil, err
+		}
 
-	if err := session.Commit(); err != nil {
-		logger.Errorf("commit tx failed, error=%s", err)
-		return nil, pbError.ErrDatabase.New("commit tx failed")
+		if err := session.Begin(); err != nil {
+			logger.Errorf("begin tx failed, error=%s", err)
+			return nil, pbError.ErrDatabase.New("begin tx failed")
+		}
+		if err := s.requestCtrl.PublishRequest(ctx, session, r, true); err != nil {
+			logger.Errorf("publish request failed, error=%s", err)
+			session.Rollback()
+			return nil, err
+		}
+		if err := session.Commit(); err != nil {
+			logger.Errorf("commit tx failed, error=%s", err)
+			return nil, pbError.ErrDatabase.New("commit tx failed")
+		}
 	}
-	return &pbCrawl.FetchResponse{}, nil
+	return &resp, nil
 }

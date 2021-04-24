@@ -10,6 +10,7 @@ var (
 	CrawlResponseTopic = "chameleon.smelter.v1.crawl.Response"
 	// Request
 	CrawlRequestTopic            = "chameleon.smelter.v1.crawl.Request"
+	CrawlRequestStatusTopic      = "chameleon.smelter.v1.crawl.RequestStatus"
 	CrawlRequestHistoryTopic     = "chameleon.smelter.v1.crawl.RequestHistory"
 	CrawlStoreRequestTopicPrefix = "store.Request"
 	// Item
