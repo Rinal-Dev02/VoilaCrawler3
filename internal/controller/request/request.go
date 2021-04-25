@@ -8,12 +8,10 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/nsqio/go-nsq"
-	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
 	historyCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request/history"
 	"github.com/voiladev/VoilaCrawl/internal/model/request"
 	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
 	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
-	"github.com/voiladev/VoilaCrawl/pkg/pigate"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/redis"
@@ -29,11 +27,9 @@ type RequestControllerOptions struct {
 type RequestController struct {
 	ctx            context.Context
 	engine         *xorm.Engine
-	crawlerCtrl    *crawlerCtrl.CrawlerController
 	historyCtrl    *historyCtrl.RequestHistoryController
 	requestManager *reqManager.RequestManager
 	redisClient    *redis.RedisClient
-	pigate         *pigate.PigateClient
 
 	nsqConsumer       *nsq.Consumer
 	nsqStatusConsumer *nsq.Consumer
@@ -47,10 +43,8 @@ func NewRequestController(
 	ctx context.Context,
 	engine *xorm.Engine,
 	historyCtrl *historyCtrl.RequestHistoryController,
-	crawlerCtrl *crawlerCtrl.CrawlerController,
 	requestManager *reqManager.RequestManager,
 	redisClient *redis.RedisClient,
-	pigate *pigate.PigateClient,
 	options RequestControllerOptions,
 	logger glog.Log) (*RequestController, error) {
 
@@ -60,17 +54,11 @@ func NewRequestController(
 	if historyCtrl == nil {
 		return nil, errors.New("invalid history controller")
 	}
-	if crawlerCtrl == nil {
-		return nil, errors.New("invalid crawler controller")
-	}
 	if requestManager == nil {
 		return nil, errors.New("invalid requestManager")
 	}
 	if redisClient == nil {
 		return nil, errors.New("invalid redis client")
-	}
-	if pigate == nil {
-		return nil, errors.New("invalid pigate client")
 	}
 	if len(options.NsqLookupdAddresses) == 0 {
 		return nil, errors.New("invalid nsq lookupd address")
@@ -80,10 +68,8 @@ func NewRequestController(
 		ctx:            ctx,
 		engine:         engine,
 		historyCtrl:    historyCtrl,
-		crawlerCtrl:    crawlerCtrl,
 		requestManager: requestManager,
 		redisClient:    redisClient,
-		pigate:         pigate,
 		options:        options,
 		logger:         logger.New("RequestController"),
 	}
