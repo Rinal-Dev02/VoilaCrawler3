@@ -60,8 +60,11 @@ func NewRequestController(
 	if redisClient == nil {
 		return nil, errors.New("invalid redis client")
 	}
+	if options.NsqdAddress == "" {
+		return nil, errors.New("invalid nsqd address")
+	}
 	if len(options.NsqLookupdAddresses) == 0 {
-		return nil, errors.New("invalid nsq lookupd address")
+		return nil, errors.New("invalid nsqlookupd address")
 	}
 
 	ctrl := RequestController{

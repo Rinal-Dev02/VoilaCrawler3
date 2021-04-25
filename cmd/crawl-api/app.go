@@ -179,7 +179,10 @@ func (app *App) Run(args []string) {
 			fx.Provide(history.NewRequestHistoryController),
 
 			fx.Provide(func() reqCtrl.RequestControllerOptions {
-				return reqCtrl.RequestControllerOptions{NsqLookupdAddresses: c.StringSlice("nsqlookupd-http-addr")}
+				return reqCtrl.RequestControllerOptions{
+					NsqLookupdAddresses: c.StringSlice("nsqlookupd-http-addr"),
+					NsqdAddress:         c.String("nsqd-tcp-addr"),
+				}
 			}),
 			fx.Provide(reqCtrl.NewRequestController),
 
