@@ -229,7 +229,7 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 	}
 
 	authData, _ := protojson.Marshal(&auth)
-	ctx = context.WithValue(ctx, "author", authData)
+	ctx = context.WithValue(ctx, "author", fmt.Sprintf("%s", authData))
 	lastIndex := nextIndex(ctx)
 	for _, prop := range interData.Props.PageProps.Items {
 		item := pbItem.Tiktok_Item{
