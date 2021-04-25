@@ -134,7 +134,7 @@ func (ctrl *RequestController) PublishRequest(ctx context.Context, session *xorm
 		session.Rollback()
 		return err
 	} else if succeed {
-		key := fmt.Sprintf("%s-%s", config.CrawlRequestTopic, r.GetStoreId())
+		key := fmt.Sprintf("%s-%s", config.CrawlStoreRequestTopicPrefix, r.GetStoreId())
 		data, _ := proto.Marshal(&req)
 		if err := ctrl.producer.Publish(key, data); err != nil {
 			logger.Error(err)
