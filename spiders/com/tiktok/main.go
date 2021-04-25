@@ -273,8 +273,8 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 		item.Headers["Cookie"] = cookie
 		item.ExpiresUtc = expiresAt
 
-		lastIndex += 1
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		lastIndex += 1
 		if err := yield(nctx, &item); err != nil {
 			return err
 		}
@@ -422,8 +422,8 @@ func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Re
 		item.Headers["Cookie"] = cookie
 		item.ExpiresUtc = expiresAt
 
-		lastIndex += 1
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		lastIndex += 1
 		if err := yield(nctx, &item); err != nil {
 			return err
 		}
