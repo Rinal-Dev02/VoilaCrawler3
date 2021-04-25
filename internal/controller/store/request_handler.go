@@ -316,9 +316,12 @@ func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, c
 			msgData, _ = proto.Marshal(v)
 			retCount += 1
 		}
-		if err := h.producer.Publish(topic, msgData); err != nil {
-			h.logger.Error(err)
-			return err
+
+		if topic != "" {
+			if err := h.producer.Publish(topic, msgData); err != nil {
+				h.logger.Error(err)
+				return err
+			}
 		}
 		return nil
 	})
