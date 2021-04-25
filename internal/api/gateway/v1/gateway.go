@@ -99,9 +99,22 @@ func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*
 		logger.Errorf("load request failed, error=%s", err)
 		return nil, pbError.ErrInvalidArgument.New(err)
 	}
+	if r.GetJobId() == "" {
+		return nil, pbError.ErrInvalidArgument.New("invalid job id")
+	}
+
+	session := s.engine.NewSession()
+	defer session.Close()
 
 	resp := pbCrawl.FetchResponse{}
 	if req.GetOptions().GetEnableBlockForItems() {
+		r.Status = 3
+		r.IsSucceed = true // disable retry
+		if r, err = s.requestManager.Create(ctx, session, r); err != nil && err != pbError.ErrAlreadyExists {
+			logger.Errorf("save request failed, error=%s", err)
+			return nil, err
+		}
+
 		var creq pbCrawl.Request
 		if err := r.Unmarshal(&creq); err != nil {
 			logger.Errorf("unmarshal request failed, error=%s", err)
@@ -122,13 +135,6 @@ func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*
 			resp.Data = append(resp.Data, item)
 		}
 	} else {
-		if r.GetJobId() == "" {
-			return nil, pbError.ErrInvalidArgument.New("invalid job id")
-		}
-
-		session := s.engine.NewSession()
-		defer session.Close()
-
 		if r, err = s.requestManager.Create(ctx, session, r); err != nil && err != pbError.ErrAlreadyExists {
 			logger.Errorf("save request failed, error=%s", err)
 			return nil, err
