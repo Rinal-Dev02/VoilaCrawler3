@@ -162,8 +162,8 @@ end:
 			if !ok {
 				break end
 			}
-			if itemCount, subReqCount, err := s.storeCtrl.Parse(shareCtx,
-				req.GetRequest().GetStoreId(), r, func(ctx context.Context, v proto.Message) error {
+			if itemCount, subReqCount, err := s.storeCtrl.Parse(shareCtx, req.GetRequest().GetStoreId(), r,
+				func(ctx context.Context, v proto.Message) error {
 					if v == nil {
 						return nil
 					}
@@ -185,9 +185,11 @@ end:
 				logger.Errorf("parse response from %s failed, error=%v", req.GetRequest().GetUrl(), err)
 				return nil, pbError.ErrInternal.New(err.Error())
 			} else {
-				resp.ItemCount = int32(itemCount)
-				resp.SubReqCount = int32(subReqCount)
+				resp.ItemCount += int32(itemCount)
+				resp.SubReqCount += int32(subReqCount)
 			}
+		default:
+			break end
 		}
 	}
 	return &resp, nil

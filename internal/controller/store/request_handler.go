@@ -326,7 +326,7 @@ func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, c
 		return nil
 	})
 	if err == nil {
-		if retCount == 0 {
+		if retCount == 0 && callback == nil {
 			err = fmt.Errorf("no item or subrequest got of url %s", req.GetUrl())
 		}
 	}
