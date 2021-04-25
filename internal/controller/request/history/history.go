@@ -44,7 +44,7 @@ func NewRequestHistoryController(ctx context.Context, historyManager *historyMan
 	var err error
 	conf := nsq.NewConfig()
 	conf.MaxAttempts = 3
-	if ctrl.consumer, err = nsq.NewConsumer(config.CrawlRequestHistoryTopic, "crawl-api", conf); err != nil {
+	if ctrl.consumer, err = nsq.NewConsumer(config.CrawlErrorTopic, "crawl-api", conf); err != nil {
 		return nil, err
 	}
 	ctrl.consumer.AddHandler(&RequestHistoryHandler{ctrl: &ctrl, logger: ctrl.logger.New("RequestHistoryHandler")})

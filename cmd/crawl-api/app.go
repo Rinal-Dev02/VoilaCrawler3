@@ -188,9 +188,12 @@ func (app *App) Run(args []string) {
 
 			// Register grpc handler
 			fx.Invoke(pbCrawl.RegisterGatewayServer),
-
 			// Register http handler
 			fx.Invoke(pbCrawl.RegisterGatewayHandler),
+			fx.Invoke(func(ctx context.Context, ctrl *reqCtrl.RequestController) error {
+				go ctrl.Run(ctx)
+				return nil
+			}),
 		)
 
 		depInj := fx.New(options...)

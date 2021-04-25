@@ -147,7 +147,7 @@ func (h *RequestStatusHander) HandleMessage(msg *nsq.Message) error {
 		return nil
 	}
 
-	if !status.GetIsSucceed() {
+	if !status.GetIsSucceed() && req.GetRetryCount() < req.GetOptions().GetMaxRetryCount() {
 		if err := h.ctrl.PublishRequest(ctx, session, req, true); err != nil {
 			h.logger.Errorf("publish request failed, error=%s", err)
 			session.Rollback()

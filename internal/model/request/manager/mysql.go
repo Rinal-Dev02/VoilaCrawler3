@@ -81,7 +81,7 @@ func (m *RequestManager) List(ctx context.Context, session *xorm.Session, req Li
 		t := time.Now().Unix()
 		handler = handler.And("status_retry_count < option_max_retry_count").
 			And("((status!=1 and is_succeed=0 and start_utc+option_max_ttl_per_request<?) OR (status=1 and is_succeed=0 and start_utc<?))",
-				t-120, t-86400)
+				t-120, t-43200)
 	}
 
 	var reqs []*types.Request

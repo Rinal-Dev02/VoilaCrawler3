@@ -1,17 +1,9 @@
 package config
 
 var (
-	CrawlStoreList               = "queue://chameleon.smelter.v1.flow.Store"
-	CrawlRequestStoreQueuePrefix = "queue://chameleon.smelter.v1.crawl.Command_Request?storeId="
-	CrawlRequestStoreQueue       = CrawlRequestStoreQueuePrefix + "%s"
-	CrawlRequestQueueSet         = "queue://chameleon.smelter.v1.crawl.Command_Request.Set"
-
-	// Topic
-	CrawlResponseTopic = "chameleon.smelter.v1.crawl.Response"
 	// Request
 	CrawlRequestTopic            = "chameleon.smelter.v1.crawl.Request"
 	CrawlRequestStatusTopic      = "chameleon.smelter.v1.crawl.RequestStatus"
-	CrawlRequestHistoryTopic     = "chameleon.smelter.v1.crawl.RequestHistory"
 	CrawlStoreRequestTopicPrefix = "store.Request"
 	// Item
 	CrawlItemTopic         = "chameleon.smelter.v1.crawl.Item"

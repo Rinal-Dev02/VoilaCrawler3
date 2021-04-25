@@ -131,19 +131,8 @@ func (ctrl *RequestController) PublishRequest(ctx context.Context, session *xorm
 
 	var req pbCrawl.Request
 	if err := r.Unmarshal(&req); err != nil {
-		ctrl.logger.Error(err)
+		logger.Error(err)
 		return pbError.ErrInternal.New(err)
-	}
-
-	if !force {
-		isMeb, err := redis.Bool(ctrl.redisClient.Do("SISMEMBER", config.CrawlRequestQueueSet, r.GetId()))
-		if err != nil {
-			logger.Errorf("check if request %s is queued failed, error=%s", r.GetId(), err)
-			return err
-		}
-		if isMeb {
-			return nil
-		}
 	}
 
 	if session == nil {
@@ -152,17 +141,51 @@ func (ctrl *RequestController) PublishRequest(ctx context.Context, session *xorm
 	}
 
 	if succeed, err := ctrl.requestManager.UpdateStatus(ctx, session, r.GetId(), 1, false); err != nil {
-		ctrl.logger.Errorf("update status of request %s failed, error=%s", r.GetId(), err)
+		logger.Errorf("update status of request %s failed, error=%s", r.GetId(), err)
 		session.Rollback()
 		return err
 	} else if succeed {
 		key := fmt.Sprintf("%s-%s", config.CrawlRequestTopic, r.GetStoreId())
 		data, _ := proto.Marshal(&req)
 		if err := ctrl.producer.Publish(key, data); err != nil {
-			ctrl.logger.Error(err)
+			logger.Error(err)
 			return pbError.ErrInternal.New(err)
 		}
 		return nil
 	}
 	return pbError.ErrFailedPrecondition.New("max retry count reached")
+}
+
+const (
+	defaultCheckTimeoutRequestInterval = time.Second * 30
+)
+
+func (ctrl *RequestController) Run(ctx context.Context) error {
+	if ctrl == nil {
+		return nil
+	}
+
+	timer := time.NewTimer(defaultCheckTimeoutRequestInterval)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-timer.C:
+			reqs, err := ctrl.requestManager.List(ctx, nil, reqManager.ListRequest{
+				Page: 1, Count: 1000, Retryable: true,
+			})
+			if err != nil {
+				ctrl.logger.Errorf("list request failed, error=%s", err)
+				timer.Reset(defaultCheckTimeoutRequestInterval)
+				continue
+			}
+
+			for _, req := range reqs {
+				if err := ctrl.PublishRequest(ctx, nil, req, false); err != nil {
+					ctrl.logger.Errorf("publish request failed, error=%s", err)
+				}
+			}
+			timer.Reset(defaultCheckTimeoutRequestInterval)
+		}
+	}
 }
