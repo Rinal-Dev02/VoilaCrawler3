@@ -264,7 +264,7 @@ type parseOptions struct {
 	EnableBlockForItems bool
 }
 
-func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, callback func(context.Context, *pbCrawl.Item) error) (int, int, error) {
+func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, callback func(context.Context, proto.Message) error) (int, int, error) {
 	if h == nil || req == nil {
 		return 0, 0, nil
 	}
@@ -290,19 +290,25 @@ func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, c
 		)
 		switch v := data.(type) {
 		case *pbCrawl.Request:
-			topic = config.CrawlRequestTopic
-			msgData, _ = proto.Marshal(v)
-			retCount += 1
-			subreqCount += 1
-		case *pbCrawl.Item:
-			topic = config.CrawlItemTopic
 			if callback != nil {
-				topic = config.CrawlItemRealtimeTopic
 				if err := callback(ctx, v); err != nil {
 					return err
 				}
+			} else {
+				topic = config.CrawlRequestTopic
+				msgData, _ = proto.Marshal(v)
 			}
-			msgData, _ = proto.Marshal(v)
+			retCount += 1
+			subreqCount += 1
+		case *pbCrawl.Item:
+			if callback != nil {
+				if err := callback(ctx, v); err != nil {
+					return err
+				}
+			} else {
+				topic = config.CrawlItemTopic
+				msgData, _ = proto.Marshal(v)
+			}
 			retCount += 1
 			itemCount += 1
 		case *pbCrawl.Error:
@@ -328,7 +334,7 @@ func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, c
 }
 
 // Parse note that this func may exists change race
-func (h *StoreRequestHandler) Parse(ctx context.Context, req *pbCrawl.Request, callback func(context.Context, *pbCrawl.Item) error) (int, int, error) {
+func (h *StoreRequestHandler) Parse(ctx context.Context, req *pbCrawl.Request, callback func(context.Context, proto.Message) error) (int, int, error) {
 	if h == nil {
 		return 0, 0, nil
 	}

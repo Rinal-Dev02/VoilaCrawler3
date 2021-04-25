@@ -13,6 +13,7 @@ import (
 	storeCtrl "github.com/voiladev/VoilaCrawl/internal/controller/store"
 	"github.com/voiladev/VoilaCrawl/internal/model/crawler"
 	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
+	specCrawl "github.com/voiladev/VoilaCrawl/pkg/crawler"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	_ "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
@@ -143,22 +144,51 @@ func (s *CrawlerServer) DoParse(ctx context.Context, req *pbCrawl.DoParseRequest
 	shareCtx = context.WithValue(shareCtx, "req_id", req.GetRequest().GetReqId())
 	shareCtx = context.WithValue(shareCtx, "store_id", req.GetRequest().GetStoreId())
 
-	var resp pbCrawl.DoParseResponse
-	if itemCount, subreqCount, err := s.storeCtrl.Parse(shareCtx,
-		req.GetRequest().GetStoreId(), req.GetRequest(), func(ctx context.Context, item *pbCrawl.Item) error {
-			if item == nil {
-				return nil
+	var (
+		resp    pbCrawl.DoParseResponse
+		subReqs = make(chan *pbCrawl.Request, 100)
+	)
+	defer func() {
+		close(subReqs)
+	}()
+
+	subReqs <- req.GetRequest()
+end:
+	for {
+		select {
+		case <-ctx.Done():
+			break end
+		case r, ok := <-subReqs:
+			if !ok {
+				break end
 			}
-			data, _ := anypb.New(item)
-			resp.Data = append(resp.Data, data)
-			return nil
-		},
-	); err != nil {
-		logger.Errorf("parse response from %s failed, error=%v", req.GetRequest().GetUrl(), err)
-		return nil, pbError.ErrInternal.New(err.Error())
-	} else {
-		resp.ItemCount = int32(itemCount)
-		resp.SubReqCount = int32(subreqCount)
+			if itemCount, subReqCount, err := s.storeCtrl.Parse(shareCtx,
+				req.GetRequest().GetStoreId(), r, func(ctx context.Context, v proto.Message) error {
+					if v == nil {
+						return nil
+					}
+
+					switch vv := v.(type) {
+					case *pbCrawl.Request:
+						select {
+						case subReqs <- vv:
+						default:
+							logger.Errorf("too may sub requests, ignored")
+						}
+					case *pbCrawl.Item:
+						data, _ := anypb.New(vv)
+						resp.Data = append(resp.Data, data)
+					}
+					return nil
+				},
+			); err != nil && !errors.Is(err, specCrawl.ErrCountMatched) {
+				logger.Errorf("parse response from %s failed, error=%v", req.GetRequest().GetUrl(), err)
+				return nil, pbError.ErrInternal.New(err.Error())
+			} else {
+				resp.ItemCount = int32(itemCount)
+				resp.SubReqCount = int32(subReqCount)
+			}
+		}
 	}
 	return &resp, nil
 }

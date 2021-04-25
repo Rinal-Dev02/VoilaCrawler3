@@ -13,6 +13,7 @@ import (
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
+	"google.golang.org/protobuf/proto"
 )
 
 // This controller used to manage the handler of the stores.
@@ -77,7 +78,7 @@ func NewStoreController(
 }
 
 // Parse note that this func may exists change race
-func (ctrl *StoreController) Parse(ctx context.Context, storeId string, req *pbCrawl.Request, callback func(context.Context, *pbCrawl.Item) error) (int, int, error) {
+func (ctrl *StoreController) Parse(ctx context.Context, storeId string, req *pbCrawl.Request, callback func(context.Context, proto.Message) error) (int, int, error) {
 	if ctrl == nil {
 		return 0, 0, nil
 	}

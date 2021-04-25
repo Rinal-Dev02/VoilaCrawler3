@@ -10,6 +10,7 @@ import (
 
 	"github.com/voiladev/VoilaCrawl/internal/model/crawler"
 	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
+	specCrawler "github.com/voiladev/VoilaCrawl/pkg/crawler"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/protoutil"
@@ -208,6 +209,10 @@ func (ctrl *CrawlerController) Parse(ctx context.Context, storeId string, r *pbC
 		return err
 	}
 
+	countLimit := -1
+	if r.GetOptions().GetMaxItemCount() > 0 {
+		countLimit = int(r.GetOptions().GetMaxItemCount())
+	}
 	return func(ctx context.Context, client pbCrawl.CrawlerNodeClient) (err error) {
 		defer func() {
 			if e := recover(); e != nil {
@@ -284,6 +289,9 @@ func (ctrl *CrawlerController) Parse(ctx context.Context, storeId string, r *pbC
 
 				if err = yield(ctx, &item); err != nil {
 					return err
+				}
+				if countLimit != -1 && item.Index >= int32(countLimit) {
+					return specCrawler.ErrCountMatched
 				}
 			case errorTypeUrl:
 				var item pbCrawl.Error

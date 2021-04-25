@@ -6,8 +6,7 @@ var (
 	CrawlRequestStatusTopic      = "chameleon.smelter.v1.crawl.RequestStatus"
 	CrawlStoreRequestTopicPrefix = "store.Request"
 	// Item
-	CrawlItemTopic         = "chameleon.smelter.v1.crawl.Item"
-	CrawlItemRealtimeTopic = "chameleon.smelter.v1.crawl.Item_Realtime"
+	CrawlItemTopic = "chameleon.smelter.v1.crawl.Item"
 	// Error
 	CrawlErrorTopic = "chameleon.smelter.v1.crawl.Error"
 

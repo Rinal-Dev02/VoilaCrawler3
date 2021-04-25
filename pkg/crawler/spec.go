@@ -13,6 +13,7 @@ import (
 var (
 	// ErrNotSupportedPath
 	ErrNotSupportedPath = errors.New("not supporped url path")
+	ErrCountMatched     = errors.New("item count matched, abort")
 )
 
 // CrawlOptions
