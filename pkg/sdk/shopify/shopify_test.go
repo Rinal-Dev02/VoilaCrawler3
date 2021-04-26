@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"testing"
+
+	"github.com/voiladev/go-framework/strconv"
 )
 
 var client *ShopifyClient
@@ -31,7 +33,9 @@ func TestShopifyClient_ListCustomCollections(t *testing.T) {
 			name: "custom_collections",
 			args: args{
 				ctx: context.Background(),
-				req: &ListCustomCollectionsRequest{Limit: 50},
+				req: &ListCustomCollectionsRequest{
+					Limit: 50,
+				},
 			},
 		},
 	}
@@ -95,7 +99,7 @@ func TestShopifyClient_ListProducts(t *testing.T) {
 			name: "products",
 			args: args{
 				ctx: context.Background(),
-				req: &ListProductsRequest{Limit: 50, IDs: []string{}},
+				req: &ListProductsRequest{Limit: 50, IDs: []string{"4613172756516"}},
 			},
 		},
 	}
@@ -118,6 +122,49 @@ func TestShopifyClient_ListProducts(t *testing.T) {
 				}
 				data, _ := json.Marshal(got)
 				t.Logf("%s", data)
+			}
+		})
+	}
+}
+
+func TestShopifyClient_ListCollects(t *testing.T) {
+	type args struct {
+		ctx context.Context
+		req *ListCollectsRequest
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *ListCollectsResponse
+		wantErr bool
+	}{
+		{
+			name: "collects",
+			args: args{
+				ctx: context.Background(),
+				req: &ListCollectsRequest{
+					Limit:     50,
+					ProductID: "6561712144574",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := client.ListCollects(tt.args.ctx, tt.args.req)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ShopifyClient.ListCollects() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			for _, coll := range got.Collects {
+				if resp, err := client.GetCollection(tt.args.ctx, &GetCollectionRequest{
+					ID: strconv.Format(coll.ID),
+				}); err != nil {
+					t.Error(err)
+				} else {
+					t.Logf("%+v", resp.Collection)
+				}
 			}
 		})
 	}

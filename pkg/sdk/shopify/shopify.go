@@ -78,21 +78,26 @@ func (client *ShopifyClient) nextLink(resp *http.Response) (string, string) {
 }
 
 type ListCollectsRequest struct {
-	Limit   int32
+	Limit        int32
+	ProductID    string
+	CollectionID string
+
 	SinceId string
 	Fields  []string
+	Link    string
 }
 
 type ListCollectsResponse struct {
 	Collects []struct {
-		ID           int         `json:"id"`
-		CollectionID int         `json:"collection_id"`
-		ProductID    int         `json:"product_id"`
+		ID           uint64      `json:"id"`
+		CollectionID uint64      `json:"collection_id"`
+		ProductID    uint64      `json:"product_id"`
 		CreatedAt    interface{} `json:"created_at"`
 		UpdatedAt    interface{} `json:"updated_at"`
 		Position     int         `json:"position"`
 		SortValue    string      `json:"sort_value"`
 	} `json:"collects"`
+	NextLink string
 }
 
 func (client *ShopifyClient) ListCollects(ctx context.Context, req *ListCollectsRequest) (*ListCollectsResponse, error) {
@@ -107,20 +112,29 @@ func (client *ShopifyClient) ListCollects(ctx context.Context, req *ListCollects
 		req.Limit = 250
 	}
 
-	u, _ := url.Parse(fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/collects.json", client.shop, client.apiVer))
-	vals := u.Query()
-	if req.Limit != 0 {
-		vals.Set("limit", fmt.Sprintf("%d", req.Limit))
+	rawurl := req.Link
+	if rawurl == "" {
+		u, _ := url.Parse(fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/collects.json", client.shop, client.apiVer))
+		vals := u.Query()
+		if req.Limit != 0 {
+			vals.Set("limit", fmt.Sprintf("%d", req.Limit))
+		}
+		if req.ProductID != "" {
+			vals.Set("product_id", req.ProductID)
+		}
+		if req.CollectionID != "" {
+			vals.Set("collection_id", req.CollectionID)
+		}
+		if req.SinceId != "" {
+			vals.Set("since_id", req.SinceId)
+		}
+		if len(req.Fields) != 0 {
+			vals.Set("fields", strings.Join(req.Fields, ","))
+		}
+		u.RawQuery = vals.Encode()
+		rawurl = u.String()
 	}
-	if req.SinceId != "" {
-		vals.Set("since_id", req.SinceId)
-	}
-	if len(req.Fields) != 0 {
-		vals.Set("fields", strings.Join(req.Fields, ","))
-	}
-	u.RawQuery = vals.Encode()
-
-	r, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +158,82 @@ func (client *ShopifyClient) ListCollects(ctx context.Context, req *ListCollects
 	if json.Unmarshal(respBody, &ret); err != nil {
 		return nil, err
 	}
+	_, ret.NextLink = client.nextLink(resp)
+
+	return &ret, nil
+}
+
+type Collection struct {
+	ID                uint64      `json:"id"`
+	Handle            string      `json:"handle"`
+	UpdatedAt         string      `json:"updated_at"`
+	PublishedAt       string      `json:"published_at"`
+	SortOrder         string      `json:"sort_order"`
+	TemplateSuffix    interface{} `json:"template_suffix"`
+	PublishedScope    string      `json:"published_scope"`
+	Title             string      `json:"title"`
+	BodyHTML          string      `json:"body_html"`
+	AdminGraphqlAPIID string      `json:"admin_graphql_api_id"`
+	Image             struct {
+		CreatedAt string `json:"created_at"`
+		Alt       string `json:"alt"`
+		Width     int    `json:"width"`
+		Height    int    `json:"height"`
+		Src       string `json:"src"`
+	} `json:"image,omitempty"`
+	Disjunctive bool `json:"disjunctive"`
+	Rules       []struct {
+		Column    string `json:"column"`
+		Relation  string `json:"relation"`
+		Condition string `json:"condition"`
+	} `json:"rules"`
+}
+
+type GetCollectionRequest struct {
+	ID string
+}
+
+type GetCollectionResponse struct {
+	Collection *Collection
+}
+
+func (client *ShopifyClient) GetCollection(ctx context.Context, req *GetCollectionRequest) (*GetCollectionResponse, error) {
+	if client == nil {
+		return nil, nil
+	}
+
+	if req == nil {
+		return nil, errors.New("invalid request params")
+	}
+	if req.ID == "" {
+		return nil, errors.New("invalid collection id")
+	}
+
+	rawurl := fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/collections/%s.json", client.shop, client.apiVer, req.ID)
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
+	if err != nil {
+		return nil, err
+	}
+	r = client.auth(r)
+
+	resp, err := client.httpClient.Do(r)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("access %s failed, %s", r.URL, respBody)
+	}
+
+	var ret GetCollectionResponse
+	if json.Unmarshal(respBody, &ret); err != nil {
+		return nil, err
+	}
 	return &ret, nil
 }
 
@@ -164,26 +254,8 @@ type ListCustomCollectionsRequest struct {
 }
 
 type ListCustomCollectionsResponse struct {
-	CustomCollections []struct {
-		ID                int         `json:"id"`
-		Handle            string      `json:"handle"`
-		UpdatedAt         string      `json:"updated_at"`
-		PublishedAt       string      `json:"published_at"`
-		SortOrder         string      `json:"sort_order"`
-		TemplateSuffix    interface{} `json:"template_suffix"`
-		PublishedScope    string      `json:"published_scope"`
-		Title             string      `json:"title"`
-		BodyHTML          string      `json:"body_html"`
-		AdminGraphqlAPIID string      `json:"admin_graphql_api_id"`
-		Image             struct {
-			CreatedAt string `json:"created_at"`
-			Alt       string `json:"alt"`
-			Width     int    `json:"width"`
-			Height    int    `json:"height"`
-			Src       string `json:"src"`
-		} `json:"image,omitempty"`
-	} `json:"custom_collections"`
-	NextLink string
+	CustomCollections []*Collection `json:"custom_collections"`
+	NextLink          string
 }
 
 func (client *ShopifyClient) ListCustomCollections(ctx context.Context, req *ListCustomCollectionsRequest) (*ListCustomCollectionsResponse, error) {
@@ -198,51 +270,50 @@ func (client *ShopifyClient) ListCustomCollections(ctx context.Context, req *Lis
 		req.Limit = 250
 	}
 
-	rawurl := fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/custom_collections.json", client.shop, client.apiVer)
-	if req.Link != "" {
-		rawurl = req.Link
+	rawurl := req.Link
+	if rawurl == "" {
+		u, _ := url.Parse(fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/custom_collections.json", client.shop, client.apiVer))
+		vals := u.Query()
+		if req.Limit != 0 {
+			vals.Set("limit", fmt.Sprintf("%d", req.Limit))
+		}
+		if len(req.IDs) > 0 {
+			vals.Set("ids", strings.Join(req.IDs, ","))
+		}
+		if req.SinceId != "" {
+			vals.Set("since_id", req.SinceId)
+		}
+		if req.Title != "" {
+			vals.Set("title", req.Title)
+		}
+		if req.ProductId != "" {
+			vals.Set("product_id", req.ProductId)
+		}
+		if req.Handle != "" {
+			vals.Set("handle", req.Handle)
+		}
+		if req.UpdatedAtMin != "" {
+			vals.Set("updated_at_min", req.UpdatedAtMin)
+		}
+		if req.UpdatedAtMax != "" {
+			vals.Set("updated_at_max", req.UpdatedAtMax)
+		}
+		if req.PublishedAtMin != "" {
+			vals.Set("published_at_min", req.PublishedAtMin)
+		}
+		if req.PublishedAtMax != "" {
+			vals.Set("published_at_max", req.PublishedAtMax)
+		}
+		if req.PublishedStatus != "" {
+			vals.Set("published_status", string(req.PublishedStatus))
+		}
+		if len(req.Fields) != 0 {
+			vals.Set("fields", strings.Join(req.Fields, ","))
+		}
+		u.RawQuery = vals.Encode()
+		rawurl = u.String()
 	}
-	u, _ := url.Parse(rawurl)
-	vals := u.Query()
-	if req.Limit != 0 {
-		vals.Set("limit", fmt.Sprintf("%d", req.Limit))
-	}
-	if len(req.IDs) > 0 {
-		vals.Set("ids", strings.Join(req.IDs, ","))
-	}
-	if req.SinceId != "" {
-		vals.Set("since_id", req.SinceId)
-	}
-	if req.Title != "" {
-		vals.Set("title", req.Title)
-	}
-	if req.ProductId != "" {
-		vals.Set("product_id", req.ProductId)
-	}
-	if req.Handle != "" {
-		vals.Set("handle", req.Handle)
-	}
-	if req.UpdatedAtMin != "" {
-		vals.Set("updated_at_min", req.UpdatedAtMin)
-	}
-	if req.UpdatedAtMax != "" {
-		vals.Set("updated_at_max", req.UpdatedAtMax)
-	}
-	if req.PublishedAtMin != "" {
-		vals.Set("published_at_min", req.PublishedAtMin)
-	}
-	if req.PublishedAtMax != "" {
-		vals.Set("published_at_max", req.PublishedAtMax)
-	}
-	if req.PublishedStatus != "" {
-		vals.Set("published_status", string(req.PublishedStatus))
-	}
-	if len(req.Fields) != 0 {
-		vals.Set("fields", strings.Join(req.Fields, ","))
-	}
-	u.RawQuery = vals.Encode()
-
-	r, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -288,32 +359,8 @@ type ListSmartCollectionsRequest struct {
 }
 
 type ListSmartCollectionsResponse struct {
-	SmartCollections []struct {
-		ID             int         `json:"id"`
-		Handle         string      `json:"handle"`
-		Title          string      `json:"title"`
-		UpdatedAt      string      `json:"updated_at"`
-		BodyHTML       string      `json:"body_html"`
-		PublishedAt    string      `json:"published_at"`
-		SortOrder      string      `json:"sort_order"`
-		TemplateSuffix interface{} `json:"template_suffix"`
-		Disjunctive    bool        `json:"disjunctive"`
-		Rules          []struct {
-			Column    string `json:"column"`
-			Relation  string `json:"relation"`
-			Condition string `json:"condition"`
-		} `json:"rules"`
-		PublishedScope    string `json:"published_scope"`
-		AdminGraphqlAPIID string `json:"admin_graphql_api_id"`
-		Image             struct {
-			CreatedAt string `json:"created_at"`
-			Alt       string `json:"alt"`
-			Width     int    `json:"width"`
-			Height    int    `json:"height"`
-			Src       string `json:"src"`
-		} `json:"image"`
-	} `json:"smart_collections"`
-	NextLink string
+	SmartCollections []*Collection `json:"smart_collections"`
+	NextLink         string
 }
 
 func (client *ShopifyClient) ListSmartCollections(ctx context.Context, req *ListSmartCollectionsRequest) (*ListSmartCollectionsResponse, error) {
@@ -328,24 +375,24 @@ func (client *ShopifyClient) ListSmartCollections(ctx context.Context, req *List
 		req.Limit = 250
 	}
 
-	rawurl := fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/smart_collections.json", client.shop, client.apiVer)
-	if req.Link != "" {
-		rawurl = req.Link
+	rawurl := req.Link
+	if rawurl == "" {
+		u, _ := url.Parse(fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/smart_collections.json", client.shop, client.apiVer))
+		vals := u.Query()
+		if req.Limit != 0 {
+			vals.Set("limit", fmt.Sprintf("%d", req.Limit))
+		}
+		if req.SinceId != "" {
+			vals.Set("since_id", req.SinceId)
+		}
+		if len(req.Fields) != 0 {
+			vals.Set("fields", strings.Join(req.Fields, ","))
+		}
+		u.RawQuery = vals.Encode()
+		rawurl = u.String()
 	}
-	u, _ := url.Parse(rawurl)
-	vals := u.Query()
-	if req.Limit != 0 {
-		vals.Set("limit", fmt.Sprintf("%d", req.Limit))
-	}
-	if req.SinceId != "" {
-		vals.Set("since_id", req.SinceId)
-	}
-	if len(req.Fields) != 0 {
-		vals.Set("fields", strings.Join(req.Fields, ","))
-	}
-	u.RawQuery = vals.Encode()
 
-	r, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -389,6 +436,150 @@ const (
 	Unpublished               = "unpublished"
 )
 
+type Product struct {
+	ID                uint64 `json:"id"`
+	Title             string `json:"title"`
+	BodyHTML          string `json:"body_html"`
+	Vendor            string `json:"vendor"`
+	ProductType       string `json:"product_type"`
+	CreatedAt         string `json:"created_at"`
+	Handle            string `json:"handle"`
+	UpdatedAt         string `json:"updated_at"`
+	PublishedAt       string `json:"published_at"`
+	TemplateSuffix    string `json:"template_suffix"`
+	Status            string `json:"status,omitempty"`
+	PublishedScope    string `json:"published_scope"`
+	Tags              string `json:"tags"`
+	AdminGraphqlAPIID string `json:"admin_graphql_api_id"`
+	Variants          []struct {
+		ID                   uint64  `json:"id"`
+		ProductID            uint64  `json:"product_id"`
+		Title                string  `json:"title"`
+		Price                string  `json:"price"`
+		Sku                  string  `json:"sku"`
+		Position             int     `json:"position"`
+		InventoryPolicy      string  `json:"inventory_policy"`
+		CompareAtPrice       string  `json:"compare_at_price"`
+		FulfillmentService   string  `json:"fulfillment_service"`
+		InventoryManagement  string  `json:"inventory_management"`
+		Option1              string  `json:"option1"`
+		Option2              string  `json:"option2"`
+		Option3              string  `json:"option3"`
+		CreatedAt            string  `json:"created_at"`
+		UpdatedAt            string  `json:"updated_at"`
+		Taxable              bool    `json:"taxable"`
+		Barcode              string  `json:"barcode"`
+		Grams                int     `json:"grams"`
+		ImageID              uint64  `json:"image_id"`
+		Weight               float64 `json:"weight"`
+		WeightUnit           string  `json:"weight_unit"`
+		InventoryItemID      uint64  `json:"inventory_item_id"`
+		InventoryQuantity    int     `json:"inventory_quantity"`
+		OldInventoryQuantity int     `json:"old_inventory_quantity"`
+		TaxCode              string  `json:"tax_code"`
+		RequiresShipping     bool    `json:"requires_shipping"`
+		AdminGraphqlAPIID    string  `json:"admin_graphql_api_id"`
+	} `json:"variants"`
+	Options []struct {
+		ID        uint64   `json:"id"`
+		ProductID uint64   `json:"product_id"`
+		Name      string   `json:"name"`
+		Position  int      `json:"position"`
+		Values    []string `json:"values"`
+	} `json:"options"`
+	Images []struct {
+		ID                uint64        `json:"id"`
+		ProductID         uint64        `json:"product_id"`
+		Position          int           `json:"position"`
+		CreatedAt         string        `json:"created_at"`
+		UpdatedAt         string        `json:"updated_at"`
+		Alt               string        `json:"alt"`
+		Width             int           `json:"width"`
+		Height            int           `json:"height"`
+		Src               string        `json:"src"`
+		VariantIds        []interface{} `json:"variant_ids"`
+		AdminGraphqlAPIID string        `json:"admin_graphql_api_id"`
+	} `json:"images"`
+	Image struct {
+		ID                uint64        `json:"id"`
+		ProductID         uint64        `json:"product_id"`
+		Position          int           `json:"position"`
+		CreatedAt         string        `json:"created_at"`
+		UpdatedAt         string        `json:"updated_at"`
+		Alt               interface{}   `json:"alt"`
+		Width             int           `json:"width"`
+		Height            int           `json:"height"`
+		Src               string        `json:"src"`
+		VariantIds        []interface{} `json:"variant_ids"`
+		AdminGraphqlAPIID string        `json:"admin_graphql_api_id"`
+	} `json:"image"`
+}
+
+type ListCollectionProductsRequest struct {
+	Limit        int
+	CollectionID string
+	Link         string
+}
+
+type ListCollectionProductsResponse struct {
+	Products []*Product `json:"products"`
+	NextLink string
+}
+
+func (client *ShopifyClient) ListCollectionProducts(ctx context.Context, req *ListCollectionProductsRequest) (*ListCollectionProductsResponse, error) {
+	if client == nil {
+		return nil, nil
+	}
+
+	if req == nil {
+		return nil, errors.New("invalid request params")
+	}
+	if req.CollectionID == "" || req.CollectionID == "0" {
+		return nil, errors.New("invalid collection id")
+	}
+	if req.Limit == 0 {
+		req.Limit = 250
+	}
+
+	rawurl := req.Link
+	if rawurl == "" {
+		u, _ := url.Parse(fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/collections/%s/products.json", client.shop, client.apiVer, req.CollectionID))
+		vals := u.Query()
+		if req.Limit != 0 {
+			vals.Set("limit", fmt.Sprintf("%d", req.Limit))
+		}
+		u.RawQuery = vals.Encode()
+		rawurl = u.String()
+	}
+
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
+	if err != nil {
+		return nil, err
+	}
+	r = client.auth(r)
+
+	resp, err := client.httpClient.Do(r)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("access %s failed, %s", r.URL, respBody)
+	}
+
+	var ret ListCollectionProductsResponse
+	if json.Unmarshal(respBody, &ret); err != nil {
+		return nil, err
+	}
+	_, ret.NextLink = client.nextLink(resp)
+	return &ret, nil
+}
+
 // ListProductsRequest referrer to https://shopify.dev/docs/admin-api/rest/reference/products/product#index-2021-04
 type ListProductsRequest struct {
 	IDs                   []string
@@ -413,84 +604,7 @@ type ListProductsRequest struct {
 }
 
 type ListProductsResponse struct {
-	Products []struct {
-		ID                int64  `json:"id"`
-		Title             string `json:"title"`
-		BodyHTML          string `json:"body_html"`
-		Vendor            string `json:"vendor"`
-		ProductType       string `json:"product_type"`
-		CreatedAt         string `json:"created_at"`
-		Handle            string `json:"handle"`
-		UpdatedAt         string `json:"updated_at"`
-		PublishedAt       string `json:"published_at"`
-		TemplateSuffix    string `json:"template_suffix"`
-		Status            string `json:"status,omitempty"`
-		PublishedScope    string `json:"published_scope"`
-		Tags              string `json:"tags"`
-		AdminGraphqlAPIID string `json:"admin_graphql_api_id"`
-		Variants          []struct {
-			ID                   int64       `json:"id"`
-			ProductID            int64       `json:"product_id"`
-			Title                string      `json:"title"`
-			Price                string      `json:"price"`
-			Sku                  string      `json:"sku"`
-			Position             int         `json:"position"`
-			InventoryPolicy      string      `json:"inventory_policy"`
-			CompareAtPrice       string      `json:"compare_at_price"`
-			FulfillmentService   string      `json:"fulfillment_service"`
-			InventoryManagement  string      `json:"inventory_management"`
-			Option1              string      `json:"option1"`
-			Option2              string      `json:"option2"`
-			Option3              interface{} `json:"option3"`
-			CreatedAt            string      `json:"created_at"`
-			UpdatedAt            string      `json:"updated_at"`
-			Taxable              bool        `json:"taxable"`
-			Barcode              string      `json:"barcode"`
-			Grams                int         `json:"grams"`
-			ImageID              interface{} `json:"image_id"`
-			Weight               float64     `json:"weight"`
-			WeightUnit           string      `json:"weight_unit"`
-			InventoryItemID      int64       `json:"inventory_item_id"`
-			InventoryQuantity    int         `json:"inventory_quantity"`
-			OldInventoryQuantity int         `json:"old_inventory_quantity"`
-			TaxCode              string      `json:"tax_code"`
-			RequiresShipping     bool        `json:"requires_shipping"`
-			AdminGraphqlAPIID    string      `json:"admin_graphql_api_id"`
-		} `json:"variants"`
-		Options []struct {
-			ID        int64    `json:"id"`
-			ProductID int64    `json:"product_id"`
-			Name      string   `json:"name"`
-			Position  int      `json:"position"`
-			Values    []string `json:"values"`
-		} `json:"options"`
-		Images []struct {
-			ID                int64         `json:"id"`
-			ProductID         int64         `json:"product_id"`
-			Position          int           `json:"position"`
-			CreatedAt         string        `json:"created_at"`
-			UpdatedAt         string        `json:"updated_at"`
-			Alt               interface{}   `json:"alt"`
-			Width             int           `json:"width"`
-			Height            int           `json:"height"`
-			Src               string        `json:"src"`
-			VariantIds        []interface{} `json:"variant_ids"`
-			AdminGraphqlAPIID string        `json:"admin_graphql_api_id"`
-		} `json:"images"`
-		Image struct {
-			ID                int64         `json:"id"`
-			ProductID         int64         `json:"product_id"`
-			Position          int           `json:"position"`
-			CreatedAt         string        `json:"created_at"`
-			UpdatedAt         string        `json:"updated_at"`
-			Alt               interface{}   `json:"alt"`
-			Width             int           `json:"width"`
-			Height            int           `json:"height"`
-			Src               string        `json:"src"`
-			VariantIds        []interface{} `json:"variant_ids"`
-			AdminGraphqlAPIID string        `json:"admin_graphql_api_id"`
-		} `json:"image"`
-	} `json:"products"`
+	Products []*Product `json:"products"`
 	NextLink string
 }
 
@@ -506,69 +620,68 @@ func (client *ShopifyClient) ListProducts(ctx context.Context, req *ListProducts
 		req.Limit = 250
 	}
 
-	rawurl := fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/products.json", client.shop, client.apiVer)
-	if req.Link != "" {
-		rawurl = req.Link
+	rawurl := req.Link
+	if rawurl == "" {
+		u, _ := url.Parse(fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/products.json", client.shop, client.apiVer))
+		vals := u.Query()
+		if len(req.IDs) > 0 {
+			vals.Set("ids", strings.Join(req.IDs, ","))
+		}
+		if req.Limit != 0 {
+			vals.Set("limit", fmt.Sprintf("%d", req.Limit))
+		}
+		if req.SinceId != "" {
+			vals.Set("since_id", req.SinceId)
+		}
+		if req.Title != "" {
+			vals.Set("title", req.Title)
+		}
+		if req.Vendor != "" {
+			vals.Set("vendor", req.Vendor)
+		}
+		if len(req.Handle) != 0 {
+			vals.Set("handle", strings.Join(req.Handle, ","))
+		}
+		if req.ProductType != "" {
+			vals.Set("product_type", req.ProductType)
+		}
+		if req.Status != "" {
+			vals.Set("status", string(req.Status))
+		}
+		if req.CollectionID != "" {
+			vals.Set("collection_id", req.CollectionID)
+		}
+		if req.CreatedAtMin != "" {
+			vals.Set("created_at_min", req.CreatedAtMin)
+		}
+		if req.CreatedAtMax != "" {
+			vals.Set("created_at_max", req.CreatedAtMax)
+		}
+		if req.UpdatedAtMin != "" {
+			vals.Set("updated_at_min", req.UpdatedAtMin)
+		}
+		if req.UpdatedAtMax != "" {
+			vals.Set("updated_at_max", req.UpdatedAtMax)
+		}
+		if req.PublishedAtMin != "" {
+			vals.Set("published_at_min", req.PublishedAtMin)
+		}
+		if req.PublishedAtMax != "" {
+			vals.Set("published_at_max", req.PublishedAtMax)
+		}
+		if req.PublishedStatus != "" {
+			vals.Set("published_status", string(req.PublishedStatus))
+		}
+		if len(req.Fields) > 0 {
+			vals.Set("fields", strings.Join(req.Fields, ","))
+		}
+		if len(req.PresentmentCurrencies) != 0 {
+			vals.Set("presentment_currencies", strings.Join(req.PresentmentCurrencies, ","))
+		}
+		u.RawQuery = vals.Encode()
+		rawurl = u.String()
 	}
-	u, _ := url.Parse(rawurl)
-	vals := u.Query()
-	if len(req.IDs) > 0 {
-		vals.Set("ids", strings.Join(req.IDs, ","))
-	}
-	if req.Limit != 0 {
-		vals.Set("limit", fmt.Sprintf("%d", req.Limit))
-	}
-	if req.SinceId != "" {
-		vals.Set("since_id", req.SinceId)
-	}
-	if req.Title != "" {
-		vals.Set("title", req.Title)
-	}
-	if req.Vendor != "" {
-		vals.Set("vendor", req.Vendor)
-	}
-	if len(req.Handle) != 0 {
-		vals.Set("handle", strings.Join(req.Handle, ","))
-	}
-	if req.ProductType != "" {
-		vals.Set("product_type", req.ProductType)
-	}
-	if req.Status != "" {
-		vals.Set("status", string(req.Status))
-	}
-	if req.CollectionID != "" {
-		vals.Set("collection_id", req.CollectionID)
-	}
-	if req.CreatedAtMin != "" {
-		vals.Set("created_at_min", req.CreatedAtMin)
-	}
-	if req.CreatedAtMax != "" {
-		vals.Set("created_at_max", req.CreatedAtMax)
-	}
-	if req.UpdatedAtMin != "" {
-		vals.Set("updated_at_min", req.UpdatedAtMin)
-	}
-	if req.UpdatedAtMax != "" {
-		vals.Set("updated_at_max", req.UpdatedAtMax)
-	}
-	if req.PublishedAtMin != "" {
-		vals.Set("published_at_min", req.PublishedAtMin)
-	}
-	if req.PublishedAtMax != "" {
-		vals.Set("published_at_max", req.PublishedAtMax)
-	}
-	if req.PublishedStatus != "" {
-		vals.Set("published_status", string(req.PublishedStatus))
-	}
-	if len(req.Fields) > 0 {
-		vals.Set("fields", strings.Join(req.Fields, ","))
-	}
-	if len(req.PresentmentCurrencies) != 0 {
-		vals.Set("presentment_currencies", strings.Join(req.PresentmentCurrencies, ","))
-	}
-	u.RawQuery = vals.Encode()
-
-	r, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -593,5 +706,53 @@ func (client *ShopifyClient) ListProducts(ctx context.Context, req *ListProducts
 		return nil, err
 	}
 	_, ret.NextLink = client.nextLink(resp)
+	return &ret, nil
+}
+
+type GetProductRequest struct {
+	ProductID string
+}
+
+type GetProductResponse struct {
+	Product *Product
+}
+
+func (client *ShopifyClient) GetProduct(ctx context.Context, req *GetProductRequest) (*GetProductResponse, error) {
+	if client == nil {
+		return nil, nil
+	}
+
+	if req == nil {
+		return nil, errors.New("invalid request params")
+	}
+	if req.ProductID == "" {
+		return nil, errors.New("invalid product id")
+	}
+
+	rawurl := fmt.Sprintf("https://%s.myshopify.com/admin/api/%s/products/%s.json", client.shop, client.apiVer, req.ProductID)
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
+	if err != nil {
+		return nil, err
+	}
+	r = client.auth(r)
+
+	resp, err := client.httpClient.Do(r)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("access %s failed, %s", r.URL, respBody)
+	}
+
+	var ret GetProductResponse
+	if json.Unmarshal(respBody, &ret); err != nil {
+		return nil, err
+	}
 	return &ret, nil
 }
