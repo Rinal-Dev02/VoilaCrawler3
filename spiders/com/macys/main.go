@@ -717,8 +717,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			sku.Specs = append(sku.Specs, &spec)
 
-			current := color.Pricing.Price.TieredPrice[1].Values[0].Value
+			current := 0.0
 			msrp := color.Pricing.Price.TieredPrice[0].Values[0].Value
+			if len(color.Pricing.Price.TieredPrice) > 1 {
+				current = color.Pricing.Price.TieredPrice[1].Values[0].Value
+			}
 			discount := math.Ceil((msrp - current) * 100 / msrp)
 			sku.Price.Current = int32(current * 100)
 			sku.Price.Msrp = int32(msrp * 100)
