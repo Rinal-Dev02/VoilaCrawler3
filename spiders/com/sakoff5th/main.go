@@ -830,6 +830,7 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 					break
 				}
 			}
+
 			for _, colorVal := range colorAttr.Values {
 				if !colorVal.Selected {
 					continue
@@ -841,9 +842,39 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 					Value: colorVal.Value,
 				}
 
-				for _, sizeVal := range sizeAttr.Values {
+				if sizeAttr != nil {
+					for _, sizeVal := range sizeAttr.Values {
+						sku := pbItem.Sku{
+							SourceId: fmt.Sprintf("%s-%s", colorVal.ID, sizeVal.ID),
+							Title:    viewData.Product.ProductName,
+							Price: &pbItem.Price{
+								Currency: regulation.Currency_USD,
+								Current:  int32(price * 100),
+								Msrp:     int32(orgPrice * 100),
+								Discount: int32(discount),
+							},
+							Medias: medias,
+							Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+							Stats: &pbItem.Stats{
+								Rating:      float32(viewData.Product.Rating),
+								ReviewCount: int32(viewData.Product.TurntoReviewCount),
+							},
+						}
+						if colorVal.Selectable && sizeVal.Selectable {
+							sku.Stock.StockStatus = pbItem.Stock_InStock
+						}
+						sku.Specs = append(sku.Specs, &colorSpec)
+						sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+							Type:  pbItem.SkuSpecType_SkuSpecSize,
+							Id:    sizeVal.ID,
+							Name:  sizeVal.DisplayValue,
+							Value: sizeVal.Value,
+						})
+						item.SkuItems = append(item.SkuItems, &sku)
+					}
+				} else {
 					sku := pbItem.Sku{
-						SourceId: fmt.Sprintf("%s-%s", colorVal.ID, sizeVal.ID),
+						SourceId: colorVal.ID,
 						Title:    viewData.Product.ProductName,
 						Price: &pbItem.Price{
 							Currency: regulation.Currency_USD,
@@ -858,16 +889,10 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 							ReviewCount: int32(viewData.Product.TurntoReviewCount),
 						},
 					}
-					if colorVal.Selectable && sizeVal.Selectable {
+					if colorVal.Selectable {
 						sku.Stock.StockStatus = pbItem.Stock_InStock
 					}
 					sku.Specs = append(sku.Specs, &colorSpec)
-					sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-						Type:  pbItem.SkuSpecType_SkuSpecSize,
-						Id:    sizeVal.ID,
-						Name:  sizeVal.DisplayValue,
-						Value: sizeVal.Value,
-					})
 					item.SkuItems = append(item.SkuItems, &sku)
 				}
 			}
