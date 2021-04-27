@@ -76,6 +76,7 @@ func (s *CrawlerServer) GetCrawlers(ctx context.Context, req *pbCrawl.GetCrawler
 			cw.Unmarshal(&item)
 			group.Data = append(group.Data, &item)
 		}
+		resp.Data[storeId] = &group
 	}
 	return &resp, nil
 }
