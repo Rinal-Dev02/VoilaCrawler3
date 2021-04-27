@@ -114,6 +114,8 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 	}
 	logger := s.logger.New("Parse")
 
+	logger.Infof("Access %s", rawreq.GetUrl())
+
 	shareCtx := ps.Context()
 	for k, v := range rawreq.SharingData {
 		shareCtx = context.WithValue(shareCtx, k, v)

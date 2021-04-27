@@ -822,7 +822,8 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 			for _, attr := range viewData.Product.VariationAttributes {
 				if attr.AttributeID == "color" && colorAttr == nil {
 					colorAttr = attr
-				} else if attr.AttributeID == "size" && sizeAttr == nil {
+				}
+				if attr.AttributeID == "size" && sizeAttr == nil {
 					sizeAttr = attr
 				}
 				if colorAttr != nil && sizeAttr != nil {
@@ -833,13 +834,13 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 				if !colorVal.Selected {
 					continue
 				}
+
 				colorSpec := pbItem.SkuSpecOption{
 					Type:  pbItem.SkuSpecType_SkuSpecColor,
 					Id:    colorVal.ID,
 					Name:  colorVal.DisplayValue,
 					Value: colorVal.Value,
 				}
-
 				for _, sizeVal := range sizeAttr.Values {
 					sku := pbItem.Sku{
 						SourceId: fmt.Sprintf("%s-%s", colorVal.ID, sizeVal.ID),

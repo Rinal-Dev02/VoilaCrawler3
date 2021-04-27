@@ -13,6 +13,7 @@ import (
 	"github.com/voiladev/go-crawler/pkg/net/http"
 	"github.com/voiladev/go-crawler/pkg/net/http/cookiejar"
 	"github.com/voiladev/go-crawler/pkg/proxy"
+	pbProxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/randutil"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -34,6 +35,10 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 				Name:  "target",
 				Usage: "use this target url for test if provided",
 			},
+			&cli.StringSliceFlag{
+				Name:  "level",
+				Usage: "proxy level, 1,2,3",
+			},
 			&cli.BoolFlag{
 				Name:    "debug",
 				Usage:   "Enable debug",
@@ -51,6 +56,7 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 			if proxyAddr == "" {
 				return errors.New("proxy address not specified")
 			}
+			level := c.Int("level")
 
 			jar := cookiejar.New()
 			client, err := proxy.NewProxyClient(proxyAddr, jar, logger)
@@ -80,7 +86,6 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 				if host == "" {
 					host = req.Host
 				}
-
 			}
 			if reqCount == 0 {
 				for _, req := range node.NewTestRequest(ctx) {
@@ -166,6 +171,10 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 					nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
 
 					opts := node.CrawlOptions(req.URL)
+					l := opts.Reliability
+					if l == 0 {
+						l = pbProxy.ProxyReliability(level)
+					}
 					resp, err := client.DoWithOptions(nctx, req, http.Options{
 						EnableProxy:       true,
 						EnableHeadless:    opts.EnableHeadless,
@@ -173,7 +182,7 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 						KeepSession:       opts.KeepSession,
 						DisableCookieJar:  opts.DisableCookieJar,
 						DisableRedirect:   opts.DisableRedirect,
-						Reliability:       opts.Reliability,
+						Reliability:       l,
 					})
 					if err != nil {
 						return err
