@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -100,6 +101,29 @@ func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	if bytes.Contains(respBody, []byte("user_verify_page_description")) {
+		opts := c.CrawlOptions(resp.Request.URL)
+		// reload the request
+		if r, err := c.httpClient.DoWithOptions(ctx, resp.Request, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    false,
+			EnableSessionInit: false,
+			Reliability:       opts.Reliability,
+		}); err != nil {
+			c.logger.Error(err)
+			return err
+		} else {
+			resp = r
+		}
+	} else {
+		resp.Body = http.NewReader(respBody)
 	}
 
 	if c.personalVideoList.MatchString(resp.Request.URL.Path) {
