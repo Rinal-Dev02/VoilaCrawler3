@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/url"
 	"os"
@@ -16,7 +18,6 @@ import (
 	"github.com/voiladev/go-crawler/pkg/cli"
 	"github.com/voiladev/go-crawler/pkg/crawler"
 	"github.com/voiladev/go-crawler/pkg/net/http"
-	"github.com/voiladev/go-crawler/pkg/sdk/shopify"
 	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/regulation"
 	pbCrawl "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl"
@@ -27,30 +28,17 @@ import (
 )
 
 type _Crawler struct {
-	httpClient    http.Client
-	shopifyClient *shopify.ShopifyClient
-	collections   sync.Map
+	httpClient  http.Client
+	collections sync.Map
 
 	categoryPathMatcher *regexp.Regexp
 	productPathMatcher  *regexp.Regexp
 	logger              glog.Log
 }
 
-const (
-	__shopName__   = "jinglimited"
-	__apiVersion__ = "2021-04"
-)
-
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
-	shopifyClient, err := shopify.New(__shopName__, __apiVersion__,
-		os.Getenv("JING_API_KEY"), os.Getenv("JING_API_SECRET"), os.Getenv("JING_API_ACCESSTOKEN"))
-	if err != nil {
-		return nil, err
-	}
-
 	c := _Crawler{
-		httpClient:    client,
-		shopifyClient: shopifyClient,
+		httpClient: client,
 
 		categoryPathMatcher: regexp.MustCompile(`^/collections(/[a-zA-Z0-9\-]+){1,3}(/?((\+?category|color|price|size)_[a-z0-9_\-]+)*)?$`),
 		productPathMatcher:  regexp.MustCompile(`^(/collections(/[a-zA-Z0-9\-]+){1,3})?/products/[a-z0-9\-]+(/?((\+?category|color|price|size)_[a-z0-9_\-]+)*)?$`),
@@ -118,28 +106,10 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		// extract product id or collection id
-		dom, err := goquery.NewDocumentFromReader(resp.Body)
-		if err != nil {
-			return err
-		}
-
-		st := strings.TrimSpace(dom.Find("#__st").Text())
-		st = strings.TrimSuffix(strings.TrimPrefix(st, "var __st="), ";")
-
-		var pageState PageState
-		if err := json.Unmarshal([]byte(st), &pageState); err != nil {
-			return fmt.Errorf("parse page state %s failed, error=%s", st, err)
-		}
-		switch pageState.Rtyp {
-		case "collection":
-			return c.parseCategoryProducts(ctx, strconv.Format(pageState.Rid), yield)
-		case "product":
-			return c.parseProduct(ctx, strconv.Format(pageState.Rid), nil, yield)
-		default:
-			return fmt.Errorf("unsupported resource type %s", pageState.Rtyp)
-		}
+	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseProduct(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
@@ -150,125 +120,232 @@ func nextIndex(ctx context.Context) int {
 }
 
 // parseCategoryProducts parse api url from web page url
-func (c *_Crawler) parseCategoryProducts(ctx context.Context, cid string, yield func(context.Context, interface{}) error) error {
+func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
 
-	nextLink := ""
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		default:
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	lastIndex := nextIndex(ctx)
+	sel := dom.Find(`.ProductList .ProductItem .ProductItem__Wrapper`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		href := node.Find("a.ProductItem__ImageWrapper").AttrOr("href", "")
+		if href == "" {
+			c.logger.Warnf("no href found")
+			continue
 		}
 
-		resp, err := c.shopifyClient.ListCollectionProducts(ctx, &shopify.ListCollectionProductsRequest{
-			CollectionID: cid,
-			Link:         nextLink,
-		})
+		req, err := http.NewRequest(http.MethodGet, href, nil)
 		if err != nil {
-			c.logger.Error(err)
+			c.logger.Errorf("create request with url %s failed", href)
+			continue
+		}
+		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		lastIndex += 1
+		if err := yield(nctx, req); err != nil {
 			return err
 		}
-
-		lastIndex := nextIndex(ctx)
-		for _, prod := range resp.Products {
-			nctx := context.WithValue(ctx, "item.index", lastIndex)
-			lastIndex += 1
-			if err := c.parseProduct(nctx, strconv.Format(prod.ID), prod, yield); err != nil {
-				return err
-			}
-		}
-		nextLink = resp.NextLink
-		if nextLink == "" {
-			break
-		}
 	}
-	return nil
+
+	nextUrl := dom.Find(`.Pagination__Nav>a[rel="next"]`).AttrOr("href", "")
+	if nextUrl == "" {
+		return nil
+	}
+
+	req, err := http.NewRequest(http.MethodGet, nextUrl, nil)
+	if err != nil {
+		return c.logger.Errorf("create request with url %s failed", nextUrl).ToError()
+	}
+	nctx := context.WithValue(ctx, "item.index", lastIndex)
+	return yield(nctx, req)
+}
+
+type product struct {
+	Product struct {
+		ID                   uint64   `json:"id"`
+		Title                string   `json:"title"`
+		Handle               string   `json:"handle"`
+		Description          string   `json:"description"`
+		PublishedAt          string   `json:"published_at"`
+		CreatedAt            string   `json:"created_at"`
+		Vendor               string   `json:"vendor"`
+		Type                 string   `json:"type"`
+		Tags                 []string `json:"tags"`
+		Price                int32    `json:"price"`
+		PriceMin             int32    `json:"price_min"`
+		PriceMax             int32    `json:"price_max"`
+		Available            bool     `json:"available"`
+		PriceVaries          bool     `json:"price_varies"`
+		CompareAtPrice       int32    `json:"compare_at_price"`
+		CompareAtPriceMin    int32    `json:"compare_at_price_min"`
+		CompareAtPriceMax    int32    `json:"compare_at_price_max"`
+		CompareAtPriceVaries bool     `json:"compare_at_price_varies"`
+		Variants             []struct {
+			ID                     uint64        `json:"id"`
+			Title                  string        `json:"title"`
+			Option1                string        `json:"option1"`
+			Option2                string        `json:"option2"`
+			Option3                string        `json:"option3"`
+			Sku                    string        `json:"sku"`
+			RequiresShipping       bool          `json:"requires_shipping"`
+			Taxable                bool          `json:"taxable"`
+			FeaturedImage          interface{}   `json:"featured_image"`
+			Available              bool          `json:"available"`
+			Name                   string        `json:"name"`
+			PublicTitle            string        `json:"public_title"`
+			Options                []string      `json:"options"`
+			Price                  int32         `json:"price"`
+			Weight                 int32         `json:"weight"`
+			CompareAtPrice         int32         `json:"compare_at_price"`
+			InventoryManagement    string        `json:"inventory_management"`
+			Barcode                string        `json:"barcode"`
+			RequiresSellingPlan    bool          `json:"requires_selling_plan"`
+			SellingPlanAllocations []interface{} `json:"selling_plan_allocations"`
+		} `json:"variants"`
+		Images        []string `json:"images"`
+		FeaturedImage string   `json:"featured_image"`
+		Options       []string `json:"options"`
+		Media         []struct {
+			Alt          string `json:"alt"`
+			ID           uint64 `json:"id"`
+			Position     int    `json:"position"`
+			PreviewImage struct {
+				AspectRatio float64 `json:"aspect_ratio"`
+				Height      int     `json:"height"`
+				Width       int     `json:"width"`
+				Src         string  `json:"src"`
+			} `json:"preview_image"`
+			AspectRatio float64 `json:"aspect_ratio"`
+			Height      int     `json:"height"`
+			MediaType   string  `json:"media_type"`
+			Src         string  `json:"src"`
+			Width       int     `json:"width"`
+		} `json:"media"`
+		RequiresSellingPlan bool          `json:"requires_selling_plan"`
+		SellingPlanGroups   []interface{} `json:"selling_plan_groups"`
+		Content             string        `json:"content"`
+	} `json:"product"`
+	SelectedVariantID int64 `json:"selected_variant_id"`
+	Inventories       map[string]struct {
+		InventoryManagement string `json:"inventory_management"`
+		InventoryPolicy     string `json:"inventory_policy"`
+		InventoryQuantity   int32  `json:"inventory_quantity"`
+		InventoryMessage    string `json:"inventory_message"`
+	} `json:"inventories"`
 }
 
 var groupIdReg = regexp.MustCompile(`^(\d+[A-Z]+\d+)[A-Z/]+$`)
 
-func (c *_Crawler) parseProduct(ctx context.Context, pid string, prod *shopify.Product, yield func(context.Context, interface{}) error) error {
+func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
-	if pid == "" {
-		return errors.New("invalid product id")
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
 	}
 
-	if prod == nil {
-		// get product detail
-		resp, err := c.shopifyClient.GetProduct(ctx, &shopify.GetProductRequest{ProductID: pid})
-		if err != nil {
-			return err
-		}
-		prod = resp.Product
+	rawProductJson := strings.TrimSpace(dom.Find(`script[data-product-json]`).Text())
+	if rawProductJson == "" {
+		err := errors.New("get no product json data from html")
+		c.logger.Debug(err)
+		return err
 	}
 
-	canurl := fmt.Sprintf("https://jingus.com/products/%s", prod.Handle)
+	var viewData product
+	if err := json.Unmarshal([]byte(rawProductJson), &viewData); err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	prod := viewData.Product
+
+	canurl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canurl == "" {
+		canurl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:           pid,
-			CrawlUrl:     canurl,
+			Id:           strconv.Format(prod.ID),
+			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canurl,
 		},
 		BrandName:   prod.Vendor,
 		Title:       prod.Title,
-		Description: prod.BodyHTML,
+		Description: prod.Description,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
 		ExtraInfo: map[string]string{
-			"product_type": prod.ProductType,
-			"tags":         prod.Tags,
+			"product_type": prod.Type,
+			"tags":         strings.Join(prod.Tags, ","),
 		},
 	}
 
-	// get product collections
-	if resp, err := c.shopifyClient.ListCollects(ctx, &shopify.ListCollectsRequest{
-		Limit:     250,
-		ProductID: pid,
-	}); err != nil {
-		c.logger.Error(err)
-		return err
-	} else {
-		for _, collect := range resp.Collects {
-			var (
-				id   = strconv.Format(collect.CollectionID)
-				coll *shopify.Collection
-			)
-			if val, ok := c.collections.Load(id); ok {
-				coll = val.(*shopify.Collection)
-			} else if resp, err := c.shopifyClient.GetCollection(ctx, &shopify.GetCollectionRequest{ID: id}); err != nil {
-				c.logger.Error(err)
-				continue
-			} else {
-				coll = resp.Collection
-				c.collections.Store(id, coll)
-			}
-			item.Categories = append(item.Categories, &pbItem.Category{
-				Id:   id,
-				Name: coll.Title,
-			})
+	// for category
+	breadSel := dom.Find(`.CollectionToolbar .CollectionToolbar__Item nav.CurrentPath>a`)
+	for i := range breadSel.Nodes {
+		node := breadSel.Eq(i)
+		switch i {
+		case 1:
+			item.Category = strings.TrimSpace(node.Text())
+		case 2:
+			item.SubCategory = strings.TrimSpace(node.Text())
+		case 3:
+			item.SubCategory2 = strings.TrimSpace(node.Text())
 		}
 	}
 
 	optType := map[int]pbItem.SkuSpecType{}
-	for _, opt := range prod.Options {
-		switch strings.ToLower(opt.Name) {
+	for i, opt := range prod.Options {
+		switch strings.ToLower(opt) {
 		case "color", "colour":
-			optType[opt.Position] = pbItem.SkuSpecType_SkuSpecColor
+			optType[i+1] = pbItem.SkuSpecType_SkuSpecColor
 		case "size":
-			optType[opt.Position] = pbItem.SkuSpecType_SkuSpecSize
+			optType[i+1] = pbItem.SkuSpecType_SkuSpecSize
 		}
+	}
+
+	var medias []*media.Media
+	for _, img := range prod.Media {
+		u, err := url.Parse(img.Src)
+		if err != nil {
+			c.logger.Errorf("got invalid img url %s", img.Src)
+		}
+		fields := strings.SplitN(u.Path, ".", 2)
+		tpl := strings.Replace(img.Src, u.Path, fields[0]+"_%s."+fields[1], -1)
+		medias = append(medias, media.NewImageMedia(
+			strconv.Format(img.ID),
+			img.Src,
+			fmt.Sprintf(tpl, "1000x"),
+			fmt.Sprintf(tpl, "600x"),
+			fmt.Sprintf(tpl, "500x"),
+			img.Alt,
+			img.Position == 1))
 	}
 
 	// variants
 	for _, variant := range prod.Variants {
-		current, _ := strconv.ParsePrice(variant.Price)
-		msrp, _ := strconv.ParsePrice(variant.CompareAtPrice)
+		current := variant.Price
+		msrp := variant.CompareAtPrice
 		discount := 0.0
 		if msrp > current {
 			discount = math.Round(100 * float64(msrp-current) / float64(msrp))
@@ -284,19 +361,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, pid string, prod *shopify.P
 
 		sku := pbItem.Sku{
 			SourceId: variant.Sku,
-			Title:    variant.Title,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(current * 100),
-				Msrp:     int32(msrp * 100),
+				Current:  int32(current),
+				Msrp:     int32(msrp),
 				Discount: int32(discount),
 			},
 			Stock: &pbItem.Stock{
 				StockStatus: pbItem.Stock_OutOfStock,
 			},
 		}
-		if variant.InventoryQuantity > 0 {
+		if quan, ok := viewData.Inventories[strconv.Format(variant.ID)]; ok && quan.InventoryQuantity > 0 {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
+			sku.Stock.StockCount = quan.InventoryQuantity
 		}
 
 		for i, opt := range []string{variant.Option1, variant.Option2, variant.Option3} {
@@ -312,32 +389,27 @@ func (c *_Crawler) parseProduct(ctx context.Context, pid string, prod *shopify.P
 				})
 			}
 		}
-
-		var medias []*media.Media
-		for _, img := range prod.Images {
-			if img.ID != variant.ImageID && variant.ImageID != 0 {
-				continue
-			}
-			u, err := url.Parse(img.Src)
-			if err != nil {
-				c.logger.Errorf("got invalid img url %s", img.Src)
-			}
-			fields := strings.SplitN(u.Path, ".", 2)
-			tpl := strings.Replace(img.Src, u.Path, fields[0]+"_%s."+fields[1], -1)
-			medias = append(medias, media.NewImageMedia(
-				strconv.Format(img.ID),
-				img.Src,
-				fmt.Sprintf(tpl, "1000x"),
-				fmt.Sprintf(tpl, "600x"),
-				fmt.Sprintf(tpl, "500x"),
-				img.Alt,
-				img.Position == 1))
-		}
 		sku.Medias = medias
-
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
-	return yield(ctx, &item)
+	if err := yield(ctx, &item); err != nil {
+		return err
+	}
+	colorSel := dom.Find(`.ColorSwatchList .HorizontalList__Item>a`)
+	for i := range colorSel.Nodes {
+		node := colorSel.Eq(i)
+
+		href := node.AttrOr("href", "")
+		req, err := http.NewRequest(http.MethodGet, href, nil)
+		if err != nil {
+			c.logger.Errorf("new request failed, error=%s", err)
+			return err
+		}
+		if err := yield(ctx, req); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
