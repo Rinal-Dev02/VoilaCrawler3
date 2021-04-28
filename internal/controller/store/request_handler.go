@@ -102,6 +102,7 @@ func NewStoreRequestHandler(ctx context.Context, storeId string, storeCtrl *Stor
 		return nil, err
 	}
 	h.consumer.AddConcurrentHandlers(&h, int(maxConcurrency))
+	h.consumer.SetLogger(nil, nsq.LogLevelError)
 	if err = h.consumer.ConnectToNSQLookupds(h.options.NsqLookupAddresses); err != nil {
 		return nil, err
 	}
