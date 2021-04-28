@@ -81,6 +81,7 @@ func NewRequestController(
 	conf := nsq.NewConfig()
 	conf.MsgTimeout = time.Minute * 5
 	conf.MaxAttempts = 3
+	conf.MaxInFlight = 6
 
 	if ctrl.producer, err = nsq.NewProducer(options.NsqdAddress, conf); err != nil {
 		return nil, err
@@ -89,19 +90,20 @@ func NewRequestController(
 	if ctrl.nsqConsumer, err = nsq.NewConsumer(config.CrawlRequestTopic, "crawl-api", conf); err != nil {
 		return nil, err
 	}
-	ctrl.nsqConsumer.AddHandler(&RequestHander{ctrl: &ctrl, logger: ctrl.logger.New("RequestHander")})
+	ctrl.nsqConsumer.AddConcurrentHandlers(&RequestHander{ctrl: &ctrl, logger: ctrl.logger.New("RequestHander")}, conf.MaxInFlight)
 	ctrl.nsqConsumer.ConnectToNSQLookupds(options.NsqLookupdAddresses)
 
 	if ctrl.nsqStatusConsumer, err = nsq.NewConsumer(config.CrawlRequestStatusTopic, "crawl-api", conf); err != nil {
 		return nil, err
 	}
-	ctrl.nsqStatusConsumer.AddHandler(&RequestStatusHander{ctrl: &ctrl, logger: ctrl.logger.New("RequestStatusHander")})
+	ctrl.nsqStatusConsumer.AddConcurrentHandlers(&RequestStatusHander{ctrl: &ctrl, logger: ctrl.logger.New("RequestStatusHander")}, conf.MaxInFlight)
 	ctrl.nsqStatusConsumer.ConnectToNSQLookupds(options.NsqLookupdAddresses)
 
 	go func() {
 		select {
 		case <-ctrl.ctx.Done():
 			ctrl.nsqConsumer.Stop()
+			ctrl.nsqStatusConsumer.Stop()
 			return
 		}
 	}()

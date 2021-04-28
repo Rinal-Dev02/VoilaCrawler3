@@ -161,6 +161,7 @@ func (h *RequestStatusHander) HandleMessage(msg *nsq.Message) error {
 		msg.RequeueWithoutBackoff(time.Second * 30)
 		return err
 	}
+	msg.Finish()
 	return nil
 }
 
