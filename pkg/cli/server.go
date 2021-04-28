@@ -145,8 +145,12 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 		logger.Error(err)
 		return err
 	}
+	if resp.Body == nil {
+		logger.Error("no response got")
+		return errors.New("no response got")
+	}
 
-	// used to check and patch the rawurl
+	// check and patch the rawurl
 	if resp.Request == nil {
 		resp.Request = req
 	}
