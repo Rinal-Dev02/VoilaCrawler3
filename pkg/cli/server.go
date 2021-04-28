@@ -266,8 +266,11 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 	if err != nil {
 		logger.Error(err)
 	}
+
 	if errors.Is(crawler.ErrAbort, err) {
-		return pbError.ErrAborted
+		return pbError.ErrAborted.New(err.Error())
+	} else if errors.Is(crawler.ErrNotSupportedPath, err) {
+		return pbError.ErrUnimplemented.New(err.Error())
 	}
 	return err
 }
