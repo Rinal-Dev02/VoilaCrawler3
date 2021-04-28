@@ -151,6 +151,9 @@ func (s *CrawlerServer) DoParse(ctx context.Context, req *pbCrawl.DoParseRequest
 	)
 	defer func() {
 		close(subReqs)
+		// clean
+		for range subReqs {
+		}
 	}()
 
 	subReqs <- req.GetRequest()
