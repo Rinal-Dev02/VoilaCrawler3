@@ -13,7 +13,6 @@ import (
 	storeCtrl "github.com/voiladev/VoilaCrawl/internal/controller/store"
 	"github.com/voiladev/VoilaCrawl/internal/model/crawler"
 	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
-	specCrawl "github.com/voiladev/VoilaCrawl/pkg/crawler"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	_ "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
@@ -185,7 +184,7 @@ end:
 					}
 					return nil
 				},
-			); err != nil && !errors.Is(err, specCrawl.ErrCountMatched) {
+			); err != nil && !errors.Is(err, crawlerCtrl.ErrCountMatched) {
 				logger.Errorf("parse response from %s failed, error=%v", req.GetRequest().GetUrl(), err)
 				return nil, pbError.ErrInternal.New(err.Error())
 			} else {

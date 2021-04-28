@@ -10,7 +10,6 @@ import (
 
 	"github.com/voiladev/VoilaCrawl/internal/model/crawler"
 	crawlerManager "github.com/voiladev/VoilaCrawl/internal/model/crawler/manager"
-	specCrawler "github.com/voiladev/VoilaCrawl/pkg/crawler"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/protoutil"
@@ -198,6 +197,10 @@ func (ctrl *CrawlerController) CanonicalUrl(ctx context.Context, storeId string,
 	return resp.GetData().GetUrl(), nil
 }
 
+var (
+	ErrCountMatched = errors.New("item count matched, abort")
+)
+
 func (ctrl *CrawlerController) Parse(ctx context.Context, storeId string, r *pbCrawl.Request, yield func(ctx context.Context, data proto.Message) error) error {
 	if ctrl == nil {
 		return nil
@@ -291,7 +294,7 @@ func (ctrl *CrawlerController) Parse(ctx context.Context, storeId string, r *pbC
 					return err
 				}
 				if countLimit != -1 && item.Index >= int32(countLimit) {
-					return specCrawler.ErrCountMatched
+					return ErrCountMatched
 				}
 			case errorTypeUrl:
 				var item pbCrawl.Error

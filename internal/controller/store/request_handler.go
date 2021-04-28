@@ -419,22 +419,25 @@ func (h *StoreRequestHandler) HandleMessage(msg *nsq.Message) error {
 			// the store controller will check the crawler state and restart handler
 			h.SetConcurrency(0)
 			msg.RequeueWithoutBackoff(time.Second * 60)
+
 			return nil
-		}
+		} else if e.Code() == pbError.ErrAborted.Code() {
+			isSucceed = true
+		} else {
+			// record the error message
+			errItemData, _ := proto.Marshal(&pbCrawl.Error{
+				StoreId:   req.GetStoreId(),
+				TracingId: req.GetTracingId(),
+				JobId:     req.GetJobId(),
+				ReqId:     req.GetReqId(),
+				Timestamp: time.Now().Unix(),
+				ErrMsg:    err.Error(),
+			})
 
-		// record the error message
-		errItemData, _ := proto.Marshal(&pbCrawl.Error{
-			StoreId:   req.GetStoreId(),
-			TracingId: req.GetTracingId(),
-			JobId:     req.GetJobId(),
-			ReqId:     req.GetReqId(),
-			Timestamp: time.Now().Unix(),
-			ErrMsg:    err.Error(),
-		})
-
-		isSucceed = false
-		if err := h.producer.Publish(config.CrawlErrorTopic, errItemData); err != nil {
-			h.logger.Error(err)
+			isSucceed = false
+			if err := h.producer.Publish(config.CrawlErrorTopic, errItemData); err != nil {
+				h.logger.Error(err)
+			}
 		}
 	}
 
