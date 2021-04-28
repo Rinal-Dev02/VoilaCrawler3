@@ -413,6 +413,7 @@ func (h *StoreRequestHandler) HandleMessage(msg *nsq.Message) error {
 		itemCount, subReqCount int
 	)
 	if itemCount, subReqCount, err = h.parse(ctx, &req, nil); err != nil {
+		isSucceed = false
 		e := pbError.NewFromError(err)
 		if e.Code() == pbError.ErrUnavailable.Code() {
 			// stop the handler and requeue the message
@@ -421,23 +422,28 @@ func (h *StoreRequestHandler) HandleMessage(msg *nsq.Message) error {
 			msg.RequeueWithoutBackoff(time.Second * 60)
 
 			return nil
-		} else if e.Code() == pbError.ErrAborted.Code() {
-			isSucceed = true
-		} else {
-			// record the error message
-			errItemData, _ := proto.Marshal(&pbCrawl.Error{
-				StoreId:   req.GetStoreId(),
-				TracingId: req.GetTracingId(),
-				JobId:     req.GetJobId(),
-				ReqId:     req.GetReqId(),
-				Timestamp: time.Now().Unix(),
-				ErrMsg:    err.Error(),
-			})
+		}
 
-			isSucceed = false
-			if err := h.producer.Publish(config.CrawlErrorTopic, errItemData); err != nil {
-				h.logger.Error(err)
-			}
+		// disable retry for aborted and unimplemented error
+		switch e.Code() {
+		case int(pbError.Code_Aborted):
+			isSucceed = true
+		case int(pbError.Code_Unimplemented):
+			isSucceed = true
+		}
+
+		// record the error message
+		errItemData, _ := proto.Marshal(&pbCrawl.Error{
+			StoreId:   req.GetStoreId(),
+			TracingId: req.GetTracingId(),
+			JobId:     req.GetJobId(),
+			ReqId:     req.GetReqId(),
+			Timestamp: time.Now().Unix(),
+			Code:      int32(e.Code()),
+			ErrMsg:    err.Error(),
+		})
+		if err := h.producer.Publish(config.CrawlErrorTopic, errItemData); err != nil {
+			h.logger.Error(err)
 		}
 	}
 
