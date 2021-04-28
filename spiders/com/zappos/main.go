@@ -36,6 +36,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// /men-bags/COjWAcABAuICAgEY.zso
+		// https://www.zappos.com/alex-and-ani-cross-ii-32-expandable-necklace?oosRedirected=true
 		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9\-]+){1,5}/[a-zA-Z0-9]+\.zso$`),
 		productPathMatcher:  regexp.MustCompile(`^(/a/[a-z0-0-]+)?/p(/[a-z0-9_-]+)/product/\d+(/[a-z0-9]+/\d+)?$`),
 		logger:              logger.New("_Crawler"),
@@ -93,6 +94,11 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
+	}
+
+	// product url redirect to a out of stock page
+	if resp.Request.URL.Query().Get("oosRedirected") == "true" {
+		return crawler.ErrAbort
 	}
 
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {

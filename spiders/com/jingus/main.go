@@ -261,6 +261,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Error(err)
 		return err
 	}
+	if bytes.Contains(respBody, []byte("The page you are looking for cannot be found.")) {
+		return crawler.ErrAbort
+	}
+
 	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
 		c.logger.Error(err)

@@ -16,6 +16,8 @@ import (
 var (
 	// ErrNotSupportedPath
 	ErrNotSupportedPath = errors.New("not supporped url path")
+	// ErrAbort abort this request for by reasons to reduce useless retry. reasons may be 404 and so on.
+	ErrAbort = errors.New("abort this request")
 )
 
 // CrawlOptions
