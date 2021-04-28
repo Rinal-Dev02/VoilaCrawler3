@@ -174,7 +174,7 @@ end:
 						select {
 						case subReqs <- vv:
 						default:
-							logger.Errorf("too may sub requests, ignored")
+							logger.Errorf("too may sub requests for %s, ignored", r.GetUrl())
 						}
 					case *pbCrawl.Item:
 						data, _ := anypb.New(vv)
