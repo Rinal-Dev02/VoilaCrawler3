@@ -44,10 +44,11 @@ func NewRequestHistoryController(ctx context.Context, historyManager *historyMan
 	var err error
 	conf := nsq.NewConfig()
 	conf.MaxAttempts = 3
+	conf.MaxInFlight = 6
 	if ctrl.consumer, err = nsq.NewConsumer(config.CrawlErrorTopic, "crawl-api", conf); err != nil {
 		return nil, err
 	}
-	ctrl.consumer.AddHandler(&RequestHistoryHandler{ctrl: &ctrl, logger: ctrl.logger.New("RequestHistoryHandler")})
+	ctrl.consumer.AddConcurrentHandlers(&RequestHistoryHandler{ctrl: &ctrl, logger: ctrl.logger.New("RequestHistoryHandler")}, conf.MaxInFlight)
 	ctrl.consumer.ConnectToNSQLookupds(options.NsqLookupdAddresses)
 
 	go func() {
