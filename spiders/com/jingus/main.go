@@ -20,7 +20,6 @@ import (
 	"github.com/voiladev/go-crawler/pkg/net/http"
 	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/regulation"
-	pbCrawl "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl"
 	pbItem "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
@@ -246,7 +245,11 @@ type product struct {
 	} `json:"inventories"`
 }
 
-var groupIdReg = regexp.MustCompile(`^(\d+[A-Z]+\d+)[A-Z/]+$`)
+// CB-A610PK+A617PKS
+
+var (
+	groupIdReg = regexp.MustCompile(`((?:\d+)?[A-Z]+\d+)[A-Z/]+`)
+)
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -352,11 +355,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		if item.Source.GroupId == "" {
-			matched := groupIdReg.FindStringSubmatch(variant.Sku)
-			if len(matched) != 2 {
-				yield(ctx, &pbCrawl.Error{ErrMsg: "no group id found"})
+			matched := groupIdReg.FindAllStringSubmatch(variant.Sku, -1)
+			groupId := ""
+			for _, field := range matched {
+				if len(field) != 2 {
+					continue
+				}
+				if groupId == "" {
+					groupId = field[1]
+				} else {
+					groupId = groupId + "-" + field[1]
+				}
 			}
-			item.Source.GroupId = matched[1]
+			item.Source.GroupId = groupId
 		}
 
 		sku := pbItem.Sku{
