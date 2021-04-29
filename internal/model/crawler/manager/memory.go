@@ -252,7 +252,7 @@ func (m *CrawlerManager) GetStatus(ctx context.Context, host, id string) ([]*typ
 		}
 	} else {
 		t := time.Now().Unix()
-		keys, err := redis.Strings(m.redisClient.Do("ZRANGE", statusKey, t-10, t+120))
+		keys, err := redis.Strings(m.redisClient.Do("ZRANGEBYSCORE", statusKey, t-10, t+60))
 		m.logger.Errorf("raw=%v, ret=%v, error=%s", statusKey, keys, err)
 		if err != nil {
 			m.logger.Error(err)
