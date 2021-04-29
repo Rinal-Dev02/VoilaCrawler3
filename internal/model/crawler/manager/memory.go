@@ -233,7 +233,7 @@ func (m *CrawlerManager) GetStatus(ctx context.Context, host, id string) ([]*typ
 			return nil, pbError.ErrInternal.New(err)
 		}
 		var status types.Crawler_Status
-		if err := json.Unmarshal(data, &status); err != nil {
+		if err := proto.Unmarshal(data, &status); err != nil {
 			return nil, pbError.ErrInternal.New(err)
 		}
 		return &status, nil
@@ -253,7 +253,6 @@ func (m *CrawlerManager) GetStatus(ctx context.Context, host, id string) ([]*typ
 	} else {
 		t := time.Now().Unix()
 		keys, err := redis.Strings(m.redisClient.Do("ZRANGEBYSCORE", statusKey, t-10, t+60))
-		m.logger.Errorf("raw=%v, ret=%v, error=%s", statusKey, keys, err)
 		if err != nil {
 			m.logger.Error(err)
 			return nil, err
