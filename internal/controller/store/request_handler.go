@@ -146,35 +146,33 @@ func NewStoreRequestHandler(ctx context.Context, hostname, storeId string,
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				func() {
-					// This logic is used to change the concurrency of mq
-					succeedCount, errorCount := atomic.LoadInt32(&h.continusSucceesCount), atomic.LoadInt32(&h.continusErrorCount)
-					currentCon := atomic.LoadInt32(&h.currentMQConcurrency)
-					atomic.StoreInt32(&h.continusSucceesCount, 0)
-					atomic.StoreInt32(&h.continusErrorCount, 0)
+				// This logic is used to change the concurrency of mq
+				succeedCount, errorCount := atomic.LoadInt32(&h.continusSucceesCount), atomic.LoadInt32(&h.continusErrorCount)
+				currentMQCon := atomic.LoadInt32(&h.currentMQConcurrency)
+				atomic.StoreInt32(&h.continusSucceesCount, 0)
+				atomic.StoreInt32(&h.continusErrorCount, 0)
 
-					succeedRate := 0.0
-					total := succeedCount + errorCount
-					if total > 0 {
-						succeedRate = float64(succeedCount) / float64(total)
-					}
-					if total <= 2*DefaultHandlerConcurrency && currentCon > DefaultHandlerConcurrency {
-						h.SetMQConcurrency(DefaultHandlerConcurrency)
-						return
-					}
+				succeedRate := 0.0
+				total := succeedCount + errorCount
+				if total > 0 {
+					succeedRate = float64(succeedCount) / float64(total)
+				}
+				if total <= 2*DefaultHandlerConcurrency && currentMQCon > DefaultHandlerConcurrency {
+					h.SetMQConcurrency(DefaultHandlerConcurrency)
+					return
+				}
 
-					switch {
-					case succeedRate > 0.9:
-						h.IncreMQConcurrency(1)
-					case succeedRate < 0.1:
-						h.SetMQConcurrency(DefaultHandlerConcurrency)
-					case succeedRate < 0.4:
-						// down to default thread count
-						if currentCon > DefaultHandlerConcurrency {
-							h.IncreMQConcurrency(-1)
-						}
+				switch {
+				case succeedRate > 0.9:
+					h.IncreMQConcurrency(1)
+				case succeedRate < 0.1:
+					h.SetMQConcurrency(DefaultHandlerConcurrency)
+				case succeedRate < 0.4:
+					// down to default thread count
+					if currentMQCon > DefaultHandlerConcurrency {
+						h.IncreMQConcurrency(-1)
 					}
-				}()
+				}
 			}
 		}
 	}()
@@ -304,9 +302,13 @@ func (h *StoreRequestHandler) parse(ctx context.Context, req *pbCrawl.Request, c
 			err = fmt.Errorf("no item or subrequest got of url %s", req.GetUrl())
 		}
 	}
+
 	if err != nil {
+		atomic.AddInt32(&h.continusErrorCount, 1)
 		return itemCount, subreqCount, err
 	}
+	atomic.AddInt32(&h.continusSucceesCount, 1)
+
 	return itemCount, subreqCount, nil
 }
 
