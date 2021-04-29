@@ -133,7 +133,7 @@ func NewStoreRequestHandler(ctx context.Context, hostname, storeId string,
 	}
 
 	go func() {
-		const speedCheckInterval = time.Minute * 5 * 60 // 5mins
+		const speedCheckInterval = time.Minute * 5 // 5mins
 		var (
 			ticker = time.NewTicker(speedCheckInterval)
 		)
