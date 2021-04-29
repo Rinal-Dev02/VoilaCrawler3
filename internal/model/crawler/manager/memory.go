@@ -277,6 +277,7 @@ func (m *CrawlerManager) UpdateStatus(ctx context.Context, host, id string, stat
 		return pbError.ErrInvalidArgument.New("invalid host")
 	}
 
+	status.Hostname = host
 	data, _ := proto.Marshal(status)
 	hostStatusKey := crawlerStatusCacheKey(host, id)
 	if _, err := m.redisClient.Do("SET", hostStatusKey, data, "EX", ttl); err != nil {
