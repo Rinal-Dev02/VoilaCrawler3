@@ -101,6 +101,16 @@ func (app *App) Run(args []string) {
 			Usage: "nsqd tcp address",
 			Value: "voiladev.com:4150",
 		},
+		&cli.IntFlag{
+			Name:  "max-api-rate",
+			Usage: "API request rate",
+			Value: 5,
+		},
+		&cli.IntFlag{
+			Name:  "max-mq-rate",
+			Usage: "MQ concurrency",
+			Value: 20,
+		},
 		&cli.BoolFlag{
 			Name:  "disable-access-control",
 			Usage: "Disable access control",
@@ -146,7 +156,8 @@ func (app *App) Run(args []string) {
 				return storeCtrl.StoreControllerOptions{
 					NsqLookupdAddresses: c.StringSlice("nsqlookupd-http-addr"),
 					NsqdAddress:         c.String("nsqd-tcp-addr"),
-					MaxCurrency:         20,
+					MaxAPIConcurrency:   int32(c.Int("max-api-rate")),
+					MaxMQConcurrency:    int32(c.Int("max-mq-rate")),
 				}
 			}),
 			fx.Provide(storeCtrl.NewStoreController),

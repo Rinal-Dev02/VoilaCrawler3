@@ -2,13 +2,16 @@ package manager
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/voiladev/VoilaCrawl/internal/model/crawler"
+	"github.com/voiladev/VoilaCrawl/pkg/types"
 	"github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/redis"
@@ -71,6 +74,13 @@ func NewCrawlerManager(ctx context.Context, redisClient *redis.RedisClient, logg
 
 func crawlerDetailCacheKey(id string) string {
 	return fmt.Sprintf("cache://stores/-/crawlers/%s", id)
+}
+
+func crawlerStatusCacheKey(host, id string) string {
+	if host == "" {
+		host = "-"
+	}
+	return fmt.Sprintf("cache://stores/-/crawlers/%s/hosts/%s/status", id, host)
 }
 
 func crawlerStoreCacheKey(storeId string) string {
@@ -206,6 +216,82 @@ func (m *CrawlerManager) List(ctx context.Context) (map[string][]*crawler.Crawle
 		ret[id] = cws
 	}
 	return ret, nil
+}
+
+// GetStatus
+func (m *CrawlerManager) GetStatus(ctx context.Context, host, id string) ([]*types.Crawler_Status, error) {
+	if m == nil {
+		return nil, nil
+	}
+
+	parseStatus := func(key string) (*types.Crawler_Status, error) {
+		data, err := redis.Bytes(m.redisClient.Do("GET", key))
+		if err != nil {
+			if err == redis.ErrNil {
+				return nil, nil
+			}
+			return nil, pbError.ErrInternal.New(err)
+		}
+		var status types.Crawler_Status
+		if err := json.Unmarshal(data, &status); err != nil {
+			return nil, pbError.ErrInternal.New(err)
+		}
+		return &status, nil
+	}
+
+	var (
+		ret       []*types.Crawler_Status
+		statusKey = crawlerStatusCacheKey(host, id)
+	)
+	if host != "" {
+		if status, err := parseStatus(statusKey); err != nil {
+			m.logger.Error(err)
+			return nil, err
+		} else if status != nil {
+			ret = append(ret, status)
+		}
+	} else {
+		t := time.Now().Unix()
+		keys, err := redis.Strings(m.redisClient.Do("ZRANGE", statusKey, t-10, t+120))
+		m.logger.Errorf("raw=%v, ret=%v, error=%s", statusKey, keys, err)
+		if err != nil {
+			m.logger.Error(err)
+			return nil, err
+		}
+		for _, key := range keys {
+			if status, err := parseStatus(key); err != nil {
+				m.logger.Error(err)
+				continue
+			} else if status != nil {
+				ret = append(ret, status)
+			}
+		}
+	}
+	return ret, nil
+}
+
+// UpdateCrawlerStatus
+func (m *CrawlerManager) UpdateStatus(ctx context.Context, host, id string, status *types.Crawler_Status, ttl int64) error {
+	if m == nil || status == nil {
+		return nil
+	}
+	if host == "" {
+		return pbError.ErrInvalidArgument.New("invalid host")
+	}
+
+	data, _ := proto.Marshal(status)
+	hostStatusKey := crawlerStatusCacheKey(host, id)
+	if _, err := m.redisClient.Do("SET", hostStatusKey, data, "EX", ttl); err != nil {
+		m.logger.Errorf("update host crawler status failed, error=%s", err)
+		return err
+	}
+
+	crawlerStatusKey := crawlerStatusCacheKey("", id)
+	if _, err := m.redisClient.Do("ZADD", crawlerStatusKey, time.Now().Unix(), hostStatusKey); err != nil {
+		m.logger.Errorf("update crawler status fialed, error=%s", err)
+		return err
+	}
+	return nil
 }
 
 // Cache

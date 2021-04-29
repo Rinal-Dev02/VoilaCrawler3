@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -22,18 +23,19 @@ import (
 type StoreControllerOptions struct {
 	NsqLookupdAddresses []string
 	NsqdAddress         string
-	MaxCurrency         int32
+	MaxAPIConcurrency   int32
+	MaxMQConcurrency    int32
 }
 
 type StoreController struct {
 	ctx            context.Context
+	hostname       string
 	crawlerManager *crawlerManager.CrawlerManager
 	crawlerCtrl    *crawlerCtrl.CrawlerController
 	producer       *nsq.Producer
 	options        StoreControllerOptions
 	logger         glog.Log
-
-	storeHandlers sync.Map
+	storeHandlers  sync.Map
 }
 
 func NewStoreController(
@@ -58,8 +60,11 @@ func NewStoreController(
 	if options.NsqdAddress == "" {
 		return nil, errors.New("invalid nsqd address")
 	}
-	if options.MaxCurrency <= 0 {
-		options.MaxCurrency = 20
+	if options.MaxMQConcurrency <= 0 {
+		options.MaxMQConcurrency = 20
+	}
+	if options.MaxAPIConcurrency <= 0 {
+		options.MaxAPIConcurrency = 1
 	}
 
 	ctrl := StoreController{
@@ -71,6 +76,10 @@ func NewStoreController(
 	}
 
 	var err error
+	ctrl.hostname, err = os.Hostname()
+	if err != nil {
+		return nil, err
+	}
 	if ctrl.producer, err = nsq.NewProducer(options.NsqdAddress, nsq.NewConfig()); err != nil {
 		return nil, err
 	}
@@ -123,25 +132,31 @@ func (ctrl *StoreController) Run(ctx context.Context) error {
 				if val, ok := ctrl.storeHandlers.Load(id); ok {
 					handler, _ = val.(*StoreRequestHandler)
 				} else {
-					if handler, err = NewStoreRequestHandler(ctx, id, ctrl, ctrl.crawlerCtrl, ctrl.producer,
-						ctrl.options.MaxCurrency, StoreRequestHandlerOptions{
+					handler, err = NewStoreRequestHandler(ctx, ctrl.hostname, id, ctrl,
+						ctrl.crawlerCtrl, ctrl.producer, StoreRequestHandlerOptions{
 							NsqLookupAddresses: ctrl.options.NsqLookupdAddresses,
-						}, ctrl.logger); err != nil {
+							MaxAPIConcurrency:  ctrl.options.MaxAPIConcurrency,
+							MaxMQConcurrency:   ctrl.options.MaxMQConcurrency,
+						}, ctrl.logger)
+					if err != nil {
 						ctrl.logger.Error(err)
 						continue
 					}
 					ctrl.storeHandlers.Store(id, handler)
 				}
+
+				status := handler.ConcurrencyStatus()
+				ctrl.crawlerManager.UpdateStatus(ctx, ctrl.hostname, id, status, 10)
 				if count, err := ctrl.crawlerManager.CountOfStore(ctx, id); err != nil {
 					ctrl.logger.Error(err)
-					handler.SetConcurrency(0)
+					handler.SetMQConcurrency(0)
 					continue
 				} else if count > 0 {
-					if handler.CurrentMaxConcurrency() == 0 {
-						handler.SetConcurrency(DefaultHandlerConcurrency)
+					if status.CurrentMQConcurrency == 0 {
+						handler.SetMQConcurrency(DefaultHandlerConcurrency)
 					}
 				} else {
-					handler.SetConcurrency(0)
+					handler.SetMQConcurrency(0)
 				}
 			}
 		}

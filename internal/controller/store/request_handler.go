@@ -11,9 +11,11 @@ import (
 	"github.com/nsqio/go-nsq"
 	crawlerCtrl "github.com/voiladev/VoilaCrawl/internal/controller/crawler"
 	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
+	"github.com/voiladev/VoilaCrawl/pkg/types"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
+	"golang.org/x/time/rate"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -21,7 +23,7 @@ const (
 	defaultMsgTimeout = time.Minute * 10
 	maxMsgTimeout     = time.Minute * 30
 
-	DefaultHandlerConcurrency = 3
+	DefaultHandlerConcurrency = 2
 )
 
 type parseRequest struct {
@@ -31,21 +33,26 @@ type parseRequest struct {
 
 type StoreRequestHandlerOptions struct {
 	NsqLookupAddresses []string
+	MaxAPIConcurrency  int32
+	MaxMQConcurrency   int32
 }
 
 type StoreRequestHandler struct {
-	ctx                 context.Context
-	storeId             string
-	storeCtrl           *StoreController
-	crawlerCtrl         *crawlerCtrl.CrawlerController
-	producer            *nsq.Producer
-	maxConcurrencyLimit int32
-	logger              glog.Log
-	options             StoreRequestHandlerOptions
+	ctx         context.Context
+	hostname    string
+	storeId     string
+	storeCtrl   *StoreController
+	crawlerCtrl *crawlerCtrl.CrawlerController
+	producer    *nsq.Producer
 
+	currentConcurrency int32
+	// API
+	maxAPILimiter int32
+	apiLimiter    *rate.Limiter
+
+	// MQ
 	consumer             *nsq.Consumer
-	maxConcurrency       int32 // >= currentConcurrency
-	currentConcurrency   int32 // >= currentMQConcurrency + api concurrency
+	maxMQLimiter         int32
 	maxMQConcurrency     int32
 	currentMQConcurrency int32
 
@@ -54,9 +61,18 @@ type StoreRequestHandler struct {
 	mutex                sync.RWMutex
 
 	parseRequestChan chan *parseRequest
+
+	logger  glog.Log
+	options StoreRequestHandlerOptions
 }
 
-func NewStoreRequestHandler(ctx context.Context, storeId string, storeCtrl *StoreController, crawlerCtrl *crawlerCtrl.CrawlerController, producer *nsq.Producer, maxConcurrency int32, options StoreRequestHandlerOptions, logger glog.Log) (*StoreRequestHandler, error) {
+func NewStoreRequestHandler(ctx context.Context, hostname, storeId string,
+	storeCtrl *StoreController, crawlerCtrl *crawlerCtrl.CrawlerController, producer *nsq.Producer,
+	options StoreRequestHandlerOptions, logger glog.Log) (*StoreRequestHandler, error) {
+
+	if hostname == "" {
+		return nil, errors.New("invalid hostname")
+	}
 	if storeId == "" {
 		return nil, errors.New("invalid storeId")
 	}
@@ -69,7 +85,10 @@ func NewStoreRequestHandler(ctx context.Context, storeId string, storeCtrl *Stor
 	if producer == nil {
 		return nil, errors.New("invalid nsq producer")
 	}
-	if maxConcurrency <= 0 || maxConcurrency > 50 {
+	if options.MaxAPIConcurrency < 0 || options.MaxAPIConcurrency > 10 {
+		return nil, errors.New("invalid api concurrency")
+	}
+	if options.MaxMQConcurrency <= 0 || options.MaxMQConcurrency > 50 {
 		return nil, errors.New("invalid max concurrency")
 	}
 	if logger == nil {
@@ -79,15 +98,21 @@ func NewStoreRequestHandler(ctx context.Context, storeId string, storeCtrl *Stor
 		return nil, errors.New("invalid nsqlookupd addresses")
 	}
 
+	rateLimiter := rate.NewLimiter(rate.Every(time.Second/time.Duration(options.MaxAPIConcurrency)), 1)
 	h := StoreRequestHandler{
-		ctx:                 ctx,
-		storeId:             storeId,
-		storeCtrl:           storeCtrl,
-		crawlerCtrl:         crawlerCtrl,
-		producer:            producer,
-		maxConcurrencyLimit: maxConcurrency,
-		logger:              logger.New(fmt.Sprintf("StoreRequestHandler %s", storeId)),
-		options:             options,
+		ctx:         ctx,
+		hostname:    hostname,
+		storeId:     storeId,
+		storeCtrl:   storeCtrl,
+		crawlerCtrl: crawlerCtrl,
+		producer:    producer,
+
+		maxAPILimiter: options.MaxAPIConcurrency,
+		apiLimiter:    rateLimiter,
+
+		maxMQLimiter: options.MaxMQConcurrency,
+		logger:       logger.New(fmt.Sprintf("StoreRequestHandler %s", storeId)),
+		options:      options,
 	}
 
 	var (
@@ -96,146 +121,94 @@ func NewStoreRequestHandler(ctx context.Context, storeId string, storeCtrl *Stor
 		conf  = nsq.NewConfig()
 	)
 	conf.MsgTimeout = defaultMsgTimeout
-	conf.MaxAttempts = 6 // this attempts only used when meet with crawler unavaiable error
+	conf.MaxAttempts = 30 // this attempts only used when meet with crawler unavaiable error
 	conf.MaxInFlight = 0
 	if h.consumer, err = nsq.NewConsumer(topic, "crawlet", conf); err != nil {
 		return nil, err
 	}
-	h.consumer.AddConcurrentHandlers(&h, int(maxConcurrency))
+	h.consumer.AddConcurrentHandlers(&h, int(options.MaxMQConcurrency))
 	h.consumer.SetLogger(nil, nsq.LogLevelError)
 	if err = h.consumer.ConnectToNSQLookupds(h.options.NsqLookupAddresses); err != nil {
 		return nil, err
 	}
-	// disable auto push msg, let store controller to start
-	h.consumer.ChangeMaxInFlight(0)
 
 	go func() {
 		const speedCheckInterval = time.Minute * 5 * 60 // 5mins
 		var (
-			ticker                   = time.NewTicker(speedCheckInterval)
-			mqConcurrencyCheckTicker = time.NewTicker(time.Second * 5)
+			ticker = time.NewTicker(speedCheckInterval)
 		)
+		defer func() {
+			ticker.Stop()
+		}()
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
 				func() {
+					// This logic is used to change the concurrency of mq
 					succeedCount, errorCount := atomic.LoadInt32(&h.continusSucceesCount), atomic.LoadInt32(&h.continusErrorCount)
-					currentCon := atomic.LoadInt32(&h.maxConcurrency)
+					currentCon := atomic.LoadInt32(&h.currentMQConcurrency)
 					atomic.StoreInt32(&h.continusSucceesCount, 0)
 					atomic.StoreInt32(&h.continusErrorCount, 0)
 
+					succeedRate := 0.0
 					total := succeedCount + errorCount
-					succeedRate := float64(succeedCount) / float64(total)
-
+					if total > 0 {
+						succeedRate = float64(succeedCount) / float64(total)
+					}
 					if total <= 2*DefaultHandlerConcurrency && currentCon > DefaultHandlerConcurrency {
-						h.SetConcurrency(DefaultHandlerConcurrency)
+						h.SetMQConcurrency(DefaultHandlerConcurrency)
 						return
 					}
+
 					switch {
 					case succeedRate > 0.9:
-						if currentCon < h.maxConcurrencyLimit {
-							h.IncreConcurrency(1)
-						}
-					case succeedRate == 0:
-						// down to only one thread
-						for i := 0; i < 2 && currentCon > 1; i++ {
-							h.IncreConcurrency(-1)
-							currentCon = atomic.LoadInt32(&h.maxConcurrency)
-						}
+						h.IncreMQConcurrency(1)
+					case succeedRate < 0.1:
+						h.SetMQConcurrency(DefaultHandlerConcurrency)
 					case succeedRate < 0.4:
 						// down to default thread count
 						if currentCon > DefaultHandlerConcurrency {
-							h.IncreConcurrency(-1)
+							h.IncreMQConcurrency(-1)
 						}
 					}
-
-					currentCon = atomic.LoadInt32(&h.maxConcurrency)
-					currentRunningCon := atomic.LoadInt32(&h.currentConcurrency)
-					currentMQCon := atomic.LoadInt32(&h.currentMQConcurrency)
-					h.logger.Debugf("max: %d, current: %d, mq: %d", currentCon, currentRunningCon, currentMQCon)
 				}()
-			case <-mqConcurrencyCheckTicker.C:
-				maxCon := atomic.LoadInt32(&h.maxConcurrency)
-				maxMQCon := atomic.LoadInt32(&h.maxMQConcurrency)
-				currentCon := atomic.LoadInt32(&h.currentConcurrency)
-				currentMQCon := atomic.LoadInt32(&h.currentMQConcurrency)
-				if maxMQCon < maxCon && // 并发数没有达到当前最大限制
-					currentMQCon >= maxMQCon && // 当前并发数达到或者超过MQ最大限制
-					currentCon < maxCon { // 当前并发数没有超过最大并发数
-
-					h.IncreMQConcurrency(1)
-				}
 			}
 		}
 	}()
 	return &h, nil
 }
 
-func (h *StoreRequestHandler) CurrentMaxConcurrency() int32 {
+func (h *StoreRequestHandler) ConcurrencyStatus() *types.Crawler_Status {
 	if h == nil {
-		return 0
+		return nil
 	}
-	return atomic.LoadInt32(&h.maxConcurrency)
+	status := types.Crawler_Status{}
+	status.MaxAPIConcurrency = atomic.LoadInt32(&h.maxAPILimiter)
+	status.MaxMQConcurrency = atomic.LoadInt32(&h.maxMQConcurrency)
+	status.CurrentConcurrency = atomic.LoadInt32(&h.currentConcurrency)
+	status.CurrentMQConcurrency = atomic.LoadInt32(&h.currentMQConcurrency)
+
+	return &status
 }
 
-func (h *StoreRequestHandler) SetConcurrency(count int32) {
+func (h *StoreRequestHandler) SetMQConcurrency(count int32) {
 	if h == nil || h.consumer == nil {
 		return
-	}
-	if count > h.maxConcurrencyLimit {
-		count = h.maxConcurrencyLimit
 	}
 	if count < 0 {
-		count = 0
+		return
 	}
-
+	if count > h.maxMQLimiter {
+		count = h.maxMQLimiter
+	}
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	currentCon := atomic.LoadInt32(&h.currentConcurrency)
-	currentMQCon := atomic.LoadInt32(&h.currentMQConcurrency)
-	maxMQCon := count - (currentCon - currentMQCon)
-	if maxMQCon < 0 {
-		maxMQCon = 0
-	}
-
-	atomic.StoreInt32(&h.maxConcurrency, count)
-	atomic.StoreInt32(&h.maxMQConcurrency, maxMQCon)
-	h.consumer.ChangeMaxInFlight(int(maxMQCon))
-}
-
-func (h *StoreRequestHandler) IncreConcurrency(step int32) {
-	if h == nil || h.consumer == nil {
-		return
-	}
-	if step == 0 {
-		return
-	}
-
-	h.mutex.Lock()
-	defer h.mutex.Unlock()
-
-	maxCon := atomic.LoadInt32(&h.maxConcurrency)
-	if step+maxCon < 0 {
-		step = -1 * maxCon
-	}
-	if step+maxCon > h.maxConcurrencyLimit {
-		step = h.maxConcurrencyLimit - maxCon
-	}
-	maxCon = maxCon + step
-
-	// check max concurrency for mq
-	currentCon := atomic.LoadInt32(&h.currentConcurrency)
-	currentMQCon := atomic.LoadInt32(&h.currentMQConcurrency)
-	maxMQCon := maxCon - (currentCon - currentMQCon)
-	if maxMQCon < 0 {
-		maxMQCon = 0
-	}
-	atomic.StoreInt32(&h.maxConcurrency, maxCon)
-	atomic.StoreInt32(&h.maxMQConcurrency, maxMQCon)
-	h.consumer.ChangeMaxInFlight(int(maxMQCon))
+	atomic.StoreInt32(&h.maxMQConcurrency, count)
+	h.consumer.ChangeMaxInFlight(int(count))
 }
 
 func (h *StoreRequestHandler) IncreMQConcurrency(step int32) {
@@ -250,13 +223,13 @@ func (h *StoreRequestHandler) IncreMQConcurrency(step int32) {
 	defer h.mutex.Unlock()
 
 	maxCon := atomic.LoadInt32(&h.maxMQConcurrency)
-	if step+maxCon < 0 {
-		// set to zero
-		step = -1 * maxCon
+	if maxCon+step > h.maxMQLimiter {
+		step = h.maxMQLimiter - maxCon
 	}
-	if step+maxCon > h.maxConcurrencyLimit {
-		step = h.maxConcurrencyLimit - maxCon
+	if maxCon+step < 0 {
+		step = -maxCon
 	}
+
 	atomic.StoreInt32(&h.maxMQConcurrency, maxCon+step)
 	h.consumer.ChangeMaxInFlight(int(maxCon + step))
 }
@@ -343,34 +316,13 @@ func (h *StoreRequestHandler) Parse(ctx context.Context, req *pbCrawl.Request, c
 		return 0, 0, nil
 	}
 
-	decreased := false
-	for {
-		select {
-		case <-ctx.Done():
-			return 0, 0, pbError.ErrDeadlineExceeded
-		default:
+	if err := h.apiLimiter.Wait(ctx); err != nil {
+		if err == context.DeadlineExceeded || err == context.Canceled {
+			return 0, 0, nil
 		}
-
-		maxCon := atomic.LoadInt32(&h.maxConcurrency)
-		if maxCon == 0 {
-			return 0, 0, pbError.ErrUnavailable.New("no crawler available")
-		}
-		maxMQCon := atomic.LoadInt32(&h.maxMQConcurrency)
-		currentCon := atomic.LoadInt32(&h.currentConcurrency)
-		currentMQCon := atomic.LoadInt32(&h.currentMQConcurrency)
-		gap1, gap2 := maxCon-maxMQCon, currentCon-currentMQCon
-		if gap2 < gap1 {
-			return h.parse(ctx, req, callback)
-		}
-
-		if maxMQCon > 0 && !decreased {
-			h.IncreMQConcurrency(-1)
-			// here not recover the decreased mq concurrency
-			decreased = true
-		}
-		// else wait idle chance
-		time.Sleep(time.Millisecond * 200)
+		return 0, 0, err
 	}
+	return h.parse(ctx, req, callback)
 }
 
 func (h *StoreRequestHandler) HandleMessage(msg *nsq.Message) error {
@@ -418,7 +370,7 @@ func (h *StoreRequestHandler) HandleMessage(msg *nsq.Message) error {
 		if e.Code() == pbError.ErrUnavailable.Code() {
 			// stop the handler and requeue the message
 			// the store controller will check the crawler state and restart handler
-			h.SetConcurrency(0)
+			h.SetMQConcurrency(0)
 			msg.RequeueWithoutBackoff(time.Second * 60)
 
 			return nil

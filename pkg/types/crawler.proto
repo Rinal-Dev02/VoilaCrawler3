@@ -9,6 +9,19 @@ option go_package = "types";
 
 // Crawler
 message Crawler {
+	// Status
+	message Status {
+		// Hostname
+		string hostname            = 1;
+		// MaxAPIConcurrency
+		int32 maxAPIConcurrency    = 3;
+		// MaxMQConcurrency
+		int32 maxMQConcurrency     = 4;
+		// CurrentConcurrency
+		int32 currentConcurrency   = 5;
+		// CurrentMQConcurrency
+		int32 currentMQConcurrency = 6;
+	}
     // ID
     string id         = 1;
     // Version
@@ -22,6 +35,8 @@ message Crawler {
 
     // ServeAddr
     string serveAddr  = 11;
+    // Status
+    repeated Status hostStatus = 12;
 
     // OnlineUtc
     int64  onlineUtc  = 16;

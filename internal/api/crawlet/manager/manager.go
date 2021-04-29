@@ -52,7 +52,7 @@ func NewCrawlerServer(storeCtrl *storeCtrl.StoreController, crawlerCtrl *crawler
 		storeCtrl:      storeCtrl,
 		crawlerCtrl:    crawlerCtrl,
 		crawlerManager: crawlerManager,
-		logger:         logger,
+		logger:         logger.New("CrawlerServer"),
 	}
 	return &s, &s, nil
 }
@@ -70,10 +70,24 @@ func (s *CrawlerServer) GetCrawlers(ctx context.Context, req *pbCrawl.GetCrawler
 		group := pbCrawl.GetCrawlersResponse_CrawlerGroup{
 			StoreId: storeId,
 		}
+		if nodeStatus, err := s.crawlerManager.GetStatus(ctx, "", storeId); err != nil {
+			s.logger.Error(err)
+		} else {
+			for _, status := range nodeStatus {
+				group.Status = append(group.Status, &pbCrawl.NodeStatus{
+					Host:                 status.Hostname,
+					MaxAPIConcurrency:    status.MaxAPIConcurrency,
+					MaxMQConcurrency:     status.MaxMQConcurrency,
+					CurrentConcurrency:   status.CurrentConcurrency,
+					CurrentMQConcurrency: status.CurrentMQConcurrency,
+				})
+			}
+		}
+
 		for _, cw := range cws {
 			var item pbCrawl.Crawler
 			cw.Unmarshal(&item)
-			group.Data = append(group.Data, &item)
+			group.Crawlers = append(group.Crawlers, &item)
 		}
 		resp.Data[storeId] = &group
 	}
@@ -93,6 +107,21 @@ func (s *CrawlerServer) GetCrawler(ctx context.Context, req *pbCrawl.GetCrawlerR
 		cw.Unmarshal(&item)
 		ret.Data = append(ret.Data, &item)
 	}
+
+	if nodeStatus, err := s.crawlerManager.GetStatus(ctx, "", req.GetStoreId()); err != nil {
+		s.logger.Error(err)
+	} else {
+		for _, status := range nodeStatus {
+			ret.Status = append(ret.Status, &pbCrawl.NodeStatus{
+				Host:                 status.Hostname,
+				MaxAPIConcurrency:    status.MaxAPIConcurrency,
+				MaxMQConcurrency:     status.MaxMQConcurrency,
+				CurrentConcurrency:   status.CurrentConcurrency,
+				CurrentMQConcurrency: status.CurrentMQConcurrency,
+			})
+		}
+	}
+
 	return &ret, nil
 }
 
