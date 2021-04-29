@@ -174,8 +174,9 @@ func (s *CrawlerServer) DoParse(ctx context.Context, req *pbCrawl.DoParseRequest
 	shareCtx = context.WithValue(shareCtx, "store_id", req.GetRequest().GetStoreId())
 
 	var (
-		resp    pbCrawl.DoParseResponse
-		subReqs = make(chan *pbCrawl.Request, 100)
+		resp      pbCrawl.DoParseResponse
+		reqFilter = map[string]struct{}{}
+		subReqs   = make(chan *pbCrawl.Request, 100)
 	)
 	defer func() {
 		close(subReqs)
@@ -185,6 +186,8 @@ func (s *CrawlerServer) DoParse(ctx context.Context, req *pbCrawl.DoParseRequest
 	}()
 
 	subReqs <- req.GetRequest()
+	reqFilter[req.GetRequest().GetUrl()] = struct{}{}
+
 end:
 	for {
 		select {
@@ -202,14 +205,20 @@ end:
 
 					switch vv := v.(type) {
 					case *pbCrawl.Request:
-						select {
-						case subReqs <- vv:
-						default:
-							logger.Errorf("too may sub requests for %s, ignored", r.GetUrl())
+						if _, ok := reqFilter[vv.String()]; !ok {
+							select {
+							case subReqs <- vv:
+								reqFilter[vv.String()] = struct{}{}
+							default:
+								logger.Errorf("too may sub requests for %s, ignored", r.GetUrl())
+							}
 						}
 					case *pbCrawl.Item:
 						data, _ := anypb.New(vv)
 						resp.Data = append(resp.Data, data)
+						if len(resp.Data) >= int(req.GetRequest().Options.GetMaxItemCount()) {
+							return crawlerCtrl.ErrCountMatched
+						}
 					}
 					return nil
 				},
