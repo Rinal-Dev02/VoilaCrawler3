@@ -272,6 +272,7 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 			CrawledUtc: time.Now().Unix(),
 		}
 		item.Source.Id = prop.ID
+		item.Source.SourceUrl = fmt.Sprintf("https://www.tiktok.com/@%s/video/%s?lang=en", prop.Author.UniqueID, prop.ID)
 		item.Source.PublishUtc = prop.CreateTime
 		item.Title = prop.Desc
 		if prop.Video.DownloadAddr != "" {
@@ -392,6 +393,7 @@ func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Re
 		item := pbItem.Tiktok_Item{
 			Source: &pbItem.Tiktok_Source{
 				Id:         prop.ID,
+				SourceUrl:  fmt.Sprintf("https://www.tiktok.com/@%s/video/%s?lang=en", prop.Author.UniqueID, prop.ID),
 				PublishUtc: prop.CreateTime,
 			},
 			Title:  prop.Desc,
@@ -602,6 +604,7 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 		item.Source = &pbItem.Tiktok_Source{}
 	}
 	item.Source.CrawlUrl = rawurl
+	item.Source.SourceUrl = rawurl
 
 	/*
 		// this is not necessory
