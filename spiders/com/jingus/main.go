@@ -12,7 +12,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"sync"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/go-crawler/pkg/cli"
@@ -27,8 +26,7 @@ import (
 )
 
 type _Crawler struct {
-	httpClient  http.Client
-	collections sync.Map
+	httpClient http.Client
 
 	categoryPathMatcher *regexp.Regexp
 	productPathMatcher  *regexp.Regexp
@@ -59,7 +57,14 @@ func (c *_Crawler) Version() int32 {
 // CrawlOptions
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
+	options.EnableSessionInit = true
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+	options.MustCookies = append(options.MustCookies,
+		&http.Cookie{Name: "cart_currency", Value: "USD", Path: "/"},
+		&http.Cookie{Name: "_landing_page", Value: "%2F", Path: "/"},
+		&http.Cookie{Name: "zCountry", Value: "US", Path: "/"},
+		&http.Cookie{Name: "zHello", Value: "1", Path: "/"},
+	)
 	return options
 }
 

@@ -172,8 +172,10 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 					return nil
 				}
 				if err := func(i *http.Request) error {
+					logger.Infof("Access %s", i.URL)
+
 					canUrl, _ := node.CanonicalUrl(i.URL.String())
-					logger.Debugf("Access %s %s", i.URL, canUrl)
+					logger.Debugf("Canonical Url %s", canUrl)
 
 					nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 					defer cancel()
