@@ -238,7 +238,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 			val.TracingId = rawreq.GetTracingId()
 			val.JobId = rawreq.GetJobId()
 			val.StoreId = rawreq.GetStoreId()
-			val.Timestamp = time.Now().UnixNano()
+			val.Timestamp = time.Now().UnixNano() / 1000000
 
 			data, _ := anypb.New(val)
 			return ps.Send(data)
@@ -252,7 +252,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 				index = strconv.MustParseInt(indexVal)
 			}
 			item := pbCrawl.Item{
-				Timestamp: time.Now().UnixNano(),
+				Timestamp: time.Now().UnixNano() / 1000000,
 				TracingId: rawreq.GetTracingId(),
 				JobId:     rawreq.GetJobId(),
 				ReqId:     rawreq.GetReqId(),

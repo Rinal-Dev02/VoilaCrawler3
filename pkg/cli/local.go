@@ -40,6 +40,10 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 				Usage: "proxy level, 1,2,3",
 			},
 			&cli.BoolFlag{
+				Name:  "pretty",
+				Usage: "print item detail in pretty",
+			},
+			&cli.BoolFlag{
 				Name:    "debug",
 				Usage:   "Enable debug",
 				EnvVars: []string{"DEBUG"},
@@ -139,8 +143,13 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 					reqChan <- i
 					return nil
 				default:
+					marshaler := protojson.MarshalOptions{}
+					if c.Bool("pretty") {
+						marshaler.Indent = " "
+					}
+
 					// output the result
-					data, err := protojson.Marshal(i.(proto.Message))
+					data, err := marshaler.Marshal(i.(proto.Message))
 					if err != nil {
 						return err
 					}
