@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"time"
 
+	ctxutil "github.com/voiladev/go-crawler/pkg/context"
 	"github.com/voiladev/go-crawler/pkg/net/http"
 	pbHttp "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/http"
 	pbSession "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/session"
@@ -42,11 +43,7 @@ func (j *RemoteJar) Cookies(ctx context.Context, u *url.URL) (cookies []*http.Co
 	}
 	logger := j.logger.New("Cookies")
 
-	var tracingId string
-	if v := ctx.Value("tracing_id"); v != nil {
-		tracingId, _ = v.(string)
-	}
-
+	tracingId := ctxutil.GetString(ctx, ctxutil.TracingIdKey)
 	resp, err := j.sessionClient.GetCookies(ctx, &pbSession.GetCookiesRequest{
 		TracingId: tracingId,
 		Url:       u.String(),
@@ -82,9 +79,7 @@ func (j *RemoteJar) SetCookies(ctx context.Context, u *url.URL, cookies []*http.
 	logger := j.logger.New("SetCookies")
 
 	req := pbSession.SetCookiesRequest{Url: u.String()}
-	if v := ctx.Value("tracing_id"); v != nil {
-		req.TracingId, _ = v.(string)
-	}
+	req.TracingId = ctxutil.GetString(ctx, ctxutil.TracingIdKey)
 	for _, c := range cookies {
 		cookie := pbHttp.Cookie{
 			Name:     c.Name,
@@ -117,11 +112,7 @@ func (j *RemoteJar) Clear(ctx context.Context, u *url.URL) (err error) {
 	}
 	logger := j.logger.New("Clear")
 
-	var tracingId string
-	if v := ctx.Value("tracing_id"); v != nil {
-		tracingId, _ = v.(string)
-	}
-
+	tracingId := ctxutil.GetString(ctx, ctxutil.TracingIdKey)
 	if _, err := j.sessionClient.ClearCookies(ctx, &pbSession.ClearCookiesRequest{
 		TracingId: tracingId,
 		Url:       u.String(),

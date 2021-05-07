@@ -262,7 +262,7 @@ func (c *_Crawler) parseSearch(ctx context.Context, resp *http.Response, yield f
 			break
 		}
 		start = viewData.Data.GetUnbxdSearch.Pagination.End + 1
-		subCtx = context.WithValue(ctx, "req_id", randutil.MustNewRandomID())
+		subCtx = context.WithValue(ctx, crawler.ReqIdKey, randutil.MustNewRandomID())
 	}
 	return nil
 }
@@ -379,7 +379,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			break
 		}
 		start = viewData.Data.GetUnbxdCategory.Pagination.End + 1
-		subCtx = context.WithValue(ctx, "req_id", randutil.MustNewRandomID())
+		subCtx = context.WithValue(ctx, crawler.ReqIdKey, randutil.MustNewRandomID())
 	}
 	return nil
 }

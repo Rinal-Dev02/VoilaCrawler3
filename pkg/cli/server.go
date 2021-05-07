@@ -120,13 +120,9 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 	for k, v := range rawreq.SharingData {
 		shareCtx = context.WithValue(shareCtx, k, v)
 	}
-	shareCtx = context.WithValue(shareCtx, "tracing_id", rawreq.GetTracingId())
 	shareCtx = context.WithValue(shareCtx, crawler.TracingIdKey, rawreq.GetTracingId())
-	shareCtx = context.WithValue(shareCtx, "job_id", rawreq.GetJobId())
 	shareCtx = context.WithValue(shareCtx, crawler.JobIdKey, rawreq.GetJobId())
-	shareCtx = context.WithValue(shareCtx, "req_id", rawreq.GetReqId())
 	shareCtx = context.WithValue(shareCtx, crawler.ReqIdKey, rawreq.GetReqId())
-	shareCtx = context.WithValue(shareCtx, "store_id", rawreq.GetStoreId())
 	shareCtx = context.WithValue(shareCtx, crawler.StoreIdKey, rawreq.GetStoreId())
 	shareCtx = context.WithValue(shareCtx, crawler.TargetTypeKey, strings.Join(rawreq.GetOptions().GetTargetTypes(), ","))
 
@@ -173,6 +169,14 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 
 	err = s.crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
 		sharingData := ctxutil.RetrieveAllValues(c)
+		tracingId := rawreq.GetTracingId()
+		if tid := ctxutil.GetString(c, crawler.TracingIdKey); tid != "" {
+			if !strings.HasPrefix(tid, "sub_") {
+				tid = "sub_" + tid
+			}
+			tracingId = tid
+		}
+
 		switch val := i.(type) {
 		case *http.Request:
 			if val.URL.Host == "" {
@@ -187,7 +191,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 
 			// convert http.Request to pbCrawl.Command_Request and forward
 			subreq := pbCrawl.Request{
-				TracingId:     rawreq.GetTracingId(),
+				TracingId:     tracingId,
 				JobId:         rawreq.GetJobId(),
 				ReqId:         rawreq.GetReqId(),
 				StoreId:       rawreq.GetStoreId(),
@@ -199,6 +203,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 				Options:       rawreq.Options,
 				SharingData:   rawreq.SharingData,
 			}
+
 			if subreq.CustomHeaders == nil {
 				subreq.CustomHeaders = make(map[string]string)
 			}
@@ -224,12 +229,6 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 				}
 				val := strconv.Format(v)
 
-				if strings.HasSuffix(key, "tracing_id") ||
-					strings.HasSuffix(key, "job_id") ||
-					strings.HasSuffix(key, "req_id") ||
-					strings.HasSuffix(key, "store_id") {
-					continue
-				}
 				subreq.SharingData[key] = val
 			}
 			data, _ := anypb.New(&subreq)
@@ -240,7 +239,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 			}
 
 			val.ReqId = rawreq.GetReqId()
-			val.TracingId = rawreq.GetTracingId()
+			val.TracingId = tracingId
 			val.JobId = rawreq.GetJobId()
 			val.StoreId = rawreq.GetStoreId()
 			val.Timestamp = time.Now().UnixNano() / 1000000
@@ -252,9 +251,9 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 			if !ok {
 				return errors.New("unsupported response data type")
 			}
-			var index int64
-			if indexVal, ok := sharingData["item.index"]; ok && indexVal != nil {
-				index = strconv.MustParseInt(indexVal)
+			index := ctxutil.GetInt(c, "item.index")
+			if index == 0 {
+				index = ctxutil.GetInt(c, "index")
 			}
 			item := pbCrawl.Item{
 				Timestamp: time.Now().UnixNano() / 1000000,

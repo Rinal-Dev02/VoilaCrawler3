@@ -23,6 +23,7 @@ import (
 	pbItem "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -105,6 +106,13 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	if p == "" {
+		return crawler.ErrUnsupportedPath
+	}
+	if p == "/us/women" || p == "/us/men" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
@@ -116,6 +124,46 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	dom, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`#chrome-sticky-header nav li>a[href]`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		href := node.AttrOr("href", "")
+		if href == "" {
+			continue
+		}
+		u, err := url.Parse(href)
+		if err != nil {
+			c.logger.Errorf("parse url %s failed", href)
+			continue
+		}
+		if strings.Contains(u.Path, "/us/gift-vouchers") {
+			continue
+		}
+
+		if c.categoryPathMatcher.MatchString(u.Path) {
+			// here reset tracing id to distiguish different category crawl
+			// This may exists duplicate requests
+			nctx := context.WithValue(ctx, crawler.TracingIdKey, randutil.MustNewRandomID())
+			req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+			if err := yield(nctx, req); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get sharingData from context

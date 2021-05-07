@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v2"
+	ctxutil "github.com/voiladev/go-crawler/pkg/context"
 	"github.com/voiladev/go-crawler/pkg/crawler"
 	"github.com/voiladev/go-crawler/pkg/net/http"
 	"github.com/voiladev/go-crawler/pkg/net/http/cookiejar"
@@ -175,7 +176,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 				return nil
 			}
 
-			ctx = context.WithValue(ctx, "tracing_id", randutil.MustNewRandomID())
+			ctx = context.WithValue(ctx, ctxutil.TracingIdKey, randutil.MustNewRandomID())
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
@@ -202,7 +203,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 
 						nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 						defer cancel()
-						nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
+						nctx = context.WithValue(nctx, ctxutil.ReqIdKey, randutil.MustNewRandomID())
 
 						opts := node.CrawlOptions(req.URL)
 						httpOpts := http.Options{

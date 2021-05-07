@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
+	ctxutil "github.com/voiladev/go-crawler/pkg/context"
+	"github.com/voiladev/go-crawler/pkg/crawler"
 	"github.com/voiladev/go-crawler/pkg/net/http"
 	pbHttp "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/http"
 	pbProxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
@@ -116,15 +118,10 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		}
 	}
 
-	if ctx.Value("tracing_id") != nil {
-		req.TracingId = ctx.Value("tracing_id").(string)
-	}
-	if ctx.Value("job_id") != nil {
-		req.JobId = ctx.Value("job_id").(string)
-	}
-	if ctx.Value("req_id") != nil {
-		req.ReqId = ctx.Value("req_id").(string)
-	} else {
+	req.TracingId = ctxutil.GetString(ctx, crawler.TracingIdKey)
+	req.JobId = ctxutil.GetString(ctx, crawler.JobIdKey)
+	req.ReqId = ctxutil.GetString(ctx, crawler.ReqIdKey)
+	if req.ReqId == "" {
 		req.ReqId = fmt.Sprintf("req_%s", randutil.MustNewRandomID())
 	}
 	for key, vals := range r.Header {

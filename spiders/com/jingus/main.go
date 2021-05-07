@@ -23,6 +23,7 @@ import (
 	pbItem "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 )
 
@@ -152,8 +153,12 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		}
 		urlFilters[u.Path] = struct{}{}
 
+		nctx := ctx
+		if !c.productPathMatcher.MatchString(u.Path) && c.categoryPathMatcher.MatchString(u.Path) {
+			nctx = context.WithValue(ctx, crawler.TracingIdKey, randutil.MustNewRandomID())
+		}
 		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-		if err = yield(ctx, req); err != nil {
+		if err = yield(nctx, req); err != nil {
 			return err
 		}
 	}
