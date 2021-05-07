@@ -128,7 +128,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	} else if c.productJsonPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProductJson(ctx, resp, yield)
 	}
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	return crawler.ErrUnsupportedPath
 }
 
 const defaultCategoryProductsPageSize = "54"

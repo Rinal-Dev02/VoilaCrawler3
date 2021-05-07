@@ -71,8 +71,10 @@ func getOnePort() int {
 
 // App
 type App struct {
-	cliApp    *cli.App
-	ctx       context.Context
+	cliApp     *cli.App
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+
 	version   string
 	newFunc   crawler.New
 	servePort int
@@ -86,10 +88,11 @@ func NewApp(newFunc crawler.New) *App {
 	}()
 
 	app := App{
-		cliApp:  cli.NewApp(),
-		ctx:     ctx,
-		version: Version,
-		newFunc: newFunc,
+		cliApp:     cli.NewApp(),
+		ctx:        ctx,
+		cancelFunc: cancel,
+		version:    Version,
+		newFunc:    newFunc,
 	}
 	app.cliApp.Name = "crawler"
 	if buildName != "" {
@@ -98,7 +101,7 @@ func NewApp(newFunc crawler.New) *App {
 	app.cliApp.Usage = "crawler node"
 	app.cliApp.Version = app.version
 	app.cliApp.Commands = []*cli.Command{
-		localCommand(ctx, newFunc),
+		localCommand(ctx, &app, newFunc),
 	}
 	return &app
 }
@@ -270,6 +273,13 @@ func (app *App) Run(args []string) error {
 	app.cliApp.Commands = append(app.cliApp.Commands, &cmd)
 
 	return app.cliApp.Run(args)
+}
+
+func (app *App) Exit() {
+	if app == nil || app.cancelFunc == nil {
+		return
+	}
+	app.cancelFunc()
 }
 
 func (app *App) newGrpcServer(c *cli.Context) func(fx.Lifecycle, glog.Log) (grpc.ServiceRegistrar, error) {

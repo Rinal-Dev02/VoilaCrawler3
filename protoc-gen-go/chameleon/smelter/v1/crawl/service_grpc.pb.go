@@ -671,6 +671,8 @@ type GatewayClient interface {
 	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
 	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
 	Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error)
+	// GetCrawlerLogs
+	GetCrawlerLogs(ctx context.Context, in *GetCrawlerLogsRequest, opts ...grpc.CallOption) (*GetCrawlerLogsResponse, error)
 }
 
 type gatewayClient struct {
@@ -717,6 +719,15 @@ func (c *gatewayClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grp
 	return out, nil
 }
 
+func (c *gatewayClient) GetCrawlerLogs(ctx context.Context, in *GetCrawlerLogsRequest, opts ...grpc.CallOption) (*GetCrawlerLogsResponse, error) {
+	out := new(GetCrawlerLogsResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.Gateway/GetCrawlerLogs", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // GatewayServer is the server API for Gateway service.
 // All implementations must embed UnimplementedGatewayServer
 // for forward compatibility
@@ -735,6 +746,8 @@ type GatewayServer interface {
 	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
 	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
 	Fetch(context.Context, *FetchRequest) (*FetchResponse, error)
+	// GetCrawlerLogs
+	GetCrawlerLogs(context.Context, *GetCrawlerLogsRequest) (*GetCrawlerLogsResponse, error)
 	mustEmbedUnimplementedGatewayServer()
 }
 
@@ -753,6 +766,9 @@ func (UnimplementedGatewayServer) GetCanonicalUrl(context.Context, *GetCanonical
 }
 func (UnimplementedGatewayServer) Fetch(context.Context, *FetchRequest) (*FetchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Fetch not implemented")
+}
+func (UnimplementedGatewayServer) GetCrawlerLogs(context.Context, *GetCrawlerLogsRequest) (*GetCrawlerLogsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetCrawlerLogs not implemented")
 }
 func (UnimplementedGatewayServer) mustEmbedUnimplementedGatewayServer() {}
 
@@ -839,6 +855,24 @@ func _Gateway_Fetch_Handler(srv interface{}, ctx context.Context, dec func(inter
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Gateway_GetCrawlerLogs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCrawlerLogsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServer).GetCrawlerLogs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawl.Gateway/GetCrawlerLogs",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServer).GetCrawlerLogs(ctx, req.(*GetCrawlerLogsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Gateway_ServiceDesc is the grpc.ServiceDesc for Gateway service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -861,6 +895,10 @@ var Gateway_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Fetch",
 			Handler:    _Gateway_Fetch_Handler,
+		},
+		{
+			MethodName: "GetCrawlerLogs",
+			Handler:    _Gateway_GetCrawlerLogs_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

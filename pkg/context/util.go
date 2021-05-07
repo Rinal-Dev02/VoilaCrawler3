@@ -4,7 +4,35 @@ import (
 	"context"
 	"reflect"
 	"unsafe"
+
+	"github.com/voiladev/go-framework/strconv"
 )
+
+// GetString
+func GetString(ctx context.Context, key interface{}) string {
+	if ctx == nil || key == nil {
+		return ""
+	}
+	val := ctx.Value(key)
+	if val == nil {
+		return ""
+	}
+	v, _ := val.(string)
+	return v
+}
+
+// GetInt
+func GetInt(ctx context.Context, key interface{}) int64 {
+	if ctx == nil || key == nil {
+		return 0
+	}
+	val := ctx.Value(key)
+	if val == nil {
+		return 0
+	}
+	v, _ := strconv.ParseInt(val)
+	return v
+}
 
 func RetrieveAllValues(ctx context.Context) map[interface{}]interface{} {
 	kvs := map[interface{}]interface{}{}

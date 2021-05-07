@@ -121,9 +121,14 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 		shareCtx = context.WithValue(shareCtx, k, v)
 	}
 	shareCtx = context.WithValue(shareCtx, "tracing_id", rawreq.GetTracingId())
+	shareCtx = context.WithValue(shareCtx, crawler.TracingIdKey, rawreq.GetTracingId())
 	shareCtx = context.WithValue(shareCtx, "job_id", rawreq.GetJobId())
+	shareCtx = context.WithValue(shareCtx, crawler.JobIdKey, rawreq.GetJobId())
 	shareCtx = context.WithValue(shareCtx, "req_id", rawreq.GetReqId())
+	shareCtx = context.WithValue(shareCtx, crawler.ReqIdKey, rawreq.GetReqId())
 	shareCtx = context.WithValue(shareCtx, "store_id", rawreq.GetStoreId())
+	shareCtx = context.WithValue(shareCtx, crawler.StoreIdKey, rawreq.GetStoreId())
+	shareCtx = context.WithValue(shareCtx, crawler.TargetTypeKey, strings.Join(rawreq.GetOptions().GetTargetTypes(), ","))
 
 	req, err := buildRequest(rawreq)
 	if err != nil {
@@ -269,7 +274,9 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 
 	if errors.Is(crawler.ErrAbort, err) {
 		return pbError.ErrAborted.New(err.Error())
-	} else if errors.Is(crawler.ErrNotSupportedPath, err) {
+	} else if errors.Is(crawler.ErrUnsupportedPath, err) {
+		return pbError.ErrUnimplemented.New(err.Error())
+	} else if errors.Is(crawler.ErrUnsupportedTarget, err) {
 		return pbError.ErrUnimplemented.New(err.Error())
 	}
 	return err

@@ -8,6 +8,7 @@ package crawl
 
 import (
 	http "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/http"
+	search "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/search"
 	proxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -375,91 +376,6 @@ func (x *ParseRequest) GetResponse() *proxy.Response {
 	return nil
 }
 
-// NodeStatus
-type NodeStatus struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	// Host
-	Host string `protobuf:"bytes,1,opt,name=host,proto3" json:"host,omitempty"`
-	// MaxAPIConcurrency
-	MaxAPIConcurrency int32 `protobuf:"varint,3,opt,name=maxAPIConcurrency,proto3" json:"maxAPIConcurrency,omitempty"`
-	// MaxMQConcurrency
-	MaxMQConcurrency int32 `protobuf:"varint,4,opt,name=maxMQConcurrency,proto3" json:"maxMQConcurrency,omitempty"`
-	// CurrentConcurrency
-	CurrentConcurrency int32 `protobuf:"varint,5,opt,name=currentConcurrency,proto3" json:"currentConcurrency,omitempty"`
-	// CurrentMQConcurrency
-	CurrentMQConcurrency int32 `protobuf:"varint,6,opt,name=currentMQConcurrency,proto3" json:"currentMQConcurrency,omitempty"`
-}
-
-func (x *NodeStatus) Reset() {
-	*x = NodeStatus{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[7]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *NodeStatus) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*NodeStatus) ProtoMessage() {}
-
-func (x *NodeStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[7]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NodeStatus.ProtoReflect.Descriptor instead.
-func (*NodeStatus) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *NodeStatus) GetHost() string {
-	if x != nil {
-		return x.Host
-	}
-	return ""
-}
-
-func (x *NodeStatus) GetMaxAPIConcurrency() int32 {
-	if x != nil {
-		return x.MaxAPIConcurrency
-	}
-	return 0
-}
-
-func (x *NodeStatus) GetMaxMQConcurrency() int32 {
-	if x != nil {
-		return x.MaxMQConcurrency
-	}
-	return 0
-}
-
-func (x *NodeStatus) GetCurrentConcurrency() int32 {
-	if x != nil {
-		return x.CurrentConcurrency
-	}
-	return 0
-}
-
-func (x *NodeStatus) GetCurrentMQConcurrency() int32 {
-	if x != nil {
-		return x.CurrentMQConcurrency
-	}
-	return 0
-}
-
 // GetCrawlersRequest
 type GetCrawlersRequest struct {
 	state         protoimpl.MessageState
@@ -470,7 +386,7 @@ type GetCrawlersRequest struct {
 func (x *GetCrawlersRequest) Reset() {
 	*x = GetCrawlersRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[8]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[7]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -483,7 +399,7 @@ func (x *GetCrawlersRequest) String() string {
 func (*GetCrawlersRequest) ProtoMessage() {}
 
 func (x *GetCrawlersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[8]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[7]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -496,7 +412,7 @@ func (x *GetCrawlersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCrawlersRequest.ProtoReflect.Descriptor instead.
 func (*GetCrawlersRequest) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{8}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{7}
 }
 
 // GetCrawlersResponse
@@ -512,7 +428,7 @@ type GetCrawlersResponse struct {
 func (x *GetCrawlersResponse) Reset() {
 	*x = GetCrawlersResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[9]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[8]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -525,7 +441,7 @@ func (x *GetCrawlersResponse) String() string {
 func (*GetCrawlersResponse) ProtoMessage() {}
 
 func (x *GetCrawlersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[9]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[8]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -538,7 +454,7 @@ func (x *GetCrawlersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCrawlersResponse.ProtoReflect.Descriptor instead.
 func (*GetCrawlersResponse) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{9}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetCrawlersResponse) GetData() map[string]*GetCrawlersResponse_CrawlerGroup {
@@ -561,7 +477,7 @@ type GetCrawlerRequest struct {
 func (x *GetCrawlerRequest) Reset() {
 	*x = GetCrawlerRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[10]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -574,7 +490,7 @@ func (x *GetCrawlerRequest) String() string {
 func (*GetCrawlerRequest) ProtoMessage() {}
 
 func (x *GetCrawlerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[10]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -587,7 +503,7 @@ func (x *GetCrawlerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCrawlerRequest.ProtoReflect.Descriptor instead.
 func (*GetCrawlerRequest) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{10}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetCrawlerRequest) GetStoreId() string {
@@ -612,7 +528,7 @@ type GetCrawlerResponse struct {
 func (x *GetCrawlerResponse) Reset() {
 	*x = GetCrawlerResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[11]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[10]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -625,7 +541,7 @@ func (x *GetCrawlerResponse) String() string {
 func (*GetCrawlerResponse) ProtoMessage() {}
 
 func (x *GetCrawlerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[11]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[10]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -638,7 +554,7 @@ func (x *GetCrawlerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCrawlerResponse.ProtoReflect.Descriptor instead.
 func (*GetCrawlerResponse) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{11}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GetCrawlerResponse) GetData() []*Crawler {
@@ -670,7 +586,7 @@ type GetCrawlerOptionsRequest struct {
 func (x *GetCrawlerOptionsRequest) Reset() {
 	*x = GetCrawlerOptionsRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[12]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -683,7 +599,7 @@ func (x *GetCrawlerOptionsRequest) String() string {
 func (*GetCrawlerOptionsRequest) ProtoMessage() {}
 
 func (x *GetCrawlerOptionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[12]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -696,7 +612,7 @@ func (x *GetCrawlerOptionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCrawlerOptionsRequest.ProtoReflect.Descriptor instead.
 func (*GetCrawlerOptionsRequest) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{12}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *GetCrawlerOptionsRequest) GetStoreId() string {
@@ -726,7 +642,7 @@ type GetCrawlerOptionsResponse struct {
 func (x *GetCrawlerOptionsResponse) Reset() {
 	*x = GetCrawlerOptionsResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[13]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -739,7 +655,7 @@ func (x *GetCrawlerOptionsResponse) String() string {
 func (*GetCrawlerOptionsResponse) ProtoMessage() {}
 
 func (x *GetCrawlerOptionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[13]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -752,7 +668,7 @@ func (x *GetCrawlerOptionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCrawlerOptionsResponse.ProtoReflect.Descriptor instead.
 func (*GetCrawlerOptionsResponse) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{13}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetCrawlerOptionsResponse) GetData() *CrawlerOptions {
@@ -777,7 +693,7 @@ type GetCanonicalUrlRequest struct {
 func (x *GetCanonicalUrlRequest) Reset() {
 	*x = GetCanonicalUrlRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[14]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -790,7 +706,7 @@ func (x *GetCanonicalUrlRequest) String() string {
 func (*GetCanonicalUrlRequest) ProtoMessage() {}
 
 func (x *GetCanonicalUrlRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[14]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -803,7 +719,7 @@ func (x *GetCanonicalUrlRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCanonicalUrlRequest.ProtoReflect.Descriptor instead.
 func (*GetCanonicalUrlRequest) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{14}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetCanonicalUrlRequest) GetStoreId() string {
@@ -833,7 +749,7 @@ type GetCanonicalUrlResponse struct {
 func (x *GetCanonicalUrlResponse) Reset() {
 	*x = GetCanonicalUrlResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[15]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -846,7 +762,7 @@ func (x *GetCanonicalUrlResponse) String() string {
 func (*GetCanonicalUrlResponse) ProtoMessage() {}
 
 func (x *GetCanonicalUrlResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[15]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -859,7 +775,7 @@ func (x *GetCanonicalUrlResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCanonicalUrlResponse.ProtoReflect.Descriptor instead.
 func (*GetCanonicalUrlResponse) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{15}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetCanonicalUrlResponse) GetData() *GetCanonicalUrlResponse_Data {
@@ -884,7 +800,7 @@ type DoParseRequest struct {
 func (x *DoParseRequest) Reset() {
 	*x = DoParseRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[16]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -897,7 +813,7 @@ func (x *DoParseRequest) String() string {
 func (*DoParseRequest) ProtoMessage() {}
 
 func (x *DoParseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[16]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -910,7 +826,7 @@ func (x *DoParseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DoParseRequest.ProtoReflect.Descriptor instead.
 func (*DoParseRequest) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{16}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DoParseRequest) GetRequest() *Request {
@@ -944,7 +860,7 @@ type DoParseResponse struct {
 func (x *DoParseResponse) Reset() {
 	*x = DoParseResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[17]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -957,7 +873,7 @@ func (x *DoParseResponse) String() string {
 func (*DoParseResponse) ProtoMessage() {}
 
 func (x *DoParseResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[17]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -970,7 +886,7 @@ func (x *DoParseResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DoParseResponse.ProtoReflect.Descriptor instead.
 func (*DoParseResponse) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{17}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DoParseResponse) GetData() []*anypb.Any {
@@ -1004,7 +920,7 @@ type ConnectRequest struct {
 func (x *ConnectRequest) Reset() {
 	*x = ConnectRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[18]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1017,7 +933,7 @@ func (x *ConnectRequest) String() string {
 func (*ConnectRequest) ProtoMessage() {}
 
 func (x *ConnectRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[18]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1030,7 +946,7 @@ func (x *ConnectRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectRequest.ProtoReflect.Descriptor instead.
 func (*ConnectRequest) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{18}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{17}
 }
 
 // ConnectResponse
@@ -1043,7 +959,7 @@ type ConnectResponse struct {
 func (x *ConnectResponse) Reset() {
 	*x = ConnectResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[19]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1056,7 +972,7 @@ func (x *ConnectResponse) String() string {
 func (*ConnectResponse) ProtoMessage() {}
 
 func (x *ConnectResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[19]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1069,7 +985,7 @@ func (x *ConnectResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectResponse.ProtoReflect.Descriptor instead.
 func (*ConnectResponse) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{19}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{18}
 }
 
 // FetchRequest
@@ -1099,7 +1015,7 @@ type FetchRequest struct {
 func (x *FetchRequest) Reset() {
 	*x = FetchRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[20]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1112,7 +1028,7 @@ func (x *FetchRequest) String() string {
 func (*FetchRequest) ProtoMessage() {}
 
 func (x *FetchRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[20]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1125,7 +1041,7 @@ func (x *FetchRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchRequest.ProtoReflect.Descriptor instead.
 func (*FetchRequest) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{20}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *FetchRequest) GetJobId() string {
@@ -1197,7 +1113,7 @@ type FetchResponse struct {
 func (x *FetchResponse) Reset() {
 	*x = FetchResponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[21]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1210,7 +1126,7 @@ func (x *FetchResponse) String() string {
 func (*FetchResponse) ProtoMessage() {}
 
 func (x *FetchResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[21]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1223,10 +1139,171 @@ func (x *FetchResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchResponse.ProtoReflect.Descriptor instead.
 func (*FetchResponse) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{21}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *FetchResponse) GetData() []*Item {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// GetCrawlerLogsRequest
+type GetCrawlerLogsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Limit
+	Limit int32 `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Cursor
+	Cursor string `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	// StoreId
+	StoreId string `protobuf:"bytes,6,opt,name=storeId,proto3" json:"storeId,omitempty"`
+	// JobId
+	JobId string `protobuf:"bytes,7,opt,name=jobId,proto3" json:"jobId,omitempty"`
+	// StartTime
+	StartTime string `protobuf:"bytes,8,opt,name=startTime,proto3" json:"startTime,omitempty"`
+	// EndTime
+	EndTime string `protobuf:"bytes,9,opt,name=endTime,proto3" json:"endTime,omitempty"`
+	// Order
+	Order search.SortOrder `protobuf:"varint,15,opt,name=order,proto3,enum=chameleon.api.search.SortOrder" json:"order,omitempty"`
+}
+
+func (x *GetCrawlerLogsRequest) Reset() {
+	*x = GetCrawlerLogsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[21]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCrawlerLogsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCrawlerLogsRequest) ProtoMessage() {}
+
+func (x *GetCrawlerLogsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[21]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCrawlerLogsRequest.ProtoReflect.Descriptor instead.
+func (*GetCrawlerLogsRequest) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetCrawlerLogsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *GetCrawlerLogsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+func (x *GetCrawlerLogsRequest) GetStoreId() string {
+	if x != nil {
+		return x.StoreId
+	}
+	return ""
+}
+
+func (x *GetCrawlerLogsRequest) GetJobId() string {
+	if x != nil {
+		return x.JobId
+	}
+	return ""
+}
+
+func (x *GetCrawlerLogsRequest) GetStartTime() string {
+	if x != nil {
+		return x.StartTime
+	}
+	return ""
+}
+
+func (x *GetCrawlerLogsRequest) GetEndTime() string {
+	if x != nil {
+		return x.EndTime
+	}
+	return ""
+}
+
+func (x *GetCrawlerLogsRequest) GetOrder() search.SortOrder {
+	if x != nil {
+		return x.Order
+	}
+	return search.SortOrder_Unknown
+}
+
+// GetCrawlerLogsResponse
+type GetCrawlerLogsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Pagination
+	Pagination *GetCrawlerLogsResponse_Pagination `protobuf:"bytes,1,opt,name=pagination,proto3" json:"pagination,omitempty"`
+	// Data
+	Data []*Error `protobuf:"bytes,2,rep,name=data,proto3" json:"data,omitempty"`
+}
+
+func (x *GetCrawlerLogsResponse) Reset() {
+	*x = GetCrawlerLogsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[22]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCrawlerLogsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCrawlerLogsResponse) ProtoMessage() {}
+
+func (x *GetCrawlerLogsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[22]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCrawlerLogsResponse.ProtoReflect.Descriptor instead.
+func (*GetCrawlerLogsResponse) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *GetCrawlerLogsResponse) GetPagination() *GetCrawlerLogsResponse_Pagination {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
+}
+
+func (x *GetCrawlerLogsResponse) GetData() []*Error {
 	if x != nil {
 		return x.Data
 	}
@@ -1246,7 +1323,7 @@ type CanonicalUrlResponse_Data struct {
 func (x *CanonicalUrlResponse_Data) Reset() {
 	*x = CanonicalUrlResponse_Data{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[22]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[23]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1259,7 +1336,7 @@ func (x *CanonicalUrlResponse_Data) String() string {
 func (*CanonicalUrlResponse_Data) ProtoMessage() {}
 
 func (x *CanonicalUrlResponse_Data) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[22]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[23]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1299,7 +1376,7 @@ type GetCrawlersResponse_CrawlerGroup struct {
 func (x *GetCrawlersResponse_CrawlerGroup) Reset() {
 	*x = GetCrawlersResponse_CrawlerGroup{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[23]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1312,7 +1389,7 @@ func (x *GetCrawlersResponse_CrawlerGroup) String() string {
 func (*GetCrawlersResponse_CrawlerGroup) ProtoMessage() {}
 
 func (x *GetCrawlersResponse_CrawlerGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[23]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1325,7 +1402,7 @@ func (x *GetCrawlersResponse_CrawlerGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCrawlersResponse_CrawlerGroup.ProtoReflect.Descriptor instead.
 func (*GetCrawlersResponse_CrawlerGroup) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{9, 0}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{8, 0}
 }
 
 func (x *GetCrawlersResponse_CrawlerGroup) GetStoreId() string {
@@ -1362,7 +1439,7 @@ type GetCanonicalUrlResponse_Data struct {
 func (x *GetCanonicalUrlResponse_Data) Reset() {
 	*x = GetCanonicalUrlResponse_Data{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[25]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[26]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1375,7 +1452,7 @@ func (x *GetCanonicalUrlResponse_Data) String() string {
 func (*GetCanonicalUrlResponse_Data) ProtoMessage() {}
 
 func (x *GetCanonicalUrlResponse_Data) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[25]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[26]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1388,7 +1465,7 @@ func (x *GetCanonicalUrlResponse_Data) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetCanonicalUrlResponse_Data.ProtoReflect.Descriptor instead.
 func (*GetCanonicalUrlResponse_Data) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{15, 0}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{14, 0}
 }
 
 func (x *GetCanonicalUrlResponse_Data) GetUrl() string {
@@ -1423,7 +1500,7 @@ type ConnectRequest_Ping struct {
 func (x *ConnectRequest_Ping) Reset() {
 	*x = ConnectRequest_Ping{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[26]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[27]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1436,7 +1513,7 @@ func (x *ConnectRequest_Ping) String() string {
 func (*ConnectRequest_Ping) ProtoMessage() {}
 
 func (x *ConnectRequest_Ping) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[26]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[27]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1449,7 +1526,7 @@ func (x *ConnectRequest_Ping) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectRequest_Ping.ProtoReflect.Descriptor instead.
 func (*ConnectRequest_Ping) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{18, 0}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{17, 0}
 }
 
 func (x *ConnectRequest_Ping) GetTimestamp() int64 {
@@ -1516,7 +1593,7 @@ type ConnectRequest_Heartbeat struct {
 func (x *ConnectRequest_Heartbeat) Reset() {
 	*x = ConnectRequest_Heartbeat{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[27]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[28]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1529,7 +1606,7 @@ func (x *ConnectRequest_Heartbeat) String() string {
 func (*ConnectRequest_Heartbeat) ProtoMessage() {}
 
 func (x *ConnectRequest_Heartbeat) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[27]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[28]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1542,7 +1619,7 @@ func (x *ConnectRequest_Heartbeat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectRequest_Heartbeat.ProtoReflect.Descriptor instead.
 func (*ConnectRequest_Heartbeat) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{18, 1}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{17, 1}
 }
 
 func (x *ConnectRequest_Heartbeat) GetTimestamp() int64 {
@@ -1576,7 +1653,7 @@ type ConnectResponse_Pong struct {
 func (x *ConnectResponse_Pong) Reset() {
 	*x = ConnectResponse_Pong{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[28]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[29]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1589,7 +1666,7 @@ func (x *ConnectResponse_Pong) String() string {
 func (*ConnectResponse_Pong) ProtoMessage() {}
 
 func (x *ConnectResponse_Pong) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[28]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[29]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1602,7 +1679,7 @@ func (x *ConnectResponse_Pong) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConnectResponse_Pong.ProtoReflect.Descriptor instead.
 func (*ConnectResponse_Pong) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{19, 0}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{18, 0}
 }
 
 func (x *ConnectResponse_Pong) GetTimestamp() int64 {
@@ -1651,7 +1728,7 @@ type FetchRequest_Options struct {
 func (x *FetchRequest_Options) Reset() {
 	*x = FetchRequest_Options{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[29]
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[30]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1664,7 +1741,7 @@ func (x *FetchRequest_Options) String() string {
 func (*FetchRequest_Options) ProtoMessage() {}
 
 func (x *FetchRequest_Options) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[29]
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[30]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1677,7 +1754,7 @@ func (x *FetchRequest_Options) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FetchRequest_Options.ProtoReflect.Descriptor instead.
 func (*FetchRequest_Options) Descriptor() ([]byte, []int) {
-	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{20, 0}
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{19, 0}
 }
 
 func (x *FetchRequest_Options) GetDisableProxy() bool {
@@ -1729,6 +1806,55 @@ func (x *FetchRequest_Options) GetMaxItemCount() int32 {
 	return 0
 }
 
+// Pagination
+type GetCrawlerLogsResponse_Pagination struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Cursor
+	Cursor string `protobuf:"bytes,1,opt,name=cursor,proto3" json:"cursor,omitempty"`
+}
+
+func (x *GetCrawlerLogsResponse_Pagination) Reset() {
+	*x = GetCrawlerLogsResponse_Pagination{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[32]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GetCrawlerLogsResponse_Pagination) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCrawlerLogsResponse_Pagination) ProtoMessage() {}
+
+func (x *GetCrawlerLogsResponse_Pagination) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[32]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCrawlerLogsResponse_Pagination.ProtoReflect.Descriptor instead.
+func (*GetCrawlerLogsResponse_Pagination) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP(), []int{22, 0}
+}
+
+func (x *GetCrawlerLogsResponse_Pagination) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
 var File_chameleon_smelter_v1_crawl_service_message_proto protoreflect.FileDescriptor
 
 var file_chameleon_smelter_v1_crawl_service_message_proto_rawDesc = []byte{
@@ -1740,60 +1866,48 @@ var file_chameleon_smelter_v1_crawl_service_message_proto_rawDesc = []byte{
 	0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x2f,
 	0x61, 0x6e, 0x79, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x1d, 0x63, 0x68, 0x61, 0x6d, 0x65,
 	0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x68, 0x74, 0x74, 0x70, 0x2f, 0x64, 0x61,
-	0x74, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x25, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c,
-	0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63,
-	0x72, 0x61, 0x77, 0x6c, 0x2f, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a,
-	0x2b, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c, 0x74,
-	0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2f, 0x70, 0x72, 0x6f, 0x78,
-	0x79, 0x2f, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x2b, 0x0a, 0x0f,
-	0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
-	0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05,
-	0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x22, 0x29, 0x0a, 0x15, 0x43, 0x72, 0x61,
-	0x77, 0x6c, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
-	0x03, 0x75, 0x72, 0x6c, 0x22, 0x58, 0x0a, 0x16, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x4f,
-	0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x3e,
-	0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x63,
-	0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72,
-	0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65,
-	0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x2c,
-	0x0a, 0x16, 0x41, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e, 0x73,
-	0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61,
-	0x18, 0x01, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x27, 0x0a, 0x13,
-	0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63, 0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65, 0x71, 0x75,
+	0x74, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x1f, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c,
+	0x65, 0x6f, 0x6e, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x2f, 0x64,
+	0x61, 0x74, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x1a, 0x25, 0x63, 0x68, 0x61, 0x6d, 0x65,
+	0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f,
+	0x63, 0x72, 0x61, 0x77, 0x6c, 0x2f, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x1a, 0x2b, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c,
+	0x74, 0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2f, 0x70, 0x72, 0x6f,
+	0x78, 0x79, 0x2f, 0x64, 0x61, 0x74, 0x61, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x22, 0x2b, 0x0a,
+	0x0f, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
+	0x12, 0x18, 0x0a, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x05, 0x52, 0x07, 0x76, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x22, 0x29, 0x0a, 0x15, 0x43, 0x72,
+	0x61, 0x77, 0x6c, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x71, 0x75,
 	0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
-	0x52, 0x03, 0x75, 0x72, 0x6c, 0x22, 0x7b, 0x0a, 0x14, 0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63,
-	0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x49, 0x0a,
-	0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x35, 0x2e, 0x63, 0x68,
-	0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e,
-	0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63,
-	0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x44, 0x61,
-	0x74, 0x61, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x1a, 0x18, 0x0a, 0x04, 0x44, 0x61, 0x74, 0x61,
-	0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x75,
-	0x72, 0x6c, 0x22, 0x95, 0x01, 0x0a, 0x0c, 0x50, 0x61, 0x72, 0x73, 0x65, 0x52, 0x65, 0x71, 0x75,
-	0x65, 0x73, 0x74, 0x12, 0x3d, 0x0a, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18, 0x01,
-	0x20, 0x01, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e,
-	0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77,
-	0x6c, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x52, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65,
-	0x73, 0x74, 0x12, 0x46, 0x0a, 0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x18, 0x02,
-	0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e,
-	0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77,
-	0x6c, 0x2e, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x52, 0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0xde, 0x01, 0x0a, 0x0a, 0x4e,
-	0x6f, 0x64, 0x65, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x12, 0x0a, 0x04, 0x68, 0x6f, 0x73,
-	0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x6f, 0x73, 0x74, 0x12, 0x2c, 0x0a,
-	0x11, 0x6d, 0x61, 0x78, 0x41, 0x50, 0x49, 0x43, 0x6f, 0x6e, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e,
-	0x63, 0x79, 0x18, 0x03, 0x20, 0x01, 0x28, 0x05, 0x52, 0x11, 0x6d, 0x61, 0x78, 0x41, 0x50, 0x49,
-	0x43, 0x6f, 0x6e, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x63, 0x79, 0x12, 0x2a, 0x0a, 0x10, 0x6d,
-	0x61, 0x78, 0x4d, 0x51, 0x43, 0x6f, 0x6e, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x63, 0x79, 0x18,
-	0x04, 0x20, 0x01, 0x28, 0x05, 0x52, 0x10, 0x6d, 0x61, 0x78, 0x4d, 0x51, 0x43, 0x6f, 0x6e, 0x63,
-	0x75, 0x72, 0x72, 0x65, 0x6e, 0x63, 0x79, 0x12, 0x2e, 0x0a, 0x12, 0x63, 0x75, 0x72, 0x72, 0x65,
-	0x6e, 0x74, 0x43, 0x6f, 0x6e, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x63, 0x79, 0x18, 0x05, 0x20,
-	0x01, 0x28, 0x05, 0x52, 0x12, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x43, 0x6f, 0x6e, 0x63,
-	0x75, 0x72, 0x72, 0x65, 0x6e, 0x63, 0x79, 0x12, 0x32, 0x0a, 0x14, 0x63, 0x75, 0x72, 0x72, 0x65,
-	0x6e, 0x74, 0x4d, 0x51, 0x43, 0x6f, 0x6e, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x63, 0x79, 0x18,
-	0x06, 0x20, 0x01, 0x28, 0x05, 0x52, 0x14, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x4d, 0x51,
-	0x43, 0x6f, 0x6e, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x63, 0x79, 0x22, 0x14, 0x0a, 0x12, 0x47,
+	0x52, 0x03, 0x75, 0x72, 0x6c, 0x22, 0x58, 0x0a, 0x16, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72,
+	0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12,
+	0x3e, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e,
+	0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65,
+	0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x43, 0x72, 0x61, 0x77, 0x6c,
+	0x65, 0x72, 0x4f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22,
+	0x2c, 0x0a, 0x16, 0x41, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x44, 0x6f, 0x6d, 0x61, 0x69, 0x6e,
+	0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x64, 0x61, 0x74,
+	0x61, 0x18, 0x01, 0x20, 0x03, 0x28, 0x09, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x22, 0x27, 0x0a,
+	0x13, 0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69, 0x63, 0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x03, 0x75, 0x72, 0x6c, 0x22, 0x7b, 0x0a, 0x14, 0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69,
+	0x63, 0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x49,
+	0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x35, 0x2e, 0x63,
+	0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72,
+	0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x43, 0x61, 0x6e, 0x6f, 0x6e, 0x69,
+	0x63, 0x61, 0x6c, 0x55, 0x72, 0x6c, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x44,
+	0x61, 0x74, 0x61, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x1a, 0x18, 0x0a, 0x04, 0x44, 0x61, 0x74,
+	0x61, 0x12, 0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03,
+	0x75, 0x72, 0x6c, 0x22, 0x95, 0x01, 0x0a, 0x0c, 0x50, 0x61, 0x72, 0x73, 0x65, 0x52, 0x65, 0x71,
+	0x75, 0x65, 0x73, 0x74, 0x12, 0x3d, 0x0a, 0x07, 0x72, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x23, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f,
+	0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61,
+	0x77, 0x6c, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x52, 0x07, 0x72, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x46, 0x0a, 0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x18,
+	0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f,
+	0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61,
+	0x77, 0x6c, 0x2e, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x52, 0x08, 0x72, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x14, 0x0a, 0x12, 0x47,
 	0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73,
 	0x74, 0x22, 0x87, 0x03, 0x0a, 0x13, 0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72,
 	0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x4d, 0x0a, 0x04, 0x64, 0x61, 0x74,
@@ -1948,9 +2062,37 @@ var file_chameleon_smelter_v1_crawl_service_message_proto_rawDesc = []byte{
 	0x74, 0x61, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65,
 	0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e,
 	0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x49, 0x74, 0x65, 0x6d, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61,
-	0x42, 0x22, 0x5a, 0x20, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d,
-	0x65, 0x6c, 0x74, 0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x3b, 0x63,
-	0x72, 0x61, 0x77, 0x6c, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x22, 0xe4, 0x01, 0x0a, 0x15, 0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x4c,
+	0x6f, 0x67, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x14, 0x0a, 0x05, 0x6c, 0x69,
+	0x6d, 0x69, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x05, 0x6c, 0x69, 0x6d, 0x69, 0x74,
+	0x12, 0x16, 0x0a, 0x06, 0x63, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x06, 0x63, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x12, 0x18, 0x0a, 0x07, 0x73, 0x74, 0x6f, 0x72,
+	0x65, 0x49, 0x64, 0x18, 0x06, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x73, 0x74, 0x6f, 0x72, 0x65,
+	0x49, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x6a, 0x6f, 0x62, 0x49, 0x64, 0x18, 0x07, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x05, 0x6a, 0x6f, 0x62, 0x49, 0x64, 0x12, 0x1c, 0x0a, 0x09, 0x73, 0x74, 0x61, 0x72,
+	0x74, 0x54, 0x69, 0x6d, 0x65, 0x18, 0x08, 0x20, 0x01, 0x28, 0x09, 0x52, 0x09, 0x73, 0x74, 0x61,
+	0x72, 0x74, 0x54, 0x69, 0x6d, 0x65, 0x12, 0x18, 0x0a, 0x07, 0x65, 0x6e, 0x64, 0x54, 0x69, 0x6d,
+	0x65, 0x18, 0x09, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x65, 0x6e, 0x64, 0x54, 0x69, 0x6d, 0x65,
+	0x12, 0x35, 0x0a, 0x05, 0x6f, 0x72, 0x64, 0x65, 0x72, 0x18, 0x0f, 0x20, 0x01, 0x28, 0x0e, 0x32,
+	0x1f, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x61, 0x70, 0x69, 0x2e,
+	0x73, 0x65, 0x61, 0x72, 0x63, 0x68, 0x2e, 0x53, 0x6f, 0x72, 0x74, 0x4f, 0x72, 0x64, 0x65, 0x72,
+	0x52, 0x05, 0x6f, 0x72, 0x64, 0x65, 0x72, 0x22, 0xd4, 0x01, 0x0a, 0x16, 0x47, 0x65, 0x74, 0x43,
+	0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x4c, 0x6f, 0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x5d, 0x0a, 0x0a, 0x70, 0x61, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x3d, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65,
+	0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72,
+	0x61, 0x77, 0x6c, 0x2e, 0x47, 0x65, 0x74, 0x43, 0x72, 0x61, 0x77, 0x6c, 0x65, 0x72, 0x4c, 0x6f,
+	0x67, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x2e, 0x50, 0x61, 0x67, 0x69, 0x6e,
+	0x61, 0x74, 0x69, 0x6f, 0x6e, 0x52, 0x0a, 0x70, 0x61, 0x67, 0x69, 0x6e, 0x61, 0x74, 0x69, 0x6f,
+	0x6e, 0x12, 0x35, 0x0a, 0x04, 0x64, 0x61, 0x74, 0x61, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b, 0x32,
+	0x21, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c,
+	0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x45, 0x72, 0x72,
+	0x6f, 0x72, 0x52, 0x04, 0x64, 0x61, 0x74, 0x61, 0x1a, 0x24, 0x0a, 0x0a, 0x50, 0x61, 0x67, 0x69,
+	0x6e, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x16, 0x0a, 0x06, 0x63, 0x75, 0x72, 0x73, 0x6f, 0x72,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x63, 0x75, 0x72, 0x73, 0x6f, 0x72, 0x42, 0x22,
+	0x5a, 0x20, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c,
+	0x74, 0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x3b, 0x63, 0x72, 0x61,
+	0x77, 0x6c, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1965,71 +2107,79 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_rawDescGZIP() []byte 
 	return file_chameleon_smelter_v1_crawl_service_message_proto_rawDescData
 }
 
-var file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes = make([]protoimpl.MessageInfo, 31)
+var file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_chameleon_smelter_v1_crawl_service_message_proto_goTypes = []interface{}{
-	(*VersionResponse)(nil),                  // 0: chameleon.smelter.v1.crawl.VersionResponse
-	(*CrawlerOptionsRequest)(nil),            // 1: chameleon.smelter.v1.crawl.CrawlerOptionsRequest
-	(*CrawlerOptionsResponse)(nil),           // 2: chameleon.smelter.v1.crawl.CrawlerOptionsResponse
-	(*AllowedDomainsResponse)(nil),           // 3: chameleon.smelter.v1.crawl.AllowedDomainsResponse
-	(*CanonicalUrlRequest)(nil),              // 4: chameleon.smelter.v1.crawl.CanonicalUrlRequest
-	(*CanonicalUrlResponse)(nil),             // 5: chameleon.smelter.v1.crawl.CanonicalUrlResponse
-	(*ParseRequest)(nil),                     // 6: chameleon.smelter.v1.crawl.ParseRequest
-	(*NodeStatus)(nil),                       // 7: chameleon.smelter.v1.crawl.NodeStatus
-	(*GetCrawlersRequest)(nil),               // 8: chameleon.smelter.v1.crawl.GetCrawlersRequest
-	(*GetCrawlersResponse)(nil),              // 9: chameleon.smelter.v1.crawl.GetCrawlersResponse
-	(*GetCrawlerRequest)(nil),                // 10: chameleon.smelter.v1.crawl.GetCrawlerRequest
-	(*GetCrawlerResponse)(nil),               // 11: chameleon.smelter.v1.crawl.GetCrawlerResponse
-	(*GetCrawlerOptionsRequest)(nil),         // 12: chameleon.smelter.v1.crawl.GetCrawlerOptionsRequest
-	(*GetCrawlerOptionsResponse)(nil),        // 13: chameleon.smelter.v1.crawl.GetCrawlerOptionsResponse
-	(*GetCanonicalUrlRequest)(nil),           // 14: chameleon.smelter.v1.crawl.GetCanonicalUrlRequest
-	(*GetCanonicalUrlResponse)(nil),          // 15: chameleon.smelter.v1.crawl.GetCanonicalUrlResponse
-	(*DoParseRequest)(nil),                   // 16: chameleon.smelter.v1.crawl.DoParseRequest
-	(*DoParseResponse)(nil),                  // 17: chameleon.smelter.v1.crawl.DoParseResponse
-	(*ConnectRequest)(nil),                   // 18: chameleon.smelter.v1.crawl.ConnectRequest
-	(*ConnectResponse)(nil),                  // 19: chameleon.smelter.v1.crawl.ConnectResponse
-	(*FetchRequest)(nil),                     // 20: chameleon.smelter.v1.crawl.FetchRequest
-	(*FetchResponse)(nil),                    // 21: chameleon.smelter.v1.crawl.FetchResponse
-	(*CanonicalUrlResponse_Data)(nil),        // 22: chameleon.smelter.v1.crawl.CanonicalUrlResponse.Data
-	(*GetCrawlersResponse_CrawlerGroup)(nil), // 23: chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup
-	nil,                                      // 24: chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry
-	(*GetCanonicalUrlResponse_Data)(nil),     // 25: chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.Data
-	(*ConnectRequest_Ping)(nil),              // 26: chameleon.smelter.v1.crawl.ConnectRequest.Ping
-	(*ConnectRequest_Heartbeat)(nil),         // 27: chameleon.smelter.v1.crawl.ConnectRequest.Heartbeat
-	(*ConnectResponse_Pong)(nil),             // 28: chameleon.smelter.v1.crawl.ConnectResponse.Pong
-	(*FetchRequest_Options)(nil),             // 29: chameleon.smelter.v1.crawl.FetchRequest.Options
-	nil,                                      // 30: chameleon.smelter.v1.crawl.FetchRequest.CustomHeadersEntry
-	(*CrawlerOptions)(nil),                   // 31: chameleon.smelter.v1.crawl.CrawlerOptions
-	(*Request)(nil),                          // 32: chameleon.smelter.v1.crawl.Request
-	(*proxy.Response)(nil),                   // 33: chameleon.smelter.v1.crawl.proxy.Response
-	(*Crawler)(nil),                          // 34: chameleon.smelter.v1.crawl.Crawler
-	(*anypb.Any)(nil),                        // 35: google.protobuf.Any
-	(*http.Cookie)(nil),                      // 36: chameleon.api.http.Cookie
-	(*Item)(nil),                             // 37: chameleon.smelter.v1.crawl.Item
+	(*VersionResponse)(nil),                   // 0: chameleon.smelter.v1.crawl.VersionResponse
+	(*CrawlerOptionsRequest)(nil),             // 1: chameleon.smelter.v1.crawl.CrawlerOptionsRequest
+	(*CrawlerOptionsResponse)(nil),            // 2: chameleon.smelter.v1.crawl.CrawlerOptionsResponse
+	(*AllowedDomainsResponse)(nil),            // 3: chameleon.smelter.v1.crawl.AllowedDomainsResponse
+	(*CanonicalUrlRequest)(nil),               // 4: chameleon.smelter.v1.crawl.CanonicalUrlRequest
+	(*CanonicalUrlResponse)(nil),              // 5: chameleon.smelter.v1.crawl.CanonicalUrlResponse
+	(*ParseRequest)(nil),                      // 6: chameleon.smelter.v1.crawl.ParseRequest
+	(*GetCrawlersRequest)(nil),                // 7: chameleon.smelter.v1.crawl.GetCrawlersRequest
+	(*GetCrawlersResponse)(nil),               // 8: chameleon.smelter.v1.crawl.GetCrawlersResponse
+	(*GetCrawlerRequest)(nil),                 // 9: chameleon.smelter.v1.crawl.GetCrawlerRequest
+	(*GetCrawlerResponse)(nil),                // 10: chameleon.smelter.v1.crawl.GetCrawlerResponse
+	(*GetCrawlerOptionsRequest)(nil),          // 11: chameleon.smelter.v1.crawl.GetCrawlerOptionsRequest
+	(*GetCrawlerOptionsResponse)(nil),         // 12: chameleon.smelter.v1.crawl.GetCrawlerOptionsResponse
+	(*GetCanonicalUrlRequest)(nil),            // 13: chameleon.smelter.v1.crawl.GetCanonicalUrlRequest
+	(*GetCanonicalUrlResponse)(nil),           // 14: chameleon.smelter.v1.crawl.GetCanonicalUrlResponse
+	(*DoParseRequest)(nil),                    // 15: chameleon.smelter.v1.crawl.DoParseRequest
+	(*DoParseResponse)(nil),                   // 16: chameleon.smelter.v1.crawl.DoParseResponse
+	(*ConnectRequest)(nil),                    // 17: chameleon.smelter.v1.crawl.ConnectRequest
+	(*ConnectResponse)(nil),                   // 18: chameleon.smelter.v1.crawl.ConnectResponse
+	(*FetchRequest)(nil),                      // 19: chameleon.smelter.v1.crawl.FetchRequest
+	(*FetchResponse)(nil),                     // 20: chameleon.smelter.v1.crawl.FetchResponse
+	(*GetCrawlerLogsRequest)(nil),             // 21: chameleon.smelter.v1.crawl.GetCrawlerLogsRequest
+	(*GetCrawlerLogsResponse)(nil),            // 22: chameleon.smelter.v1.crawl.GetCrawlerLogsResponse
+	(*CanonicalUrlResponse_Data)(nil),         // 23: chameleon.smelter.v1.crawl.CanonicalUrlResponse.Data
+	(*GetCrawlersResponse_CrawlerGroup)(nil),  // 24: chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup
+	nil,                                       // 25: chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry
+	(*GetCanonicalUrlResponse_Data)(nil),      // 26: chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.Data
+	(*ConnectRequest_Ping)(nil),               // 27: chameleon.smelter.v1.crawl.ConnectRequest.Ping
+	(*ConnectRequest_Heartbeat)(nil),          // 28: chameleon.smelter.v1.crawl.ConnectRequest.Heartbeat
+	(*ConnectResponse_Pong)(nil),              // 29: chameleon.smelter.v1.crawl.ConnectResponse.Pong
+	(*FetchRequest_Options)(nil),              // 30: chameleon.smelter.v1.crawl.FetchRequest.Options
+	nil,                                       // 31: chameleon.smelter.v1.crawl.FetchRequest.CustomHeadersEntry
+	(*GetCrawlerLogsResponse_Pagination)(nil), // 32: chameleon.smelter.v1.crawl.GetCrawlerLogsResponse.Pagination
+	(*CrawlerOptions)(nil),                    // 33: chameleon.smelter.v1.crawl.CrawlerOptions
+	(*Request)(nil),                           // 34: chameleon.smelter.v1.crawl.Request
+	(*proxy.Response)(nil),                    // 35: chameleon.smelter.v1.crawl.proxy.Response
+	(*Crawler)(nil),                           // 36: chameleon.smelter.v1.crawl.Crawler
+	(*NodeStatus)(nil),                        // 37: chameleon.smelter.v1.crawl.NodeStatus
+	(*anypb.Any)(nil),                         // 38: google.protobuf.Any
+	(*http.Cookie)(nil),                       // 39: chameleon.api.http.Cookie
+	(*Item)(nil),                              // 40: chameleon.smelter.v1.crawl.Item
+	(search.SortOrder)(0),                     // 41: chameleon.api.search.SortOrder
+	(*Error)(nil),                             // 42: chameleon.smelter.v1.crawl.Error
 }
 var file_chameleon_smelter_v1_crawl_service_message_proto_depIdxs = []int32{
-	31, // 0: chameleon.smelter.v1.crawl.CrawlerOptionsResponse.data:type_name -> chameleon.smelter.v1.crawl.CrawlerOptions
-	22, // 1: chameleon.smelter.v1.crawl.CanonicalUrlResponse.data:type_name -> chameleon.smelter.v1.crawl.CanonicalUrlResponse.Data
-	32, // 2: chameleon.smelter.v1.crawl.ParseRequest.request:type_name -> chameleon.smelter.v1.crawl.Request
-	33, // 3: chameleon.smelter.v1.crawl.ParseRequest.response:type_name -> chameleon.smelter.v1.crawl.proxy.Response
-	24, // 4: chameleon.smelter.v1.crawl.GetCrawlersResponse.data:type_name -> chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry
-	34, // 5: chameleon.smelter.v1.crawl.GetCrawlerResponse.data:type_name -> chameleon.smelter.v1.crawl.Crawler
-	7,  // 6: chameleon.smelter.v1.crawl.GetCrawlerResponse.status:type_name -> chameleon.smelter.v1.crawl.NodeStatus
-	31, // 7: chameleon.smelter.v1.crawl.GetCrawlerOptionsResponse.data:type_name -> chameleon.smelter.v1.crawl.CrawlerOptions
-	25, // 8: chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.data:type_name -> chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.Data
-	32, // 9: chameleon.smelter.v1.crawl.DoParseRequest.request:type_name -> chameleon.smelter.v1.crawl.Request
-	35, // 10: chameleon.smelter.v1.crawl.DoParseResponse.data:type_name -> google.protobuf.Any
-	30, // 11: chameleon.smelter.v1.crawl.FetchRequest.customHeaders:type_name -> chameleon.smelter.v1.crawl.FetchRequest.CustomHeadersEntry
-	36, // 12: chameleon.smelter.v1.crawl.FetchRequest.customCookies:type_name -> chameleon.api.http.Cookie
-	29, // 13: chameleon.smelter.v1.crawl.FetchRequest.options:type_name -> chameleon.smelter.v1.crawl.FetchRequest.Options
-	37, // 14: chameleon.smelter.v1.crawl.FetchResponse.data:type_name -> chameleon.smelter.v1.crawl.Item
-	34, // 15: chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup.crawlers:type_name -> chameleon.smelter.v1.crawl.Crawler
-	7,  // 16: chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup.status:type_name -> chameleon.smelter.v1.crawl.NodeStatus
-	23, // 17: chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry.value:type_name -> chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	33, // 0: chameleon.smelter.v1.crawl.CrawlerOptionsResponse.data:type_name -> chameleon.smelter.v1.crawl.CrawlerOptions
+	23, // 1: chameleon.smelter.v1.crawl.CanonicalUrlResponse.data:type_name -> chameleon.smelter.v1.crawl.CanonicalUrlResponse.Data
+	34, // 2: chameleon.smelter.v1.crawl.ParseRequest.request:type_name -> chameleon.smelter.v1.crawl.Request
+	35, // 3: chameleon.smelter.v1.crawl.ParseRequest.response:type_name -> chameleon.smelter.v1.crawl.proxy.Response
+	25, // 4: chameleon.smelter.v1.crawl.GetCrawlersResponse.data:type_name -> chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry
+	36, // 5: chameleon.smelter.v1.crawl.GetCrawlerResponse.data:type_name -> chameleon.smelter.v1.crawl.Crawler
+	37, // 6: chameleon.smelter.v1.crawl.GetCrawlerResponse.status:type_name -> chameleon.smelter.v1.crawl.NodeStatus
+	33, // 7: chameleon.smelter.v1.crawl.GetCrawlerOptionsResponse.data:type_name -> chameleon.smelter.v1.crawl.CrawlerOptions
+	26, // 8: chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.data:type_name -> chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.Data
+	34, // 9: chameleon.smelter.v1.crawl.DoParseRequest.request:type_name -> chameleon.smelter.v1.crawl.Request
+	38, // 10: chameleon.smelter.v1.crawl.DoParseResponse.data:type_name -> google.protobuf.Any
+	31, // 11: chameleon.smelter.v1.crawl.FetchRequest.customHeaders:type_name -> chameleon.smelter.v1.crawl.FetchRequest.CustomHeadersEntry
+	39, // 12: chameleon.smelter.v1.crawl.FetchRequest.customCookies:type_name -> chameleon.api.http.Cookie
+	30, // 13: chameleon.smelter.v1.crawl.FetchRequest.options:type_name -> chameleon.smelter.v1.crawl.FetchRequest.Options
+	40, // 14: chameleon.smelter.v1.crawl.FetchResponse.data:type_name -> chameleon.smelter.v1.crawl.Item
+	41, // 15: chameleon.smelter.v1.crawl.GetCrawlerLogsRequest.order:type_name -> chameleon.api.search.SortOrder
+	32, // 16: chameleon.smelter.v1.crawl.GetCrawlerLogsResponse.pagination:type_name -> chameleon.smelter.v1.crawl.GetCrawlerLogsResponse.Pagination
+	42, // 17: chameleon.smelter.v1.crawl.GetCrawlerLogsResponse.data:type_name -> chameleon.smelter.v1.crawl.Error
+	36, // 18: chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup.crawlers:type_name -> chameleon.smelter.v1.crawl.Crawler
+	37, // 19: chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup.status:type_name -> chameleon.smelter.v1.crawl.NodeStatus
+	24, // 20: chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry.value:type_name -> chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_chameleon_smelter_v1_crawl_service_message_proto_init() }
@@ -2124,18 +2274,6 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[7].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*NodeStatus); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetCrawlersRequest); i {
 			case 0:
 				return &v.state
@@ -2147,7 +2285,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetCrawlersResponse); i {
 			case 0:
 				return &v.state
@@ -2159,7 +2297,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetCrawlerRequest); i {
 			case 0:
 				return &v.state
@@ -2171,7 +2309,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetCrawlerResponse); i {
 			case 0:
 				return &v.state
@@ -2183,7 +2321,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetCrawlerOptionsRequest); i {
 			case 0:
 				return &v.state
@@ -2195,7 +2333,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetCrawlerOptionsResponse); i {
 			case 0:
 				return &v.state
@@ -2207,7 +2345,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetCanonicalUrlRequest); i {
 			case 0:
 				return &v.state
@@ -2219,7 +2357,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetCanonicalUrlResponse); i {
 			case 0:
 				return &v.state
@@ -2231,7 +2369,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DoParseRequest); i {
 			case 0:
 				return &v.state
@@ -2243,7 +2381,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*DoParseResponse); i {
 			case 0:
 				return &v.state
@@ -2255,7 +2393,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ConnectRequest); i {
 			case 0:
 				return &v.state
@@ -2267,7 +2405,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ConnectResponse); i {
 			case 0:
 				return &v.state
@@ -2279,7 +2417,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*FetchRequest); i {
 			case 0:
 				return &v.state
@@ -2291,7 +2429,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*FetchResponse); i {
 			case 0:
 				return &v.state
@@ -2303,8 +2441,20 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCrawlerLogsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*CanonicalUrlResponse_Data); i {
+			switch v := v.(*GetCrawlerLogsResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2316,6 +2466,18 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*CanonicalUrlResponse_Data); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetCrawlersResponse_CrawlerGroup); i {
 			case 0:
 				return &v.state
@@ -2327,7 +2489,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GetCanonicalUrlResponse_Data); i {
 			case 0:
 				return &v.state
@@ -2339,7 +2501,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ConnectRequest_Ping); i {
 			case 0:
 				return &v.state
@@ -2351,7 +2513,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ConnectRequest_Heartbeat); i {
 			case 0:
 				return &v.state
@@ -2363,7 +2525,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ConnectResponse_Pong); i {
 			case 0:
 				return &v.state
@@ -2375,8 +2537,20 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[30].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*FetchRequest_Options); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_service_message_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GetCrawlerLogsResponse_Pagination); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2394,7 +2568,7 @@ func file_chameleon_smelter_v1_crawl_service_message_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_chameleon_smelter_v1_crawl_service_message_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   31,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

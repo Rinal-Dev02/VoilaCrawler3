@@ -137,7 +137,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	} else if c.downloadVideoReg.MatchString(resp.Request.URL.Path) {
 		return c.download(ctx, resp, yield)
 	}
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	return crawler.ErrUnsupportedPath
 }
 
 func (c *_Crawler) getCookies(ctx context.Context, rawUrl string) (string, int64, error) {

@@ -10,6 +10,7 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -94,20 +95,17 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return rawurl, nil
 }
 
-type PageState struct {
-	A       int64  `json:"a"`
-	Offset  int64  `json:"offset"`
-	Reqid   string `json:"reqid"`
-	Pageurl string `json:"pageurl"`
-	U       string `json:"u"`
-	P       string `json:"p"`
-	Rtyp    string `json:"rtyp"`
-	Rid     uint64 `json:"rid"`
-}
-
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
+	}
+
+	if !crawler.IsTargetTypeSupported(ctx, &pbItem.Product{}) {
+		return crawler.ErrUnsupportedTarget
+	}
+
+	if resp.Request.URL.Path == "" || resp.Request.URL.Path == "/" {
+		return c.parseCategories(ctx, resp, yield)
 	}
 
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -115,7 +113,51 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	return crawler.ErrUnsupportedPath
+}
+
+// parseCategories
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	dom, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	urlFilters := map[string]struct{}{}
+	sel := dom.Find(`.Header__MainNav a[href]`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		href := node.AttrOr("href", "")
+		if href == "" {
+			continue
+		}
+		u, err := url.Parse(href)
+		if err != nil {
+			c.logger.Error("got invalid url %s", href)
+			continue
+		}
+
+		if matched, _ := filepath.Match("/pages/*", u.Path); matched || u.Path == "" || u.Path == "/" {
+			continue
+		}
+		if _, ok := urlFilters[u.Path]; ok {
+			continue
+		}
+		urlFilters[u.Path] = struct{}{}
+
+		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+		if err = yield(ctx, req); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get sharingData from context
@@ -360,7 +402,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		msrp := variant.CompareAtPrice
 		discount := 0.0
 		if msrp > current {
-			discount = math.Round(100 * float64(msrp-current) / float64(msrp))
+			discount = math.Round(1000 * float64(msrp-current) / float64(msrp))
 		}
 
 		if item.Source.GroupId == "" {

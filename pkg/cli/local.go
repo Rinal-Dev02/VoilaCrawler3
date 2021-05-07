@@ -20,7 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
+func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Command {
 	return &cli.Command{
 		Name:        "test",
 		Usage:       "local test",
@@ -38,6 +38,18 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 			&cli.StringSliceFlag{
 				Name:  "level",
 				Usage: "proxy level, 1,2,3",
+			},
+			&cli.BoolFlag{
+				Name:  "enable-headless",
+				Usage: "Enable headless",
+			},
+			&cli.BoolFlag{
+				Name:  "enable-session-init",
+				Usage: "Enable session init",
+			},
+			&cli.BoolFlag{
+				Name:  "disable-proxy",
+				Usage: "Disable proxy",
 			},
 			&cli.BoolFlag{
 				Name:  "pretty",
@@ -60,7 +72,7 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 			if proxyAddr == "" {
 				return errors.New("proxy address not specified")
 			}
-			level := c.Int("level")
+			disableProxy := c.Bool("disable-proxy")
 
 			jar := cookiejar.New()
 			client, err := proxy.NewProxyClient(proxyAddr, jar, logger)
@@ -140,7 +152,12 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 						i.URL.Host = host
 					}
 
-					reqChan <- i
+					select {
+					case reqChan <- i:
+						logger.Debugf("appended %s", i.URL.String())
+					default:
+						logger.Warnf("ignored %s, too many requests", i.URL.String())
+					}
 					return nil
 				default:
 					marshaler := protojson.MarshalOptions{}
@@ -159,54 +176,73 @@ func localCommand(ctx context.Context, newFunc crawler.New) *cli.Command {
 			}
 
 			ctx = context.WithValue(ctx, "tracing_id", randutil.MustNewRandomID())
-			for {
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			go func() {
+				defer app.cancelFunc()
+
 				var req *http.Request
-				select {
-				case <-ctx.Done():
-					return nil
-				case req, _ = <-reqChan:
-					if req == nil {
-						return nil
+				for {
+					req = nil
+					select {
+					case <-ctx.Done():
+						return
+					case req, _ = <-reqChan:
+						if req == nil {
+							return
+						}
+					default:
+						logger.Debug("End")
+						return
 					}
-				default:
-					return nil
+
+					if err = func(i *http.Request) error {
+						logger.Infof("Access %s", i.URL)
+
+						nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
+						defer cancel()
+						nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
+
+						opts := node.CrawlOptions(req.URL)
+						httpOpts := http.Options{
+							EnableProxy:       !disableProxy,
+							EnableHeadless:    opts.EnableHeadless,
+							EnableSessionInit: opts.EnableSessionInit,
+							KeepSession:       opts.KeepSession,
+							DisableCookieJar:  opts.DisableCookieJar,
+							DisableRedirect:   opts.DisableRedirect,
+							Reliability:       opts.Reliability,
+						}
+						if c.IsSet("enable-headless") {
+							httpOpts.EnableHeadless = c.Bool("enable-headless")
+						}
+						if c.IsSet("enable-session-init") {
+							httpOpts.EnableSessionInit = c.Bool("enable-session-init")
+						}
+						if c.IsSet("level") {
+							httpOpts.Reliability = pbProxy.ProxyReliability(c.Int("level"))
+						}
+
+						resp, err := client.DoWithOptions(nctx, req, httpOpts)
+						if err != nil {
+							logger.Error(err)
+							return err
+						}
+						defer resp.Body.Close()
+
+						return node.Parse(ctx, resp, callback)
+					}(req); err != nil {
+						if !errors.Is(err, context.Canceled) {
+							logger.Error(err)
+						}
+						return
+					}
 				}
-				if err := func(i *http.Request) error {
-					logger.Infof("Access %s", i.URL)
+			}()
 
-					canUrl, _ := node.CanonicalUrl(i.URL.String())
-					logger.Debugf("Canonical Url %s", canUrl)
-
-					nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
-					defer cancel()
-					nctx = context.WithValue(nctx, "req_id", randutil.MustNewRandomID())
-
-					opts := node.CrawlOptions(req.URL)
-					l := opts.Reliability
-					if l == 0 {
-						l = pbProxy.ProxyReliability(level)
-					}
-					resp, err := client.DoWithOptions(nctx, req, http.Options{
-						EnableProxy:       true,
-						EnableHeadless:    opts.EnableHeadless,
-						EnableSessionInit: opts.EnableSessionInit,
-						KeepSession:       opts.KeepSession,
-						DisableCookieJar:  opts.DisableCookieJar,
-						DisableRedirect:   opts.DisableRedirect,
-						Reliability:       l,
-					})
-					if err != nil {
-						return err
-					}
-					defer resp.Body.Close()
-					return node.Parse(ctx, resp, callback)
-				}(req); err != nil {
-					if !errors.Is(err, context.Canceled) {
-						logger.Error(err)
-					}
-					return err
-				}
-			}
+			<-ctx.Done()
+			return err
 		},
 	}
 }
