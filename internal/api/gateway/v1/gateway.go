@@ -3,14 +3,17 @@ package v1
 import (
 	"context"
 	"errors"
+	"time"
 
 	reqCtrl "github.com/voiladev/VoilaCrawl/internal/controller/request"
 	"github.com/voiladev/VoilaCrawl/internal/model/request"
+	hisManager "github.com/voiladev/VoilaCrawl/internal/model/request/history/manager"
 	reqManager "github.com/voiladev/VoilaCrawl/internal/model/request/manager"
 	pbCrawl "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/protoutil"
 	"github.com/voiladev/go-framework/redis"
+	"github.com/voiladev/go-framework/timeutil"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 	"xorm.io/xorm"
 )
@@ -22,6 +25,7 @@ type GatewayServer struct {
 	engine         *xorm.Engine
 	redisClient    *redis.RedisClient
 	requestManager *reqManager.RequestManager
+	hisManager     *hisManager.HistoryManager
 	requestCtrl    *reqCtrl.RequestController
 	crawlerClient  pbCrawl.CrawlerManagerClient
 	logger         glog.Log
@@ -34,6 +38,7 @@ func NewGatewayServer(
 	redisClient *redis.RedisClient,
 	requestCtrl *reqCtrl.RequestController,
 	requestManager *reqManager.RequestManager,
+	hisManager *hisManager.HistoryManager,
 	logger glog.Log,
 ) (pbCrawl.GatewayServer, error) {
 	if crawlerClient == nil {
@@ -48,6 +53,9 @@ func NewGatewayServer(
 	if requestManager == nil {
 		return nil, errors.New("invalid request manager")
 	}
+	if hisManager == nil {
+		return nil, errors.New("invalid history manager")
+	}
 	if logger == nil {
 		return nil, errors.New("invalid logger")
 	}
@@ -59,6 +67,7 @@ func NewGatewayServer(
 		requestCtrl:    requestCtrl,
 		redisClient:    redisClient,
 		requestManager: requestManager,
+		hisManager:     hisManager,
 		logger:         logger.New("GatewayServer"),
 	}
 	return &s, nil
@@ -86,6 +95,77 @@ func (s *GatewayServer) GetCanonicalUrl(ctx context.Context, req *pbCrawl.GetCan
 		return nil, nil
 	}
 	return s.crawlerClient.GetCanonicalUrl(ctx, req)
+}
+
+// GetCrawlerLogs
+func (s *GatewayServer) GetCrawlerLogs(ctx context.Context, req *pbCrawl.GetCrawlerLogsRequest) (*pbCrawl.GetCrawlerLogsResponse, error) {
+	if s == nil {
+		return nil, nil
+	}
+	logger := s.logger.New("GetCrawlerLogs")
+
+	var (
+		startTime *time.Time
+		endTime   *time.Time
+	)
+	if req.GetStartTime() != "" {
+		t := timeutil.TimeParse(req.GetStartTime())
+		if t.IsZero() {
+			logger.Errorf("unable to parse time %s", req.GetStartTime())
+			return nil, pbError.ErrInvalidArgument.New("unsupported time format")
+		}
+		startTime = &t
+	}
+	if req.GetEndTime() != "" {
+		t := timeutil.TimeParse(req.GetEndTime())
+		if t.IsZero() {
+			logger.Errorf("unable to parse time %s", req.GetEndTime())
+			return nil, pbError.ErrInvalidArgument.New("unsupported time format")
+		}
+		endTime = &t
+	}
+	if startTime != nil && endTime != nil {
+		if startTime.After(*endTime) {
+			return nil, pbError.ErrInvalidArgument.New("start time must before end time")
+		}
+	}
+
+	listReq := hisManager.ListRequest{
+		Limit:   req.GetLimit(),
+		Cursor:  req.GetCursor(),
+		StoreId: req.GetStoreId(),
+		JobId:   req.GetJobId(),
+		Order:   req.GetOrder(),
+	}
+	if startTime != nil {
+		listReq.StartUtc = startTime.UnixNano() / 1000000
+	}
+	if endTime != nil {
+		listReq.EndUtc = endTime.UnixNano() / 1000000
+	}
+
+	listResp, err := s.hisManager.List(ctx, listReq)
+	if err != nil {
+		logger.Error(err)
+		return nil, err
+	}
+
+	resp := pbCrawl.GetCrawlerLogsResponse{}
+	if listResp.Cursor != "" {
+		resp.Pagination = &pbCrawl.GetCrawlerLogsResponse_Pagination{Cursor: listResp.Cursor}
+	}
+	for _, item := range listResp.Data {
+		resp.Data = append(resp.Data, &pbCrawl.Error{
+			ReqId:     item.GetId(),
+			Timestamp: item.GetTimestamp(),
+			JobId:     item.GetJobId(),
+			TracingId: item.GetTracingId(),
+			ErrMsg:    item.GetErrMsg(),
+			Code:      item.GetCode(),
+			Duration:  int64(item.GetDuration()),
+		})
+	}
+	return &resp, nil
 }
 
 func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*pbCrawl.FetchResponse, error) {
