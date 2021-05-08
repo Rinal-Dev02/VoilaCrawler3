@@ -306,6 +306,8 @@ func (ctrl *CrawlerController) Parse(ctx context.Context, storeId string, r *pbC
 				item.StoreId = r.StoreId
 				item.JobId = r.JobId
 				item.ReqId = r.ReqId
+				// Here reset the timestamp
+				item.Timestamp = time.Now().UnixNano() / 1000000
 
 				if err := yield(ctx, &item); err != nil {
 					return err
