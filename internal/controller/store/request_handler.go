@@ -345,7 +345,8 @@ func (h *StoreRequestHandler) HandleMessage(msg *nsq.Message) error {
 		atomic.AddInt32(&h.currentMQConcurrency, -1)
 	}()
 
-	ctx, cancel := context.WithTimeout(h.ctx, time.Duration(req.GetOptions().MaxTtlPerRequest)*time.Second)
+	ctx, cancel := context.WithTimeout(h.ctx,
+		time.Duration(req.GetOptions().MaxTtlPerRequest)*time.Second)
 	defer cancel()
 
 	go func() {
@@ -392,7 +393,7 @@ func (h *StoreRequestHandler) HandleMessage(msg *nsq.Message) error {
 			TracingId: req.GetTracingId(),
 			JobId:     req.GetJobId(),
 			ReqId:     req.GetReqId(),
-			Timestamp: time.Now().Unix(),
+			Timestamp: time.Now().UnixNano() / 1000000,
 			Code:      int32(e.Code()),
 			ErrMsg:    err.Error(),
 		})
