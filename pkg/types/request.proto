@@ -18,6 +18,10 @@ message RequestOptions {
     int32 maxRetryCount    = 22 [(gogoproto.moretags) = "xorm:\"option_max_retry_count default(0)\""];
     // MaxRequestDepth
     int32 maxRequestDepth  = 23 [(gogoproto.moretags) = "xorm:\"option_max_request_depth default(0)\""];
+    // TargetTypes
+    string targetTypes     = 24 [(gogoproto.moretags) = "xorm:\"option_target_types varchar(256)\""];
+    // MaxItemCount
+    int32 maxItemCount     = 25 [(gogoproto.moretags) = "xorm:\"option_max_item_count default(0)\""];
 }
 
 // Request

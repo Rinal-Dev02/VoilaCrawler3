@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/voiladev/VoilaCrawl/internal/pkg/config"
 	"github.com/voiladev/VoilaCrawl/pkg/types"
@@ -59,6 +60,8 @@ func NewRequest(req interface{}) (*Request, error) {
 			MaxTtlPerRequest: i.GetOptions().GetMaxTtlPerRequest(),
 			MaxRetryCount:    i.GetOptions().GetMaxRetryCount(),
 			MaxRequestDepth:  i.GetOptions().GetMaxRequestDepth(),
+			TargetTypes:      strings.Join(i.GetOptions().GetTargetTypes(), ","),
+			MaxItemCount:     i.GetOptions().GetMaxItemCount(),
 		}
 	case *pbCrawl.FetchRequest:
 		r.TracingId = randutil.MustNewRandomID()
@@ -86,6 +89,8 @@ func NewRequest(req interface{}) (*Request, error) {
 			MaxTtlPerRequest: i.GetOptions().GetMaxTtlPerRequest(),
 			MaxRetryCount:    i.GetOptions().GetMaxRetryCount(),
 			MaxRequestDepth:  i.GetOptions().GetMaxRequestDepth(),
+			TargetTypes:      strings.Join(i.GetOptions().GetTargetTypes(), ","),
+			MaxItemCount:     i.GetOptions().GetMaxItemCount(),
 		}
 	default:
 		return nil, errors.New("unsupported request load type")
@@ -181,6 +186,8 @@ func (r *Request) Unmarshal(ret interface{}) error {
 			MaxTtlPerRequest: r.GetOptions().GetMaxTtlPerRequest(),
 			MaxRetryCount:    r.GetOptions().GetMaxRetryCount(),
 			MaxRequestDepth:  r.GetOptions().GetMaxRequestDepth(),
+			TargetTypes:      strings.Split(r.GetOptions().GetTargetTypes(), ","),
+			MaxItemCount:     r.GetOptions().GetMaxItemCount(),
 		}
 	case *pbProxy.Request:
 		val.TracingId = r.GetTracingId()

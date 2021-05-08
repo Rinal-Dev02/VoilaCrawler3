@@ -97,6 +97,33 @@ func (s *GatewayServer) GetCanonicalUrl(ctx context.Context, req *pbCrawl.GetCan
 	return s.crawlerClient.GetCanonicalUrl(ctx, req)
 }
 
+// GetRequest
+func (s *GatewayServer) GetRequest(ctx context.Context, req *pbCrawl.GetRequestRequest) (*pbCrawl.GetRequestResponse, error) {
+	if s == nil {
+		return nil, nil
+	}
+	if req.GetId() == "" {
+		return nil, pbError.ErrInvalidArgument.New("invalid request id")
+	}
+	rawreq, err := s.requestManager.GetById(ctx, nil, req.GetId())
+	if err != nil {
+		s.logger.Error(err)
+		return nil, err
+	}
+
+	var r pbCrawl.Request
+	if err := rawreq.Unmarshal(&r); err != nil {
+		return nil, pbError.ErrInternal.New(err)
+	}
+	data := pbCrawl.GetRequestResponse_Data{
+		RetryCount: rawreq.GetRetryCount(),
+		Status:     pbCrawl.GetRequestResponse_RequestStatus(rawreq.GetStatus()),
+		IsSucceed:  rawreq.GetIsSucceed(),
+		Request:    &r,
+	}
+	return &pbCrawl.GetRequestResponse{Data: &data}, nil
+}
+
 // GetCrawlerLogs
 func (s *GatewayServer) GetCrawlerLogs(ctx context.Context, req *pbCrawl.GetCrawlerLogsRequest) (*pbCrawl.GetCrawlerLogsResponse, error) {
 	if s == nil {
@@ -187,7 +214,9 @@ func (s *GatewayServer) Fetch(ctx context.Context, req *pbCrawl.FetchRequest) (*
 	defer session.Close()
 
 	resp := pbCrawl.FetchResponse{}
-	if req.GetOptions().GetEnableBlockForItems() {
+	if req.GetOptions().GetEnableBlockForItems() ||
+		req.GetEnableBlockForItems() {
+
 		r.Status = 3
 		r.IsSucceed = true // disable retry
 		if r, err = s.requestManager.Create(ctx, session, r); err != nil && err != pbError.ErrAlreadyExists {
