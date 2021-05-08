@@ -183,13 +183,14 @@ func (s *GatewayServer) GetCrawlerLogs(ctx context.Context, req *pbCrawl.GetCraw
 	}
 	for _, item := range listResp.Data {
 		resp.Data = append(resp.Data, &pbCrawl.Error{
+			StoreId:   item.GetStoreId(),
 			ReqId:     item.GetId(),
-			Timestamp: item.GetTimestamp(),
 			JobId:     item.GetJobId(),
 			TracingId: item.GetTracingId(),
 			ErrMsg:    item.GetErrMsg(),
 			Code:      item.GetCode(),
 			Duration:  int64(item.GetDuration()),
+			Timestamp: item.GetTimestamp(),
 		})
 	}
 	return &resp, nil
