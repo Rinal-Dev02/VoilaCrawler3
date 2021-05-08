@@ -18,6 +18,8 @@ func init() {
 		
 		File_chameleon_smelter_v1_crawl_item_tiktok_proto,
 		
+		File_chameleon_smelter_v1_crawl_item_youtube_proto,
+		
     )
 
     var err error
