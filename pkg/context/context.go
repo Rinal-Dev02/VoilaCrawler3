@@ -5,8 +5,24 @@ import (
 	"strings"
 )
 
+type (
+	Context    = context.Context
+	CancelFunc = context.CancelFunc
+)
+
+var (
+	Canceled         = context.Canceled
+	DeadlineExceeded = context.DeadlineExceeded
+	Background       = context.Background
+	TODO             = context.TODO
+	WithCancel       = context.WithCancel
+	WithDeadline     = context.WithDeadline
+	WithTimeout      = context.WithTimeout
+	WithValue        = context.WithValue
+)
+
 type valuesCtx struct {
-	context.Context
+	Context
 	values []string
 }
 

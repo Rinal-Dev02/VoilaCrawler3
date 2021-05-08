@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/go-crawler/pkg/cli"
+	"github.com/voiladev/go-crawler/pkg/context"
 	"github.com/voiladev/go-crawler/pkg/crawler"
 	"github.com/voiladev/go-crawler/pkg/net/http"
 	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/media"

@@ -2,11 +2,9 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"os"
 	"regexp"
@@ -16,6 +14,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/gosimple/slug"
 	"github.com/voiladev/go-crawler/pkg/cli"
+	"github.com/voiladev/go-crawler/pkg/context"
 	"github.com/voiladev/go-crawler/pkg/crawler"
 	"github.com/voiladev/go-crawler/pkg/net/http"
 	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/media"
@@ -178,7 +177,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if c == nil || yield == nil {
 		return nil
 	}
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Debug(err)
 		return err
@@ -253,7 +252,7 @@ func (c *_Crawler) parseCategoryProductsJson(ctx context.Context, resp *http.Res
 	if c == nil {
 		return nil
 	}
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -333,7 +332,7 @@ func (c *_Crawler) parseProductGroup(ctx context.Context, resp *http.Response, y
 	if c == nil || yield == nil {
 		return nil
 	}
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Error(err)
 		return err
@@ -539,7 +538,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return nil
 	}
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c.logger.Error(err)
 		return err
