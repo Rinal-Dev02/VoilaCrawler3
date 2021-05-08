@@ -53,4 +53,4 @@ jobs:
         docker tag image $IMAGE_ID:$VERSION
         docker push $IMAGE_ID:$VERSION
 
-        curl "https://open.larksuite.com/open-apis/bot/v2/hook/${{ LARK_CICD_HOOK_TOKEN }}" -H "Content-Type:application/json" -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"pushed image $IMAGE_ID:$VERSION\"}}"
+        curl "https://open.larksuite.com/open-apis/bot/v2/hook/${{ secrets.LARK_CICD_HOOK_TOKEN }}" -H "Content-Type:application/json" -d "{\"msg_type\":\"text\",\"content\":{\"text\":\"pushed image $IMAGE_ID:$VERSION\"}}"
