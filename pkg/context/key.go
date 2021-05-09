@@ -14,11 +14,11 @@ type shareValue struct {
 }
 
 var (
-	TracingIdKey  = shareValue{}
-	JobIdKey      = shareValue{}
-	ReqIdKey      = shareValue{}
-	StoreIdKey    = shareValue{}
-	TargetTypeKey = shareValue{}
+	TracingIdKey  = &shareValue{}
+	JobIdKey      = &shareValue{}
+	ReqIdKey      = &shareValue{}
+	StoreIdKey    = &shareValue{}
+	TargetTypeKey = &shareValue{}
 )
 
 var defaultTargetType = protoutil.GetTypeUrl(&pbItem.Product{})
@@ -32,7 +32,6 @@ func IsTargetTypeSupported(ctx context.Context, msgs ...proto.Message) bool {
 	for _, msg := range msgs {
 		typUrls[protoutil.GetTypeUrl(msg)] = struct{}{}
 	}
-
 	val := ctx.Value(TargetTypeKey)
 	if val == nil {
 		if _, ok := typUrls[defaultTargetType]; ok {

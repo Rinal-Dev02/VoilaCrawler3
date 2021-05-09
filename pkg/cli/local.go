@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -9,8 +8,9 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v2"
-	ctxutil "github.com/voiladev/go-crawler/pkg/context"
+	"github.com/voiladev/go-crawler/pkg/context"
 	"github.com/voiladev/go-crawler/pkg/crawler"
+	"github.com/voiladev/go-crawler/pkg/item"
 	"github.com/voiladev/go-crawler/pkg/net/http"
 	"github.com/voiladev/go-crawler/pkg/net/http/cookiejar"
 	"github.com/voiladev/go-crawler/pkg/proxy"
@@ -35,6 +35,11 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 			&cli.StringSliceFlag{
 				Name:  "target",
 				Usage: "use this target url for test if provided",
+			},
+			&cli.StringSliceFlag{
+				Name:  "type",
+				Usage: "target type to crawl",
+				Value: cli.NewStringSlice(item.SupportedTypes()...),
 			},
 			&cli.StringSliceFlag{
 				Name:  "level",
@@ -92,11 +97,14 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 				reqCount  = 0
 				host      string
 			)
+			typs := c.StringSlice("type")
+			typCtx := context.WithValue(context.Background(), crawler.TargetTypeKey, strings.Join(typs, ","))
 			for _, rawurl := range c.StringSlice("target") {
-				req, err := http.NewRequest(http.MethodGet, rawurl, nil)
+				req, err := http.NewRequestWithContext(typCtx, http.MethodGet, rawurl, nil)
 				if err != nil {
 					return cli.NewExitError(err, 1)
 				}
+
 				reqChan <- req
 				reqCount += 1
 				reqFilter[req.URL.String()] = struct{}{}
@@ -105,7 +113,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 				}
 			}
 			if reqCount == 0 {
-				for _, req := range node.NewTestRequest(ctx) {
+				for _, req := range node.NewTestRequest(context.Background()) {
 					reqChan <- req
 					reqCount += 1
 					reqFilter[req.URL.String()] = struct{}{}
@@ -153,6 +161,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 						i.URL.Host = host
 					}
 
+					i = i.WithContext(ctx)
 					select {
 					case reqChan <- i:
 						logger.Debugf("appended %s", i.URL.String())
@@ -176,7 +185,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 				return nil
 			}
 
-			ctx = context.WithValue(ctx, ctxutil.TracingIdKey, randutil.MustNewRandomID())
+			ctx = context.WithValue(ctx, context.TracingIdKey, randutil.MustNewRandomID())
 			ctx, cancel := context.WithCancel(ctx)
 			defer cancel()
 
@@ -194,7 +203,6 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 							return
 						}
 					default:
-						logger.Debug("End")
 						return
 					}
 
@@ -203,7 +211,11 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 
 						nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
 						defer cancel()
-						nctx = context.WithValue(nctx, ctxutil.ReqIdKey, randutil.MustNewRandomID())
+
+						if v := i.Context().Value(context.TargetTypeKey); v != nil {
+							nctx = context.WithValue(nctx, context.TargetTypeKey, v)
+						}
+						nctx = context.WithValue(nctx, context.ReqIdKey, randutil.MustNewRandomID())
 
 						opts := node.CrawlOptions(req.URL)
 						httpOpts := http.Options{
@@ -232,7 +244,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 						}
 						defer resp.Body.Close()
 
-						return node.Parse(ctx, resp, callback)
+						return node.Parse(nctx, resp, callback)
 					}(req); err != nil {
 						if !errors.Is(err, context.Canceled) {
 							logger.Error(err)
@@ -241,7 +253,6 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 					}
 				}
 			}()
-
 			<-ctx.Done()
 			return err
 		},

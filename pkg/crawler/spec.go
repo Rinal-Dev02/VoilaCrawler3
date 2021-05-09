@@ -13,15 +13,6 @@ import (
 	"github.com/voiladev/go-framework/glog"
 )
 
-var (
-	// ErrUnsupportedPath
-	ErrUnsupportedPath = errors.New("unsupporped url path")
-	// ErrUnsupportedTarget
-	ErrUnsupportedTarget = errors.New("unsupporped target type")
-	// ErrAbort abort this request for by reasons to reduce useless retry. reasons may be 404 and so on.
-	ErrAbort = errors.New("abort this request")
-)
-
 // CrawlOptions
 type CrawlOptions struct {
 	// EnableHeadless
@@ -110,9 +101,9 @@ type Crawler interface {
 	// Version returns the version of current this crawler, which should be an active number.
 	Version() int32
 
-	// // StoreID returns the store ID this crawler binded to. This id is used to verify the store.
-	// // if the store is offline, then all crawleres bined to this store will be offline.
-	// StoreID() string
+	// SupportedTypes returns the yield item type defined in package chameleon.smelter.v1.crawl.item
+	// default type is Product
+	// SupportedTypes() []proto.Message
 
 	// CrawlOptions return crawler action requirement
 	CrawlOptions(u *url.URL) *CrawlOptions

@@ -29,7 +29,8 @@ type (
 )
 
 var (
-	NewRequest = http.NewRequest
+	NewRequest            = http.NewRequest
+	NewRequestWithContext = http.NewRequestWithContext
 )
 
 type Options struct {
