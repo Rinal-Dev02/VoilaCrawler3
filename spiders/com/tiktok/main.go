@@ -4,7 +4,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -18,13 +17,16 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/go-crawler/pkg/cli"
+	"github.com/voiladev/go-crawler/pkg/context"
 	"github.com/voiladev/go-crawler/pkg/crawler"
 	"github.com/voiladev/go-crawler/pkg/net/http"
 	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/media"
 	pbItem "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/protoutil"
 	"github.com/voiladev/go-framework/strconv"
+	"github.com/voiladev/go-framework/timeutil"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -82,22 +84,6 @@ func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.tiktok.com"}
 }
 
-func (c *_Crawler) IsUrlMatch(u *url.URL) bool {
-	if c == nil || u == nil {
-		return false
-	}
-
-	for _, reg := range []*regexp.Regexp{
-		c.detailPageReg,
-		c.detailShortLinkPageReg,
-	} {
-		if reg.MatchString(u.Path) {
-			return true
-		}
-	}
-	return false
-}
-
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -124,6 +110,10 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		}
 	} else {
 		resp.Body = http.NewReader(respBody)
+	}
+
+	if context.IsTargetTypeSupported(ctx, &pbItem.Tiktok_Author{}) {
+		return c.parseAuthor(ctx, resp, yield)
 	}
 
 	if c.personalVideoList.MatchString(resp.Request.URL.Path) {
@@ -173,6 +163,45 @@ func (c *_Crawler) getCookies(ctx context.Context, rawUrl string) (string, int64
 		expiresAt = time.Now().Add(time.Hour)
 	}
 	return cookie, expiresAt.Unix(), nil
+}
+
+func (c *_Crawler) parseAuthor(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	matched := propsDataReg.FindSubmatch(respBody)
+	if len(matched) <= 1 {
+		return fmt.Errorf("next data for url %s not found", resp.Request.URL)
+	}
+
+	var interData PropDataV1
+	if err := json.Unmarshal(matched[1], &interData); err != nil {
+		return err
+	}
+
+	userInfo := interData.Props.PageProps.UserInfo
+	auth := pbItem.Tiktok_Author{
+		Id:          userInfo.User.ID,
+		Name:        userInfo.User.UniqueID,
+		Nickname:    userInfo.User.Nickname,
+		Avatar:      userInfo.User.AvatarLarger,
+		Description: userInfo.User.Signature,
+		RegisterUtc: timeutil.TimeParse(userInfo.User.CreateTime).Unix(),
+		Stats: &pbItem.Tiktok_Author_Stats{
+			FollowingCount: int32(userInfo.Stats.FollowingCount),
+			FollowerCount:  int32(userInfo.Stats.FollowerCount),
+			LikeCount:      int32(userInfo.Stats.HeartCount),
+			VideoCount:     int32(userInfo.Stats.VideoCount),
+			DiggCount:      int32(userInfo.Stats.DiggCount),
+		},
+	}
+	return yield(ctx, &auth)
 }
 
 // nextIndex used to get sharingData from context
@@ -669,13 +698,15 @@ func (c *_Crawler) download(ctx context.Context, resp *http.Response, yield inte
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
-	for _, u := range []string{
+	for _, u := range [][2]string{
 		// "https://www.tiktok.com/@yessicarodriguez1023?lang=en",
-		"https://www.tiktok.com/@willsmith?lang=en",
+		{"https://www.tiktok.com/@willsmith?lang=en", protoutil.GetTypeUrl(&pbItem.Tiktok_Author{})},
+		{"https://www.tiktok.com/@willsmith?lang=en", protoutil.GetTypeUrl(&pbItem.Tiktok_Item{})},
 		// "https://vm.tiktok.com/ZScNvr6C/",
 		// "https://www.tiktok.com/@kasey.jo.gerst/video/6923743895247506693?sender_device=mobile&sender_web_id=6926525695457117698&is_from_webapp=v2&is_copy_url=0",
 	} {
-		req, _ := http.NewRequest(http.MethodGet, u, nil)
+		ctx := context.WithValue(context.Background(), crawler.TargetTypeKey, u[1])
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u[0], nil)
 		reqs = append(reqs, req)
 	}
 	return reqs
