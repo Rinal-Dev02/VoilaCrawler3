@@ -1,5 +1,7 @@
 package main
 
+// Referer: https://developers.google.com/youtube/v3/quickstart/go
+
 import (
 	"encoding/json"
 	"fmt"
