@@ -151,9 +151,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 }
 
 var (
-	usernamePathReg     = regexp.MustCompile(`^/user/([a-zA-Z0-9_\-\pL\pS]+)(?:/[a-zA-Z0-9_\-\pL\pS]+){0,3}$`)
-	channelPathReg      = regexp.MustCompile(`^/channel/([a-zA-Z0-9_]+)(?:/[a-zA-Z0-9_\-\pL\pS]+){0,3}$`)
-	channelAliasPathReg = regexp.MustCompile(`^/c/([a-zA-Z0-9_\-\pL\pS]+)(?:/[a-zA-Z0-9_\-\pL\pS]+){0,3}$`)
+	usernamePathReg     = regexp.MustCompile(`^/user/([^/]+)(?:/[^/]*){0,3}$`)
+	channelPathReg      = regexp.MustCompile(`^/channel/([^/]+)(?:/[^/]*){0,3}$`)
+	channelAliasPathReg = regexp.MustCompile(`^/c/([^/]+)(?:/[^/]*){0,3}$`)
 )
 
 func (c *_Crawler) parseAuthorInfo(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -234,8 +234,7 @@ func (c *_Crawler) parseAuthorInfo(ctx context.Context, resp *http.Response, yie
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	channelType := protoutil.GetTypeUrl(&pbItem.Youtube_Channel{})
 	for _, u := range [][2]string{
-		{"https://www.youtube.com/c/AkilaZhang/featured", channelType},
-		{"https://www.youtube.com/c/AkilaZhang", channelType},
+		{"https://www.youtube.com/channel/UC1dVfl5-I98WX3yCy8IJQMg", channelType},
 	} {
 		nctx := context.WithValue(ctx, crawler.TargetTypeKey, u[1])
 		req, _ := http.NewRequestWithContext(nctx, http.MethodGet, u[0], nil)
