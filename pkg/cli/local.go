@@ -131,27 +131,6 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 					}
 					reqFilter[i.URL.String()] = struct{}{}
 
-					opts := node.CrawlOptions(i.URL)
-
-					// process logic of sub request
-
-					// init custom headers
-					for k := range opts.MustHeader {
-						i.Header.Set(k, opts.MustHeader.Get(k))
-					}
-
-					// init custom cookies
-					for _, c := range opts.MustCookies {
-						if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
-							val := fmt.Sprintf("%s=%s", c.Name, c.Value)
-							if c := i.Header.Get("Cookie"); c != "" {
-								i.Header.Set("Cookie", c+"; "+val)
-							} else {
-								i.Header.Set("Cookie", val)
-							}
-						}
-					}
-
 					// set scheme,host for sub requests. for the product url in category page is just the path without hosts info.
 					// here is just the test logic. when run the spider online, the controller will process automatically
 					if i.URL.Scheme == "" {
@@ -235,6 +214,23 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 						}
 						if c.IsSet("level") {
 							httpOpts.Reliability = pbProxy.ProxyReliability(c.Int("level"))
+						}
+
+						// init custom headers
+						for k := range opts.MustHeader {
+							i.Header.Set(k, opts.MustHeader.Get(k))
+						}
+
+						// init custom cookies
+						for _, c := range opts.MustCookies {
+							if strings.HasPrefix(i.URL.Path, c.Path) || c.Path == "" {
+								val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+								if c := i.Header.Get("Cookie"); c != "" {
+									i.Header.Set("Cookie", c+"; "+val)
+								} else {
+									i.Header.Set("Cookie", val)
+								}
+							}
 						}
 
 						resp, err := client.DoWithOptions(nctx, req, httpOpts)

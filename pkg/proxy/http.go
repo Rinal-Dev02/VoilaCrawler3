@@ -56,7 +56,6 @@ func NewProxyClient(proxyAddr string, cookieJar http.CookieJar, logger glog.Log)
 		},
 		logger: logger,
 	}
-
 	return &client, nil
 }
 
