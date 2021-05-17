@@ -1,6 +1,6 @@
 #/usr/bin/env bash
 
-spider_dir="./spiders"
+spider_dir="./bin"
 target_dir="./releases"
 
 go_arch="amd64"

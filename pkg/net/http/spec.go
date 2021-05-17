@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	pbProxy "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 )
 
 const (

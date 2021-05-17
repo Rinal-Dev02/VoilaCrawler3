@@ -7,9 +7,9 @@ import (
 	"net/url"
 
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
-	pbHttp "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/http"
-	pbCrawl "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl"
-	"github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	pbHttp "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/http"
+	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
+	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 )
 

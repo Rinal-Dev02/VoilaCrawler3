@@ -9,8 +9,8 @@ import (
 
 	ctxutil "github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
-	pbHttp "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/http"
-	pbSession "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/session"
+	pbHttp "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/http"
+	pbSession "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	"github.com/voiladev/go-framework/glog"
 )
 

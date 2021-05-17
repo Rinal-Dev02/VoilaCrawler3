@@ -13,7 +13,7 @@ import (
 	ctxutil "github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
-	pbCrawl "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl"
+	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"

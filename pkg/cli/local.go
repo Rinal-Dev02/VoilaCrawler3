@@ -14,7 +14,7 @@ import (
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http/cookiejar"
 	"github.com/voiladev/VoilaCrawler/pkg/proxy"
-	pbProxy "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/randutil"
 	"google.golang.org/protobuf/encoding/protojson"
