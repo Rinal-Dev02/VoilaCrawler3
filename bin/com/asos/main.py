@@ -8,7 +8,9 @@ projectPath = path.abspath(path.normpath(path.dirname(__file__)))
 index = projectPath.rfind("/bin")
 if index < 0:
     index = projectPath.rfind("/releases")
-sys.path[0] = projectPath[0:index] + "/src"
+importpath = projectPath[0:index] + "/src"
+if path.isdir(importpath):
+    sys.path[0] = importpath
 
 from app import getArgs, Application
 from proxy import ProxyClient
