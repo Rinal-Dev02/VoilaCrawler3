@@ -6,10 +6,10 @@ import (
 	rhttp "net/http"
 	"net/url"
 
-	"github.com/voiladev/go-crawler/pkg/net/http"
-	pbHttp "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/http"
-	pbCrawl "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl"
-	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	"github.com/voiladev/VoilaCrawler/pkg/net/http"
+	pbHttp "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/http"
+	pbCrawl "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl"
+	"github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 )
 

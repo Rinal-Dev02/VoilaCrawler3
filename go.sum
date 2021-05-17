@@ -227,8 +227,8 @@ github.com/voiladev/go-framework v1.0.3-release/go.mod h1:p8AEmX4CS/Ch23kd/erKOv
 github.com/voiladev/jwt-go v0.0.0-20170303134508-47b9a396ed4f h1:YP+zHDPRbLYdXMeQJt6F37CBUdIy5FuFY0PqLx/F39g=
 github.com/voiladev/jwt-go v0.0.0-20170303134508-47b9a396ed4f/go.mod h1:UyKQJIGSqJj9/H1IX44modZj+5GDWyZT1d1VnMgyVvc=
 github.com/voiladev/protobuf v0.0.0-20201218014802-0eebbb757eca/go.mod h1:gVArIkIt+5oP8eussTngODHcdSFGDcvN++vHvJoAdE0=
-github.com/voiladev/protobuf v0.0.0-20210118020030-24eac5fdaed4 h1:Z7nIxWOulUE/yhiH0xlrMPUFb6AANrKO/MT5D3CMhNA=
-github.com/voiladev/protobuf v0.0.0-20210118020030-24eac5fdaed4/go.mod h1:+dR9ZbJV4DHslU4P7+moxJmDyCt+Pf1N5FIM+qjZvoI=
+github.com/voiladev/protobuf v0.0.0-20210511142647-4e57a6b9dcca h1:yoXuVMki0xGCFFa9Bbu8X+4i1dME6jHVZ3vEl7YMEuk=
+github.com/voiladev/protobuf v0.0.0-20210511142647-4e57a6b9dcca/go.mod h1:ntQ9E5HedbPIbzmrRomYhPosN5/8pU8rO54uxW9okgQ=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
@@ -489,8 +489,9 @@ google.golang.org/genproto v0.0.0-20200804131852-c06518451d9c/go.mod h1:FWY/as6D
 google.golang.org/genproto v0.0.0-20200825200019-8632dd797987/go.mod h1:FWY/as6DDZQgahTzZj3fqbO1CbirC29ZNUFHwi0/+no=
 google.golang.org/genproto v0.0.0-20201019141844-1ed22bb0c154/go.mod h1:FWY/as6DDZQgahTzZj3fqbO1CbirC29ZNUFHwi0/+no=
 google.golang.org/genproto v0.0.0-20201211151036-40ec1c210f7a/go.mod h1:FWY/as6DDZQgahTzZj3fqbO1CbirC29ZNUFHwi0/+no=
-google.golang.org/genproto v0.0.0-20201214200347-8c77b98c765d h1:HV9Z9qMhQEsdlvxNFELgQ11RkMzO3CMkjEySjCtuLes=
 google.golang.org/genproto v0.0.0-20201214200347-8c77b98c765d/go.mod h1:FWY/as6DDZQgahTzZj3fqbO1CbirC29ZNUFHwi0/+no=
+google.golang.org/genproto v0.0.0-20210218151259-fe80b386bf06 h1:Px6YyLaNKEo5eoniIBAv6Es0jbvyEmSYqOac64iS2Rs=
+google.golang.org/genproto v0.0.0-20210218151259-fe80b386bf06/go.mod h1:FWY/as6DDZQgahTzZj3fqbO1CbirC29ZNUFHwi0/+no=
 google.golang.org/grpc v1.17.0/go.mod h1:6QZJwpn2B+Zp71q/5VxRsJ6NXXVCE5NRUHRo+f3cWCs=
 google.golang.org/grpc v1.19.0/go.mod h1:mqu4LbDTu4XGKhr4mRzUsmM4RtVoemTSY81AxZiDr8c=
 google.golang.org/grpc v1.20.1/go.mod h1:10oTOabMzJvdu6/UiuZezV6QK5dSlG84ov/aaiqXj38=

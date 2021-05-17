@@ -7,8 +7,8 @@
 package item
 
 import (
-	_ "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/http"
-	media "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/media"
+	_ "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/http"
+	media "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/media"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"

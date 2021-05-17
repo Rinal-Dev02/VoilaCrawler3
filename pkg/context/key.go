@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	pbItem "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbItem "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/protoutil"
 	"google.golang.org/protobuf/proto"
 )

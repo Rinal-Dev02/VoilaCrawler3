@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/media"
-	pbItem "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	"github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/media"
+	pbItem "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 )
 
 type TiktokItem struct {

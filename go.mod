@@ -1,4 +1,4 @@
-module github.com/voiladev/go-crawler
+module github.com/voiladev/VoilaCrawler
 
 go 1.16
 
@@ -11,7 +11,7 @@ require (
 	github.com/satori/go.uuid v1.2.0
 	github.com/urfave/cli/v2 v2.3.0
 	github.com/voiladev/go-framework v1.0.3-release
-	github.com/voiladev/protobuf v0.0.0-20210118020030-24eac5fdaed4
+	github.com/voiladev/protobuf v0.0.0-20210511142647-4e57a6b9dcca
 	go.uber.org/fx v1.13.1
 	golang.org/x/net v0.0.0-20201216054612-986b41b23924
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43

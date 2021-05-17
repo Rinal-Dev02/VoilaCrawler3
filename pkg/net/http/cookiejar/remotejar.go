@@ -7,10 +7,10 @@ import (
 	"net/url"
 	"time"
 
-	ctxutil "github.com/voiladev/go-crawler/pkg/context"
-	"github.com/voiladev/go-crawler/pkg/net/http"
-	pbHttp "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/http"
-	pbSession "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/session"
+	ctxutil "github.com/voiladev/VoilaCrawler/pkg/context"
+	"github.com/voiladev/VoilaCrawler/pkg/net/http"
+	pbHttp "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/http"
+	pbSession "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	"github.com/voiladev/go-framework/glog"
 )
 

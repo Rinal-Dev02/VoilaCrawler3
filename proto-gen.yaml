@@ -1,7 +1,7 @@
 version: v1
 spec:
   project:
-    name: go-crawler
+    name: VoilaCrawler
     version: "1.0"
     packages:
     - path: ""

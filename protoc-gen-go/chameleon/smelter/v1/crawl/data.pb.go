@@ -7,8 +7,8 @@
 package crawl
 
 import (
-	http "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/http"
-	proxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	http "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/http"
+	proxy "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	anypb "google.golang.org/protobuf/types/known/anypb"

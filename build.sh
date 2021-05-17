@@ -9,7 +9,7 @@ go_os="linux"
 build_time=`date +%Y%m%d.%H:%M:%S`
 build_commit=`git rev-parse --short=12 HEAD`
 build_branch=`git branch --show-current`
-clipkg="github.com/voiladev/go-crawler/pkg/cli"
+clipkg="github.com/voiladev/VoilaCrawler/pkg/cli"
 ldflags="-X $clipkg.buildTime=$build_time -X $clipkg.buildCommit=$build_commit -X $clipkg.buildBranch=$build_branch"
 
 for domain in `ls $spider_dir`; do

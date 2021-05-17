@@ -17,14 +17,14 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/voiladev/go-crawler/pkg/cli"
-	"github.com/voiladev/go-crawler/pkg/crawler"
-	"github.com/voiladev/go-crawler/pkg/net/http"
-	"github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/regulation"
+	"github.com/voiladev/VoilaCrawler/pkg/cli"
+	"github.com/voiladev/VoilaCrawler/pkg/crawler"
+	"github.com/voiladev/VoilaCrawler/pkg/net/http"
+	"github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/regulation"
 
-	pbMedia "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/media"
-	pbItem "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
-	pbProxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	pbMedia "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/api/media"
+	pbItem "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	pbProxy "github.com/voiladev/VoilaCrawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 )
