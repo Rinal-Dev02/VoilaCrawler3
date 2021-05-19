@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -34,8 +35,9 @@ type _Crawler struct {
 
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
-		httpClient:          client,
-		categoryPathMatcher: regexp.MustCompile(`^/(shopping|sets)/(women|men|kids)([/a-z0-9_-]+)items.aspx$`),
+		httpClient: client,
+		// /shopping/women/denim-1/items.aspx
+		categoryPathMatcher: regexp.MustCompile(`^/(shopping|sets)/(women|men|kids)(/[a-z0-9_\-]+){1,5}(?:items)?.aspx$`),
 		productPathMatcher:  regexp.MustCompile(`^/shopping(/[a-z0-9_\-]+){2,5}\-item\-\d+.aspx$`),
 		logger:              logger.New("_Crawler"),
 	}
@@ -143,10 +145,10 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		}
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yieldWrap)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yieldWrap)
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yieldWrap)
 	}
 	return crawler.ErrUnsupportedPath
 }
@@ -172,8 +174,9 @@ type productListType struct {
 	} `json:"listingPagination"`
 }
 
-var prodDataExtraReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__'\]\s*=\s*(".*");</script>`)
 var prodDataExtraReg = regexp.MustCompile(`(?Ums)window\['__initialState_portal-slices-listing__'\]\s*=\s*({.*});?\s*</script>`)
+var prodDataExtraReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__'\]\s*=\s*(".*");</script>`)
+var prodDataExtraReg2 = regexp.MustCompile(`(?Ums)window\.__HYDRATION_STATE__\s*=\s*(".*");</script>`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -187,49 +190,29 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	// next page
-	matched := prodDataExtraReg1.FindSubmatch(respBody)
-	if len(matched) == 0 {
-		matched = prodDataExtraReg.FindSubmatch(respBody)
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
 	}
-	if len(matched) == 0 {
-		c.httpClient.Jar().Clear(ctx, resp.Request.URL)
-		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
-	}
-	rawData := string(matched[1])
+	sel := dom.Find(`ul[data-testid="product-card-list"]>li[data-testid="productCard"]>a`)
 
-	var r *productListType
-	if strings.HasPrefix(rawData, `"`) {
-		if rawData, err = strconv.Unquote(rawData); err != nil {
-			c.logger.Errorf("unquote raw string %s failed, error=%s", matched[1], err)
-			return err
-		}
-
-		var listData struct {
-			SliceListing *productListType `json:"slice-listing"`
-		}
-		if err = json.Unmarshal([]byte(rawData), &listData); err != nil {
-			c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
-			return err
-		}
-		r = listData.SliceListing
-	} else {
-		var listData productListType
-		if err = json.Unmarshal([]byte(rawData), &listData); err != nil {
-			c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
-			return err
-		}
-		r = &listData
-	}
+	c.logger.Debugf("found %d", len(sel.Nodes))
 
 	lastIndex := nextIndex(ctx)
-	for _, prod := range r.ListingItems.Items {
-		if prod.URL == "" {
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		if node.AttrOr("itemtype", "") != "http://schema.org/Product" {
+			c.logger.Debug("item type not match")
 			continue
 		}
-
-		if req, err := http.NewRequest(http.MethodGet, prod.URL, nil); err != nil {
-			c.logger.Debug(err)
+		href := node.AttrOr("href", "")
+		if href == "" {
+			c.logger.Debug("no href found")
+			continue
+		}
+		if req, err := http.NewRequest(http.MethodGet, href, nil); err != nil {
+			c.logger.Error(err)
 			return err
 		} else {
 			nctx := context.WithValue(ctx, "item.index", lastIndex+1)
@@ -240,27 +223,13 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	// get current page number
-	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("page"))
-	if page == 0 {
-		page = 1
+	nextNode := dom.Find(`div[data-testid="pagination"]>div[data-testid="pagination-section"] a[data-testid="page-next"]`).First()
+	if href := nextNode.AttrOr("href", ""); href != "" {
+		req, _ := http.NewRequest(http.MethodGet, href, nil)
+		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		return yield(nctx, req)
 	}
-	// check if this is the last page
-	if page >= int64(r.ListingPagination.TotalPages) {
-		return nil
-	}
-
-	// set pagination
-	u := *resp.Request.URL
-	vals := u.Query()
-	vals.Set("page", strconv.Format(page+1))
-	vals.Set("view", strconv.Format(r.ListingPagination.View))
-	u.RawQuery = vals.Encode()
-
-	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-	// update the index of last page
-	nctx := context.WithValue(ctx, "item.index", lastIndex)
-	return yield(nctx, req)
+	return nil
 }
 
 type parseProductResponse struct {
@@ -510,6 +479,7 @@ type parseProductResponse struct {
 var (
 	detailReg  = regexp.MustCompile(`(?Ums)window\['__initialState_slice-pdp__'\]\s*=\s*(.*);?\s*</script>`)
 	detailReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__'\]\s*=\s*(".*");\s*</script>`)
+	detailReg2 = regexp.MustCompile(`(?Ums)window.__HYDRATION_STATE__\s*=\s*(".*");?\s*</script>`)
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -528,6 +498,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		matched = detailReg1.FindSubmatch(respBody)
 	}
 	if len(matched) == 0 {
+		matched = detailReg2.FindSubmatch(respBody)
+	}
+	if len(matched) == 0 {
 		c.httpClient.Jar().Clear(ctx, resp.Request.URL)
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
 	}
@@ -541,15 +514,27 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			c.logger.Errorf("unquote raw data %s failed, error=%s", rawData, err)
 			return err
 		}
-
-		var resp struct {
-			SliceProduct *parseProductResponse `json:"slice-product"`
+		if strings.Contains(rawData, "initialStates") {
+			var resp struct {
+				InitialStates struct {
+					SliceProduct *parseProductResponse `json:"slice-product"`
+				} `json:"initialStates"`
+			}
+			if err = json.Unmarshal([]byte(rawData), &resp); err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			i = resp.InitialStates.SliceProduct
+		} else {
+			var resp struct {
+				SliceProduct *parseProductResponse `json:"slice-product"`
+			}
+			if err = json.Unmarshal([]byte(rawData), &resp); err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			i = resp.SliceProduct
 		}
-		if err = json.Unmarshal([]byte(rawData), &resp); err != nil {
-			c.logger.Error(err)
-			return err
-		}
-		i = resp.SliceProduct
 	} else {
 		var resp parseProductResponse
 		if err = json.Unmarshal(matched[1], &resp); err != nil {
@@ -557,6 +542,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			return err
 		}
 		i = &resp
+	}
+	if i == nil {
+		return errors.New("no detail found")
 	}
 
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
@@ -665,12 +653,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		// "https://www.farfetch.com/de/shopping/women/denim-1/items.aspx",
+		"https://www.farfetch.com/de/shopping/women/denim-1/items.aspx",
 		// "https://www.farfetch.com/shopping/women/denim-1/items.aspx",
-		"https://www.farfetch.com/shopping/women/low-classic-rolled-cuffs-high-waisted-jeans-item-16070965.aspx?storeid=9359",
+		// "https://www.farfetch.com/shopping/women/low-classic-rolled-cuffs-high-waisted-jeans-item-16070965.aspx?storeid=9359",
 		// "https://www.farfetch.com/de/shopping/women/aztech-mountain-galena-mantel-item-15896311.aspx?storeid=10254",
 		//"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
 		//"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
+		// "https://www.farfetch.com/sets/women/new-in-this-week-eu-women.aspx?view=90&sort=4&scale=280&category=136310",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
