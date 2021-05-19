@@ -27,6 +27,7 @@ buildGo() {
 # buildPy generate executable binary with pyinstaller
 # params: $1=sourcefile $2=targetname
 buildPy() {
+    return
     path=$1
     name=$2
     echo "PY BUILD $path => $target_dir/$name"
