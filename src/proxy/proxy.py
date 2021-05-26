@@ -196,7 +196,7 @@ class ProxyClient(object):
                     header.delete("content-encoding")
             subresp = None
             if r.request.HasField("response"):
-                subresp = builder(r.request.response, True)
+                subresp = builder(ctx, r.request.response, True)
             reqHeader = Header()
             for (key,listval) in r.headers.items():
                 for val in listval.values:

@@ -156,7 +156,9 @@ class Application(object):
             reqQueue.put(req)
             reqFilter.add(str(req.url))
         if reqQueue.empty():
-            for r in self._crawler.NewTestRequests():
+            for r in self._crawler.NewTestRequest(ctx) or list():
+                if not r:
+                    continue
                 nctx = ctx
                 for (k,v) in r.context.values().items():
                     nctx = Context(nctx, k, v)
@@ -208,7 +210,7 @@ class Application(object):
                     req.headers.set("cookie", cookie)
                 try:
                     resp = self._proxyClient.do(req.context, req, httpOpts)
-                    for e in self._crawler.Parse(req.context, resp):
+                    for e in self._crawler.Parse(req.context, resp) or list():
                         if not e:
                             continue
                         nctx, i = None, None

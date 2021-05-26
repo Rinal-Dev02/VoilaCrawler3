@@ -297,8 +297,8 @@ class ASOS(Crawler):
         self.logger.info("yield item")
         yield ctx, item
 
-    def NewTestRequest(self, ctx:Context, ) -> Generator[Request,None,None]:
-        yield super().NewTestRequest()
+    def NewTestRequest(self, ctx:Context) -> Generator[Request,None,None]:
+        yield super().NewTestRequest(ctx)
 
     def CheckTestResponse(self, ctx:Context, resp: Response) -> bool:
-        return super().CheckTestResponse(resp)
+        return super().CheckTestResponse(ctx, resp)
