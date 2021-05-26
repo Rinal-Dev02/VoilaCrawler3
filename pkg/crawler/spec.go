@@ -3,7 +3,6 @@ package crawler
 import (
 	"context"
 	"errors"
-	rhttp "net/http"
 	"net/url"
 
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
@@ -37,10 +36,10 @@ type CrawlOptions struct {
 	// LoginRequired bool `json:"loginRequired"`
 
 	// MustHeader specify the musted http headers
-	MustHeader rhttp.Header `json:"mustHeader"`
+	MustHeader http.Header `json:"mustHeader"`
 
 	// MustCookies specify the musted cookies
-	MustCookies []*rhttp.Cookie `json:"mustCookies"`
+	MustCookies []*http.Cookie `json:"mustCookies"`
 
 	// ProxyReliability
 	Reliability proxy.ProxyReliability
@@ -79,16 +78,16 @@ func (opts *CrawlOptions) Unmarshal(ret interface{}) error {
 }
 
 func NewCrawlOptions() *CrawlOptions {
-	return &CrawlOptions{MustHeader: rhttp.Header{}}
+	return &CrawlOptions{MustHeader: http.Header{}}
 }
 
 // HealthChecker used to test if website struct changed
 type HealthChecker interface {
 	// NewTestRequest generate a test request
-	NewTestRequest(ctx context.Context) []*rhttp.Request
+	NewTestRequest(ctx context.Context) []*http.Request
 
 	// CheckTestResponse used to check whether website struct changed
-	CheckTestResponse(ctx context.Context, resp *rhttp.Response) error
+	CheckTestResponse(ctx context.Context, resp *http.Response) error
 }
 
 // Crawler
@@ -122,7 +121,7 @@ type Crawler interface {
 	//   param ctx used to share info between parent and child. and it can set the max ttl for parse job.
 	//   param resp represents the http response, with act as a real http response.
 	//   param yield use to yield data with can be final data or an other http request
-	Parse(ctx context.Context, resp *rhttp.Response, yield func(context.Context, interface{}) error) error
+	Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error
 }
 
 // MustImplementCrawler

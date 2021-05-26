@@ -151,22 +151,6 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 		return errors.New("no response got")
 	}
 
-	// check and patch the rawurl
-	if resp.Request == nil {
-		resp.Request = req
-	}
-	rootResp := resp
-	for rootResp.Request.Response != nil {
-		rootResp = rootResp.Request.Response
-	}
-	if rootResp.Request.URL.Path != req.URL.Path {
-		patchResp := http.Response{
-			StatusCode: http.StatusTemporaryRedirect,
-			Request:    req,
-		}
-		rootResp.Request.Response = &patchResp
-	}
-
 	err = s.crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
 		sharingData := ctxutil.RetrieveAllValues(c)
 		tracingId := rawreq.GetTracingId()

@@ -155,12 +155,12 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		return nil, errors.New(proxyRespBody.Status)
 	}
 
-	var buildResponse func(res *pbProxy.Response, isSub bool) (*http.Response, error)
-	buildResponse = func(res *pbProxy.Response, isSub bool) (*http.Response, error) {
+	var buildResponse func(res *pbProxy.Response, isSub bool) (*rhttp.Response, error)
+	buildResponse = func(res *pbProxy.Response, isSub bool) (*rhttp.Response, error) {
 		if res == nil {
 			return nil, nil
 		}
-		resp := http.Response{
+		resp := rhttp.Response{
 			StatusCode: int(res.GetStatusCode()),
 			Status:     res.GetStatus(),
 			Proto:      res.GetProto(),
@@ -225,5 +225,9 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		}
 		return &resp, nil
 	}
-	return buildResponse(&proxyRespBody, false)
+	if resp, err := buildResponse(&proxyRespBody, false); err != nil {
+		return nil, err
+	} else {
+		return http.NewResponse(resp)
+	}
 }
