@@ -81,6 +81,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	if c == nil || r == nil {
 		return nil, nil
 	}
+	c.logger.Infof("%s %s", r.Method, r.URL)
 
 	var body []byte
 	if r.Body != nil {

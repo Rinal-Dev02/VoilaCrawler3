@@ -7,14 +7,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gammazero/deque"
 	"github.com/urfave/cli/v2"
 	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/item"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http/cookiejar"
-	"github.com/voiladev/VoilaCrawler/pkg/proxy"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	"github.com/voiladev/VoilaCrawler/pkg/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/randutil"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -52,6 +53,10 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 			&cli.BoolFlag{
 				Name:  "enable-session-init",
 				Usage: "Enable session init",
+			},
+			&cli.BoolFlag{
+				Name:  "enable-lifo",
+				Usage: "Enable queue LIFO for requests",
 			},
 			&cli.BoolFlag{
 				Name:  "disable-proxy",
@@ -93,7 +98,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 			}
 			var (
 				reqFilter = map[string]struct{}{}
-				reqChan   = make(chan *http.Request, 100)
+				reqQueue  deque.Deque
 				reqCount  = 0
 				host      string
 			)
@@ -105,7 +110,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 					return cli.NewExitError(err, 1)
 				}
 
-				reqChan <- req
+				reqQueue.PushBack(req)
 				reqCount += 1
 				reqFilter[req.URL.String()] = struct{}{}
 				if host == "" {
@@ -114,7 +119,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 			}
 			if reqCount == 0 {
 				for _, req := range node.NewTestRequest(context.Background()) {
-					reqChan <- req
+					reqQueue.PushBack(req)
 					reqCount += 1
 					reqFilter[req.URL.String()] = struct{}{}
 					if host == "" {
@@ -141,12 +146,9 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 					}
 
 					i = i.WithContext(ctx)
-					select {
-					case reqChan <- i:
-						logger.Debugf("appended %s", i.URL.String())
-					default:
-						logger.Warnf("ignored %s, too many requests", i.URL.String())
-					}
+					reqQueue.PushBack(i)
+					logger.Debugf("Appended %s", i.URL)
+
 					return nil
 				default:
 					marshaler := protojson.MarshalOptions{}
@@ -177,23 +179,31 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 					select {
 					case <-ctx.Done():
 						return
-					case req, _ = <-reqChan:
-						if req == nil {
+					default:
+						if reqQueue.Len() == 0 {
 							return
 						}
-					default:
-						return
+
+						if c.Bool("enable-lifo") {
+							if v := reqQueue.PopBack(); v != nil {
+								req = v.(*http.Request)
+							}
+						} else {
+							if v := reqQueue.PopFront(); v != nil {
+								req = v.(*http.Request)
+							}
+						}
 					}
 
 					if err = func(i *http.Request) error {
-						logger.Infof("Access %s", i.URL)
-
 						nctx, cancel := context.WithTimeout(ctx, time.Minute*5)
-						defer cancel()
-
-						if v := i.Context().Value(context.TargetTypeKey); v != nil {
-							nctx = context.WithValue(nctx, context.TargetTypeKey, v)
+						for k, v := range context.RetrieveAllValues(i.Context()) {
+							if k == context.ReqIdKey {
+								continue
+							}
+							nctx = context.WithValue(nctx, k, v)
 						}
+						defer cancel()
 						nctx = context.WithValue(nctx, context.ReqIdKey, randutil.MustNewRandomID())
 
 						opts := node.CrawlOptions(req.URL)
