@@ -161,7 +161,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 				continue
 			}
 			sctx := context.WithValue(pctx, "SubCategory", subCate)
-			c.logger.Debugf("cate=%s, subCate=%s", cate, subCate)
 			if err := yield(sctx, req); err != nil {
 				return err
 			}
