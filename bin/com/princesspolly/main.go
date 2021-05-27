@@ -127,7 +127,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	urlFilter := map[string]struct{}{}
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		cate := strings.TrimSpace(node.Find(`a.nav__link:first`).Text())
+		cate := strings.TrimSpace(node.Find(`a.nav__link`).First().Text())
 		subSel := node.Find(`.nav__list .nav__list-items .nav__item .nav__list>.nav__item>a.nav__link`)
 
 		pctx := context.WithValue(ctx, "item.index", 0)
