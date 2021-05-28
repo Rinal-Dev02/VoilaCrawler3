@@ -2,7 +2,7 @@
 
 VoilaCrawl is a distributed spider platform. It's more like python scrapy except that VoilaCrawl is born to be distributed.
 
-This repo mainly contains three parts: `crawl-api` and `crawlet` and `spiders`. Here is a simple sequence flow chart:
+This repo mainly contains three parts: `crawl-api` and `crawlet`. Here is a simple sequence flow chart:
 
 ![](doc/VoilaCrawl系统架构.jpg)
 
