@@ -21,6 +21,13 @@ func TestRetrieveAllValues(t *testing.T) {
 		want map[interface{}]interface{}
 	}{
 		{
+			name: "default",
+			args: args{
+				ctx: context.Background(),
+			},
+			want: map[interface{}]interface{}{},
+		},
+		{
 			name: "WithValue depth-1",
 			args: args{
 				ctx: context.WithValue(context.Background(), "12345", "12345"),
@@ -50,7 +57,7 @@ func TestRetrieveAllValues(t *testing.T) {
 		}, {
 			name: "WithValues depth-2",
 			args: args{
-				ctx: WithValues(WithValues(context.Background(), "12345", "12345", "234", "234", "345", "345"), "345", "678", "789", "789"),
+				ctx: WithValues(WithValues(context.TODO(), "12345", "12345", "234", "234", "345", "345"), "345", "678", "789", "789"),
 			},
 			want: map[interface{}]interface{}{
 				"12345": "12345",

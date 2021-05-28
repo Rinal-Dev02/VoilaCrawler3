@@ -65,9 +65,11 @@ func RetrieveAllValues(ctx context.Context) map[interface{}]interface{} {
 			}
 		}
 
-		if val.FieldByName("Context").Elem().Elem().Kind() == reflect.Struct {
-			pv := val.FieldByName("Context").Interface()
-			retrive(pv.(context.Context))
+		if val.Kind() == reflect.Struct || val.Kind() == reflect.Ptr {
+			if val.FieldByName("Context").Elem().Elem().Kind() == reflect.Struct {
+				pv := val.FieldByName("Context").Interface()
+				retrive(pv.(context.Context))
+			}
 		}
 	}
 	retrive(ctx)
