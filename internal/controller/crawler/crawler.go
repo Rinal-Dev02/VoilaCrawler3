@@ -70,7 +70,7 @@ func (ctrl *CrawlerController) Watch(ctx context.Context, srv pbCrawl.CrawlerReg
 	}(); err != nil {
 		return err
 	}
-	logger.Debugf("got crawler %s %s %s", cw.GetStoreId(), cw.GetId(), cw.GetServeAddr())
+	logger.Debugf("got new crawler Store:%s, ID:%s, Version:%d, Addr: %s", cw.GetStoreId(), cw.GetId(), cw.GetVersion(), cw.GetServeAddr())
 
 	// cache for 10 seconds, the crawler need to ping in 10 seconds
 	// the crawler will check the existence of the cached info,
