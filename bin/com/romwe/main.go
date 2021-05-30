@@ -292,34 +292,27 @@ type parseProductResponse struct {
 	} `json:"goods_imgs"`
 	Country string `json:"country"`
 	Detail  struct {
-		GoodsID       string `json:"goods_id"`
-		CatID         string `json:"cat_id"`
-		GoodsSn       string `json:"goods_sn"`
-		GoodsURLName  string `json:"goods_url_name"`
-		SupplierID    string `json:"supplier_id"`
-		GoodsName     string `json:"goods_name"`
-		OriginalImg   string `json:"original_img"`
-		GoodsThumb    string `json:"goods_thumb"`
-		GoodsImg      string `json:"goods_img"`
-		IsStockEnough string `json:"is_stock_enough"`
-		Brand         string `json:"brand"`
-		SizeTemplate  struct {
-			ImageURL         string `json:"image_url"`
-			DescriptionMulti []struct {
-				Sort        int    `json:"sort"`
-				Name        string `json:"name"`
-				Description string `json:"description"`
-			} `json:"description_multi"`
-		} `json:"sizeTemplate"`
-		GoodsDesc             string `json:"goods_desc"`
-		SupplierTopCategoryID string `json:"supplier_top_category_id"`
-		ParentID              string `json:"parent_id"`
-		IsOnSale              string `json:"is_on_sale"`
-		IsVirtualStock        string `json:"is_virtual_stock"`
-		Stock                 string `json:"stock"`
-		IsInit                string `json:"is_init"`
-		IsPreSale             string `json:"is_pre_sale"`
-		IsPreSaleEnd          string `json:"is_pre_sale_end"`
+		GoodsID               string      `json:"goods_id"`
+		CatID                 string      `json:"cat_id"`
+		GoodsSn               string      `json:"goods_sn"`
+		GoodsURLName          string      `json:"goods_url_name"`
+		SupplierID            string      `json:"supplier_id"`
+		GoodsName             string      `json:"goods_name"`
+		OriginalImg           string      `json:"original_img"`
+		GoodsThumb            string      `json:"goods_thumb"`
+		GoodsImg              string      `json:"goods_img"`
+		IsStockEnough         string      `json:"is_stock_enough"`
+		Brand                 string      `json:"brand"`
+		SizeTemplate          interface{} `json:"sizeTemplate"`
+		GoodsDesc             string      `json:"goods_desc"`
+		SupplierTopCategoryID string      `json:"supplier_top_category_id"`
+		ParentID              string      `json:"parent_id"`
+		IsOnSale              string      `json:"is_on_sale"`
+		IsVirtualStock        string      `json:"is_virtual_stock"`
+		Stock                 string      `json:"stock"`
+		IsInit                string      `json:"is_init"`
+		IsPreSale             string      `json:"is_pre_sale"`
+		IsPreSaleEnd          string      `json:"is_pre_sale_end"`
 		ProductDetails        []struct {
 			AttrID      int    `json:"attr_id"`
 			AttrValueID string `json:"attr_value_id"`
@@ -378,26 +371,19 @@ type parseProductResponse struct {
 		Series            interface{}   `json:"series"`
 	} `json:"detail"`
 	RelationColor []struct {
-		GoodsID      string `json:"goods_id"`
-		CatID        string `json:"cat_id"`
-		GoodsSn      string `json:"goods_sn"`
-		GoodsURLName string `json:"goods_url_name"`
-		SupplierID   string `json:"supplier_id"`
-		GoodsName    string `json:"goods_name"`
-		OriginalImg  string `json:"original_img"`
-		Brand        string `json:"brand"`
-		SizeTemplate struct {
-			ImageURL         string `json:"image_url"`
-			DescriptionMulti []struct {
-				Sort        int    `json:"sort"`
-				Name        string `json:"name"`
-				Description string `json:"description"`
-			} `json:"description_multi"`
-		} `json:"sizeTemplate"`
-		IsInit         string `json:"is_init"`
-		Stock          string `json:"stock"`
-		IsOnSale       string `json:"is_on_sale"`
-		IsVirtualStock string `json:"is_virtual_stock"`
+		GoodsID        string      `json:"goods_id"`
+		CatID          string      `json:"cat_id"`
+		GoodsSn        string      `json:"goods_sn"`
+		GoodsURLName   string      `json:"goods_url_name"`
+		SupplierID     string      `json:"supplier_id"`
+		GoodsName      string      `json:"goods_name"`
+		OriginalImg    string      `json:"original_img"`
+		Brand          string      `json:"brand"`
+		SizeTemplate   interface{} `json:"sizeTemplate"`
+		IsInit         string      `json:"is_init"`
+		Stock          string      `json:"stock"`
+		IsOnSale       string      `json:"is_on_sale"`
+		IsVirtualStock string      `json:"is_virtual_stock"`
 		ProductDetails []struct {
 			AttrID      int    `json:"attr_id"`
 			AttrValueID string `json:"attr_value_id"`
