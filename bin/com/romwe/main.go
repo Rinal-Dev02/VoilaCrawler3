@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
+	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
@@ -171,7 +171,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	if mainCate == "female" {
 		// guys page
 		req, _ := http.NewRequest(http.MethodGet, "https://us.romwe.com/guys?icn=GuysHomePage&ici=us_tab02", nil)
-		nctx = context.WithValue(ctx, "MainCategory", "men")
+		nctx = context.WithValue(ctx, "MainCategory", "male")
 		nctx = context.WithValue(nctx, crawler.TracingIdKey, randutil.MustNewRandomID())
 		return yield(nctx, req)
 	}
@@ -684,15 +684,23 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 	}
 
-	item.Category = viewData.ParentCats.CatName
-	if len(viewData.ParentCats.Children) > 0 {
-		item.SubCategory = viewData.ParentCats.Children[0].CatName
-	}
-	if len(viewData.ParentCats.Children[0].Children) > 0 {
-		item.SubCategory2 = viewData.ParentCats.Children[0].Children[0].CatName
-	}
-	if len(viewData.ParentCats.Children[0].Children[0].Children) > 0 {
-		item.SubCategory3 = viewData.ParentCats.Children[0].Children[0].Children[0].CatName
+	if v := context.GetString(ctx, "MainCategory"); v != "" {
+		item.CrowdType = v
+		item.Category = context.GetString(ctx, "Category")
+		item.SubCategory = context.GetString(ctx, "SubCategory")
+		item.SubCategory2 = context.GetString(ctx, "SubCategory2")
+		item.SubCategory3 = context.GetString(ctx, "SubCategory3")
+	} else {
+		item.Category = viewData.ParentCats.CatName
+		if len(viewData.ParentCats.Children) > 0 {
+			item.SubCategory = viewData.ParentCats.Children[0].CatName
+		}
+		if len(viewData.ParentCats.Children[0].Children) > 0 {
+			item.SubCategory2 = viewData.ParentCats.Children[0].Children[0].CatName
+		}
+		if len(viewData.ParentCats.Children[0].Children[0].Children) > 0 {
+			item.SubCategory3 = viewData.ParentCats.Children[0].Children[0].Children[0].CatName
+		}
 	}
 
 	var medias []*media.Media
