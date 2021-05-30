@@ -21,6 +21,7 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 )
 
@@ -35,7 +36,7 @@ type _Crawler struct {
 func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
-		categoryPathMatcher: regexp.MustCompile(`^/[A-Za-z0-9_-]+(c|sc)\-\d+.html$`),
+		categoryPathMatcher: regexp.MustCompile(`^(/[a-zA-Z0-9\-_]+){0,4}/[A-Za-z0-9\-_]+(?:(c|sc)\-\d+.html)?$`),
 		productPathMatcher:  regexp.MustCompile(`^/[A-Za-z0-9_-]+(p-\d+-cat-\d+).html$`),
 		logger:              logger.New("_Crawler"),
 	}
@@ -54,8 +55,12 @@ func (c *_Crawler) Version() int32 {
 
 // CrawlOptions
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
+	p := strings.TrimSuffix(u.Path, "/")
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
+	if p == "" || p == "/guys" {
+		options.EnableHeadless = true
+	}
 	options.EnableSessionInit = false
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
 	options.MustCookies = append(options.MustCookies,
@@ -98,12 +103,79 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
+	path := strings.TrimSuffix(resp.RawUrl().Path, "/")
+	if path == "" || path == "/guys" {
+		return c.parseCategories(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	mainCate := "male"
+	if resp.RawUrl().Path == " " || resp.RawUrl().Path == "/" {
+		mainCate = "female"
+	}
+	nctx := context.WithValue(ctx, "MainCategory", mainCate)
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.c-nav2 nav.header-v2__nav2>div.header-v2__nav2-wrapper`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().AttrOr("aria-label", node.Find(`a`).First().Text()))
+		nnctx := context.WithValue(nctx, "Category", cateName)
+
+		subSel := node.Find(`nav.header-float>div a`)
+		for j := range subSel.Nodes {
+			subNode := subSel.Eq(j)
+			href := subNode.AttrOr("href", "")
+			if href == "" {
+				continue
+			}
+
+			_, err := url.Parse(href)
+			if err != nil {
+				c.logger.Error("parse url %s failed", href)
+				continue
+			}
+
+			subCateName := strings.TrimSpace(subSel.Nodes[j].Data)
+			if subCateName == "" {
+				subCateName = strings.TrimSpace(subNode.AttrOr("title", ""))
+			}
+			if subCateName == "" {
+				subCateName = strings.TrimSpace(subNode.Children().First().Text())
+			}
+			if subCateName == "" {
+				subCateName = strings.TrimSpace(subNode.Children().First().AttrOr("alt", ""))
+			}
+			if subCateName == "" {
+				subCateName = strings.TrimSpace(subNode.AttrOr("data-href-target", ""))
+			}
+			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+			req, _ := http.NewRequest(http.MethodGet, href, nil)
+			if err := yield(nnnctx, req); err != nil {
+				return err
+			}
+		}
+	}
+
+	if mainCate == "female" {
+		// guys page
+		req, _ := http.NewRequest(http.MethodGet, "https://us.romwe.com/guys?icn=GuysHomePage&ici=us_tab02", nil)
+		nctx = context.WithValue(ctx, "MainCategory", "men")
+		nctx = context.WithValue(nctx, crawler.TracingIdKey, randutil.MustNewRandomID())
+		return yield(nctx, req)
+	}
+	return nil
 }
 
 // nextIndex used to get sharingData from context
@@ -143,6 +215,9 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		c.logger.Debug(err)
 		return err
 	}
+
+	c.logger.Debugf("%s", respBody)
+
 	// next page
 	matched := prodDataExtraReg1.FindSubmatch(respBody)
 	if len(matched) == 0 {
