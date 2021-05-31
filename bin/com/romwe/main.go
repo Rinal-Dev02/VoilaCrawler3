@@ -216,8 +216,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	c.logger.Debugf("%s", respBody)
-
 	// next page
 	matched := prodDataExtraReg1.FindSubmatch(respBody)
 	if len(matched) == 0 {
@@ -627,8 +625,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.httpClient.Jar().Clear(ctx, resp.Request.URL)
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
 	}
-
-	c.logger.Debugf("%s", matched[1])
 
 	var viewData parseProductResponse
 	if err = json.Unmarshal(bytes.TrimRight(matched[1], ","), &viewData); err != nil {
