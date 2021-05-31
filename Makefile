@@ -1,6 +1,9 @@
-.PHONY: all
+.PHONY: all bin
 
-all: plugins
+all: bin
 
-plugins:
+proto:
+	protoc-gen build
+
+bin:
 	./build.sh

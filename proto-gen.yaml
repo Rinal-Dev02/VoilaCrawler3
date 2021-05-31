@@ -1,7 +1,7 @@
 version: v1
 spec:
   project:
-    name: go-crawler
+    name: VoilaCrawler
     version: "1.0"
     packages:
     - path: ""
@@ -42,6 +42,14 @@ spec:
         output_path: protoc-gen-go/
     - path: ""
       name: chameleon.api.event
+      version: "1.0"
+      files:
+      - '*.proto'
+      targets:
+      - type: go
+        output_path: protoc-gen-go/
+    - path: ""
+      name: chameleon.api.search
       version: "1.0"
       files:
       - '*.proto'

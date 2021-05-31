@@ -7,7 +7,8 @@
 package session
 
 import (
-	http "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/http"
+
+	http "github.com/voiladev/VoilaCrawl/protoc-gen-go/chameleon/api/http"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
