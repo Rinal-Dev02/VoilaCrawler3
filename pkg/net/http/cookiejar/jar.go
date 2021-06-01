@@ -6,7 +6,7 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 
-	"github.com/voiladev/go-crawler/pkg/net/http"
+	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"golang.org/x/net/publicsuffix"
 )
 

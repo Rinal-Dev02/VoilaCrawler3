@@ -5,8 +5,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/voiladev/go-crawler/pkg/net/http"
-	"github.com/voiladev/go-crawler/pkg/net/http/cookiejar"
+	"github.com/voiladev/VoilaCrawler/pkg/net/http"
+	"github.com/voiladev/VoilaCrawler/pkg/net/http/cookiejar"
 	"github.com/voiladev/go-framework/glog"
 )
 

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	pbProxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 )
 
 const (
@@ -22,7 +22,6 @@ const (
 
 type (
 	Request  = http.Request
-	Response = http.Response
 	Cookie   = http.Cookie
 	Header   = http.Header
 	SameSite = http.SameSite
@@ -60,8 +59,8 @@ type Options struct {
 
 type Client interface {
 	Jar() CookieJar
-	Do(ctx context.Context, req *http.Request) (*http.Response, error)
-	DoWithOptions(ctx context.Context, req *http.Request, opts Options) (*http.Response, error)
+	Do(ctx context.Context, req *Request) (*Response, error)
+	DoWithOptions(ctx context.Context, req *Request, opts Options) (*Response, error)
 }
 
 // CookieJar

@@ -13,11 +13,11 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
-	ctxutil "github.com/voiladev/go-crawler/pkg/context"
-	"github.com/voiladev/go-crawler/pkg/crawler"
-	"github.com/voiladev/go-crawler/pkg/net/http"
-	pbHttp "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/api/http"
-	pbProxy "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	ctxutil "github.com/voiladev/VoilaCrawler/pkg/context"
+	"github.com/voiladev/VoilaCrawler/pkg/crawler"
+	"github.com/voiladev/VoilaCrawler/pkg/net/http"
+	pbHttp "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/http"
+	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/randutil"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -81,6 +81,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	if c == nil || r == nil {
 		return nil, nil
 	}
+	c.logger.Infof("%s %s", r.Method, r.URL)
 
 	var body []byte
 	if r.Body != nil {
@@ -155,12 +156,12 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		return nil, errors.New(proxyRespBody.Status)
 	}
 
-	var buildResponse func(res *pbProxy.Response, isSub bool) (*http.Response, error)
-	buildResponse = func(res *pbProxy.Response, isSub bool) (*http.Response, error) {
+	var buildResponse func(res *pbProxy.Response, isSub bool) (*rhttp.Response, error)
+	buildResponse = func(res *pbProxy.Response, isSub bool) (*rhttp.Response, error) {
 		if res == nil {
 			return nil, nil
 		}
-		resp := http.Response{
+		resp := rhttp.Response{
 			StatusCode: int(res.GetStatusCode()),
 			Status:     res.GetStatus(),
 			Proto:      res.GetProto(),
@@ -225,5 +226,9 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		}
 		return &resp, nil
 	}
-	return buildResponse(&proxyRespBody, false)
+	if resp, err := buildResponse(&proxyRespBody, false); err != nil {
+		return nil, err
+	} else {
+		return http.NewResponse(resp)
+	}
 }
