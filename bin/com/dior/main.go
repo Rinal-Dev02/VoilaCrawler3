@@ -257,7 +257,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 			}
 
 			subCateName := strings.TrimSpace(subNode.Text())
-			//fmt.Println(`subCateName `, subCateName, ` -->  `, href)
 
 			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
 			req, _ := http.NewRequest(http.MethodGet, href, nil)
@@ -722,6 +721,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-
 	cli.NewApp(New).Run(os.Args)
 }
