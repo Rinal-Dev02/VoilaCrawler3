@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"io/ioutil"
 	"math"
 	"net/url"
 	"os"
@@ -95,13 +95,74 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
+	if p == "/women" || p == "/mens" || p == "/" || p == "" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	mainCate := "male"
+	if strings.Contains(resp.RawUrl().Path, "women") {
+		mainCate = "female"
+	}
+	nctx := context.WithValue(ctx, "MainCategory", mainCate)
+	fmt.Println(`cateName `, mainCate)
+	sel := dom.Find(`.nav__wrapper.nav__wrapper--margin-b-none`).Find(`.js-dropdown.dropdown.dropdown--full`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		nnctx := context.WithValue(nctx, "Category", cateName)
+		//fmt.Println(`cateName `, cateName)
+		subSel := node.Find(`.ui-list__item.u-margin-b--md>a`)
+		if len(subSel.Nodes) == 0 {
+			subSel = node.Find(`.u-margin-b--md>a`)
+		}
+		//fmt.Println(`subSel `, len(subSel.Nodes))
+		for j := range subSel.Nodes {
+			subNode := subSel.Eq(j)
+			href := subNode.AttrOr("href", "")
+			if href == "" {
+				continue
+			}
+
+			_, err := url.Parse(href)
+			if err != nil {
+				c.logger.Error("parse url %s failed", href)
+				continue
+			}
+
+			subCateName := strings.TrimSpace(subNode.Text())
+			//fmt.Println(`subCateName `, subCateName, `  --> `, href)
+			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+			req, _ := http.NewRequest(http.MethodGet, href, nil)
+			if err := yield(nnnctx, req); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // parseCategoryProducts parse api url from web page url
@@ -111,7 +172,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 	c.logger.Debugf("parse %s", resp.Request.URL)
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -122,11 +183,13 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	lastIndex := nextIndex(ctx)
+
 	sel := doc.Find(`#plp-prod-list .js-plp-container`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 		if href, _ := node.Find(".js-plp-pdp-link").Attr("href"); href != "" {
 			//c.logger.Debugf("yield %w%s", lastIndex, href)
+			fmt.Println(href)
 			req, err := http.NewRequest(http.MethodGet, href, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -146,46 +209,52 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		lazyLoadUrl = ru.Scheme + "://" + ru.Host + lazyLoadUrl + "&_=" + strconv.Format(time.Now().UnixNano()/1000000)
 
 		req, err := http.NewRequest(http.MethodGet, lazyLoadUrl, nil)
+		req.Header.Add(`Referer`, resp.Request.URL.String())
+
+		// opts := c.CrawlOptions(req.URL)
+
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    true,
+			EnableSessionInit: true,
+			DisableCookieJar:  false,
+			Reliability:       1,
+		})
+
 		if err != nil {
 			c.logger.Error(err)
-		} else {
-			opts := c.CrawlOptions(req.URL)
-			resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-				EnableProxy:       true,
-				EnableHeadless:    opts.EnableHeadless,
-				EnableSessionInit: opts.EnableSessionInit,
-				DisableCookieJar:  opts.DisableCookieJar,
-				Reliability:       opts.Reliability,
-			})
-			if err != nil {
-				c.logger.Error(err)
-				return err
-			}
-			defer resp.Body.Close()
+			return err
+		}
+		respBody, err = ioutil.ReadAll(resp.Body)
 
-			doc, err := goquery.NewDocumentFromReader(resp.Body)
-			if err != nil {
-				c.logger.Error(err)
-				return err
-			}
-			sel := doc.Find(`.js-plp-container`)
-			for i := range sel.Nodes {
-				node := sel.Eq(i)
-				if href, _ := node.Find(".js-plp-pdp-link").Attr("href"); href != "" {
-					//c.logger.Debugf("yield %w%s", lastIndex, href)
-					req, err := http.NewRequest(http.MethodGet, href, nil)
-					if err != nil {
-						c.logger.Error(err)
-						continue
-					}
-					lastIndex += 1
-					nctx := context.WithValue(ctx, "item.index", lastIndex)
-					if err := yield(nctx, req); err != nil {
-						return err
-					}
+		defer resp.Body.Close()
+
+		doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+
+		sel := doc.Find(`.js-plp-container`)
+
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			if href, _ := node.Find(".js-plp-pdp-link").Attr("href"); href != "" {
+				//c.logger.Debugf("yield %w%s", lastIndex, href)
+				fmt.Println(href)
+				req, err := http.NewRequest(http.MethodGet, href, nil)
+				if err != nil {
+					c.logger.Error(err)
+					continue
+				}
+				lastIndex += 1
+				nctx := context.WithValue(ctx, "item.index", lastIndex)
+				if err := yield(nctx, req); err != nil {
+					return err
 				}
 			}
 		}
+		//}
 	}
 
 	// get current page number
@@ -274,7 +343,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return errors.New("access denied")
 	}
 
-	respbody, err := io.ReadAll(resp.Body)
+	respbody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -376,26 +445,71 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	colorName := strings.TrimSpace(doc.Find(`.product-sections .selectedColor`).Text())
 
 	sel = doc.Find(".product-sizes .js-size-option")
-	for i := range sel.Nodes {
-		snode := sel.Eq(i)
+	if len(sel.Nodes) > 0 {
+		for i := range sel.Nodes {
+			snode := sel.Eq(i)
 
-		sizeval, _ := snode.Attr(`data-size`)
-		qty, _ := snode.Attr(`data-qty`)
-		quantity, _ := strconv.ParseInt(qty)
+			sizeval, _ := snode.Attr(`data-size`)
+			qty, _ := snode.Attr(`data-qty`)
+			quantity, _ := strconv.ParseInt(qty)
 
-		currentPrice, _ := snode.Attr(`data-price`)
-		cp, _ := strconv.ParseFloat(currentPrice)
+			currentPrice, _ := snode.Attr(`data-price`)
+			cp, _ := strconv.ParseFloat(currentPrice)
 
-		msrp, _ := snode.Attr(`data-regular-price`)
-		mp, _ := strconv.ParseFloat(msrp)
+			msrp, _ := snode.Attr(`data-regular-price`)
+			mp, _ := strconv.ParseFloat(msrp)
 
-		if cp == 0 {
-			cp = mp
+			if cp == 0 {
+				cp = mp
+			}
+
+			discount := 0.0
+			if mp > 0.0 {
+				discount = math.Ceil(((mp - cp) / mp) * 100)
+			} else {
+				msrp = currentPrice
+			}
+
+			sku := pbItem.Sku{
+				SourceId: p.Sku,
+				Price: &pbItem.Price{
+					Currency: regulation.Currency_USD,
+					Current:  int32(cp * 100),
+					Msrp:     int32(mp * 100),
+					Discount: int32(discount),
+				},
+				Medias: medias,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			}
+
+			if quantity > 0 {
+				sku.Stock.StockStatus = pbItem.Stock_InStock
+				sku.Stock.StockCount = int32(quantity)
+			}
+
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
+				Id:    colorName,
+				Name:  colorName,
+				Value: colorName,
+			})
+
+			// size
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Id:    sizeval,
+				Name:  sizeval,
+				Value: sizeval,
+			})
+			item.SkuItems = append(item.SkuItems, &sku)
 		}
+	} else if colorName != "" {
+		currentPrice, _ := strconv.ParseFloat(doc.Find(`meta[property="wanelo:product:price"]`).AttrOr(`content`, ``))
+		msrp, _ := strconv.ParseFloat(doc.Find(`meta[property="wanelo:product:price"]`).AttrOr(`content`, ``))
 
 		discount := 0.0
-		if mp > 0.0 {
-			discount = math.Ceil(((mp - cp) / mp) * 100)
+		if msrp > 0.0 {
+			discount = math.Ceil(((msrp - currentPrice) / msrp) * 100)
 		} else {
 			msrp = currentPrice
 		}
@@ -404,18 +518,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			SourceId: p.Sku,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(cp * 100),
-				Msrp:     int32(mp * 100),
+				Current:  int32(currentPrice * 100),
+				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
 			Medias: medias,
 			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
-		if quantity > 0 {
+		availability := doc.Find(`meta[property="wanelo:product:availability"]`).AttrOr(`content`, ``)
+		if availability != "OutOfStock" {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
-			sku.Stock.StockCount = int32(quantity)
 		}
+		//sku.Stock.StockCount = int32(quantity)
 
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecColor,
@@ -424,13 +539,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Value: colorName,
 		})
 
-		// size
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    sizeval,
-			Name:  sizeval,
-			Value: sizeval,
-		})
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
@@ -470,7 +578,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
-		"https://www.revolve.com/denim/br/2664ce/?navsrc=left",
+		//"https://www.revolve.com/lingerie-sleepwear-underwear/br/aadd43/?navsrc=left",
+		"https://www.revolve.com/its-now-cool-contour-crop-bikini-top/dp/ITSR-WX19/?d=Womens&page=31&lc=67&itrownum=119&itcurrpage=31&itview=05",
+		//"https://www.revolve.com/michael-costello-x-revolve-electra-dress/dp/MELR-WD347/?d=Womens&page=28&lc=75&itrownum=34&itcurrpage=28&itview=05",
+		//"https://www.revolve.com/denim/br/2664ce/?navsrc=left",
 		// "https://www.revolve.com/skirts/br/8b6a66/?navsrc=subclothing",
 		// "https://www.revolve.com/haight-panneaux-skirt/dp/HGHT-WQ2/?d=Womens&page=1&lc=9&itrownum=3&itcurrpage=1&itview=05",
 		// "https://www.revolve.com/nphilanthropy-scarlett-leather-jogger-in-camel/dp/PHIR-WP63/?d=Womens&sectionURL=%2Fpants%2Fbr%2F44d522%2F%3F%26s%3Dc%26c%3DPants%26navsrc%3Dsubclothing&code=PHIR-WP63",
