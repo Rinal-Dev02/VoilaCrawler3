@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	ctxutil "github.com/voiladev/go-crawler/pkg/context"
-	"github.com/voiladev/go-crawler/pkg/crawler"
-	"github.com/voiladev/go-crawler/pkg/net/http"
-	pbCrawl "github.com/voiladev/go-crawler/protoc-gen-go/chameleon/smelter/v1/crawl"
+	ctxutil "github.com/voiladev/VoilaCrawler/pkg/context"
+	"github.com/voiladev/VoilaCrawler/pkg/crawler"
+	"github.com/voiladev/VoilaCrawler/pkg/net/http"
+	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
@@ -150,22 +150,6 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 	if resp.Body == nil {
 		logger.Error("no response got")
 		return errors.New("no response got")
-	}
-
-	// check and patch the rawurl
-	if resp.Request == nil {
-		resp.Request = req
-	}
-	rootResp := resp
-	for rootResp.Request.Response != nil {
-		rootResp = rootResp.Request.Response
-	}
-	if rootResp.Request.URL.Path != req.URL.Path {
-		patchResp := http.Response{
-			StatusCode: http.StatusTemporaryRedirect,
-			Request:    req,
-		}
-		rootResp.Request.Response = &patchResp
 	}
 
 	err = s.crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {

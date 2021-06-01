@@ -1,7 +1,7 @@
 package crawler
 
 import (
-	ctxutil "github.com/voiladev/go-crawler/pkg/context"
+	ctxutil "github.com/voiladev/VoilaCrawler/pkg/context"
 )
 
 var (

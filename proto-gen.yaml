@@ -11,9 +11,11 @@ spec:
       - '*.proto'
       targets:
       - type: go
-        output_path: protoc-gen-go/
+        output_path: pkg/protoc-gen-go/
         with_grpc: true
-        with_grpc_gateway: true
+      - type: python
+        output_path: src/
+        with_grpc: true
     - path: ""
       name: chameleon.smelter.v1.crawl.item
       version: "1.0"
@@ -21,7 +23,9 @@ spec:
       - '*.proto'
       targets:
       - type: go
-        output_path: protoc-gen-go/
+        output_path: pkg/protoc-gen-go/
+      - type: python
+        output_path: src/
     - path: ""
       name: chameleon.smelter.v1.crawl.session
       version: "1.0"
@@ -29,9 +33,11 @@ spec:
       - '*.proto'
       targets:
       - type: go
+        output_path: pkg/protoc-gen-go/
         with_grpc: true
-        with_grpc_gateway: true
-        output_path: protoc-gen-go/
+      - type: python
+        output_path: src/
+        with_grpc: true
     - path: ""
       name: chameleon.smelter.v1.crawl.proxy
       version: "1.0"
@@ -39,7 +45,9 @@ spec:
       - '*.proto'
       targets:
       - type: go
-        output_path: protoc-gen-go/
+        output_path: pkg/protoc-gen-go/
+      - type: python
+        output_path: src/
     - path: ""
       name: chameleon.api.event
       version: "1.0"
@@ -47,12 +55,15 @@ spec:
       - '*.proto'
       targets:
       - type: go
-        output_path: protoc-gen-go/
+        output_path: pkg/protoc-gen-go/
+      - type: python
+        output_path: src/
     - path: ""
-      name: chameleon.api.search
+      name: chameleon.api.invocation
       version: "1.0"
       files:
       - '*.proto'
       targets:
-      - type: go
-        output_path: protoc-gen-go/
+      - type: python
+        output_path: src/
+        with_grpc: true
