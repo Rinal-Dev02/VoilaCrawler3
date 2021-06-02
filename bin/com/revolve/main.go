@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -65,6 +66,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		&http.Cookie{Name: "userLanguagePref", Value: "en"},
 		&http.Cookie{Name: "requestBrowserIdMapping", Value: "0"},
 		&http.Cookie{Name: "originalsource", Value: "0"},
+		&http.Cookie{Name: fmt.Sprintf("Hm_lpvt_%x", md5.Sum([]byte(time.Now().String()))), Value: strconv.Format(time.Now().Unix() - 100)},
 	)
 	return options
 }

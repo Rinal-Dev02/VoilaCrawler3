@@ -39,6 +39,7 @@ It's recommended that the requests returned by `NewTestRequest` is const, so tha
 
 #### Crawler test
 
+
 TODO
 
 ### Development
@@ -47,6 +48,26 @@ All developers must develop with this workflow:
 1. fork repo VoilaCrawler and clone the forked to your local
 2. create/update spiders under dir bin
 3. commit modification and create a merge request to `main` branch.
+
+
+To build spiders, run:
+
+```bash
+make [lang=go|py] [target=com/asos]
+```
+
+where `lang` spiders the languate, `target` specifies the build target.
+
+#### Local test
+
+under the main dir, run
+
+```bash
+go run . test --debug --pretty --target "https://www.asos.com"
+```
+
+to do local test with current spider.
+
 
 ### TODO
 
