@@ -1388,6 +1388,45 @@ func (x *PromoCode) GetExtraInfo() map[string]string {
 	return nil
 }
 
+// OpenGraph
+type OpenGraph struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *OpenGraph) Reset() {
+	*x = OpenGraph{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *OpenGraph) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenGraph) ProtoMessage() {}
+
+func (x *OpenGraph) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenGraph.ProtoReflect.Descriptor instead.
+func (*OpenGraph) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_item_product_proto_rawDescGZIP(), []int{11}
+}
+
 // Discount
 type PromoCode_Discount struct {
 	state         protoimpl.MessageState
@@ -1405,7 +1444,7 @@ type PromoCode_Discount struct {
 func (x *PromoCode_Discount) Reset() {
 	*x = PromoCode_Discount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[12]
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1418,7 +1457,7 @@ func (x *PromoCode_Discount) String() string {
 func (*PromoCode_Discount) ProtoMessage() {}
 
 func (x *PromoCode_Discount) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[12]
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1472,7 +1511,7 @@ type PromoCode_ApplyTarget struct {
 func (x *PromoCode_ApplyTarget) Reset() {
 	*x = PromoCode_ApplyTarget{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[13]
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1485,7 +1524,7 @@ func (x *PromoCode_ApplyTarget) String() string {
 func (*PromoCode_ApplyTarget) ProtoMessage() {}
 
 func (x *PromoCode_ApplyTarget) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[13]
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1535,7 +1574,7 @@ type PromoCode_Condition struct {
 func (x *PromoCode_Condition) Reset() {
 	*x = PromoCode_Condition{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[14]
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1548,7 +1587,7 @@ func (x *PromoCode_Condition) String() string {
 func (*PromoCode_Condition) ProtoMessage() {}
 
 func (x *PromoCode_Condition) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[14]
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1588,7 +1627,7 @@ type PromoCode_Condition_OrderPrice struct {
 func (x *PromoCode_Condition_OrderPrice) Reset() {
 	*x = PromoCode_Condition_OrderPrice{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[16]
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1601,7 +1640,7 @@ func (x *PromoCode_Condition_OrderPrice) String() string {
 func (*PromoCode_Condition_OrderPrice) ProtoMessage() {}
 
 func (x *PromoCode_Condition_OrderPrice) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[16]
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1653,7 +1692,7 @@ type PromoCode_Condition_Customer struct {
 func (x *PromoCode_Condition_Customer) Reset() {
 	*x = PromoCode_Condition_Customer{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[17]
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1666,7 +1705,7 @@ func (x *PromoCode_Condition_Customer) String() string {
 func (*PromoCode_Condition_Customer) ProtoMessage() {}
 
 func (x *PromoCode_Condition_Customer) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[17]
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1709,7 +1748,7 @@ type PromoCode_Condition_Category struct {
 func (x *PromoCode_Condition_Category) Reset() {
 	*x = PromoCode_Condition_Category{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[18]
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1722,7 +1761,7 @@ func (x *PromoCode_Condition_Category) String() string {
 func (*PromoCode_Condition_Category) ProtoMessage() {}
 
 func (x *PromoCode_Condition_Category) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[18]
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1760,7 +1799,7 @@ type PromoCode_Condition_Refer struct {
 func (x *PromoCode_Condition_Refer) Reset() {
 	*x = PromoCode_Condition_Refer{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[19]
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1773,7 +1812,7 @@ func (x *PromoCode_Condition_Refer) String() string {
 func (*PromoCode_Condition_Refer) ProtoMessage() {}
 
 func (x *PromoCode_Condition_Refer) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[19]
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1801,6 +1840,225 @@ func (x *PromoCode_Condition_Refer) GetAfterPurchase() bool {
 		return x.AfterPurchase
 	}
 	return false
+}
+
+// Site
+type OpenGraph_Site struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Name
+	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+}
+
+func (x *OpenGraph_Site) Reset() {
+	*x = OpenGraph_Site{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[21]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *OpenGraph_Site) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenGraph_Site) ProtoMessage() {}
+
+func (x *OpenGraph_Site) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[21]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenGraph_Site.ProtoReflect.Descriptor instead.
+func (*OpenGraph_Site) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_item_product_proto_rawDescGZIP(), []int{11, 0}
+}
+
+func (x *OpenGraph_Site) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Price
+type OpenGraph_Price struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Currency
+	Currency regulation.Currency `protobuf:"varint,1,opt,name=currency,proto3,enum=chameleon.api.regulation.Currency" json:"currency,omitempty"`
+	// Value
+	Value int32 `protobuf:"varint,2,opt,name=value,proto3" json:"value,omitempty"`
+}
+
+func (x *OpenGraph_Price) Reset() {
+	*x = OpenGraph_Price{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[22]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *OpenGraph_Price) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenGraph_Price) ProtoMessage() {}
+
+func (x *OpenGraph_Price) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[22]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenGraph_Price.ProtoReflect.Descriptor instead.
+func (*OpenGraph_Price) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_item_product_proto_rawDescGZIP(), []int{11, 1}
+}
+
+func (x *OpenGraph_Price) GetCurrency() regulation.Currency {
+	if x != nil {
+		return x.Currency
+	}
+	return regulation.Currency_CurrencyUnknown
+}
+
+func (x *OpenGraph_Price) GetValue() int32 {
+	if x != nil {
+		return x.Value
+	}
+	return 0
+}
+
+// Product
+type OpenGraph_Product struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Site
+	Site *OpenGraph_Site `protobuf:"bytes,1,opt,name=site,proto3" json:"site,omitempty"`
+	// Id
+	Id string `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
+	// Title
+	Title string `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	// Description
+	Description string `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
+	// Url
+	Url string `protobuf:"bytes,7,opt,name=url,proto3" json:"url,omitempty"`
+	// Medias 图片/视频等
+	Medias []*media.Media `protobuf:"bytes,9,rep,name=medias,proto3" json:"medias,omitempty"`
+	// Price
+	Price *OpenGraph_Price `protobuf:"bytes,10,opt,name=price,proto3" json:"price,omitempty"`
+	// Locale
+	Locale string `protobuf:"bytes,16,opt,name=locale,proto3" json:"locale,omitempty"`
+}
+
+func (x *OpenGraph_Product) Reset() {
+	*x = OpenGraph_Product{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[23]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *OpenGraph_Product) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenGraph_Product) ProtoMessage() {}
+
+func (x *OpenGraph_Product) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[23]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenGraph_Product.ProtoReflect.Descriptor instead.
+func (*OpenGraph_Product) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_item_product_proto_rawDescGZIP(), []int{11, 2}
+}
+
+func (x *OpenGraph_Product) GetSite() *OpenGraph_Site {
+	if x != nil {
+		return x.Site
+	}
+	return nil
+}
+
+func (x *OpenGraph_Product) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *OpenGraph_Product) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *OpenGraph_Product) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *OpenGraph_Product) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *OpenGraph_Product) GetMedias() []*media.Media {
+	if x != nil {
+		return x.Medias
+	}
+	return nil
+}
+
+func (x *OpenGraph_Product) GetPrice() *OpenGraph_Price {
+	if x != nil {
+		return x.Price
+	}
+	return nil
+}
+
+func (x *OpenGraph_Product) GetLocale() string {
+	if x != nil {
+		return x.Locale
+	}
+	return ""
 }
 
 var File_chameleon_smelter_v1_crawl_item_product_proto protoreflect.FileDescriptor
@@ -2078,15 +2336,43 @@ var file_chameleon_smelter_v1_crawl_item_product_proto_rawDesc = []byte{
 	0x00, 0x12, 0x13, 0x0a, 0x0f, 0x41, 0x70, 0x70, 0x6c, 0x79, 0x54, 0x6f, 0x43, 0x61, 0x74, 0x65,
 	0x67, 0x6f, 0x72, 0x79, 0x10, 0x01, 0x12, 0x15, 0x0a, 0x11, 0x41, 0x70, 0x70, 0x6c, 0x79, 0x54,
 	0x6f, 0x43, 0x61, 0x74, 0x65, 0x67, 0x6f, 0x72, 0x69, 0x65, 0x73, 0x10, 0x02, 0x12, 0x0e, 0x0a,
-	0x0a, 0x41, 0x70, 0x70, 0x6c, 0x79, 0x54, 0x6f, 0x41, 0x6c, 0x6c, 0x10, 0x03, 0x2a, 0x44, 0x0a,
-	0x0b, 0x53, 0x6b, 0x75, 0x53, 0x70, 0x65, 0x63, 0x54, 0x79, 0x70, 0x65, 0x12, 0x12, 0x0a, 0x0e,
-	0x53, 0x6b, 0x75, 0x53, 0x70, 0x65, 0x63, 0x55, 0x6e, 0x6b, 0x6e, 0x6f, 0x77, 0x6e, 0x10, 0x00,
-	0x12, 0x0f, 0x0a, 0x0b, 0x53, 0x6b, 0x75, 0x53, 0x70, 0x65, 0x63, 0x53, 0x69, 0x7a, 0x65, 0x10,
-	0x01, 0x12, 0x10, 0x0a, 0x0c, 0x53, 0x6b, 0x75, 0x53, 0x70, 0x65, 0x63, 0x43, 0x6f, 0x6c, 0x6f,
-	0x72, 0x10, 0x02, 0x42, 0x26, 0x5a, 0x24, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e,
-	0x2f, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61, 0x77,
-	0x6c, 0x2f, 0x69, 0x74, 0x65, 0x6d, 0x3b, 0x69, 0x74, 0x65, 0x6d, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x0a, 0x41, 0x70, 0x70, 0x6c, 0x79, 0x54, 0x6f, 0x41, 0x6c, 0x6c, 0x10, 0x03, 0x22, 0xc5, 0x03,
+	0x0a, 0x09, 0x4f, 0x70, 0x65, 0x6e, 0x47, 0x72, 0x61, 0x70, 0x68, 0x1a, 0x1a, 0x0a, 0x04, 0x53,
+	0x69, 0x74, 0x65, 0x12, 0x12, 0x0a, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28,
+	0x09, 0x52, 0x04, 0x6e, 0x61, 0x6d, 0x65, 0x1a, 0x5d, 0x0a, 0x05, 0x50, 0x72, 0x69, 0x63, 0x65,
+	0x12, 0x3e, 0x0a, 0x08, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x63, 0x79, 0x18, 0x01, 0x20, 0x01,
+	0x28, 0x0e, 0x32, 0x22, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x61,
+	0x70, 0x69, 0x2e, 0x72, 0x65, 0x67, 0x75, 0x6c, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x2e, 0x43, 0x75,
+	0x72, 0x72, 0x65, 0x6e, 0x63, 0x79, 0x52, 0x08, 0x63, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x63, 0x79,
+	0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x05, 0x52,
+	0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x1a, 0xbc, 0x02, 0x0a, 0x07, 0x50, 0x72, 0x6f, 0x64, 0x75,
+	0x63, 0x74, 0x12, 0x43, 0x0a, 0x04, 0x73, 0x69, 0x74, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b,
+	0x32, 0x2f, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65,
+	0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x69, 0x74,
+	0x65, 0x6d, 0x2e, 0x4f, 0x70, 0x65, 0x6e, 0x47, 0x72, 0x61, 0x70, 0x68, 0x2e, 0x53, 0x69, 0x74,
+	0x65, 0x52, 0x04, 0x73, 0x69, 0x74, 0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x02, 0x69, 0x64, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65,
+	0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x12, 0x20, 0x0a,
+	0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x05, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x12,
+	0x10, 0x0a, 0x03, 0x75, 0x72, 0x6c, 0x18, 0x07, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x75, 0x72,
+	0x6c, 0x12, 0x32, 0x0a, 0x06, 0x6d, 0x65, 0x64, 0x69, 0x61, 0x73, 0x18, 0x09, 0x20, 0x03, 0x28,
+	0x0b, 0x32, 0x1a, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x61, 0x70,
+	0x69, 0x2e, 0x6d, 0x65, 0x64, 0x69, 0x61, 0x2e, 0x4d, 0x65, 0x64, 0x69, 0x61, 0x52, 0x06, 0x6d,
+	0x65, 0x64, 0x69, 0x61, 0x73, 0x12, 0x46, 0x0a, 0x05, 0x70, 0x72, 0x69, 0x63, 0x65, 0x18, 0x0a,
+	0x20, 0x01, 0x28, 0x0b, 0x32, 0x30, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e,
+	0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77,
+	0x6c, 0x2e, 0x69, 0x74, 0x65, 0x6d, 0x2e, 0x4f, 0x70, 0x65, 0x6e, 0x47, 0x72, 0x61, 0x70, 0x68,
+	0x2e, 0x50, 0x72, 0x69, 0x63, 0x65, 0x52, 0x05, 0x70, 0x72, 0x69, 0x63, 0x65, 0x12, 0x16, 0x0a,
+	0x06, 0x6c, 0x6f, 0x63, 0x61, 0x6c, 0x65, 0x18, 0x10, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x6c,
+	0x6f, 0x63, 0x61, 0x6c, 0x65, 0x2a, 0x44, 0x0a, 0x0b, 0x53, 0x6b, 0x75, 0x53, 0x70, 0x65, 0x63,
+	0x54, 0x79, 0x70, 0x65, 0x12, 0x12, 0x0a, 0x0e, 0x53, 0x6b, 0x75, 0x53, 0x70, 0x65, 0x63, 0x55,
+	0x6e, 0x6b, 0x6e, 0x6f, 0x77, 0x6e, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x53, 0x6b, 0x75, 0x53,
+	0x70, 0x65, 0x63, 0x53, 0x69, 0x7a, 0x65, 0x10, 0x01, 0x12, 0x10, 0x0a, 0x0c, 0x53, 0x6b, 0x75,
+	0x53, 0x70, 0x65, 0x63, 0x43, 0x6f, 0x6c, 0x6f, 0x72, 0x10, 0x02, 0x42, 0x26, 0x5a, 0x24, 0x63,
+	0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2f, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72,
+	0x2f, 0x76, 0x31, 0x2f, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2f, 0x69, 0x74, 0x65, 0x6d, 0x3b, 0x69,
+	0x74, 0x65, 0x6d, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -2102,7 +2388,7 @@ func file_chameleon_smelter_v1_crawl_item_product_proto_rawDescGZIP() []byte {
 }
 
 var file_chameleon_smelter_v1_crawl_item_product_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_chameleon_smelter_v1_crawl_item_product_proto_goTypes = []interface{}{
 	(SkuSpecType)(0),                               // 0: chameleon.smelter.v1.crawl.item.SkuSpecType
 	(Stock_StockStatus)(0),                         // 1: chameleon.smelter.v1.crawl.item.Stock.StockStatus
@@ -2120,50 +2406,58 @@ var file_chameleon_smelter_v1_crawl_item_product_proto_goTypes = []interface{}{
 	(*Product)(nil),                                // 13: chameleon.smelter.v1.crawl.item.Product
 	(*ProductPreview)(nil),                         // 14: chameleon.smelter.v1.crawl.item.ProductPreview
 	(*PromoCode)(nil),                              // 15: chameleon.smelter.v1.crawl.item.PromoCode
-	nil,                                            // 16: chameleon.smelter.v1.crawl.item.Product.ExtraInfoEntry
-	(*PromoCode_Discount)(nil),                     // 17: chameleon.smelter.v1.crawl.item.PromoCode.Discount
-	(*PromoCode_ApplyTarget)(nil),                  // 18: chameleon.smelter.v1.crawl.item.PromoCode.ApplyTarget
-	(*PromoCode_Condition)(nil),                    // 19: chameleon.smelter.v1.crawl.item.PromoCode.Condition
-	nil,                                            // 20: chameleon.smelter.v1.crawl.item.PromoCode.ExtraInfoEntry
-	(*PromoCode_Condition_OrderPrice)(nil),         // 21: chameleon.smelter.v1.crawl.item.PromoCode.Condition.OrderPrice
-	(*PromoCode_Condition_Customer)(nil),           // 22: chameleon.smelter.v1.crawl.item.PromoCode.Condition.Customer
-	(*PromoCode_Condition_Category)(nil),           // 23: chameleon.smelter.v1.crawl.item.PromoCode.Condition.Category
-	(*PromoCode_Condition_Refer)(nil),              // 24: chameleon.smelter.v1.crawl.item.PromoCode.Condition.Refer
-	(regulation.Currency)(0),                       // 25: chameleon.api.regulation.Currency
-	(*media.Media)(nil),                            // 26: chameleon.api.media.Media
+	(*OpenGraph)(nil),                              // 16: chameleon.smelter.v1.crawl.item.OpenGraph
+	nil,                                            // 17: chameleon.smelter.v1.crawl.item.Product.ExtraInfoEntry
+	(*PromoCode_Discount)(nil),                     // 18: chameleon.smelter.v1.crawl.item.PromoCode.Discount
+	(*PromoCode_ApplyTarget)(nil),                  // 19: chameleon.smelter.v1.crawl.item.PromoCode.ApplyTarget
+	(*PromoCode_Condition)(nil),                    // 20: chameleon.smelter.v1.crawl.item.PromoCode.Condition
+	nil,                                            // 21: chameleon.smelter.v1.crawl.item.PromoCode.ExtraInfoEntry
+	(*PromoCode_Condition_OrderPrice)(nil),         // 22: chameleon.smelter.v1.crawl.item.PromoCode.Condition.OrderPrice
+	(*PromoCode_Condition_Customer)(nil),           // 23: chameleon.smelter.v1.crawl.item.PromoCode.Condition.Customer
+	(*PromoCode_Condition_Category)(nil),           // 24: chameleon.smelter.v1.crawl.item.PromoCode.Condition.Category
+	(*PromoCode_Condition_Refer)(nil),              // 25: chameleon.smelter.v1.crawl.item.PromoCode.Condition.Refer
+	(*OpenGraph_Site)(nil),                         // 26: chameleon.smelter.v1.crawl.item.OpenGraph.Site
+	(*OpenGraph_Price)(nil),                        // 27: chameleon.smelter.v1.crawl.item.OpenGraph.Price
+	(*OpenGraph_Product)(nil),                      // 28: chameleon.smelter.v1.crawl.item.OpenGraph.Product
+	(regulation.Currency)(0),                       // 29: chameleon.api.regulation.Currency
+	(*media.Media)(nil),                            // 30: chameleon.api.media.Media
 }
 var file_chameleon_smelter_v1_crawl_item_product_proto_depIdxs = []int32{
 	1,  // 0: chameleon.smelter.v1.crawl.item.Stock.stockStatus:type_name -> chameleon.smelter.v1.crawl.item.Stock.StockStatus
-	25, // 1: chameleon.smelter.v1.crawl.item.Price.currency:type_name -> chameleon.api.regulation.Currency
+	29, // 1: chameleon.smelter.v1.crawl.item.Price.currency:type_name -> chameleon.api.regulation.Currency
 	10, // 2: chameleon.smelter.v1.crawl.item.Category.sub:type_name -> chameleon.smelter.v1.crawl.item.Category
 	0,  // 3: chameleon.smelter.v1.crawl.item.SkuSpecOption.type:type_name -> chameleon.smelter.v1.crawl.item.SkuSpecType
 	11, // 4: chameleon.smelter.v1.crawl.item.Sku.specs:type_name -> chameleon.smelter.v1.crawl.item.SkuSpecOption
-	26, // 5: chameleon.smelter.v1.crawl.item.Sku.medias:type_name -> chameleon.api.media.Media
+	30, // 5: chameleon.smelter.v1.crawl.item.Sku.medias:type_name -> chameleon.api.media.Media
 	9,  // 6: chameleon.smelter.v1.crawl.item.Sku.price:type_name -> chameleon.smelter.v1.crawl.item.Price
 	8,  // 7: chameleon.smelter.v1.crawl.item.Sku.stock:type_name -> chameleon.smelter.v1.crawl.item.Stock
 	7,  // 8: chameleon.smelter.v1.crawl.item.Sku.stats:type_name -> chameleon.smelter.v1.crawl.item.Stats
 	5,  // 9: chameleon.smelter.v1.crawl.item.Product.store:type_name -> chameleon.smelter.v1.crawl.item.Store
 	6,  // 10: chameleon.smelter.v1.crawl.item.Product.source:type_name -> chameleon.smelter.v1.crawl.item.Source
-	26, // 11: chameleon.smelter.v1.crawl.item.Product.medias:type_name -> chameleon.api.media.Media
+	30, // 11: chameleon.smelter.v1.crawl.item.Product.medias:type_name -> chameleon.api.media.Media
 	9,  // 12: chameleon.smelter.v1.crawl.item.Product.price:type_name -> chameleon.smelter.v1.crawl.item.Price
 	8,  // 13: chameleon.smelter.v1.crawl.item.Product.stock:type_name -> chameleon.smelter.v1.crawl.item.Stock
 	12, // 14: chameleon.smelter.v1.crawl.item.Product.skuItems:type_name -> chameleon.smelter.v1.crawl.item.Sku
 	7,  // 15: chameleon.smelter.v1.crawl.item.Product.stats:type_name -> chameleon.smelter.v1.crawl.item.Stats
-	16, // 16: chameleon.smelter.v1.crawl.item.Product.extraInfo:type_name -> chameleon.smelter.v1.crawl.item.Product.ExtraInfoEntry
+	17, // 16: chameleon.smelter.v1.crawl.item.Product.extraInfo:type_name -> chameleon.smelter.v1.crawl.item.Product.ExtraInfoEntry
 	6,  // 17: chameleon.smelter.v1.crawl.item.PromoCode.source:type_name -> chameleon.smelter.v1.crawl.item.Source
 	2,  // 18: chameleon.smelter.v1.crawl.item.PromoCode.type:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.PromoCodeType
-	19, // 19: chameleon.smelter.v1.crawl.item.PromoCode.condition:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.Condition
-	17, // 20: chameleon.smelter.v1.crawl.item.PromoCode.discount:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.Discount
-	18, // 21: chameleon.smelter.v1.crawl.item.PromoCode.applyTargets:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.ApplyTarget
-	20, // 22: chameleon.smelter.v1.crawl.item.PromoCode.extraInfo:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.ExtraInfoEntry
+	20, // 19: chameleon.smelter.v1.crawl.item.PromoCode.condition:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.Condition
+	18, // 20: chameleon.smelter.v1.crawl.item.PromoCode.discount:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.Discount
+	19, // 21: chameleon.smelter.v1.crawl.item.PromoCode.applyTargets:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.ApplyTarget
+	21, // 22: chameleon.smelter.v1.crawl.item.PromoCode.extraInfo:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.ExtraInfoEntry
 	3,  // 23: chameleon.smelter.v1.crawl.item.PromoCode.ApplyTarget.type:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.ApplyType
-	25, // 24: chameleon.smelter.v1.crawl.item.PromoCode.Condition.OrderPrice.currency:type_name -> chameleon.api.regulation.Currency
+	29, // 24: chameleon.smelter.v1.crawl.item.PromoCode.Condition.OrderPrice.currency:type_name -> chameleon.api.regulation.Currency
 	4,  // 25: chameleon.smelter.v1.crawl.item.PromoCode.Condition.Customer.type:type_name -> chameleon.smelter.v1.crawl.item.PromoCode.Condition.Customer.CustomerType
-	26, // [26:26] is the sub-list for method output_type
-	26, // [26:26] is the sub-list for method input_type
-	26, // [26:26] is the sub-list for extension type_name
-	26, // [26:26] is the sub-list for extension extendee
-	0,  // [0:26] is the sub-list for field type_name
+	29, // 26: chameleon.smelter.v1.crawl.item.OpenGraph.Price.currency:type_name -> chameleon.api.regulation.Currency
+	26, // 27: chameleon.smelter.v1.crawl.item.OpenGraph.Product.site:type_name -> chameleon.smelter.v1.crawl.item.OpenGraph.Site
+	30, // 28: chameleon.smelter.v1.crawl.item.OpenGraph.Product.medias:type_name -> chameleon.api.media.Media
+	27, // 29: chameleon.smelter.v1.crawl.item.OpenGraph.Product.price:type_name -> chameleon.smelter.v1.crawl.item.OpenGraph.Price
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_chameleon_smelter_v1_crawl_item_product_proto_init() }
@@ -2304,8 +2598,8 @@ func file_chameleon_smelter_v1_crawl_item_product_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PromoCode_Discount); i {
+		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*OpenGraph); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2317,7 +2611,7 @@ func file_chameleon_smelter_v1_crawl_item_product_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*PromoCode_ApplyTarget); i {
+			switch v := v.(*PromoCode_Discount); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2329,6 +2623,18 @@ func file_chameleon_smelter_v1_crawl_item_product_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*PromoCode_ApplyTarget); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PromoCode_Condition); i {
 			case 0:
 				return &v.state
@@ -2340,7 +2646,7 @@ func file_chameleon_smelter_v1_crawl_item_product_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PromoCode_Condition_OrderPrice); i {
 			case 0:
 				return &v.state
@@ -2352,7 +2658,7 @@ func file_chameleon_smelter_v1_crawl_item_product_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PromoCode_Condition_Customer); i {
 			case 0:
 				return &v.state
@@ -2364,7 +2670,7 @@ func file_chameleon_smelter_v1_crawl_item_product_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PromoCode_Condition_Category); i {
 			case 0:
 				return &v.state
@@ -2376,8 +2682,44 @@ func file_chameleon_smelter_v1_crawl_item_product_proto_init() {
 				return nil
 			}
 		}
-		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PromoCode_Condition_Refer); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*OpenGraph_Site); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*OpenGraph_Price); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_item_product_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*OpenGraph_Product); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2395,7 +2737,7 @@ func file_chameleon_smelter_v1_crawl_item_product_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_chameleon_smelter_v1_crawl_item_product_proto_rawDesc,
 			NumEnums:      5,
-			NumMessages:   20,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

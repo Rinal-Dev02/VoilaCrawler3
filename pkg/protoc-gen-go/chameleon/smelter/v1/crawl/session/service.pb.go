@@ -8,7 +8,7 @@ package session
 
 import (
 	_ "github.com/voiladev/protobuf/protoc-gen-go/openapiv2/options"
-	_ "github.com/voiladev/protobuf/protoc-gen-go/protobuf/google/api"
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	_ "google.golang.org/protobuf/types/known/anypb"

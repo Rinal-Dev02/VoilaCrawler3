@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"strings"
 	"time"
@@ -197,7 +196,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 			}
 			if val.Body != nil {
 				defer val.Body.Close()
-				if data, err := ioutil.ReadAll(val.Body); err != nil {
+				if data, err := io.ReadAll(val.Body); err != nil {
 					return err
 				} else {
 					subreq.Body = fmt.Sprintf("%s", data)

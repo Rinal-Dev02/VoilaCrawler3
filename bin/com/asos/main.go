@@ -64,6 +64,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = true
 	options.EnableSessionInit = true
+	options.DisableCookieJar = true
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "geocountry", Value: `US`, Path: "/"},
@@ -185,6 +186,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	matched := prodDataExtraReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
+		c.logger.Debugf("%s", respBody)
 		return fmt.Errorf("extract json from product list page %s failed", resp.Request.URL)
 	}
 	var r struct {

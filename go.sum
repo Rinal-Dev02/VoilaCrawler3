@@ -116,6 +116,7 @@ github.com/gofrs/uuid v3.2.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRx
 github.com/gofrs/uuid v4.0.0+incompatible/go.mod h1:b2aQJv3Z4Fp6yNu3cdSllBxTCLRxnplIgP/c0N/04lM=
 github.com/gogo/protobuf v1.1.1/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
 github.com/gogo/protobuf v1.2.0/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
+github.com/gogo/protobuf v1.2.1 h1:/s5zKNz0uPFCZ5hddgPdo2TK2TVrUNMn0OOX8/aZMTE=
 github.com/gogo/protobuf v1.2.1/go.mod h1:hp+jE20tsWTFYpLwKvXlhS1hjn+gTNwPg2I6zVXpSg4=
 github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe/go.mod h1:8vg3r2VgvsThLBIFL93Qb5yWzgyZWhEmBwUJWevAkK0=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b h1:VKtxabqXZkF25pY9ekfRL6a582T4P37/31XEstQ5p58=
@@ -337,8 +338,9 @@ github.com/voiladev/go-framework v1.0.5-release h1:2h4nTgc25RimplOijPCLqmPywWBfC
 github.com/voiladev/go-framework v1.0.5-release/go.mod h1:nrqn7R8xnzndVaf5o82AT3qQUVQbx0YtxPe6ANZ7hnc=
 github.com/voiladev/jwt-go v0.0.0-20170303134508-47b9a396ed4f h1:YP+zHDPRbLYdXMeQJt6F37CBUdIy5FuFY0PqLx/F39g=
 github.com/voiladev/jwt-go v0.0.0-20170303134508-47b9a396ed4f/go.mod h1:UyKQJIGSqJj9/H1IX44modZj+5GDWyZT1d1VnMgyVvc=
-github.com/voiladev/protobuf v0.0.0-20210511142647-4e57a6b9dcca h1:yoXuVMki0xGCFFa9Bbu8X+4i1dME6jHVZ3vEl7YMEuk=
 github.com/voiladev/protobuf v0.0.0-20210511142647-4e57a6b9dcca/go.mod h1:ntQ9E5HedbPIbzmrRomYhPosN5/8pU8rO54uxW9okgQ=
+github.com/voiladev/protobuf v0.0.0-20210601082211-e3414413f564 h1:b4At22HSzqpU4svIJAyshdP2CiVm11Pbz3w3/kuZ+6o=
+github.com/voiladev/protobuf v0.0.0-20210601082211-e3414413f564/go.mod h1:ntQ9E5HedbPIbzmrRomYhPosN5/8pU8rO54uxW9okgQ=
 github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 github.com/yuin/goldmark v1.1.25/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=

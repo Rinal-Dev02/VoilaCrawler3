@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	rhttp "net/http"
 	"net/url"
 	"strings"
@@ -85,7 +85,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 
 	var body []byte
 	if r.Body != nil {
-		body, err = ioutil.ReadAll(r.Body)
+		body, err = io.ReadAll(r.Body)
 		if err != nil {
 			c.logger.Debug(err)
 			return nil, err
@@ -147,7 +147,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	}
 
 	var proxyRespBody pbProxy.Response
-	if respBody, err := ioutil.ReadAll(proxyResp.Body); err != nil {
+	if respBody, err := io.ReadAll(proxyResp.Body); err != nil {
 		return nil, err
 	} else if err := protojson.Unmarshal(respBody, &proxyRespBody); err != nil {
 		return nil, err
@@ -176,7 +176,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			// try to uncompress ziped data
 			if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
 				if reader, err := gzip.NewReader(bytes.NewReader(res.Body)); err == nil {
-					if data, err := ioutil.ReadAll(reader); err == nil {
+					if data, err := io.ReadAll(reader); err == nil {
 						resp.Body = http.NewReader(data)
 						resp.Header.Del("Content-Encoding")
 						resp.Header.Del("Content-Length")
@@ -191,7 +191,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 				}
 			} else if strings.EqualFold(resp.Header.Get("Content-Encoding"), "br") {
 				reader := brotli.NewReader(bytes.NewReader(res.Body))
-				if data, err := ioutil.ReadAll(reader); err == nil {
+				if data, err := io.ReadAll(reader); err == nil {
 					resp.Body = http.NewReader(data)
 					resp.Header.Del("Content-Encoding")
 					resp.Header.Del("Content-Length")
