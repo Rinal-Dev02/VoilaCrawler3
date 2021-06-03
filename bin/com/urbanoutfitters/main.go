@@ -153,10 +153,14 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	c.logger.Debugf("found %d", len(sel.Nodes))
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		if u, exists := node.Find(`.c-pwa-tile-grid-tile>.c-pwa-product-tile>a`).Attr("href"); exists {
+		href := node.Find(`.c-pwa-product-tile>a`).AttrOr("href", "")
+		if href == "" {
+			href = node.Find(`.o-pwa-product-tile>a`).AttrOr("href", "")
+		}
+		if href != "" {
 			nctx := context.WithValue(ctx, "item.index", lastIndex+1)
 			lastIndex += 1
-			if req, err := http.NewRequest(http.MethodGet, u, nil); err != nil {
+			if req, err := http.NewRequest(http.MethodGet, href, nil); err != nil {
 				return err
 			} else if err = yield(nctx, req); err != nil {
 				return err
