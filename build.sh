@@ -2,7 +2,8 @@
 
 typ=""
 target="$2"
-if [ $1 = "go" ] || [ $1 = "py" ]; then
+
+if [ "$1" = "go" ] || [ "$1" = "py" ]; then
     typ="$1"
 else
     target="$1"
