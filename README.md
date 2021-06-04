@@ -66,7 +66,7 @@ under the main dir, run
 go run . test --debug --pretty --target "https://www.asos.com"
 ```
 
-to do local test with current spider.
+to do local test with current spider. the is an inner checker for Product.
 
 
 ### TODO
