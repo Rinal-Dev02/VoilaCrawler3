@@ -236,9 +236,13 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" {
+			continue
+		}
 		nnctx := context.WithValue(ctx, "Category", cateName)
 		//fmt.Println(`cateName `, cateName)
-		subSel := node.Find(`.navigation-desktop-section-link>a`)
+
+		subSel := node.Find(`.navigation-desktop-section-link`).Find(`a`)
 		for j := range subSel.Nodes {
 			subNode := subSel.Eq(j)
 			href := subNode.AttrOr("href", "")
@@ -253,7 +257,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 			}
 
 			subCateName := strings.TrimSpace(subNode.Text())
-			//fmt.Println(`subCateName `, subCateName, ` --> `, href)
+			//fmt.Println(`subCateName `, subCateName, ` -->  `, href)
 
 			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
 			req, _ := http.NewRequest(http.MethodGet, href, nil)
