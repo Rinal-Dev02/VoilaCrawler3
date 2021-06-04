@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math"
 	"net/url"
 	"os"
@@ -59,7 +59,8 @@ func (c *_Crawler) Version() int32 {
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
-	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityLow
+	options.MustHeader.Add("User-Agent", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "currencyOverride", Value: "USD"},
 		&http.Cookie{Name: "currency", Value: "USD"},
@@ -99,6 +100,10 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
+	if resp.CurrentUrl().Path == "/VerifyHuman.jsp" {
+		return errors.New("access denied, google reCaptcha found")
+	}
+
 	if p == "/women" || p == "/mens" || p == "/" || p == "" {
 		return c.parseCategories(ctx, resp, yield)
 	}
@@ -114,7 +119,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	if c == nil || yield == nil {
 		return nil
 	}
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -174,7 +179,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 	c.logger.Debugf("parse %s", resp.Request.URL)
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := resp.RawBody()
 	if err != nil {
 		return err
 	}
@@ -185,8 +190,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	lastIndex := nextIndex(ctx)
-
 	sel := doc.Find(`#plp-prod-list .js-plp-container`)
+
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 		if href, _ := node.Find(".js-plp-pdp-link").Attr("href"); href != "" {
@@ -227,7 +232,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			c.logger.Error(err)
 			return err
 		}
-		respBody, err = ioutil.ReadAll(resp.Body)
+		respBody, err = io.ReadAll(resp.Body)
 
 		defer resp.Body.Close()
 
@@ -345,7 +350,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return errors.New("access denied")
 	}
 
-	respbody, err := ioutil.ReadAll(resp.Body)
+	respbody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -386,8 +391,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Currency: regulation.Currency_USD,
 		},
 	}
+	if item.Description == "" {
+		item.Description = strings.TrimSpace(doc.Find(`.product-details__description`).Text())
+	}
 
-	//itemListElement
+	// itemListElement
 	sel := doc.Find(`.crumbs>li`)
 	c.logger.Debugf("nodes %d", len(sel.Nodes))
 	for i := range sel.Nodes {
@@ -473,7 +481,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			sku := pbItem.Sku{
-				SourceId: p.Sku,
+				SourceId: fmt.Sprintf("%s-%s-%s", p.Sku, colorName, sizeval),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(cp * 100),

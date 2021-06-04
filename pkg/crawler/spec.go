@@ -1,10 +1,10 @@
 package crawler
 
 import (
-	"context"
 	"errors"
 	"net/url"
 
+	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	pbHttp "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/http"
 	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"

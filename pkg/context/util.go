@@ -21,6 +21,18 @@ func GetString(ctx context.Context, key interface{}) string {
 	return v
 }
 
+func Exists(ctx context.Context, key interface{}) bool {
+	if ctx == nil || key == nil {
+		return true
+	}
+
+	vals := RetrieveAllValues(ctx)
+	if _, ok := vals[key]; ok {
+		return true
+	}
+	return false
+}
+
 // GetInt
 func GetInt(ctx context.Context, key interface{}) int64 {
 	if ctx == nil || key == nil {

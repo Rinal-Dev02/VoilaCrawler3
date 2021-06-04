@@ -9,6 +9,7 @@ import (
 
 	"github.com/gammazero/deque"
 	"github.com/urfave/cli/v2"
+	"github.com/voiladev/VoilaCrawler/pkg/checker"
 	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/item"
@@ -57,6 +58,10 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 			&cli.BoolFlag{
 				Name:  "enable-lifo",
 				Usage: "Enable queue LIFO for requests",
+			},
+			&cli.BoolFlag{
+				Name:  "disable-checker",
+				Usage: "Disable result checker",
 			},
 			&cli.BoolFlag{
 				Name:  "disable-proxy",
@@ -129,6 +134,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 			}
 
 			callback := func(ctx context.Context, val interface{}) error {
+
 				switch i := val.(type) {
 				case *http.Request:
 					if _, ok := reqFilter[i.URL.String()]; ok {
@@ -145,6 +151,12 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 						i.URL.Host = host
 					}
 
+					if !c.Bool("disable-checker") {
+						if err := checker.Check(ctx, i, logger); err != nil {
+							return err
+						}
+					}
+
 					i = i.WithContext(ctx)
 					reqQueue.PushBack(i)
 					logger.Debugf("Appended %s", i.URL)
@@ -155,13 +167,18 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 					if c.Bool("pretty") {
 						marshaler.Indent = " "
 					}
-
 					// output the result
 					data, err := marshaler.Marshal(i.(proto.Message))
 					if err != nil {
 						return err
 					}
 					logger.Debugf("data: %s", data)
+
+					if !c.Bool("disable-checker") {
+						if err := checker.Check(ctx, val, logger); err != nil {
+							return err
+						}
+					}
 				}
 				return nil
 			}

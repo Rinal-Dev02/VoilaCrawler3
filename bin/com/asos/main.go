@@ -685,6 +685,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			ReviewCount: int32(rating.TotalReviewCount),
 		},
 	}
+	if item.Description == "" {
+		item.Description = strings.TrimSpace(dom.Find(`.product-description`).Text())
+	}
 	if i.IsInStock {
 		item.Stock = &pbItem.Stock{
 			StockStatus: pbItem.Stock_InStock,
@@ -743,11 +746,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			},
 			Specs: []*pbItem.SkuSpecOption{
 				{
+					Id:    strconv.Format(variant.ColourWayID),
 					Type:  pbItem.SkuSpecType_SkuSpecColor,
 					Name:  variant.Colour,
 					Value: strconv.Format(variant.ColourWayID),
 				},
 				{
+					Id:    strconv.Format(variant.SizeID),
 					Type:  pbItem.SkuSpecType_SkuSpecSize,
 					Name:  variant.Size,
 					Value: strconv.Format(variant.SizeID),

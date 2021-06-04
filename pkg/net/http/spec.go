@@ -9,16 +9,14 @@ import (
 )
 
 const (
-	MethodGet    = "GET"
-	MethodHead   = "HEAD"
-	MethodPost   = "POST"
-	MethodPut    = "PUT"
-	MethodPatch  = "PATCH" // RFC 5789
-	MethodDelete = "DELETE"
-	//MethodConnect = "CONNECT"
+	MethodGet     = "GET"
+	MethodHead    = "HEAD"
+	MethodPost    = "POST"
+	MethodPut     = "PUT"
 	MethodOptions = "OPTIONS"
-	//MethodTrace   = "TRACE"
 )
+
+var SupportedHttpMethods = []string{MethodGet, MethodPost, MethodPut, MethodHead, MethodOptions}
 
 type (
 	Request  = http.Request
