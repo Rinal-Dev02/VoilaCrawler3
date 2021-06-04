@@ -257,6 +257,10 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 			}
 
 			subCateName := strings.TrimSpace(subNode.Text())
+<<<<<<< HEAD
+=======
+			//fmt.Println(`subCateName `, subCateName, ` -->  `, href)
+>>>>>>> dior
 
 			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
 			req, _ := http.NewRequest(http.MethodGet, href, nil)
