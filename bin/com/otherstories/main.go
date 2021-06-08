@@ -20,6 +20,7 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 )
@@ -70,6 +71,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
+		Reliability:       proxy.ProxyReliability_ReliabilityMedium,
 	}
 	opts.MustCookies = append(opts.MustCookies,
 		&http.Cookie{Name: "countryId", Value: "US", Path: "/"},
@@ -175,8 +177,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 				c.logger.Error(err)
 				continue
 			}
-			lastIndex += 1
 			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			lastIndex += 1
 
 			if err := yield(nctx, req); err != nil {
 				return err
@@ -422,9 +424,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			BrandName:   article.BrandName,
 			Title:       article.Title,
 			Description: article.Description,
+			Stock: &pbItem.Stock{
+				StockStatus: pbItem.Stock_OutOfStock,
+			},
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
+		}
+		if item.BrandName == "" {
+			item.BrandName = "& Other Stories"
 		}
 
 		originalPrice, _ := strconv.ParseFloat(article.PriceSaleValue)
@@ -497,15 +505,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			for j := range q.Availability {
 				if q.Availability[j] == rawSku.VariantCode {
 					sku.Stock.StockStatus = pbItem.Stock_InStock
+					item.Stock.StockStatus = pbItem.Stock_InStock
 					break
 				}
 			}
 
 			sku.Specs = append(sku.Specs, &colorSpec, &pbItem.SkuSpecOption{
+				Id:    rawSku.SizeCode,
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    rawSku.VariantCode,
 				Name:  rawSku.SizeName,
-				Value: rawSku.SizeName,
+				Value: rawSku.SizeCode,
 			})
 			item.SkuItems = append(item.SkuItems, &sku)
 		}

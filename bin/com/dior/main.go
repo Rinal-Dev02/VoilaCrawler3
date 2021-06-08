@@ -229,7 +229,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 			}
 
 			subCateName := strings.TrimSpace(subNode.Text())
-			//fmt.Println(`subCateName `, subCateName, ` -->  `, href)
 
 			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
 			req, _ := http.NewRequest(http.MethodGet, href, nil)
@@ -553,12 +552,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			CanonicalUrl: canUrl,
 		},
 		BrandName:   viewData.Props.Tracking.Datalayer.Ecommerce.Detail.Products[0].Brand,
-		Title:       htmlTrimRegp.ReplaceAllString(dom.Find(`.product-titles`).Find(`h1`).Text(), ""),
+		Title:       dom.Find(`.product-titles`).Text(),
 		Description: htmlTrimRegp.ReplaceAllString(contentDescriptionData.Sections[0].Content, ""),
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
 	}
+  if item.BrandName == "" {
+    item.BrandName = "DIOR"
+  }
 
 	for i, breadcrumb := range strings.Split(viewData.Props.Tracking.Datalayer.Ecommerce.Detail.Products[0].Category, "/") {
 		if i == 0 {
@@ -734,8 +736,10 @@ func getIndex(viewData parseProductData, types string) int {
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
+		//"https://www.dior.com/en_us",
 		//"https://www.dior.com/en_us/womens-fashion/ready-to-wear/all-ready-to-wear",
 		//"https://www.dior.com/en_us/fragrance/mens-fragrance/all-products",
+		"https://www.dior.com/en_us/products/beauty-Y0998004-sauvage-parfum",
 		// "https://www.dior.com/en_us/products/couture-124V03BM211_X5685-ribbed-knit-bar-jacket-navy-blue-double-breasted-virgin-wool",
 		// "https://www.dior.com/en_us/products/couture-93C1046A0121_C975-dior-oblique-tie-blue-and-black-silk",
 		//"https://www.dior.com/en_us/products/beauty-Y0061201-jules-eau-de-toilette",

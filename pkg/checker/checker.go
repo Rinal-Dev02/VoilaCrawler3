@@ -70,7 +70,7 @@ func checkRequest(ctx context.Context, req *http.Request, logger glog.Log) error
 
 // checkProduct
 func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log) error {
-	if context.Exists(ctx, "item.index") {
+	if !context.Exists(ctx, "item.index") {
 		logger.Warnf("Checker.Product: no shared value item.index found")
 	}
 
