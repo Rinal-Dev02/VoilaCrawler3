@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
@@ -112,13 +114,79 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
+	if p == "" || p == "/plussize" || p == "/beauty" || p == "/kids" || p == "/men" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.header-v2__nav2-wrapper.j-header-nav-wrapper`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" {
+			continue
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+		//fmt.Println(`cateName `, cateName)
+
+		subSel1 := node.Find(`.header-float__txt`)
+		for k := range subSel1.Nodes {
+			subNodeN := subSel1.Eq(k)
+			subCat1 := strings.TrimSpace(subNodeN.Find(`.header-float__txt-link.no-margin.j-header-float-title`).First().Text())
+
+			subSel := subNodeN.Find(`.header-float__txt-link`)
+			for j := range subSel.Nodes {
+				if j == 0 {
+					continue
+				}
+				subNode := subSel.Eq(j)
+				href := subNode.AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				_, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subCat1 + " > " + strings.TrimSpace(subNode.Text())
+				//fmt.Println(subCateName)
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnnctx, req); err != nil {
+					return err
+				}
+			}
+		}
+
+	}
+	return nil
 }
 
 // nextIndex used to get the index from the shared data.
@@ -564,6 +632,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
+	for _, rawSku := range item.SkuItems {
+		if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+		}
+	}
+	if item.Stock == nil {
+		item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
+	}
+
 	if len(item.SkuItems) > 0 {
 		// yield item result
 		if err = yield(ctx, &item); err != nil {
@@ -601,13 +678,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
+		//"https://us.shein.com",
+		//"https://us.shein.com/kids",
+		//"https://us.shein.com/plussize?icn=PlusSizePage&ici=us_tab02",
 		// "https://www.nordstrom.com/browse/activewear/women-clothing?breadcrumb=Home%2FWomen%2FClothing%2FActivewear&origin=topnav",
 		// "https://us.shein.com/T-Shirts-c-1738.html?ici=us_tab01navbar04menu01dir02&scici=navbar_WomenHomePage~~tab01navbar04menu01dir02~~4_1_2~~real_1738~~~~0~~50001&srctype=category&userpath=category%3ECLOTHING%3ETOPS%3ET-Shirts",
 		// "https://us.shein.com//Slogan-Graphic-Crop-Tee-p-1854713-cat-1738.html?scici=navbar_WomenHomePage~~tab01navbar04menu01dir02~~4_1_2~~real_1738~~~~0~~50001",
 		// "https://us.shein.com/Rhinestone-Decor-Hair-Hoop-p-1315510-cat-1778.html?scici=navbar_2~~tab01navbar08menu11~~8_11~~real_1765~~SPcCccWomenCategory_default~~0~~0",
 		// "https://us.shein.com/Allover-Print-Surplice-Front-Layered-Hem-Dress-p-1575863-cat-1727.html?scici=navbar_WomenHomePage~~tab01navbar06menu05dir01~~6_5_1~~itemPicking_00109364~~~~0~~50001",
 		// "https://us.shein.com//Planet-Embroidered-Bucket-Hat-p-2127810-cat-1772.html?scici=navbar_2~~tab01navbar08menu11dir06~~8_11_6~~real_1772~~SPcCccWomenCategory_default~~0~~0",
-		"https://us.shein.com/category/Sleepwear-and-Nightwear-sc-00821505.html?icn=category&ici=us_tab01navbar02menu14dir02&srctype=category&userpath=category%3EWOMEN%3ECLOTHING%3ELoungewear-Sleepwear%3ESleepwear&scici=navbar_2~~tab01navbar02menu14dir02~~2_14_2~~itemPicking_00821505~~SPcCccWomenCategory_default~~0~~0",
+		//"https://us.shein.com/category/Sleepwear-and-Nightwear-sc-00821505.html?icn=category&ici=us_tab01navbar02menu14dir02&srctype=category&userpath=category%3EWOMEN%3ECLOTHING%3ELoungewear-Sleepwear%3ESleepwear&scici=navbar_2~~tab01navbar02menu14dir02~~2_14_2~~itemPicking_00821505~~SPcCccWomenCategory_default~~0~~0",
+		"https://us.shein.com/EXPERT-Creamy-Eyeliner-01-BLACK-p-1237250-cat-2255.html?scici=navbar_BeautyHomePage~~tab05navbar01menu07dir05~~1_7_5~~real_2255~~~~0",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
