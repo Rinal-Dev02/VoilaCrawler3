@@ -739,7 +739,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		// "https://www.dior.com/en_us/products/couture-124V03BM211_X5685-ribbed-knit-bar-jacket-navy-blue-double-breasted-virgin-wool",
 		// "https://www.dior.com/en_us/products/couture-93C1046A0121_C975-dior-oblique-tie-blue-and-black-silk",
 		//"https://www.dior.com/en_us/products/beauty-Y0061201-jules-eau-de-toilette",
-		"https://www.dior.com/en_us/products/beauty-Y0998004-sauvage-parfum",
+		//"https://www.dior.com/en_us/products/beauty-Y0998004-sauvage-parfum",
 		//"https://www.dior.com/en_us/products/beauty-Y0028965-dior-lip-tattoo-color-games-collection-limited-edition-colored-lip-tint-bare-lip-sensation-%E2%80%93-extreme-weightless-wear",
 		// "https://www.dior.com/en_us/products/couture-141B19A3842_X4813-dioriviera-blouse-raspberry-toile-de-jouy-reverse-cotton-poplin",
 		//"https://www.dior.com/en_us/products/beauty-Y0139000-5-couleurs-couture-eyeshadow-palette-high-pigment-long-wear-creamy-powder",
