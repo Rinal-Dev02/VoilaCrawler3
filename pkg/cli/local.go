@@ -134,7 +134,6 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 			}
 
 			callback := func(ctx context.Context, val interface{}) error {
-
 				switch i := val.(type) {
 				case *http.Request:
 					if _, ok := reqFilter[i.URL.String()]; ok {
