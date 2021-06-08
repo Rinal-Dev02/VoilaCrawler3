@@ -142,6 +142,8 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 	}
 	defer proxyResp.Body.Close()
 
+	c.logger.Infof("%s %s %d", r.Method, r.URL, proxyResp.StatusCode)
+
 	if proxyResp.StatusCode != 200 {
 		return nil, fmt.Errorf("do http request failed with status %d %s", proxyResp.StatusCode, proxyResp.Status)
 	}

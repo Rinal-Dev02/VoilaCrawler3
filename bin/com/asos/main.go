@@ -106,7 +106,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 	if p == "" {
 		return crawler.ErrUnsupportedPath
 	}
@@ -114,13 +114,17 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategories(ctx, resp, yield)
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	if p == "/us/men/a-to-z-of-brands/cat" {
+		return crawler.ErrUnsupportedPath
+	}
+
+	if c.categoryPathMatcher.MatchString(p) {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.categoryJsonPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryJsonPathMatcher.MatchString(p) {
 		return c.parseCategoryProductsJson(ctx, resp, yield)
-	} else if c.productGroupPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.productGroupPathMatcher.MatchString(p) {
 		return c.parseProductGroup(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.productPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
@@ -200,17 +204,21 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	matched[1] = bytes.ReplaceAll(bytes.ReplaceAll(matched[1], []byte("\\'"), []byte("'")), []byte(`\\"`), []byte(`\"`))
-	// rawData, err := strconv.Unquote(string(matched[1]))
-	//if err != nil {
-	//	c.logger.Errorf("unquote raw string failed, error=%s", err)
-	//	return err
-	//}
 	if err = json.Unmarshal(matched[1], &r); err != nil {
 		c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
 		return err
 	}
+	if len(r.Search.Products) == 0 {
+		c.logger.Errorf("not products found")
+		return err
+	}
 
-	cid := r.Search.Query["cid"].(string)
+	cid := resp.RawUrl().Query().Get("cid")
+	if cid == "" {
+		if v, _ := r.Search.Query["cid"]; v != nil {
+			cid = v.(string)
+		}
+	}
 	nctx := context.WithValue(ctx, "cid", cid)
 	lastIndex := nextIndex(ctx)
 	for _, prod := range r.Search.Products {
@@ -224,7 +232,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			c.logger.Debug(err)
 			return err
 		}
-		nnctx := context.WithValue(nctx, "item.index", lastIndex+1)
+		nnctx := context.WithValue(nctx, "item.index", lastIndex)
 		lastIndex += 1
 		if err = yield(nnctx, req); err != nil {
 			return err
