@@ -406,7 +406,7 @@ type parseProductData struct {
 							TitleInt string `json:"titleInt,omitempty"`
 							URL      string `json:"url"`
 							Sku      string `json:"sku"`
-							Images   []struct {
+							Images   []*struct {
 								Target   string `json:"target"`
 								URI      string `json:"uri"`
 								Width    int    `json:"width"`
@@ -414,6 +414,19 @@ type parseProductData struct {
 								ViewCode string `json:"viewCode"`
 								Alt      string `json:"alt"`
 							} `json:"images"`
+							Video *struct {
+								Title           string `json:"title"`
+								VideoTitle      string `json:"videoTitle"`
+								AdditionalTitle string `json:"additionalTitle"`
+								ResourceID      string `json:"resourceId"`
+								Poster          struct {
+									URI    string `json:"uri"`
+									Width  int    `json:"width"`
+									Height int    `json:"height"`
+									Alt    string `json:"alt"`
+								} `json:"poster"`
+								Transcript string `json:"transcript"`
+							} `json:"video"`
 						} `json:"items,omitempty"`
 						//Title             string        `json:"title,omitempty"`
 						Subtitle          string        `json:"subtitle,omitempty"`
@@ -558,9 +571,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Currency: regulation.Currency_USD,
 		},
 	}
-  if item.BrandName == "" {
-    item.BrandName = "DIOR"
-  }
+	if item.BrandName == "" {
+		item.BrandName = "DIOR"
+	}
 
 	for i, breadcrumb := range strings.Split(viewData.Props.Tracking.Datalayer.Ecommerce.Detail.Products[0].Category, "/") {
 		if i == 0 {
@@ -581,17 +594,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	contentIndex = getIndex(viewData, "PRODUCTMEDIAS")
 	contentImgData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 	for ki, mid := range contentImgData.Items {
-
-		template := strings.Split(mid.Images[0].URI, "?")
-		itemImg = append(itemImg, pbMedia.NewImageMedia(
-			strconv.Format(ki),
-			template[0],
-			template[0]+"?sw=800&sh=800&sm=fit",
-			template[0]+"?sw=600&sh=600&sm=fit",
-			template[0]+"?sw=500&sh=500&sm=fit",
-			"",
-			len(itemImg) == 0,
-		))
+		if mid.Type == "IMAGE" && len(mid.Images) > 0 {
+			template := strings.Split(mid.Images[0].URI, "?")
+			itemImg = append(itemImg, pbMedia.NewImageMedia(
+				strconv.Format(ki),
+				template[0],
+				template[0]+"?sw=800&sh=800&sm=fit",
+				template[0]+"?sw=600&sh=600&sm=fit",
+				template[0]+"?sw=500&sh=500&sm=fit",
+				"",
+				len(itemImg) == 0,
+			))
+		}
 	}
 
 	contentIndex = getIndex(viewData, "PRODUCTVARIATIONS")
@@ -610,16 +624,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				if mid.Sku != "" && rawSku.Sku != mid.Sku {
 					continue
 				}
-				template := strings.Split(mid.Images[0].URI, "?")
-				itemImg = append(itemImg, pbMedia.NewImageMedia(
-					strconv.Format(ki),
-					template[0],
-					template[0]+"?sw=800&sh=800&sm=fit",
-					template[0]+"?sw=600&sh=600&sm=fit",
-					template[0]+"?sw=500&sh=500&sm=fit",
-					"",
-					len(itemImg) == 0,
-				))
+				if mid.Type == "IMAGE" && len(mid.Images) > 0 {
+					template := strings.Split(mid.Images[0].URI, "?")
+					itemImg = append(itemImg, pbMedia.NewImageMedia(
+						strconv.Format(ki),
+						template[0],
+						template[0]+"?sw=800&sh=800&sm=fit",
+						template[0]+"?sw=600&sh=600&sm=fit",
+						template[0]+"?sw=500&sh=500&sm=fit",
+						"",
+						len(itemImg) == 0,
+					))
+				}
 			}
 
 			originalPrice := (rawSku.Price.Value)

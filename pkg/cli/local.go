@@ -72,14 +72,30 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 				Usage: "print item detail in pretty",
 			},
 			&cli.BoolFlag{
+				Name:    "verbose",
+				Aliases: []string{"v"},
+				Usage:   "Verbose model",
+			},
+			&cli.BoolFlag{
+				Name:   "vv",
+				Usage:  "more verbose model",
+				Hidden: true,
+			},
+			&cli.BoolFlag{
 				Name:    "debug",
-				Usage:   "Enable debug",
+				Usage:   "Enable debug[Deprecated], use -v instead",
 				EnvVars: []string{"DEBUG"},
+			},
+			&cli.BoolFlag{
+				Name:  "with-response",
+				Usage: "Output http response body",
 			},
 		},
 		Action: func(c *cli.Context) error {
 			logger := glog.New(glog.LogLevelInfo)
-			if c.Bool("debug") {
+
+			verbose := c.Bool("verbose") || c.Bool("debug") || c.Bool("vv")
+			if verbose {
 				logger.SetLevel(glog.LogLevelDebug)
 				os.Setenv("DEBUG", "1")
 			}
@@ -266,6 +282,10 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 						}
 						defer resp.Body.Close()
 
+						if c.Bool("vv") {
+							data, _ := resp.RawBody()
+							logger.Debugf("%s", data)
+						}
 						return node.Parse(nctx, resp, callback)
 					}(req); err != nil {
 						if !errors.Is(err, context.Canceled) {
