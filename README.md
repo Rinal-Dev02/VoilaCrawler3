@@ -60,14 +60,39 @@ where `lang` spiders the languate, `target` specifies the build target.
 
 #### Local test
 
-under the main dir, run
+There are few models to do local test, from simple to very verbose:
+
+1. common test
+
+following cmd will show common debug log
 
 ```bash
-go run . test --debug --pretty --target "https://www.asos.com"
+go run . test -v --target "https://www.example.com"
 ```
 
-to do local test with current spider. the is an inner checker for Product.
+2. pretty item detail
 
+following cmd will show item detail in pretty json model for human read.
+
+```bash
+go run . test -v --pretty --target "https://www.example.com"
+```
+
+3. more verbose debug
+
+following cmd will output the http response
+
+```bash
+go run . test -vv --target "https://www.example.com"
+```
+
+4. generate an report
+
+following cmd will generate a report for the fetched item for overview, with this, you can view item result quickly.
+
+```bash
+go run . test --report --target "https://www.example.com"
+```
 
 ### TODO
 
