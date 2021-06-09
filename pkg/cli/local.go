@@ -69,12 +69,17 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 			},
 			&cli.BoolFlag{
 				Name:  "pretty",
-				Usage: "print item detail in pretty",
+				Usage: "print item detail in pretty json",
+			},
+			&cli.BoolFlag{
+				Name:    "report",
+				Aliases: []string{"r"},
+				Usage:   "print item detail in table model",
 			},
 			&cli.BoolFlag{
 				Name:    "verbose",
 				Aliases: []string{"v"},
-				Usage:   "Verbose model",
+				Usage:   "Verbose model, vv for in detail model",
 			},
 			&cli.BoolFlag{
 				Name:   "vv",
@@ -85,10 +90,6 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 				Name:    "debug",
 				Usage:   "Enable debug[Deprecated], use -v instead",
 				EnvVars: []string{"DEBUG"},
-			},
-			&cli.BoolFlag{
-				Name:  "with-response",
-				Usage: "Output http response body",
 			},
 		},
 		Action: func(c *cli.Context) error {
@@ -193,6 +194,9 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 						if err := checker.Check(ctx, val, logger); err != nil {
 							return err
 						}
+					}
+					if c.Bool("report") {
+						item.Report(val, logger)
 					}
 				}
 				return nil

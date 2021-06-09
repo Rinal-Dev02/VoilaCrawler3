@@ -8,6 +8,7 @@ require (
 	github.com/gammazero/deque v0.1.0
 	github.com/gogo/protobuf v1.2.1
 	github.com/gosimple/slug v1.9.0
+	github.com/jedib0t/go-pretty/v6 v6.2.2 // indirect
 	github.com/robertkrimen/otto v0.0.0-20200922221731-ef014fd054ac
 	github.com/satori/go.uuid v1.2.0
 	github.com/urfave/cli/v2 v2.3.0
