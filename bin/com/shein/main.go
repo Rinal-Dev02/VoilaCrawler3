@@ -579,7 +579,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		for _, rawSku := range viewData.AttrSizeList {
 			originalPrice, _ := strconv.ParseFloat(rawSku.Price.SalePrice.UsdAmount)
 			msrp, _ := strconv.ParseFloat(rawSku.Price.RetailPrice.UsdAmount)
-			discount := ((originalPrice - msrp) / msrp) * 100
+			discount := ((msrp - originalPrice) / msrp) * 100
 
 			sku := pbItem.Sku{
 				SourceId: fmt.Sprintf("%s-%s", viewData.Detail.GoodsSn, rawSku.AttrValueID),
@@ -610,7 +610,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		prod := viewData.Detail
 		originalPrice, _ := strconv.ParseFloat(prod.SalePrice.UsdAmount)
 		msrp, _ := strconv.ParseFloat(prod.RetailPrice.UsdAmount)
-		discount := ((originalPrice - msrp) / msrp) * 100
+		discount := ((msrp - originalPrice) / msrp) * 100
 
 		sku := pbItem.Sku{
 			SourceId: viewData.Detail.GoodsSn,
