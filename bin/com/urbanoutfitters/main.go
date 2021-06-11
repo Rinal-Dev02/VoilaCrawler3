@@ -144,7 +144,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		return nil
 	}
 
-	fmt.Println(`parseCategories enter`)
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
@@ -177,8 +176,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	urbn_auth_payload := authExtractReg.FindSubmatch([]byte(strings.Join(cookie.Values(`Set-Cookie`), ";")))
 
 	for _, catUrl := range s {
-		fmt.Println(`catUrl `, catUrl)
-		//catUrl := "https://www.urbanoutfitters.com/api/catalog/v0/uo-us/navigation?slug=mens-clothing&projection-slug=navdepth2"
 
 		req, err := http.NewRequest(http.MethodGet, catUrl, nil)
 		req.Header.Add("accept", "application/json, text/plain, */*")
@@ -722,17 +719,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
-	fmt.Println(`item.Stock `, item.Stock)
+
 	for _, rawSku := range item.SkuItems {
 		if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
 			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
 		}
 	}
-	fmt.Println(`item.Stock `, item.Stock)
+
 	if item.Stock == nil {
 		item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
 	}
-	fmt.Println(`item.Stock `, item.Stock)
+
 	return yield(ctx, &item)
 }
 
