@@ -124,12 +124,104 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+
+	if p == "" || p == "/en_usd/index.html" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.subcategory-section`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		cateName := (node.Find(`.selected-category`).Text())
+		if cateName == "" {
+			continue
+		}
+
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		//fmt.Println(`cateName `, cateName)
+
+		subSel1 := node.Find(`li`)
+		for k := range subSel1.Nodes {
+			subNodeN := subSel1.Eq(k)
+			subCat1 := strings.TrimSpace(subNodeN.Find(`.accordion-header`).First().Text())
+
+			subSel := subNodeN.Find(`.accordion-inner-content>div`)
+			for j := range subSel.Nodes {
+
+				subNode := subSel.Eq(j)
+				href := subNode.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subCat1 + " > " + strings.TrimSpace(subNode.Text())
+				//fmt.Println(subCateName)
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+
+			if (subSel.Nodes) == nil {
+				href := subNodeN.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := strings.TrimSpace(subNodeN.Text())
+				//fmt.Println(subCateName)
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get the index from the shared data.
@@ -518,6 +610,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
+		for _, rawSku := range item.SkuItems {
+			if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+				item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+			}
+		}
+		if item.Stock == nil {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
+		}
 		if err = yield(ctx, &item); err != nil {
 			return err
 		}
@@ -534,6 +634,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		// "https://www.stories.com/en_usd/clothing/tops/bodies/product.scoop-neck-bodysuit-white.0941351002.html",
 		// "https://www.stories.com/en_usd/clothing/blouses-shirts/shirts/product.oversized-wool-blend-workwear-shirt-brown.0764033007.html",
 		"https://www.stories.com/en_usd/lingerie/tights/product.heart-pattern-denier-tights-black.0977982001.html",
+		//"https://www.stories.com/en_usd/index.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
