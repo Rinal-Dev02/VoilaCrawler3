@@ -424,6 +424,7 @@ type productQuickViewStructure struct {
 		SizeRatingPercentages   interface{} `json:"sizeRatingPercentages"`
 		WidthRatingPercentages  interface{} `json:"widthRatingPercentages"`
 		MaxArchRatingPercentage interface{} `json:"maxArchRatingPercentage"`
+		AverageOverallRating    string      `json:"averageOverallRating"`
 	} `json:"reviewSummary"`
 	Genders            []string `json:"genders"`
 	Description        string   `json:"description"`

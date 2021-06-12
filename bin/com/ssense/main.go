@@ -21,6 +21,7 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 )
 
@@ -123,13 +124,92 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	if p == "/en-us/women" || p == "/en-us/men" || p == "/en-us/everything-else" || p == "/en-us/men/sale" || p == "/everything-else/women/sale" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	matched := productsExtractReg.FindSubmatch(respBody)
+	if len(matched) <= 1 {
+		c.logger.Debugf("%s", respBody)
+		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
+		return err
+	}
+
+	for _, rawcat := range viewData.Products.Facets.Categories {
+		//fmt.Println(`category `, rawcat.Name)
+		for _, rawsubcat := range rawcat.Children {
+
+			href := resp.Request.URL.String() + "/" + rawsubcat.SeoKeyword
+			if href == "" {
+				continue
+			}
+
+			//fmt.Println(rawsubcat.Name + "  --> " + href)
+			u, err := url.Parse(href)
+			if err != nil {
+				c.logger.Errorf("parse url %s failed", href)
+				continue
+			}
+
+			if c.categoryPathMatcher.MatchString(u.Path) {
+				//here reset tracing id to distiguish different category crawl
+				//This may exists duplicate requests
+				nctx := context.WithValue(ctx, crawler.TracingIdKey, randutil.MustNewRandomID())
+				req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+				if err := yield(nctx, req); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+type categoryStructure struct {
+	Products struct {
+		Facets struct {
+			Categories []struct {
+				ID         int    `json:"id"`
+				Name       string `json:"name"`
+				SeoKeyword string `json:"seoKeyword"`
+				Children   []struct {
+					ID         int           `json:"id"`
+					Name       string        `json:"name"`
+					SeoKeyword string        `json:"seoKeyword"`
+					Children   []interface{} `json:"children"`
+					Expanded   bool          `json:"expanded"`
+					Selected   bool          `json:"selected"`
+					DocCount   int           `json:"docCount"`
+				} `json:"children"`
+				Expanded bool `json:"expanded"`
+				Selected bool `json:"selected"`
+				DocCount int  `json:"docCount"`
+			} `json:"categories"`
+		} `json:"facets"`
+	} `json:"products"`
 }
 
 // nextIndex used to get the index from the shared data.
@@ -217,24 +297,10 @@ type ProductPageData struct {
 			CountryOfOrigin string   `json:"countryOfOrigin"`
 			InStock         bool     `json:"inStock"`
 			Brand           struct {
-				ID         int    `json:"id"`
-				Name       string `json:"name"`
-				SeoKeyword struct {
-					Ko string `json:"ko"`
-					Ja string `json:"ja"`
-					En string `json:"en"`
-					Fr string `json:"fr"`
-					Zh string `json:"zh"`
-				} `json:"seoKeyword"`
+				ID   int    `json:"id"`
+				Name string `json:"name"`
 			} `json:"brand"`
 			Category struct {
-				SeoKeyword struct {
-					Ko string `json:"ko"`
-					Ja string `json:"ja"`
-					En string `json:"en"`
-					Fr string `json:"fr"`
-					Zh string `json:"zh"`
-				} `json:"seoKeyword"`
 				ParentID       int    `json:"parentId"`
 				ID             int    `json:"id"`
 				Name           string `json:"name"`
@@ -425,9 +491,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		current = msrp
 	}
 
-	for _, rawSku := range viewData.Products.Current.Sizes {
+	for i, rawSku := range viewData.Products.Current.Sizes {
 		sku := pbItem.Sku{
-			SourceId: strconv.Format(prodid),
+			SourceId: strconv.Format(rawSku.ID),
 			Medias:   medias,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
@@ -446,12 +512,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    strconv.Format(rawSku.ID),
+			Id:    strconv.Format(rawSku.ID) + strconv.Format(i),
 			Name:  rawSku.Name,
 			Value: rawSku.Name,
 		})
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
+	for _, rawSku := range item.SkuItems {
+		if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+			break
+		}
+	}
+	if item.Stock == nil {
+		item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
+	}
+
 	if err = yield(ctx, &item); err != nil {
 		return err
 	}
@@ -461,9 +537,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
+		//"https://www.ssense.com/en-us/women",
 		// "https://www.ssense.com/en-in/women/bags",
-		"https://www.ssense.com/en-us/men/shoes",
-		// "https://www.ssense.com/en-in/women/product/burberry/black-econylr-logo-drawcord-pouch/6045701",
+		//"https://www.ssense.com/en-us/men/shoes",
+		//"https://www.ssense.com/en-us/women/product/burberry/black-econylr-logo-drawcord-pouch/6045701",
+		"https://www.ssense.com/en-us/women/product/rick-owens/black-hiking-tractor-sandals/6257071",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
