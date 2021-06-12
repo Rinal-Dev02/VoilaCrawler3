@@ -21,7 +21,6 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
-	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 )
 
@@ -160,6 +159,8 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 
 	for _, rawcat := range viewData.Products.Facets.Categories {
 		//fmt.Println(`category `, rawcat.Name)
+		nnctx := context.WithValue(ctx, "Category", rawcat.Name)
+
 		for _, rawsubcat := range rawcat.Children {
 
 			href := resp.Request.URL.String() + "/" + rawsubcat.SeoKeyword
@@ -177,7 +178,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 			if c.categoryPathMatcher.MatchString(u.Path) {
 				//here reset tracing id to distiguish different category crawl
 				//This may exists duplicate requests
-				nctx := context.WithValue(ctx, crawler.TracingIdKey, randutil.MustNewRandomID())
+				nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Name)
 				req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 				if err := yield(nctx, req); err != nil {
 					return err

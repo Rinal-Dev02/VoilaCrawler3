@@ -122,13 +122,86 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-
+	if resp.Request.URL.Path == "" || resp.Request.URL.Path == "/" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func TrimSpaceNewlineInString(s string) string {
+	re := regexp.MustCompile(`\n`)
+	resp := re.ReplaceAllString(s, " ")
+	resp = strings.ReplaceAll(resp, "\\n", " ")
+	resp = strings.ReplaceAll(resp, "\r", " ")
+	resp = strings.ReplaceAll(resp, "\t", " ")
+	resp = strings.ReplaceAll(resp, "  ", "")
+	return resp
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.top-nav-list-item`)
+	for j := range sel.Nodes {
+		subnode := sel.Eq(j)
+		//fmt.Println(`Cat >> `, TrimSpaceNewlineInByte(subnode.Find(`span`).First().Text()))
+		nnctx := context.WithValue(ctx, "Category", TrimSpaceNewlineInString(subnode.Find(`span`).First().Text()))
+
+		subnodes1 := subnode.Find(`.nested-navigation-section`)
+		for k := range subnodes1.Nodes {
+			sub2node := subnodes1.Eq(k)
+
+			subnodes2 := sub2node.Find(`li`)
+			for i := range subnodes2.Nodes {
+				node := subnodes2.Eq(i)
+				SubCategory := ""
+				if sub2node.Find(`h3`).First().Text() != "" {
+					SubCategory = TrimSpaceNewlineInString(sub2node.Find(`h3`).First().Text() + " >  " + node.Text())
+				} else {
+					SubCategory = TrimSpaceNewlineInString(node.Text())
+				}
+
+				//fmt.Println(SubCategory)
+				href := node.AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Errorf("parse url %s failed", href)
+					continue
+				}
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					// here reset tracing id to distiguish different category crawl
+					// This may exists duplicate requests
+					nctx := context.WithValue(nnctx, "SubCategory", SubCategory)
+					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+					if err := yield(nctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get the index from the shared data.
@@ -406,7 +479,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
-
+	for _, rawSku := range item.SkuItems {
+		if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+			break
+		}
+	}
+	if item.Stock == nil {
+		item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
+	}
 	if err = yield(ctx, &item); err != nil {
 		return err
 	}
@@ -416,6 +497,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
+		//"https://www.shopbop.com/",
 		// "https://www.shopbop.com/active-clothing-shorts/br/v=1/65919.htm",
 		// "https://www.shopbop.com/active-bags/br/v=1/65741.htm",
 		// "https://www.shopbop.com/hilary-bootie-sam-edelman/vp/v=1/1504954305.htm?folderID=15539&fm=other-shopbysize-viewall&os=false&colorId=1071C&ref_=SB_PLP_NB_12&breadcrumb=Sale%3EShoes",
