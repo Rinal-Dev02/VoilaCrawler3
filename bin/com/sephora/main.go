@@ -70,7 +70,7 @@ func (c *_Crawler) Version() int32 {
 // for the means of every options please see the definition.
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	opts := &crawler.CrawlOptions{
-		EnableHeadless: false,
+		EnableHeadless: true,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
 		Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
@@ -127,6 +127,12 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+
+	if p == "" {
+		return c.parseCategories(ctx, resp, yield)
+	}
+
 	if c.searchPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseSearch(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -141,6 +147,117 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 // item.index is a const key for item index.
 func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")))
+}
+
+type categoryStructure struct {
+	Header struct {
+		Props struct {
+			Headerfootercontent struct {
+				Rwdnavigationmenu []struct {
+					Componentlist []struct {
+						Componentlist []struct {
+							Targeturl string `json:"targetUrl,omitempty"`
+							Titletext string `json:"titleText,omitempty"`
+						} `json:"componentList"`
+						Targeturl string `json:"targetUrl,omitempty"`
+						Titletext string `json:"titleText,omitempty"`
+					} `json:"componentList"`
+					Targeturl string `json:"targetUrl,omitempty"`
+					Titletext string `json:"titleText"`
+				} `json:"rwdNavigationMenu"`
+			} `json:"headerFooterContent"`
+			Isdownloadappbannerenabled bool `json:"isDownloadAppBannerEnabled"`
+		} `json:"props"`
+	} `json:"Header"`
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	matched := productsExtractReg.FindSubmatch(respBody)
+	if len(matched) <= 1 {
+		//c.logger.Debugf("%s", respBody)
+		return fmt.Errorf("extract category info from %s failed, error=%s", resp.Request.URL, err)
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+		return err
+	}
+
+	for _, rawCat := range viewData.Header.Props.Headerfootercontent.Rwdnavigationmenu {
+		cateName := rawCat.Titletext
+		if cateName == "" {
+			continue
+		}
+		baseUrl := ""
+		if rawCat.Targeturl != "" {
+			baseUrl = "https://www.sephora.com" + strings.Split(strings.Split(rawCat.Targeturl, "/")[0], "-")[0]
+		} else {
+			baseUrl = "https://www.sephora.com"
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+		//fmt.Println(`cateName `, cateName)
+		for _, rawsubCat := range rawCat.Componentlist {
+
+			if rawsubCat.Componentlist != nil {
+
+				for _, rawsub2Cat := range rawsubCat.Componentlist {
+
+					href := baseUrl + rawsub2Cat.Targeturl
+					if rawsub2Cat.Targeturl == "" {
+						continue
+					}
+
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					subCateName := rawsubCat.Titletext + " > " + rawsub2Cat.Titletext
+					//fmt.Println(subCateName, "  ==>  ", href)
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+						req, _ := http.NewRequest(http.MethodGet, href, nil)
+						if err := yield(nnnctx, req); err != nil {
+							return err
+						}
+					}
+				}
+			} else {
+				href := baseUrl + rawsubCat.Targeturl
+				if rawsubCat.Targeturl == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := rawsubCat.Titletext
+				//fmt.Println(subCateName, "  ==>  ", href)
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 type rawSearchResponse struct {
@@ -165,25 +282,6 @@ type rawSearchResponse struct {
 		TargetURL   string `json:"targetUrl"`
 		URL         string `json:"url"`
 		MoreColors  int    `json:"moreColors,omitempty"`
-		// CurrentSku  struct {
-		// 	ImageAltText       string `json:"imageAltText"`
-		// 	IsAppExclusive     bool   `json:"isAppExclusive"`
-		// 	IsBI               bool   `json:"isBI"`
-		// 	IsBest             bool   `json:"isBest"`
-		// 	IsFirstAccess      bool   `json:"isFirstAccess"`
-		// 	IsLimitedEdition   bool   `json:"isLimitedEdition"`
-		// 	IsLimitedTimeOffer bool   `json:"isLimitedTimeOffer"`
-		// 	IsNatural          bool   `json:"isNatural"`
-		// 	IsNew              bool   `json:"isNew"`
-		// 	IsOnlineOnly       bool   `json:"isOnlineOnly"`
-		// 	IsOrganic          bool   `json:"isOrganic"`
-		// 	IsSephoraExclusive bool   `json:"isSephoraExclusive"`
-		// 	ListPrice          string `json:"listPrice"`
-		// 	SalePrice          string `json:"salePrice"`
-		// 	SkuID              string `json:"skuId"`
-		// 	SkuType            string `json:"skuType"`
-		// 	ValuePrice         string `json:"valuePrice"`
-		// } `json:"currentSku,omitempty"`
 	} `json:"products"`
 	Refinements []struct {
 		DisplayName string `json:"displayName"`
@@ -776,6 +874,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			))
 		}
 		item.SkuItems = append(item.SkuItems, &sku)
+		item.Medias = sku.Medias
+	}
+
+	for _, rawSku := range item.SkuItems {
+		if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+		}
+	}
+
+	if item.Stock == nil {
+		item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
 	}
 
 	if len(item.SkuItems) > 0 {
@@ -792,9 +901,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.sephora.com/search?keyword=skin",
+		//"https://www.sephora.com",
+		//"https://www.sephora.com/search?keyword=skin",
 		// "https://www.sephora.com/shop/foundation-makeup",
-		// "https://www.sephora.com/product/make-no-mistake-foundation-concealer-stick-P420440?skuId=1887520&icid2=products%20grid:p420440",
+		"https://www.sephora.com/product/make-no-mistake-foundation-concealer-stick-P420440?skuId=1887520&icid2=products%20grid:p420440",
 		// "https://www.sephora.com/product/briogeo-scalp-revival-charcoal-tea-tree-cooling-hydration-mask-dry-itchy-scalp-mask-P469440?icid2=products%20grid:p469440",
 		// "https://www.sephora.com/product/marc-jacobs-beauty-extra-shot-caffeine-concealer-foundation-P468838?icid2=products%20grid:p468838",
 	} {

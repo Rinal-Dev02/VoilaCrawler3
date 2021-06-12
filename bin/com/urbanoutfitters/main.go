@@ -111,6 +111,11 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if resp.Request.URL.Path == "/unsupported" {
 		return fmt.Errorf("invalud request url")
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+
+	if p == "" || p == "/womens-clothing" || p == "/mens-clothing" || p == "/home" || p == "/lifestyle" || p == "/beauty-products" || p == "/sale" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -120,6 +125,117 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategoryJsonProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+type categoryStructure struct {
+	Navigationitems []struct {
+		Displayname     string `json:"displayName"`
+		Navigationitems []struct {
+			Displayname string `json:"displayName"`
+			Slug        string `json:"slug"`
+		} `json:"navigationItems"`
+	} `json:"navigationItems"`
+}
+
+var authExtractReg = regexp.MustCompile(`(?U)authToken%22%3A%22(.*)%22`)
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	s := []string{}
+
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	if p == "" {
+		sel := dom.Find(`.c-pwa-header-navigation__item`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			href := "https://www.urbanoutfitters.com/api/catalog/v0/uo-us/navigation?slug=" + node.AttrOr("data-nav-slug", "") + "&projection-slug=navdepth2"
+			s = append(s, href)
+		}
+	}
+
+	if p == "/womens-clothing" || p == "/mens-clothing" || p == "/home" || p == "/lifestyle" || p == "/beauty-products" || p == "/sale" {
+		href := "https://www.urbanoutfitters.com/api/catalog/v0/uo-us/navigation?slug=" + strings.TrimPrefix(p, "/") + "&projection-slug=navdepth2"
+		s = append(s, href)
+	}
+
+	cookie := resp.Response.Header
+
+	urbn_auth_payload := authExtractReg.FindSubmatch([]byte(strings.Join(cookie.Values(`Set-Cookie`), ";")))
+
+	for _, catUrl := range s {
+
+		req, err := http.NewRequest(http.MethodGet, catUrl, nil)
+		req.Header.Add("accept", "application/json, text/plain, */*")
+
+		req.Header.Add("authorization", "Bearer "+string(urbn_auth_payload[1]))
+		req.Header.Add("referer", "https://www.urbanoutfitters.com/")
+		req.Header.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+		req.Header.Add("x-urbn-channel", "web")
+		req.Header.Add("x-urbn-language", "en-US")
+
+		catreq, err := c.httpClient.Do(ctx, req)
+		if err != nil {
+			panic(err)
+		}
+		defer catreq.Body.Close()
+
+		catBody, err := ioutil.ReadAll(catreq.Body)
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+
+		var viewData categoryStructure
+		if err := json.Unmarshal(catBody, &viewData); err != nil {
+			c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+			return err
+		}
+
+		for _, rawCat := range viewData.Navigationitems {
+
+			cateName := rawCat.Displayname
+			if cateName == "" {
+				continue
+			}
+			nnctx := context.WithValue(ctx, "Category", cateName)
+			fmt.Println(`cateName `, cateName)
+			for _, rawsubCat := range rawCat.Navigationitems {
+
+				href := "https://www.urbanoutfitters.com/" + rawsubCat.Slug
+				if rawsubCat.Slug == "" {
+					continue
+				}
+
+				_, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := rawsubCat.Displayname
+				fmt.Println(subCateName)
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnnctx, req); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get sharingData from context
@@ -339,7 +455,6 @@ func (c *_Crawler) parseCategoryJsonProducts(ctx context.Context, resp *http.Res
 
 type rawProduct struct {
 	CatalogData struct {
-		Freeze  bool `json:"__freeze__"`
 		Product struct {
 			ParentCategoryID      string `json:"parentCategoryId"`
 			StyleNumber           string `json:"styleNumber"`
@@ -375,35 +490,13 @@ type rawProduct struct {
 			ProductSlug           string        `json:"productSlug"`
 			IsMarketPlace         bool          `json:"isMarketPlace"`
 		} `json:"product"`
-		Language string `json:"language"`
-		Links    []struct {
-			Locale      string `json:"locale"`
-			ProductSlug string `json:"productSlug"`
-		} `json:"links"`
 		LastModified int `json:"lastModified"`
 		SkuInfo      struct {
-			ListPriceHigh    float64 `json:"listPriceHigh"`
-			MarkdownState    string  `json:"markdownState"`
-			ListPriceLow     float64 `json:"listPriceLow"`
-			HasFlatRateSku   bool    `json:"hasFlatRateSku"`
-			DisplayListPrice bool    `json:"displayListPrice"`
-			HasAvailableSku  bool    `json:"hasAvailableSku"`
-			SalePriceLow     float64 `json:"salePriceLow"`
-			HasMarkdown      bool    `json:"hasMarkdown"`
-			SalePriceHigh    float64 `json:"salePriceHigh"`
-			SecondarySlice   struct {
-				DisplayLabel string `json:"displayLabel"`
-				SliceItems   []struct {
-					Code          string `json:"code"`
-					DisplayName   string `json:"displayName"`
-					IncludedSizes []struct {
-						DisplayName string `json:"displayName"`
-						ID          string `json:"id"`
-					} `json:"includedSizes"`
-				} `json:"sliceItems"`
-				Name string `json:"name"`
-			} `json:"secondarySlice"`
-			PrimarySlice struct {
+			ListPriceHigh float64 `json:"listPriceHigh"`
+			ListPriceLow  float64 `json:"listPriceLow"`
+			SalePriceLow  float64 `json:"salePriceLow"`
+			SalePriceHigh float64 `json:"salePriceHigh"`
+			PrimarySlice  struct {
 				DisplayLabel string `json:"displayLabel"`
 				SliceItems   []struct {
 					Code         string `json:"code"`
@@ -440,13 +533,6 @@ type rawProduct struct {
 					ID                     string        `json:"id"`
 				} `json:"sliceItems"`
 			} `json:"primarySlice"`
-			Afterpay struct {
-				Status        string  `json:"status"`
-				NumOfPayments float64 `json:"numOfPayments"`
-				Payment       float64 `json:"payment"`
-			} `json:"afterpay"`
-			AllSkusCollectionPointEligible bool `json:"allSkusCollectionPointEligible"`
-			HasRestockFeeCode              bool `json:"hasRestockFeeCode"`
 		} `json:"skuInfo"`
 		Reviews struct {
 			Count         int     `json:"count"`
@@ -559,7 +645,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Current:  int32(p.CatalogData.SkuInfo.SalePriceLow * 100),
 			Msrp:     int32(p.CatalogData.SkuInfo.ListPriceHigh * 100),
 		},
-		Stock: &pbItem.Stock{},
+		//Stock: &pbItem.Stock{},
 		Stats: &pbItem.Stats{
 			ReviewCount: int32(p.CatalogData.Reviews.Count),
 			Rating:      float32(p.CatalogData.Reviews.AverageRating),
@@ -633,14 +719,26 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
+
+	for _, rawSku := range item.SkuItems {
+		if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+		}
+	}
+
+	if item.Stock == nil {
+		item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
+	}
+
 	return yield(ctx, &item)
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
+		//"https://www.urbanoutfitters.com/",
 		// "https://www.urbanoutfitters.com/shop/uo-rugby-cotton-shirt?category=mens-clothing-sale&color=001",
-		// "https://www.urbanoutfitters.com/shop/uo-retro-sport-colorblock-crew-neck-sweatshirt?category=mens-clothing-sale&color=004&type=REGULAR&quantity=1&size=L",
-		"https://www.urbanoutfitters.com/mens-clothing-sale",
+		"https://www.urbanoutfitters.com/shop/uo-retro-sport-colorblock-crew-neck-sweatshirt?category=mens-clothing-sale&color=004&type=REGULAR&quantity=1&size=L",
+		//"https://www.urbanoutfitters.com/mens-clothing-sale",
 		// "https://www.urbanoutfitters.com/api/catalog/v2/uo-us/pools/US_DIRECT/navigation-items/mens-clothing-sale/products?page-size=96&skip=192&projection-slug=categorytiles",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)

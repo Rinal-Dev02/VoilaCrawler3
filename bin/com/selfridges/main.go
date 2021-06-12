@@ -112,15 +112,81 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 //   if you got an product item, then you can just emit it.
 // returns error when there are any errors happened.
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	fmt.Println(`Parse`)
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+
+	if p == "" || p == "/US/en" {
+		return c.parseCategories(ctx, resp, yield)
+	}
+
 	if c.productPathMatcher.MatchString(resp.Request.URL.String()) || c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.ajaxedMenuContent.author-only`).Find(`div[data-analytics-label]`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.AttrOr("data-analytics-label", ""))
+		if cateName == "" {
+			continue
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+		fmt.Println(`cateName `, cateName)
+
+		subSel1 := node.Find(`.itemGroup`)
+		for k := range subSel1.Nodes {
+			subNodeN := subSel1.Eq(k)
+			subCat1 := strings.TrimSpace(subNodeN.Find(`h3`).Text())
+
+			subSel := subNodeN.Find(`dd`).Find(`a`)
+			for j := range subSel.Nodes {
+
+				subNode := subSel.Eq(j)
+				href := subNode.AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				_, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subCat1 + " > " + strings.TrimSpace(subNode.Text())
+				fmt.Println(subCateName)
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnnctx, req); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get the index from the shared data.
@@ -417,6 +483,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
+	for _, rawSku := range item.SkuItems {
+		if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+		}
+	}
+	if item.Stock == nil {
+		item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
+	}
 	// yield item result
 	if err = yield(ctx, &item); err != nil {
 		return err
@@ -428,11 +502,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.selfridges.com/US/en/cat/womens/clothing/tops/?cm_sp=MegaMenu-_-Women-_-Clothing-Tops&pn=1&scrollToProductId=R03735136_GARNET_ALT10",
+		"https://www.selfridges.com/US/en",
+		//"https://www.selfridges.com/US/en/cat/womens/clothing/tops/?cm_sp=MegaMenu-_-Women-_-Clothing-Tops&pn=1&scrollToProductId=R03735136_GARNET_ALT10",
 		//"https://www.selfridges.com/US/en/cat/stella-mccartney-branded-relaxed-fit-cotton-jersey-vest_R03733067/?previewAttribute=PURE%20WHITE",
 		//"https://www.selfridges.com/US/en/cat/a_R03647747/?previewAttribute=Sky Blue Cream",
 		//"https://www.selfridges.com/US/en/cat/a_R03673363/?previewAttribute=CLOUD%20DANCER",
-		"https://www.selfridges.com/US/en/cat/tom-ford-floral-print-leather-card-holder_R03714356/?previewAttribute=BLK+WHT",
+		//"https://www.selfridges.com/US/en/cat/tom-ford-floral-print-leather-card-holder_R03714356/?previewAttribute=BLK+WHT",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -457,5 +532,6 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(New).Run(os.Args)
 }
