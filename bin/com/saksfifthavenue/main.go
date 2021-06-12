@@ -131,13 +131,98 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
+	if p == "" || p == "/mens" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.categoryDynamicLoadMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct2(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func TrimSpaceNewlineInString(s string) string {
+	re := regexp.MustCompile(`\n`)
+	resp := re.ReplaceAllString(s, " ")
+	resp = strings.ReplaceAll(resp, "\\n", " ")
+	resp = strings.ReplaceAll(resp, "\r", " ")
+	resp = strings.ReplaceAll(resp, "\t", " ")
+	resp = strings.ReplaceAll(resp, "  ", "")
+	return resp
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.nav.navbar-nav`).Find(`li[data-adobelaunchtopnavigation]`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		mainCategory := "Men"
+		if strings.Contains(node.AttrOr("class", ""), "womens") {
+			mainCategory = "Women"
+		}
+		nctx := context.WithValue(ctx, "MainCategory", mainCategory)
+
+		cateName := TrimSpaceNewlineInString(node.Find(`a`).First().Text())
+		if cateName == "" {
+			continue
+		}
+
+		nnctx := context.WithValue(nctx, "Category", cateName)
+		//fmt.Println(`cateName `, mainCategory, "  --  ", cateName)
+
+		subSel1 := node.Find(`ul`).Find(`.dropdown-item.dropdown`)
+		for k := range subSel1.Nodes {
+			subNodeN := subSel1.Eq(k)
+
+			subCat1 := TrimSpaceNewlineInString(subNodeN.AttrOr("data-adobelaunchsubcategory", ""))
+			if subCat1 == "" {
+				continue
+			}
+
+			subSel := subNodeN.Find(`a`)
+			for j := range subSel.Nodes {
+
+				subNode := subSel.Eq(j)
+				href := subNode.AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				_, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subCat1 + " > " + TrimSpaceNewlineInString(subNode.Text())
+				//fmt.Println(subCateName)
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnnctx, req); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get the index from the shared data.
@@ -231,14 +316,6 @@ type productVariationAttributes struct {
 		Selected     bool        `json:"selected"`
 		Selectable   bool        `json:"selectable"`
 		URL          string      `json:"url"`
-		// Images       struct {
-		// 	Swatch []struct {
-		// 		Alt      string `json:"alt"`
-		// 		URL      string `json:"url"`
-		// 		Title    string `json:"title"`
-		// 		HiresURL string `json:"hiresURL"`
-		// 	} `json:"swatch"`
-		// } `json:"images"`
 	} `json:"values"`
 	SelectedAttribute struct {
 	} `json:"selectedAttribute"`
@@ -328,31 +405,6 @@ type ProductDataJson struct {
 				Title    string `json:"title"`
 				HiresURL string `json:"hiresURL"`
 			} `json:"large"`
-			// Small []struct {
-			// 	Alt      string `json:"alt"`
-			// 	URL      string `json:"url"`
-			// 	Title    string `json:"title"`
-			// 	HiresURL string `json:"hiresURL"`
-			// } `json:"small"`
-			// HiRes []struct {
-			// 	Alt   string `json:"alt"`
-			// 	URL   string `json:"url"`
-			// 	Title string `json:"title"`
-			// 	// HiresURL string `json:"hiresURL"`
-			// } `json:"hi-res"`
-			// Swatch []struct {
-			// 	Alt      string `json:"alt"`
-			// 	URL      string `json:"url"`
-			// 	Title    string `json:"title"`
-			// 	HiresURL string `json:"hiresURL"`
-			// } `json:"swatch"`
-			// Video []struct {
-			// 	Alt      string `json:"alt"`
-			// 	URL      string `json:"url"`
-			// 	Title    string `json:"title"`
-			// 	HiresURL struct {
-			// 	} `json:"hiresURL"`
-			// } `json:"video"`
 		} `json:"images"`
 		SelectedQuantity    int                           `json:"selectedQuantity"`
 		MinOrderQuantity    int                           `json:"minOrderQuantity"`
@@ -896,7 +948,14 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 				}
 			}
 		}
-
+		for _, rawSku := range item.SkuItems {
+			if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+				item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+			}
+		}
+		if item.Stock == nil {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
+		}
 		if err := yield(ctx, &item); err != nil {
 			return err
 		}
@@ -907,12 +966,13 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
+		//"https://www.saksfifthavenue.com/",
 		// "https://www.saksfifthavenue.com/c/women-s-accessories/hair-accessories",
 		// "https://www.saksfifthavenue.com/product/burberry-harlford-logo-boxy-t-shirt-0400013668683.html?dwvar_0400013668683_color=BLACK%20WHITE",
 		// "https://www.saksfifthavenue.com/product/gestuz-lena-smocked-midi-dress-0400013970412.html",
 		// "https://www.saksfifthavenue.com/product/onitsuka-tiger-men-s-ultimate-81-ex-low-top-sneakers-0400013572721.html?dwvar_0400013572721_color=CREAM%20STEEPLE%20GREY",
-		"https://www.saksfifthavenue.com/product/varley-luna-printed-leggings-0400013298686.html",
-		// "https://www.saksfifthavenue.com/product/raf-simons-orion-microfiber-sneakers-0400012933782.html?dwvar_0400012933782_color=RED",
+		//"https://www.saksfifthavenue.com/product/varley-luna-printed-leggings-0400013298686.html",
+		"https://www.saksfifthavenue.com/product/raf-simons-orion-microfiber-sneakers-0400012933782.html?dwvar_0400012933782_color=RED",
 		// "https://www.saksfifthavenue.com/c/men?prefn1=isSale&prefv1=Sale",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
