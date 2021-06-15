@@ -130,13 +130,98 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
+	if p == "" || p == "/mens" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.categoryDynamicLoadMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct2(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func TrimSpaceNewlineInString(s string) string {
+	re := regexp.MustCompile(`\n`)
+	resp := re.ReplaceAllString(s, " ")
+	resp = strings.ReplaceAll(resp, "\\n", " ")
+	resp = strings.ReplaceAll(resp, "\r", " ")
+	resp = strings.ReplaceAll(resp, "\t", " ")
+	resp = strings.ReplaceAll(resp, "  ", "")
+	return resp
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.nav.navbar-nav`).Find(`li[data-adobelaunchtopnavigation]`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		// mainCategory := "Men"
+		// if strings.Contains(node.AttrOr("class", ""), "womens") {
+		// 	mainCategory = "Women"
+		// }
+		//nctx := context.WithValue(ctx, "MainCategory", mainCategory)
+
+		cateName := TrimSpaceNewlineInString(node.Find(`a`).First().Text())
+		if cateName == "" {
+			continue
+		}
+
+		nnctx := context.WithValue(ctx, "Category", cateName)
+		//fmt.Println(`cateName `, cateName)
+
+		subSel1 := node.Find(`ul`).Find(`.dropdown-item.dropdown`)
+		for k := range subSel1.Nodes {
+			subNodeN := subSel1.Eq(k)
+
+			subCat1 := TrimSpaceNewlineInString(subNodeN.AttrOr("data-adobelaunchsubcategory", ""))
+			if subCat1 == "" {
+				continue
+			}
+
+			subSel := subNodeN.Find(`a`)
+			for j := range subSel.Nodes {
+
+				subNode := subSel.Eq(j)
+				href := subNode.AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				_, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subCat1 + " > " + TrimSpaceNewlineInString(subNode.Text())
+				fmt.Println(subCateName)
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnnctx, req); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get the index from the shared data.
@@ -384,7 +469,7 @@ type ProductDataJson struct {
 			AvailableDc string `json:"available_dc"`
 			Sku         string `json:"sku"`
 		} `json:"allAvailableProducts"`
-		StarRating float64 `json:"starRating"`
+		StarRating string `json:"starRating"`
 		// AttributesHTML string `json:"attributesHtml"`
 		// PromotionsHTML string `json:"promotionsHtml"`
 		// FinalSaleHTML  string `json:"finalSaleHtml"`
@@ -450,6 +535,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	for _, prodInfo := range productSkus.Products {
 		rating, _ := strconv.ParseFloat(prodInfo.AverageRating)
+		reviewcount, _ := strconv.ParseInt(prodInfo.TotalReviews)
 
 		var (
 			orgPrice float64
@@ -476,7 +562,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Discount: int32(discount),
 			},
 			Stats: &pbItem.Stats{
-				ReviewCount: 0,
+				ReviewCount: int32(reviewcount),
 				Rating:      float32(rating),
 			},
 		}
@@ -605,6 +691,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
+		for _, rawSku := range item.SkuItems {
+			if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+				item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+				break
+			}
+		}
+		if item.Stock == nil {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
+		}
 		if err = yield(ctx, &item); err != nil {
 			return err
 		}
@@ -676,7 +771,7 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 	}
 	for _, prodInfo := range productSkus.Products {
 		rating, _ := strconv.ParseFloat(prodInfo.AverageRating)
-
+		reviewcount, _ := strconv.ParseInt(prodInfo.TotalReviews)
 		item := pbItem.Product{
 			Source: &pbItem.Source{
 				Id:           prodInfo.Code,
@@ -690,7 +785,7 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 				Currency: regulation.Currency_USD,
 			},
 			Stats: &pbItem.Stats{
-				ReviewCount: 0,
+				ReviewCount: int32(reviewcount),
 				Rating:      float32(rating),
 			},
 		}
@@ -897,7 +992,14 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 				}
 			}
 		}
-
+		for _, rawSku := range item.SkuItems {
+			if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+				item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+			}
+		}
+		if item.Stock == nil {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
+		}
 		if err := yield(ctx, &item); err != nil {
 			return err
 		}
@@ -908,6 +1010,7 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
+		//"https://www.saksoff5th.com/",
 		// "https://www.saksoff5th.com/c/women/apparel/activewear",
 		"https://www.saksoff5th.com/product/swims-ms-lace-driving-shoes-0400013974163.html?dwvar_0400013974163_color=ORANGE",
 	} {
