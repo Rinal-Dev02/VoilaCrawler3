@@ -175,7 +175,15 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 
 					i = i.WithContext(ctx)
 					reqQueue.PushBack(i)
-					logger.Debugf("Appended %s", i.URL)
+
+					sharedVals := context.RetrieveAllValues(ctx)
+					vals := map[string]interface{}{}
+					for k, v := range sharedVals {
+						if ks, ok := k.(string); ok {
+							vals[ks] = v
+						}
+					}
+					logger.Debugf("Appended %s, data=%+v", i.URL, vals)
 
 					return nil
 				default:
