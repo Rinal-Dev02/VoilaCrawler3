@@ -122,12 +122,12 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-	if resp.Request.URL.Path == "" || resp.Request.URL.Path == "/" {
+	if resp.RawUrl().Path == "" || resp.RawUrl().Path == "/" {
 		return c.parseCategories(ctx, resp, yield)
 	}
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
@@ -147,12 +147,8 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	if c == nil || yield == nil {
 		return nil
 	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
 
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	dom, err := resp.Selector()
 	if err != nil {
 		c.logger.Error(err)
 		return err
@@ -161,42 +157,32 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	sel := dom.Find(`.top-nav-list-item`)
 	for j := range sel.Nodes {
 		subnode := sel.Eq(j)
-		//fmt.Println(`Cat >> `, TrimSpaceNewlineInByte(subnode.Find(`span`).First().Text()))
-		nnctx := context.WithValue(ctx, "Category", TrimSpaceNewlineInString(subnode.Find(`span`).First().Text()))
+		nnctx := context.WithValue(ctx, "Category", TrimSpaceNewlineInString(subnode.Find(`.top-nav-list-item-link span`).Text()))
 
-		subnodes1 := subnode.Find(`.nested-navigation-section`)
+		subnodes1 := subnode.Find(`.sub-navigation-list>.sub-navigation-list-item`)
 		for k := range subnodes1.Nodes {
 			sub2node := subnodes1.Eq(k)
 
-			subnodes2 := sub2node.Find(`li`)
-			for i := range subnodes2.Nodes {
-				node := subnodes2.Eq(i)
-				SubCategory := ""
-				if sub2node.Find(`h3`).First().Text() != "" {
-					SubCategory = TrimSpaceNewlineInString(sub2node.Find(`h3`).First().Text() + " >  " + node.Text())
-				} else {
-					SubCategory = TrimSpaceNewlineInString(node.Text())
-				}
+			subnodes2 := sub2node.Find(`.sub-navigation-list-item-link`)
+			SubCategory := TrimSpaceNewlineInString(subnodes2.Text())
+			//fmt.Println(SubCategory)
+			href := subnodes2.AttrOr("href", "")
+			if href == "" {
+				continue
+			}
+			u, err := url.Parse(href)
+			if err != nil {
+				c.logger.Errorf("parse url %s failed", href)
+				continue
+			}
 
-				//fmt.Println(SubCategory)
-				href := node.AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Errorf("parse url %s failed", href)
-					continue
-				}
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					// here reset tracing id to distiguish different category crawl
-					// This may exists duplicate requests
-					nctx := context.WithValue(nnctx, "SubCategory", SubCategory)
-					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-					if err := yield(nctx, req); err != nil {
-						return err
-					}
+			if c.categoryPathMatcher.MatchString(u.Path) {
+				// here reset tracing id to distiguish different category crawl
+				// This may exists duplicate requests
+				nctx := context.WithValue(nnctx, "SubCategory", SubCategory)
+				req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+				if err := yield(nctx, req); err != nil {
+					return err
 				}
 			}
 		}
