@@ -116,15 +116,15 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" || p == "/US/en" {
 		return c.parseCategories(ctx, resp, yield)
 	}
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.String()) || c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(resp.RawUrl().String()) || c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
@@ -532,6 +532,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(New).Run(os.Args)
 }
