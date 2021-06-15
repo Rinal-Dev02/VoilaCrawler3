@@ -37,7 +37,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 		httpClient: client,
 		// /men-bags/COjWAcABAuICAgEY.zso
 		// https://www.zappos.com/alex-and-ani-cross-ii-32-expandable-necklace?oosRedirected=true
-		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9\-]+){1,5}/[a-zA-Z0-9]+\.zso$`),
+		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9\-]+){1,5}(/[a-zA-Z0-9]*\.zso)?$`),
 		productPathMatcher:  regexp.MustCompile(`^(/a/[a-z0-0-]+)?/p(/[a-z0-9_-]+)/product/\d+(/[a-z0-9]+/\d+)?$`),
 		logger:              logger.New("_Crawler"),
 	}
@@ -100,15 +100,15 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if resp.Request.URL.Query().Get("oosRedirected") == "true" {
 		return crawler.ErrAbort
 	}
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" {
 		return c.parseCategories(ctx, resp, yield)
 	}
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
 }
@@ -527,6 +527,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			CrowdType:   viewData.PixelServer.Data.Product.Gender,
 			Category:    viewData.PixelServer.Data.Product.Category,
 			SubCategory: viewData.PixelServer.Data.Product.SubCategory,
+			Stock:       &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			Stats: &pbItem.Stats{
 				ReviewCount: int32(reviews),
 				Rating:      float32(viewData.Product.Detail.ReviewSummary.AggregateRating),
@@ -565,6 +566,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 				onhandCount, _ := strconv.ParseInt(stock.OnHand)
 				if onhandCount > 0 {
+					item.Stock.StockStatus = pbItem.Stock_InStock
 					sku.Stock.StockStatus = pbItem.Stock_InStock
 					sku.Stock.StockCount = int32(onhandCount)
 				}
@@ -608,7 +610,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
 		}
 		reviews, _ := strconv.ParseInt(viewData.ReviewSummary.TotalReviews)
-		rating, _ := strconv.ParseFloat(viewData.ReviewSummary.AverageOverallRating)
+		rating, _ := strconv.ParseFloat(viewData.ReviewSummary.MaxArchRatingPercentage)
 		// build product data
 		item := pbItem.Product{
 			Source: &pbItem.Source{
@@ -629,6 +631,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				ReviewCount: int32(reviews),
 				Rating:      float32(rating),
 			},
+			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
 		for _, rawSku := range viewData.Styles {
@@ -665,6 +668,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				if onhandCount > 0 {
 					sku.Stock.StockStatus = pbItem.Stock_InStock
 					sku.Stock.StockCount = int32(onhandCount)
+					item.Stock.StockStatus = pbItem.Stock_InStock
 				}
 
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
