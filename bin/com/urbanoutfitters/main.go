@@ -111,17 +111,19 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if resp.Request.URL.Path == "/unsupported" {
 		return fmt.Errorf("invalud request url")
 	}
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
-	if p == "" || p == "/womens-clothing" || p == "/mens-clothing" || p == "/home" || p == "/lifestyle" || p == "/beauty-products" || p == "/sale" {
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
+
+	if p == "" || p == "/womens-clothing" || p == "/mens-clothing" || p == "/home" ||
+		p == "/lifestyle" || p == "/beauty-products" || p == "/sale" {
 		return c.parseCategories(ctx, resp, yield)
 	}
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.categoryJsonPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryJsonPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryJsonProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
