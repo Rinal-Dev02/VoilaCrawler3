@@ -131,14 +131,14 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" || p == "/mens" {
 		return c.parseCategories(ctx, resp, yield)
 	}
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.categoryDynamicLoadMatcher.MatchString(resp.Request.URL.Path) {
+	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || c.categoryDynamicLoadMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct2(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
