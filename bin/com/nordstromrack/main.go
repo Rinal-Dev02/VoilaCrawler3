@@ -1014,12 +1014,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if c == nil {
 		return nil
 	}
-	fmt.Println(`parseProduct`)
+
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
-	ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\Output.html", respBody, 0644)
 
 	matched := categoryExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
@@ -1044,6 +1043,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if canUrl == "" {
 		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
 	}
+
 	item := pbItem.Product{
 		Source: &pbItem.Source{
 			Id:           strconv.Format(viewData.Viewdata.ID),
@@ -1062,6 +1062,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Rating:      float32(viewData.Viewdata.Reviewaveragerating),
 		},
 	}
+
+	// Note: category not available
 	// links := viewData.ProductPage.BreadcrumbLinks
 	// for i, l := range links {
 	// 	switch i {
@@ -1079,8 +1081,30 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	// }
 
 	for _, rawSkuColor := range viewData.Viewdata.Filters.Color.Byid {
+		// img based on color
+		medias := []*pbMedia.Media{}
+		isDefault := true
+		for ki, mid := range rawSkuColor.Stylemediaids {
+			rawMedia := viewData.Viewdata.Stylemedia.Byid[mid]
 
-		for k, rawNumber := range rawSkuColor.Relatedskuids {
+			if ki > 0 {
+				isDefault = false
+			}
+
+			medias = append(medias, pbMedia.NewImageMedia(
+				strconv.Format(rawMedia.ID),
+				rawMedia.Imagemediauri.Mini,
+				rawMedia.Imagemediauri.Largedesktop,
+				rawMedia.Imagemediauri.Zoom,
+				rawMedia.Imagemediauri.Smalldesktop,
+				"",
+				isDefault,
+			))
+		}
+
+		item.Medias = append(item.Medias, medias...)
+
+		for _, rawNumber := range rawSkuColor.Relatedskuids {
 			sizeSkuID := rawNumber
 			rawSku := viewData.Viewdata.Skus.Byid[sizeSkuID]
 
@@ -1088,7 +1112,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			originalPrice, _ := strconv.ParseFloat(viewData.Viewdata.Skus.Byid[sizeSkuID].Price)
 			discount, _ := strconv.ParseFloat(strings.TrimSuffix(viewData.Viewdata.Skus.Byid[sizeSkuID].Displaypercentoff, "%"))
 			sku := pbItem.Sku{
-				SourceId: strconv.Format(rawSku.ID),
+				SourceId: fmt.Sprintf("%v-%s", rawSku.ID, rawSku.Colorid),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(currentPrice * 100),
@@ -1101,6 +1125,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				sku.Stock.StockStatus = pbItem.Stock_InStock
 				sku.Stock.StockCount = int32(rawSku.Totalquantityavailable)
 			}
+			sku.Medias = medias
 
 			// color
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
@@ -1111,33 +1136,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Icon:  rawSkuColor.Swatchmedia.Desktop,
 			})
 
-			if k == 0 {
-
-				// img based on color
-				isDefault := true
-				for ki, mid := range rawSkuColor.Stylemediaids {
-					rawMedia := viewData.Viewdata.Stylemedia.Byid[mid]
-
-					if ki > 0 {
-						isDefault = false
-					}
-
-					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-						strconv.Format(rawMedia.ID),
-						rawMedia.Imagemediauri.Mini,
-						rawMedia.Imagemediauri.Largedesktop,
-						rawMedia.Imagemediauri.Zoom,
-						rawMedia.Imagemediauri.Smalldesktop,
-						"",
-						isDefault,
-					))
-				}
-			}
-
 			// size
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    fmt.Sprintf("%s-%s", rawSku.ID, rawSku.Colorid),
+				Id:    strconv.Format(rawSku.ID),
 				Name:  viewData.Viewdata.Filters.Size.Byid[rawSku.Sizeid].Value,
 				Value: viewData.Viewdata.Filters.Size.Byid[rawSku.Sizeid].Value,
 			})
@@ -1154,7 +1156,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
 	}
 	// yield item result
-	return yield(ctx, &item)
+	if err := yield(ctx, &item); err != nil {
+		return err
+	}
+	return nil
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
