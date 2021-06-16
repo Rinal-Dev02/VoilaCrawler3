@@ -165,9 +165,9 @@ type CategoryStructure struct {
 				Cmscontent struct {
 					Type     string `json:"type"`
 					Elements []struct {
-						Type        string `json:"type"`
-						Title       string `json:"title,omitempty"`
-						Hidden      bool   `json:"hidden,omitempty"`
+						Type string `json:"type"`
+						// Title       string `json:"title,omitempty"`
+						Hidden      bool `json:"hidden,omitempty"`
 						Productlist []struct {
 							Title string `json:"title"`
 							Items []struct {

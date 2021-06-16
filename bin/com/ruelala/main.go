@@ -69,9 +69,10 @@ func (c *_Crawler) Version() int32 {
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 
-	options.EnableHeadless = true
-	options.EnableSessionInit = true
-	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
+	options.EnableHeadless = false
+	options.EnableSessionInit = false
+	options.DisableCookieJar = true
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityDefault
 
 	// options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
 	options.MustCookies = append(options.MustCookies,
@@ -121,7 +122,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" || p == "/boutique" {
 		return c.parseCategories(ctx, resp, yield)
