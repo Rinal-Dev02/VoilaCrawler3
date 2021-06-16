@@ -99,15 +99,76 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	if p == "" {
+		return c.parseCategories(ctx, resp, yield)
+	}
+	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.categoryAPIMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryAPIMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryAPIProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.pre-desktop-menu>li`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" {
+			continue
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		subSel := node.Find(`.pre-menu-column`)
+		for k := range subSel.Nodes {
+			subNode2 := subSel.Eq(k)
+			subcat2 := subNode2.Find(`button`).Text()
+			if subcat2 == "" {
+				subcat2 = subNode2.Find(`a`).First().Text()
+			}
+			subNode2list := subNode2.Find(`a`)
+
+			for j := range subNode2list.Nodes {
+				subNode := subNode2list.Eq(j)
+				href := subNode.AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				_, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subcat2 + " > " + strings.TrimSpace(subNode.Text())
+
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnnctx, req); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func isRobotCheckPage(respBody []byte) bool {
@@ -119,79 +180,10 @@ func isRobotCheckPage(respBody []byte) bool {
 type CategoryView struct {
 	Wall struct {
 		PageData struct {
-			Prev           string      `json:"prev"`
-			Next           string      `json:"next"`
-			TotalPages     int         `json:"totalPages"`
-			TotalResources int         `json:"totalResources"`
-			SearchSummary  interface{} `json:"searchSummary"`
+			Next string `json:"next"`
 		} `json:"pageData"`
 		Products []struct {
-			AltImages        interface{} `json:"altImages"`
-			CardType         string      `json:"cardType"`
-			CloudProductID   string      `json:"cloudProductId"`
-			ColorDescription string      `json:"colorDescription"`
-			Colorways        []struct {
-				ColorDescription string `json:"colorDescription"`
-				Images           struct {
-					PortraitURL string `json:"portraitURL"`
-					SquarishURL string `json:"squarishURL"`
-				} `json:"images"`
-				PdpURL string `json:"pdpUrl"`
-				Price  struct {
-					Currency               string      `json:"currency"`
-					CurrentPrice           float64     `json:"currentPrice"`
-					Discounted             bool        `json:"discounted"`
-					EmployeePrice          float64     `json:"employeePrice"`
-					FullPrice              float64     `json:"fullPrice"`
-					MinimumAdvertisedPrice interface{} `json:"minimumAdvertisedPrice"`
-				} `json:"price"`
-				AltImages         interface{} `json:"altImages"`
-				CloudProductID    string      `json:"cloudProductId"`
-				InStock           bool        `json:"inStock"`
-				IsExcluded        bool        `json:"isExcluded"`
-				IsMemberExclusive bool        `json:"isMemberExclusive"`
-				IsNew             bool        `json:"isNew"`
-				Label             string      `json:"label"`
-				Pid               string      `json:"pid"`
-				PrebuildID        interface{} `json:"prebuildId"`
-				ProductInstanceID interface{} `json:"productInstanceId"`
-			} `json:"colorways"`
-			Customizable      bool   `json:"customizable"`
-			HasExtendedSizing bool   `json:"hasExtendedSizing"`
-			ID                string `json:"id"`
-			Images            struct {
-				PortraitURL string `json:"portraitURL"`
-				SquarishURL string `json:"squarishURL"`
-			} `json:"images"`
-			InStock           bool        `json:"inStock"`
-			IsExcluded        bool        `json:"isExcluded"`
-			IsJersey          bool        `json:"isJersey"`
-			IsMemberExclusive bool        `json:"isMemberExclusive"`
-			IsNBA             bool        `json:"isNBA"`
-			IsNFL             bool        `json:"isNFL"`
-			IsSustainable     bool        `json:"isSustainable"`
-			Label             string      `json:"label"`
-			NbyColorway       interface{} `json:"nbyColorway"`
-			Pid               string      `json:"pid"`
-			PrebuildID        interface{} `json:"prebuildId"`
-			Price             struct {
-				Currency               string      `json:"currency"`
-				CurrentPrice           float64     `json:"currentPrice"`
-				Discounted             bool        `json:"discounted"`
-				EmployeePrice          float64     `json:"employeePrice"`
-				FullPrice              float64     `json:"fullPrice"`
-				MinimumAdvertisedPrice interface{} `json:"minimumAdvertisedPrice"`
-			} `json:"price"`
-			PriceRangeCurrent  string      `json:"priceRangeCurrent"`
-			PriceRangeEmployee string      `json:"priceRangeEmployee"`
-			PriceRangeFull     string      `json:"priceRangeFull"`
-			ProductInstanceID  interface{} `json:"productInstanceId"`
-			ProductType        string      `json:"productType"`
-			Properties         interface{} `json:"properties"`
-			SalesChannel       []string    `json:"salesChannel"`
-			Subtitle           string      `json:"subtitle"`
-			Title              string      `json:"title"`
-			URL                string      `json:"url"`
+			URL string `json:"url"`
 		} `json:"products"`
 	} `json:"Wall"`
 }
@@ -357,14 +349,10 @@ type parseProductResponse struct {
 	Threads struct {
 		Products map[string]struct {
 			//CV4791100 struct {
-			ID            string `json:"id"`
-			ThreadID      string `json:"threadId"`
-			ProductID     string `json:"productId"`
-			MainColor     bool   `json:"mainColor"`
-			ProductRollup struct {
-				Type string `json:"type"`
-				Key  string `json:"key"`
-			} `json:"productRollup"`
+			ID                       string        `json:"id"`
+			ThreadID                 string        `json:"threadId"`
+			ProductID                string        `json:"productId"`
+			MainColor                bool          `json:"mainColor"`
 			Width                    interface{}   `json:"width"`
 			Athletes                 []interface{} `json:"athletes"`
 			StyleColor               string        `json:"styleColor"`
@@ -395,25 +383,20 @@ type parseProductResponse struct {
 			Description              string        `json:"description"`
 			DescriptionPreview       string        `json:"descriptionPreview"`
 			DescriptionHeading       string        `json:"descriptionHeading"`
-			NbyContentCopy           struct {
-			} `json:"nbyContentCopy"`
-			PrebuildID string `json:"prebuildId"`
+			PrebuildID               string        `json:"prebuildId"`
 			// MainPrebuild           string        `json:"mainPrebuild"`
-			IsNikeID               bool          `json:"isNikeID"`
-			IsNBYDesign            bool          `json:"isNBYDesign"`
-			UpdatedNBYDesignKey    string        `json:"updatedNBYDesignKey"`
-			Piid                   string        `json:"piid"`
-			PathName               string        `json:"pathName"`
-			Vas                    []interface{} `json:"vas"`
-			SeoProductDescription  string        `json:"seoProductDescription"`
-			SeoProductAvailability bool          `json:"seoProductAvailability"`
-			SeoProductReleaseDate  time.Time     `json:"seoProductReleaseDate"`
-			Discounted             bool          `json:"discounted"`
-			FullPrice              float64       `json:"fullPrice"`
-			CurrentPrice           float64       `json:"currentPrice"`
-			EmployeePrice          float64       `json:"employeePrice"`
-			Currency               string        `json:"currency"`
-			Skus                   []struct {
+			IsNikeID            bool          `json:"isNikeID"`
+			IsNBYDesign         bool          `json:"isNBYDesign"`
+			UpdatedNBYDesignKey string        `json:"updatedNBYDesignKey"`
+			Piid                string        `json:"piid"`
+			PathName            string        `json:"pathName"`
+			Vas                 []interface{} `json:"vas"`
+			Discounted          bool          `json:"discounted"`
+			FullPrice           float64       `json:"fullPrice"`
+			CurrentPrice        float64       `json:"currentPrice"`
+			EmployeePrice       float64       `json:"employeePrice"`
+			Currency            string        `json:"currency"`
+			Skus                []struct {
 				ID                  string `json:"id"`
 				NikeSize            string `json:"nikeSize"`
 				SkuID               string `json:"skuId"`
@@ -422,9 +405,6 @@ type parseProductResponse struct {
 			} `json:"skus"`
 			Title string `json:"title"`
 			Nodes []struct {
-				Analytics struct {
-					HashKey string `json:"hashKey"`
-				} `json:"analytics"`
 				Nodes []struct {
 					Analytics struct {
 						HashKey string `json:"hashKey"`
@@ -457,61 +437,15 @@ type parseProductResponse struct {
 						ColorTheme string `json:"colorTheme"`
 					} `json:"properties"`
 				} `json:"nodes"`
-				SubType    string `json:"subType"`
-				ID         string `json:"id"`
-				Type       string `json:"type"`
-				Version    string `json:"version"`
-				Properties struct {
-					ContainerType string `json:"containerType"`
-					Loop          bool   `json:"loop"`
-					Subtitle      string `json:"subtitle"`
-					ColorTheme    string `json:"colorTheme"`
-					AutoPlay      bool   `json:"autoPlay"`
-					Title         string `json:"title"`
-					Body          string `json:"body"`
-					Speed         int    `json:"speed"`
-				} `json:"properties"`
 			} `json:"nodes"`
-			LayoutCards           []interface{} `json:"layoutCards"`
-			FirstImageURL         string        `json:"firstImageUrl"`
-			FirstImageAltText     string        `json:"firstImageAltText"`
-			SustainabilityMessage []interface{} `json:"sustainabilityMessage"`
-			Language              string        `json:"language"`
-			Marketplace           string        `json:"marketplace"`
-			AvailableSkus         []struct {
-				ID           string `json:"id"`
-				ProductID    string `json:"productId"`
-				ResourceType string `json:"resourceType"`
-				Links        struct {
-					Self struct {
-						Ref string `json:"ref"`
-					} `json:"self"`
-				} `json:"links"`
-				Available bool   `json:"available"`
-				Level     string `json:"level"`
-				SkuID     string `json:"skuId"`
-			} `json:"availableSkus"`
-			PublishType       string      `json:"publishType"`
-			IsLaunchView      bool        `json:"isLaunchView"`
-			LaunchView        interface{} `json:"launchView"`
-			CollectionTermIds []string    `json:"collectionTermIds"`
-			ConceptIds        []string    `json:"conceptIds"`
-			SizeChartURL      string      `json:"sizeChartUrl"`
-			CatalogID         string      `json:"catalogId"`
-			SelectedSkuID     struct {
-			} `json:"selectedSkuId"`
-			SizeAndFitDescription         string `json:"sizeAndFitDescription"`
-			ExclusiveAccess               bool   `json:"exclusiveAccess"`
-			NotifyMeIndicator             bool   `json:"notifyMeIndicator"`
-			PromoExclusionAccess          bool   `json:"promoExclusionAccess"`
-			UseFeedsPromoExclusionMessage bool   `json:"useFeedsPromoExclusionMessage"`
-			JerseyIDPathName              string `json:"jerseyIdPathName"`
-			State                         string `json:"state"`
+			State string `json:"state"`
 			//	} `json:"CV4791-100"`
-
 		} `json:"products"`
 	} `json:"Threads"`
 }
+
+// used to trim html labels in description
+var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -525,6 +459,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err != nil {
 		return err
 	}
+
 	if isRobotCheckPage(respBody) {
 		return errors.New("robot check page")
 	}
@@ -551,18 +486,25 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if canUrl == "" {
 		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
 	}
+
 	var item *pbItem.Product
 	for _, p := range viewData.Threads.Products {
+		desc := p.Description
+
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetEscapeHTML(false)
+		enc.Encode(desc)
+
 		if item == nil {
 			item = &pbItem.Product{
 				Source: &pbItem.Source{
-					Id:           p.ProductGroupID,
+					Id:           p.ProductID,
 					CrawlUrl:     resp.Request.URL.String(),
 					CanonicalUrl: canUrl,
 				},
 				BrandName:   p.Brand,
 				Title:       p.FullTitle,
-				Description: p.Description,
+				Description: htmlTrimRegp.ReplaceAllString(desc, ""),
 				CrowdType:   strings.ToLower(strings.Join(p.Genders, ",")),
 				Category:    p.Category,
 				Price: &pbItem.Price{
@@ -579,7 +521,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Type:  pbItem.SkuSpecType_SkuSpecColor,
 			Id:    p.StyleColor,
 			Name:  p.ColorDescription,
-			Value: p.StyleColor,
+			Value: p.ColorDescription,
 		}
 
 		var medias []*pbMedia.Media
@@ -595,16 +537,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				ki == 0,
 			))
 		}
+		item.Medias = medias
 
-		for _, rawSku := range p.Skus {
+		for k, rawSku := range p.Skus {
 			originalPrice, _ := strconv.ParseFloat(p.FullPrice)
 			msrp, _ := strconv.ParseFloat(p.FullPrice)
 			discount := math.Ceil((msrp - originalPrice) / msrp * 100)
 
 			sku := pbItem.Sku{
-				SourceId:    rawSku.ID,
-				Title:       p.FullTitle,
-				Description: p.Description,
+				SourceId: fmt.Sprintf("%s_%v", rawSku.ID, k),
+				Title:    p.FullTitle,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(originalPrice * 100),
@@ -622,13 +564,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			// size
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    rawSku.NikeSize,
+				Id:    strconv.Format(k),
 				Name:  rawSku.LocalizedSize,
 				Value: rawSku.LocalizedSize,
 			})
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
+	for _, rawSku := range item.SkuItems {
+		if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
+			item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
+		}
+	}
+	if item.Stock == nil {
+		item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
+	}
+
 	if item != nil {
 		return yield(ctx, item)
 	}
@@ -638,6 +589,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
+		//"https://www.nike.com",
 		// "https://www.nike.com/w/womens-running-shoes-37v7jz5e1x6zy7ok",
 		// "https://www.nike.com/t/react-escape-run-running-shoe-94nDwX/CV3817-003",
 		"https://www.nike.com/u/custom-nike-air-zoom-tempo-next-by-you-10000953/8909442240",
