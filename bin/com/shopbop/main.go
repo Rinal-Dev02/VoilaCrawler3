@@ -122,10 +122,12 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+
 	if resp.RawUrl().Path == "" || resp.RawUrl().Path == "/" {
 		return c.parseCategories(ctx, resp, yield)
 	}
 	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
+
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -148,7 +150,9 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		return nil
 	}
 
+
 	dom, err := resp.Selector()
+
 	if err != nil {
 		c.logger.Error(err)
 		return err
@@ -157,6 +161,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	sel := dom.Find(`.top-nav-list-item`)
 	for j := range sel.Nodes {
 		subnode := sel.Eq(j)
+
 		nnctx := context.WithValue(ctx, "Category", TrimSpaceNewlineInString(subnode.Find(`.top-nav-list-item-link span`).Text()))
 
 		subnodes1 := subnode.Find(`.sub-navigation-list>.sub-navigation-list-item`)
@@ -183,6 +188,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 				req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 				if err := yield(nctx, req); err != nil {
 					return err
+
 				}
 			}
 		}

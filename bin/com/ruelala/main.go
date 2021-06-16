@@ -122,6 +122,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" || p == "/boutique" {
