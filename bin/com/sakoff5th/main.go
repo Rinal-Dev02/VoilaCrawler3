@@ -130,11 +130,13 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" || p == "/mens" {
 		return c.parseCategories(ctx, resp, yield)
 	}
+
 	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || c.categoryDynamicLoadMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
@@ -157,13 +159,16 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	if c == nil || yield == nil {
 		return nil
 	}
+
 	dom, err := resp.Selector()
+
 	if err != nil {
 		c.logger.Error(err)
 		return err
 	}
 
 	sel := dom.Find(`.nav.navbar-nav`).Find(`li[data-adobelaunchtopnavigation]`)
+
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 
@@ -173,6 +178,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		}
 
 		nnctx := context.WithValue(ctx, "Category", cateName)
+
 		subSel1 := node.Find(`ul`).Find(`.dropdown-item.dropdown`)
 		for k := range subSel1.Nodes {
 			subNodeN := subSel1.Eq(k)
@@ -198,6 +204,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 				}
 
 				subCateName := subCat1 + " > " + TrimSpaceNewlineInString(subNode.Text())
+
 				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
 				req, _ := http.NewRequest(http.MethodGet, href, nil)
 				if err := yield(nnnctx, req); err != nil {
@@ -995,6 +1002,7 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
+
 		// "https://www.saksoff5th.com/",
 		// "https://www.saksoff5th.com/c/women/apparel/activewear",
 		"https://www.saksoff5th.com/product/swims-ms-lace-driving-shoes-0400013974163.html?dwvar_0400013974163_color=ORANGE",
