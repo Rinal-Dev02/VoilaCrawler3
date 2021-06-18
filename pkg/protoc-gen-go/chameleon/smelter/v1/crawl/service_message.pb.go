@@ -1053,7 +1053,8 @@ type FetchRequest struct {
 
 	// JobId
 	JobId string `protobuf:"bytes,2,opt,name=jobId,proto3" json:"jobId,omitempty"`
-	// StoreId
+	// StoreId 如果提供了storeId, 则按照storeId 去抓取，回去推断storId,如果推断出来，正常抓取；
+	// 如果推断失败,且是阻塞请求, 则会抓取网页摘要信息, 否则返回错误
 	StoreId string `protobuf:"bytes,3,opt,name=storeId,proto3" json:"storeId,omitempty"`
 	// Method
 	Method string `protobuf:"bytes,12,opt,name=method,proto3" json:"method,omitempty"`
