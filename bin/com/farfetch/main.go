@@ -145,6 +145,10 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		}
 	}
 
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	if p == "" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yieldWrap)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -177,6 +181,70 @@ type productListType struct {
 var prodDataExtraReg = regexp.MustCompile(`(?Ums)window\['__initialState_portal-slices-listing__'\]\s*=\s*({.*});?\s*</script>`)
 var prodDataExtraReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__'\]\s*=\s*(".*");</script>`)
 var prodDataExtraReg2 = regexp.MustCompile(`(?Ums)window\.__HYDRATION_STATE__\s*=\s*(".*");</script>`)
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	//ioutil.WriteFile("C:\\NewGIT_SVN\\Project_VoilaCrawler\\VoilaCrawler\\Output.html", respBody, 0644)
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`nav[role="navigation"]`)
+	fmt.Println(len(sel.Nodes))
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.AttrOr("aria-label", ""))
+		if cateName == "" {
+			continue
+		}
+		//nnctx := context.WithValue(ctx, "Category", cateName)
+		fmt.Println(`cateName `, cateName)
+
+		subsel1 := node.Find(`ul[data-test="list"]>li`)
+		for k := range subsel1.Nodes {
+			subnode1 := subsel1.Eq(k)
+			if len(subnode1.Find(`div`).Nodes) == 0 {
+				continue
+			}
+			subcat1 := subnode1.Find(`a`).First().Text()
+			if subcat1 == "" {
+				continue
+			}
+			fmt.Println()
+			fmt.Println(`SubCat1 `, cateName, ` > `, subcat1)
+			fmt.Println(`-----------------------------------`)
+			subcat2 := subnode1.Find(`div > ul > li > ul > li`)
+
+			subtitle := ""
+			for j := range subcat2.Nodes {
+				currentsubcat := subcat2.Eq(j)
+
+				if len(currentsubcat.Find(`a`).Nodes) == 0 {
+					subtitle = currentsubcat.Text()
+					continue
+				}
+				subcat2name := currentsubcat.Find(`p`).First().Text()
+				fmt.Println(subtitle, ` > `, subcat2name)
+
+				// nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				// req, _ := http.NewRequest(http.MethodGet, href, nil)
+				// if err := yield(nnnctx, req); err != nil {
+				// 	return err
+				// }
+			}
+		}
+	}
+	return nil
+}
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -653,7 +721,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.farfetch.com/de/shopping/women/denim-1/items.aspx",
+		"https://www.farfetch.com",
+		//"https://www.farfetch.com/de/shopping/women/denim-1/items.aspx",
 		// "https://www.farfetch.com/shopping/women/denim-1/items.aspx",
 		// "https://www.farfetch.com/shopping/women/low-classic-rolled-cuffs-high-waisted-jeans-item-16070965.aspx?storeid=9359",
 		// "https://www.farfetch.com/de/shopping/women/aztech-mountain-galena-mantel-item-15896311.aspx?storeid=10254",
@@ -678,5 +747,6 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(New).Run(os.Args)
 }
