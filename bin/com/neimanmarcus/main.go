@@ -101,13 +101,107 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	if p == "" || p == "/index.jsp" {
+		return c.parseCategories(ctx, resp, yield)
+	}
+	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`#silo-navigation>ul>li`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" {
+			continue
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		subSel := node.Find(`.silo-column>div>div`)
+		// For designers
+		if len(subSel.Nodes) == 0 {
+			subSel = node.Find(`.silo-group>div>div`)
+		}
+
+		for k := range subSel.Nodes {
+			subNode2 := subSel.Eq(k)
+			subcat2 := subNode2.Find(`h6`).First().Text()
+
+			subNode2list := subNode2.Find(`li`)
+
+			for j := range subNode2list.Nodes {
+				subNode := subNode2list.Eq(j)
+				href := subNode.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				_, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+				subCateName := ""
+				if subcat2 == "" {
+					subCateName = strings.TrimSpace(subNode.Text())
+				} else {
+					subCateName = subcat2 + " > " + strings.TrimSpace(subNode.Text())
+				}
+
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnnctx, req); err != nil {
+					return err
+				}
+			}
+
+			// if subcategory level 3 not found
+			if len(subNode2.Find(`li`).Nodes) == 0 {
+
+				href := subNode2.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				_, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subcat2
+
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnnctx, req); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func isRobotCheckPage(respBody []byte) bool {
@@ -768,6 +862,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					},
 					Stats: &pbItem.Stats{},
 				}
+				if sku.Price == nil {
+					p := pbItem.Price{Currency: regulation.Currency_USD}
+					p.Current = int32(retailPrice * 100)
+					p.Msrp = int32(retailPrice * 100)
+					sku.Price = &p
+				}
 				if rawSku.InStock {
 					sku.Stock.StockStatus = pbItem.Stock_InStock
 				} else {
@@ -813,7 +913,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
-		"https://www.neimanmarcus.com/p/herno-satin-long-fitted-removable-hood-coat-prod235050477",
+
+		"https://www.neimanmarcus.com/p/christian-louboutin-kate-patent-red-sole-pumps-prod220620229?childItemId=NMX4MXX_&navpath=cat000000_cat000141_cat47190746_cat68670755&page=0&position=13",
+		//"https://www.neimanmarcus.com/index.jsp",
+		// "https://www.neimanmarcus.com/p/herno-satin-long-fitted-removable-hood-coat-prod235050477",
 		// "https://www.neimanmarcus.com/p/veronica-beard-jacket-dickey-prod194270044",
 		// "https://www.neimanmarcus.com/c/womens-clothing-clothing-coats-jackets-cat77190754?navpath=cat000000_cat000001_cat58290731_cat77190754",
 		// "https://www.neimanmarcus.com/p/moncler-hermine-hooded-puffer-jacket-prod197621217?childItemId=NMTS7Q4_41&navpath=cat000000_cat000001_cat58290731_cat77190754&page=0&position=0",
