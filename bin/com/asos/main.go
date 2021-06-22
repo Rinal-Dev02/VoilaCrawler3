@@ -107,10 +107,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-	if p == "" {
-		return crawler.ErrUnsupportedPath
-	}
-	if p == "/us/women" || p == "/us/men" {
+	if p == "" || p == "/us/women" || p == "/us/men" {
 		return c.parseCategories(ctx, resp, yield)
 	}
 
@@ -141,27 +138,43 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		return err
 	}
 
-	sel := dom.Find(`#chrome-sticky-header nav li>a[href]`)
+	sel := dom.Find(`#chrome-sticky-header nav[data-testid="primarynav-large"] button[data-id]`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		href := node.AttrOr("href", "")
-		if href == "" {
+		dataid := node.AttrOr("data-id", "")
+		if dataid == "" {
 			continue
 		}
-		u, err := url.Parse(href)
-		if err != nil {
-			c.logger.Errorf("parse url %s failed", href)
-			continue
-		}
-		if strings.Contains(u.Path, "/us/gift-vouchers") {
-			continue
-		}
+		cate := strings.TrimSpace(node.Text())
 
-		if c.categoryPathMatcher.MatchString(u.Path) {
+		linkSel := dom.Find(fmt.Sprintf(`#%s ul[data-id="%s"]>li>ul>li>a[href]`, dataid, dataid))
+		for j := range linkSel.Nodes {
+			linkNode := linkSel.Eq(j)
+			href := linkNode.AttrOr("href", "")
+			if href == "" {
+				continue
+			}
+			subCate := strings.TrimSpace(linkNode.Text())
+
+			req, err := http.NewRequest(http.MethodGet, href, nil)
+			if err != nil {
+				c.logger.Errorf("load url %s failed", href)
+				continue
+			}
+			if strings.Contains(req.URL.Path, "/gift-vouchers") {
+				continue
+			}
+
+			mainCate := "women"
+			if strings.HasPrefix(req.URL.Path, "/us/men") {
+				mainCate = "men"
+			}
 			// here reset tracing id to distiguish different category crawl
 			// This may exists duplicate requests
 			nctx := context.WithValue(ctx, crawler.TracingIdKey, randutil.MustNewRandomID())
-			req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+			nctx = context.WithValue(nctx, "MainCategory", mainCate)
+			nctx = context.WithValue(nctx, "Category", cate)
+			nctx = context.WithValue(nctx, "SubCategory", subCate)
 			if err := yield(nctx, req); err != nil {
 				return err
 			}

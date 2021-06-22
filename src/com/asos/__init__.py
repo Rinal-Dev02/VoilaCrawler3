@@ -61,8 +61,8 @@ class ASOS(Crawler):
         return rawurl
 
     def Parse(self, ctx:Context, resp:Response) -> Generator[Any,None,None]:
-        path = resp.rawurl.path
-        if path.startswith("/us/women") or path.startswith("/us/men"):
+        path = resp.rawurl.path.rstrip("/")
+        if path=="" or path == "/us/women" or path == "/us/men":
             yield from self.parseCategories(ctx, resp)
         elif self._categoryPathMatcher.match(path):
             yield from self.parseProductsHTML(ctx, resp)
@@ -75,18 +75,34 @@ class ASOS(Crawler):
         return ErrUnsupportedPath
 
     def parseCategories(self, ctx:Context, resp:Response) -> Generator[Any,None,None]:
-        for node in resp.selector().css('#chrome-sticky-header nav li>a[href]'):
-            href = node.attrib.get("href")
-            if not href: continue
-            try:
-                u = URL(href)
-                if u.path.startswith("/us/gift-vouchers"): continue
-                if self._categoryPathMatcher.match(u.path):
-                    nctx = Context(ctx, TracingIdKey, newRandomId())
-                    req = Request(ctx,"GET", str(u))
-                    yield nctx, req
-            except:
-                self.logger.error("parse url %s fialed", href)
+        for node in resp.selector().css('#chrome-sticky-header nav[data-testid="primarynav-large"] button[data-id]'):
+            dataid = node.attrib.get("data-id")
+            if not dataid: continue
+            cate = node.xpath("text()").extract_first()
+
+            links = resp.selector().css('#{0} ul[data-id="{0}"]>li>ul>li>a[href]'.format(dataid))
+            for link in links:
+                subCate = link.xpath("text()").extract_first()
+                href = link.attrib.get("href")
+                if not href: continue
+
+                try:
+                    u = URL(href)
+                    if "/gift-vouchers" in u.path: continue
+
+                    mainCate = "women"
+                    if u.path.startswith("/us/men"):
+                        mainCate = "men"
+                    if self._categoryPathMatcher.match(u.path):
+                        nctx = Context(ctx, TracingIdKey, newRandomId())
+                        nctx = Context(nctx, "MainCategory", mainCate)
+                        nctx = Context(nctx, "Category", cate)
+                        nctx = Context(nctx, "SubCategory", subCate)
+
+                        req = Request(ctx,"GET", str(u))
+                        yield nctx, req
+                except:
+                    self.logger.error("parse url %s fialed", href)
             
     productsDataReg = re.compile("window\.asos\.plp\._data\s*=\s*JSON\.parse\('(.*?)'\);", re.I|re.U)
 
@@ -240,21 +256,28 @@ class ASOS(Crawler):
         stock = item.stock
         stock.stockStatus = Stock.InStock if i.get("isInStock") else Stock.OutStock
 
-        nodes = sel.css('nav[aria-label="breadcrumbs"]>ol>li>a::text')
-        for index in range(len(nodes)):
-            if index == len(nodes) - 1:
-                break
-            node = nodes[index]
-            if index == 1:
-                item.category = (node.get() or "").strip()
-            elif index == 2:
-                item.subCategory = (node.get() or "").strip()
-            elif index == 3:
-                item.subCategory2 = (node.get() or "").strip()
-            elif index == 4:
-                item.subCategory3 = (node.get() or "").strip()
-            elif index == 5:
-                item.subCategory4 = (node.get() or "").strip()
+        if ctx.get_str("MainCategory") and ctx.get_str("Category"):
+            item.crowdType = ctx.get_str("MainCategory")
+            item.category = ctx.get_str("Category")
+            item.subCategory = ctx.get_str("SubCategory")
+            item.subCategory2 = ctx.get_str("SubCategory2")
+            item.subCategory3 = ctx.get_str("SubCategory3")
+        else:
+            nodes = sel.css('nav[aria-label="breadcrumbs"]>ol>li>a::text')
+            for index in range(len(nodes)):
+                if index == len(nodes) - 1:
+                    break
+                node = nodes[index]
+                if index == 1:
+                    item.category = (node.get() or "").strip()
+                elif index == 2:
+                    item.subCategory = (node.get() or "").strip()
+                elif index == 3:
+                    item.subCategory2 = (node.get() or "").strip()
+                elif index == 4:
+                    item.subCategory3 = (node.get() or "").strip()
+                elif index == 5:
+                    item.subCategory4 = (node.get() or "").strip()
 
         for img in i["images"]:
             u = img["url"]
