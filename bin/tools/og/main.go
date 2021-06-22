@@ -58,7 +58,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.EnableSessionInit = false
-	options.Reliability = pbProxy.ProxyReliability_ReliabilityHigh
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityRealtime
 	options.MustCookies = append(options.MustCookies)
 
 	return options

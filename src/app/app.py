@@ -239,8 +239,10 @@ class Application(object):
                                 i.url.scheme = "https"
                             if not i.url.host:
                                 i.url.host = req.url.host
+                            i.context = nctx
 
                             try:
+                                self.logger.debug("append url {}, shared values {}".format(i.url, i.context.values()))
                                 reqQueue.put_nowait(i)
                                 reqFilter.add(str(i.url))
                             except FullException as e:

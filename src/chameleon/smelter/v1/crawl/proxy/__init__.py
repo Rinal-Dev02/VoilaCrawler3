@@ -2,7 +2,7 @@
 # extension plugin generated codes. DO NOT EDIT!!!
 
 
-from .data_pb2 import Request, Response, RequestWrap, ProxyReliability, ReliabilityDefault, ReliabilityLow, ReliabilityMedium, ReliabilityHigh, ReliabilityIntelligent
+from .data_pb2 import Request, Response, RequestWrap, ProxyReliability, ReliabilityDefault, ReliabilityLow, ReliabilityMedium, ReliabilityHigh, ReliabilityRealtime, ReliabilityIntelligent
 
 
-__all__ = ["Request", "Response", "RequestWrap", "ProxyReliability", "ReliabilityDefault", "ReliabilityLow", "ReliabilityMedium", "ReliabilityHigh", "ReliabilityIntelligent"]
+__all__ = ["Request", "Response", "RequestWrap", "ProxyReliability", "ReliabilityDefault", "ReliabilityLow", "ReliabilityMedium", "ReliabilityHigh", "ReliabilityRealtime", "ReliabilityIntelligent"]
