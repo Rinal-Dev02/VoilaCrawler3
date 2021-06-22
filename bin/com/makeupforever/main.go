@@ -125,10 +125,13 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) || c.productPathMatcher1.MatchString(resp.Request.URL.Path) {
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
+	if p == "/us/en/tools" || p == "" {
+		return c.parseCategories(ctx, resp, yield)
+	}
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) || c.productPathMatcher1.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.categoryPathMatcher1.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || c.categoryPathMatcher1.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
@@ -141,6 +144,82 @@ func nextIndex(ctx context.Context) int {
 }
 
 var nextPageReg = regexp.MustCompile(`\[<a\s+href="(https://www.makeupforever.com/[^"]+)"\s*>\s*Next\s*</a>\]`)
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`#categories-menu-items>ul>li`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" || node.AttrOr("id", "") == "menu-more" {
+			cateName = node.Find(`button`).First().Text()
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		subSel := node.Find(`.dropdown-menu>div>div>ul>li`)
+
+		for k := range subSel.Nodes {
+			subNode2 := subSel.Eq(k)
+
+			href := subNode2.Find(`a`).AttrOr("href", "")
+			if href == "" {
+				continue
+			}
+
+			u, err := url.Parse(href)
+			if err != nil {
+				c.logger.Error("parse url %s failed", href)
+				continue
+			}
+
+			subCateName := subNode2.Find(`a`).Text()
+
+			if c.categoryPathMatcher.MatchString(u.Path) {
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnnctx, req); err != nil {
+					return err
+				}
+			}
+		}
+
+		// If no sub category found
+		if len(node.Find(`.dropdown-menu>div>div>ul>li`).Nodes) == 0 {
+			href := node.Find(`a`).AttrOr("href", "")
+			if href == "" {
+				continue
+			}
+
+			u, err := url.Parse(href)
+			if err != nil {
+				c.logger.Error("parse url %s failed", href)
+				continue
+			}
+
+			if c.categoryPathMatcher.MatchString(u.Path) {
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnctx, req); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -386,7 +465,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Source: &pbItem.Source{
 			Id: viewData.Product.MasterID,
 			//CrawlUrl: resp.Request.URL.String(),  // not found
-			//https://www.makeupforever.com/us/en/a-MI000044405.html?dwvar_MI000044405_color=368&pid=MI000044405&quantity=1
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 		},
@@ -396,6 +474,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		Stats: &pbItem.Stats{
 			ReviewCount: int32(review),
 			Rating:      float32(viewData.Product.Rating),
@@ -441,8 +520,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	originalPrice := viewData.Product.Price.Sales.Value
 	msrp := viewData.Product.Price.List.Value
+	if msrp == 0.0 {
+		msrp = originalPrice
+	}
 	discount := 0.0
-	if msrp > 0 {
+	if msrp > originalPrice {
 		discount = math.Ceil((msrp - originalPrice) / msrp * 100)
 	}
 	var (
@@ -524,6 +606,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Value: size.Value,
 			})
 			item.SkuItems = append(item.SkuItems, &sku)
+			item.Medias = append(item.Medias, sku.Medias...)
+
+		}
+		if viewData.Product.InStock {
+			item.Stock.StockStatus = pbItem.Stock_InStock
 		}
 	}
 
@@ -536,7 +623,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.makeupforever.com/us/en/tools",
+		//"https://www.makeupforever.com/us/en/tools",
+		"https://www.makeupforever.com/us/en/eyes/eyeshadow/star-lit-diamond-powder-MI000090111.html",
 		// "https://www.makeupforever.com/us/en/face/bronzer/pro-sculpting-palette-MI000014320.html",
 		// "https://www.makeupforever.com/us/en/eyes/eyeshadow/artist-color-shadow-refill-MI000079830.html",
 		// "https://www.makeupforever.com/us/en/face/foundation/make-up-for-ever-%E2%80%93-reboot-MI000028230.html",
