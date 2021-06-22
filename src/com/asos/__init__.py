@@ -78,11 +78,11 @@ class ASOS(Crawler):
         for node in resp.selector().css('#chrome-sticky-header nav[data-testid="primarynav-large"] button[data-id]'):
             dataid = node.attrib.get("data-id")
             if not dataid: continue
-            cate = node.xpath("text()").extract_first()
+            cate = node.css("::text").extract_first()
 
             links = resp.selector().css('#{0} ul[data-id="{0}"]>li>ul>li>a[href]'.format(dataid))
             for link in links:
-                subCate = link.xpath("text()").extract_first()
+                subCate = link.css("::text").extract_first()
                 href = link.attrib.get("href")
                 if not href: continue
 
@@ -91,13 +91,14 @@ class ASOS(Crawler):
                     if "/gift-vouchers" in u.path: continue
 
                     mainCate = "women"
-                    if u.path.startswith("/us/men"):
+                    if "/men" in u.path:
                         mainCate = "men"
+
                     if self._categoryPathMatcher.match(u.path):
                         nctx = Context(ctx, TracingIdKey, newRandomId())
-                        nctx = Context(nctx, "MainCategory", mainCate)
-                        nctx = Context(nctx, "Category", cate)
-                        nctx = Context(nctx, "SubCategory", subCate)
+                        nctx = Context(nctx, "MainCategory", mainCate or "")
+                        nctx = Context(nctx, "Category", cate or "")
+                        nctx = Context(nctx, "SubCategory", subCate or "")
 
                         req = Request(ctx,"GET", str(u))
                         yield nctx, req
