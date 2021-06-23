@@ -118,13 +118,114 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if p == "/en-us" || p == "/en-us/shop/superbrands" {
+		return c.parseCategories(ctx, resp, yield)
+	}
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+var productsExtractRegCategory = regexp.MustCompile(`(?U)window\.siteFurnitureState\s*=\s*({.*});</script>`)
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	matched := productsExtractRegCategory.FindSubmatch(respBody)
+	if len(matched) <= 1 {
+		c.logger.Debugf("%s", respBody)
+		return fmt.Errorf("extract category info from %s failed, error=%s", resp.Request.URL, err)
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	for _, rawcat := range viewData.Menus.Response.Body.TopMenu[0].Items {
+		categoryName := rawcat.Title
+		nctx := context.WithValue(ctx, "Category", categoryName)
+		subCategoryName := ""
+		subCategoryNamel1 := ""
+
+		for _, rawSubCat1 := range rawcat.Items {
+
+			for _, rawSubCat2 := range rawSubCat1.Items {
+				if rawSubCat2.Title != "&nbsp;" {
+					subCategoryNamel1 = rawSubCat2.Title
+				}
+				for _, rawSubCat3 := range rawSubCat2.Items {
+
+					subCategoryName = subCategoryNamel1 + " > " + rawSubCat3.Title
+
+					href := rawSubCat3.TargetURL
+					if rawSubCat3.TargetURL == "" {
+						continue
+					}
+
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Errorf("parse url =%s", err)
+						return err
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						nnctx := context.WithValue(nctx, "SubCategory", subCategoryName)
+						req, _ := http.NewRequest(http.MethodGet, href, nil)
+						if err := yield(nnctx, req); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+type categoryStructure struct {
+	Menus struct {
+		Response struct {
+			Body struct {
+				Version string `json:"version"`
+				TopMenu []struct {
+					Items []struct {
+						TargetURL string `json:"targetURL"`
+						Items     []struct {
+							Items []struct {
+								Items []struct {
+									TargetURL string `json:"targetURL"`
+									Title     string `json:"title"`
+								} `json:"items"`
+								Title string `json:"title"`
+							} `json:"items"`
+						} `json:"items"`
+						Title string `json:"title,omitempty"`
+					} `json:"items"`
+					Title string `json:"title"`
+				} `json:"topMenu"`
+			} `json:"body"`
+		} `json:"response"`
+	} `json:"menus"`
 }
 
 // nextIndex used to get the index from the shared data.
@@ -251,75 +352,9 @@ type parseProductResponse struct {
 						ExternalReccomendationID []string `json:"externalReccomendationId"`
 						Name                     string   `json:"name"`
 						DesignerIdentifier       string   `json:"designerIdentifier"`
-						SHOES1                   struct {
-							Values []struct {
-								Values []struct {
-									Label      string `json:"label"`
-									Identifier string `json:"identifier"`
-								} `json:"values"`
-								Usage      string `json:"usage"`
-								Label      string `json:"label"`
-								Identifier string `json:"identifier"`
-							} `json:"values"`
-						} `json:"SHOES_1"`
-						ForceLogIn   bool   `json:"forceLogIn"`
-						MfPartNumber string `json:"mfPartNumber"`
-						SHOES5       struct {
-							Values []struct {
-								Values []struct {
-									Label      string `json:"label"`
-									Identifier string `json:"identifier"`
-								} `json:"values"`
-								Usage      string `json:"usage"`
-								Label      string `json:"label"`
-								Identifier string `json:"identifier"`
-							} `json:"values"`
-						} `json:"SHOES_5"`
-						SHOES3 struct {
-							Values []struct {
-								Values []struct {
-									Label      string `json:"label"`
-									Identifier string `json:"identifier"`
-								} `json:"values"`
-								Usage      string `json:"usage"`
-								Label      string `json:"label"`
-								Identifier string `json:"identifier"`
-							} `json:"values"`
-						} `json:"SHOES_3"`
-						MF1 struct {
-							Values []struct {
-								Values []struct {
-									Label      string `json:"label"`
-									Identifier string `json:"identifier"`
-								} `json:"values"`
-								Usage      string `json:"usage"`
-								Label      string `json:"label"`
-								Identifier string `json:"identifier"`
-							} `json:"values"`
-						} `json:"M&F_1"`
+
 						PartNumber string `json:"partNumber"`
-						SHOES4     struct {
-							Values []struct {
-								Values []struct {
-									Label      string `json:"label"`
-									Identifier string `json:"identifier"`
-								} `json:"values"`
-								Usage      string `json:"usage"`
-								Label      string `json:"label"`
-								Identifier string `json:"identifier"`
-							} `json:"values"`
-						} `json:"SHOES_4"`
-						WCSGRPFITDETAILS struct {
-							Values []struct {
-								Values []struct {
-									Label      string `json:"label"`
-									Identifier string `json:"identifier"`
-								} `json:"values"`
-								Usage      string `json:"usage"`
-								Label      string `json:"label"`
-								Identifier string `json:"identifier"`
-							} `json:"values"`
-						} `json:"WCS_GRP_FIT_DETAILS"`
+
 						ProductColours []struct {
 							Visible              bool   `json:"visible"`
 							EditorialDescription string `json:"editorialDescription"`
@@ -341,18 +376,8 @@ type parseProductResponse struct {
 							LowStockOnline           bool      `json:"lowStockOnline"`
 							Label                    string    `json:"label"`
 							SKUs                     []struct {
-								SkuUniqueID        int64 `json:"skuUniqueID"`
-								WCSGRPMEASUREMENTS struct {
-									Values []struct {
-										Values []struct {
-											Label      string `json:"label"`
-											Identifier string `json:"identifier"`
-										} `json:"values"`
-										Usage      string `json:"usage"`
-										Label      string `json:"label"`
-										Identifier string `json:"identifier"`
-									} `json:"values"`
-								} `json:"WCS_GRP_MEASUREMENTS"`
+								SkuUniqueID int64 `json:"skuUniqueID"`
+
 								Displayable bool   `json:"displayable"`
 								Type        string `json:"type"`
 								COO         struct {
@@ -465,10 +490,7 @@ type parseProductResponse struct {
 							ImageTemplate    string `json:"imageTemplate"`
 							ShortDescription string `json:"shortDescription"`
 							Buyable          bool   `json:"buyable"`
-							Seo              struct {
-								SeoURLKeyword string `json:"seoURLKeyword"`
-							} `json:"seo"`
-							Attributes []struct {
+							Attributes       []struct {
 								Values []struct {
 									Label      string `json:"label"`
 									Identifier string `json:"identifier"`
@@ -484,20 +506,8 @@ type parseProductResponse struct {
 						CentralSizeScheme string    `json:"centralSizeScheme"`
 						FirstVisibleDate  time.Time `json:"firstVisibleDate"`
 						LowStockOnline    bool      `json:"lowStockOnline"`
-						MasterCategory    struct {
-							Child struct {
-								LabelEN    string `json:"labelEN"`
-								CategoryID string `json:"categoryId"`
-								Label      string `json:"label"`
-								Identifier string `json:"identifier"`
-							} `json:"child"`
-							LabelEN    string `json:"labelEN"`
-							CategoryID string `json:"categoryId"`
-							Label      string `json:"label"`
-							Identifier string `json:"identifier"`
-						} `json:"masterCategory"`
-						ProductID string `json:"productId"`
-						Price     struct {
+						ProductID         string    `json:"productId"`
+						Price             struct {
 							SellingPrice struct {
 								Amount  int `json:"amount"`
 								Divisor int `json:"divisor"`
@@ -535,56 +545,6 @@ type parseProductResponse struct {
 						} `json:"tracking"`
 						DesignerName string `json:"designerName"`
 						Buyable      bool   `json:"buyable"`
-						Images       []struct {
-							ID   string `json:"id"`
-							View string `json:"view"`
-							URL  string `json:"url"`
-							Size struct {
-								Height int `json:"height"`
-								Width  int `json:"width"`
-							} `json:"size"`
-						} `json:"images"`
-						Seo struct {
-							Title           string `json:"title"`
-							AlternateText   string `json:"alternateText"`
-							MetaDescription string `json:"metaDescription"`
-							MetaKeyword     string `json:"metaKeyword"`
-							SeoURLKeyword   string `json:"seoURLKeyword"`
-						} `json:"seo"`
-						Attributes []struct {
-							Values []struct {
-								Label      string `json:"label"`
-								Identifier string `json:"identifier"`
-							} `json:"values"`
-							Usage      string `json:"usage"`
-							Label      string `json:"label"`
-							Identifier string `json:"identifier"`
-						} `json:"attributes"`
-						SalesCategories []struct {
-							Child struct {
-								Child struct {
-									CategoryID string `json:"categoryId"`
-									Label      string `json:"label"`
-									Seo        struct {
-										SeoURLKeyword string `json:"seoURLKeyword"`
-									} `json:"seo"`
-									Identifier string `json:"identifier"`
-								} `json:"child"`
-								CategoryID string `json:"categoryId"`
-								Label      string `json:"label"`
-								Seo        struct {
-									SeoURLKeyword string `json:"seoURLKeyword"`
-								} `json:"seo"`
-								Identifier string `json:"identifier"`
-							} `json:"child"`
-							Primary    bool   `json:"primary"`
-							CategoryID string `json:"categoryId"`
-							Label      string `json:"label"`
-							Seo        struct {
-								SeoURLKeyword string `json:"seoURLKeyword"`
-							} `json:"seo"`
-							Identifier string `json:"identifier"`
-						} `json:"salesCategories"`
 					} `json:"products"`
 				} `json:"body"`
 			} `json:"response"`
@@ -602,6 +562,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err != nil {
 		return err
 	}
+
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
 		c.logger.Debugf("%s", respBody)
@@ -643,6 +604,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
+			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 		for p, i := tracking.PrimaryCategory, 0; p != nil; p, i = p.Child, i+1 {
 			switch i {
@@ -672,13 +634,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			))
 		}
 
-		for _, rawSku := range p.SKUs {
+		for k, rawSku := range p.SKUs {
 			originalPrice, _ := strconv.ParseFloat(rawSku.Price.WasPrice.Amount)
 			currentPrice, _ := strconv.ParseFloat(rawSku.Price.SellingPrice.Amount)
 			discount, _ := strconv.ParseFloat(rawSku.Price.Discount.Amount)
 
 			sku := pbItem.Sku{
-				SourceId: strconv.Format(rawSku.PartNumber),
+				SourceId: rawSku.PartNumber,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(currentPrice),
@@ -689,6 +651,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			if rawSku.Buyable {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
 				// sku.Stock.StockCount = int32(rawSku.TotalQuantityAvailable)
 			}
 
@@ -703,7 +666,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			// size
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type: pbItem.SkuSpecType_SkuSpecSize,
-				Id:   rawSku.PartNumber,
+				Id:   fmt.Sprintf("%s-%v", rawSku.PartNumber, k),
 				Name: func(names ...string) string {
 					for _, n := range names {
 						if n != "" {
@@ -729,8 +692,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.theoutnet.com/en-us/shop/clothing/jeans",
-		// "https://www.theoutnet.com/en-us/shop/product/acne-studios/jeans/straight-leg-jeans/log-high-rise-straight-leg-jeans/17476499598965898",
+		//"https://www.theoutnet.com/en-us",
+		"https://www.theoutnet.com/en-us/shop/product/acne-studios/jeans/straight-leg-jeans/log-high-rise-straight-leg-jeans/17476499598965898",
 		// "https://www.theoutnet.com/en-us/shop/product/balmain/shoulder-bag/cross-body/disco-leather-trimmed-shearling-shoulder-bag/10163292708696549",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
