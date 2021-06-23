@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math"
 	"net/url"
 	"os"
@@ -13,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
@@ -152,13 +155,146 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) || c.productApiPathMatcher.MatchString(resp.Request.URL.Path) {
+	if p == "" || p == "/collections/womens-all" || p == "/collections/mens-all" || p == "/denim-guide" ||
+		p == "/collections/mens-jeans" || p == "/collections/track" || p == "/sale" {
+		return c.parseCategories(ctx, resp, yield)
+	}
+
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) || c.productApiPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.categoryApiPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || c.categoryApiPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	catUrl := "https://cdn.builder.io/api/v2/content/intl-menu?apiKey=444142b2cae54a19aeb8b5ba245feffe&cacheSeconds=300&userAttributes.foo=bar"
+
+	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
+	req.Header.Add("accept", "*/*")
+	req.Header.Add("referer", "https://www.everlane.com/")
+	req.Header.Add("accept-language", "en-US,en;q=0.9")
+
+	catreq, err := c.httpClient.Do(ctx, req)
+	if err != nil {
+		panic(err)
+	}
+	defer catreq.Body.Close()
+
+	catBody, err := ioutil.ReadAll(catreq.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(catBody, &viewData); err != nil {
+		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+		return err
+	}
+
+	for _, rawCat := range viewData.Results {
+
+		if rawCat.Name == "" {
+			continue
+		}
+		nnctx := context.WithValue(ctx, "Category", rawCat.Name)
+
+		for _, rawsubCat := range rawCat.Data.Sections {
+
+			for _, rawsubcatlvl2 := range rawsubCat.Links {
+
+				href := "https://www.everlane.com/" + rawsubcatlvl2.URL
+				if rawsubcatlvl2.URL == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := rawsubCat.Text + " > " + rawsubcatlvl2.Text
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+type categoryStructure struct {
+	Results []struct {
+		CreatedBy   string `json:"createdBy"`
+		CreatedDate int64  `json:"createdDate"`
+		Data        struct {
+			Images []struct {
+				Height     string `json:"height"`
+				Image      string `json:"image"`
+				Placement  string `json:"placement"`
+				Platform   string `json:"platform"`
+				TargetType string `json:"targetType"`
+				Text       string `json:"text"`
+				URL        string `json:"url"`
+				Width      string `json:"width"`
+			} `json:"images"`
+			Placement string `json:"placement"`
+			Platform  string `json:"platform"`
+			Position  string `json:"position"`
+			Sections  []struct {
+				Important bool `json:"important,omitempty"`
+				Links     []struct {
+					Important  bool   `json:"important,omitempty"`
+					Placement  string `json:"placement"`
+					Platform   string `json:"platform"`
+					Position   int    `json:"position,omitempty"`
+					TargetType string `json:"targetType,omitempty"`
+					Text       string `json:"text"`
+					URL        string `json:"url"`
+					Color      string `json:"color,omitempty"`
+				} `json:"links,omitempty"`
+				Placement  string `json:"placement"`
+				Platform   string `json:"platform"`
+				Position   string `json:"position,omitempty"`
+				Text       string `json:"text"`
+				URL        string `json:"url"`
+				TargetType string `json:"targetType,omitempty"`
+				Color      string `json:"color,omitempty"`
+			} `json:"sections"`
+			TargetType string `json:"targetType"`
+			Text       string `json:"text"`
+			URL        string `json:"url"`
+		} `json:"data,omitempty"`
+		EndDate       interface{} `json:"endDate,omitempty"`
+		ID            string      `json:"id"`
+		LastUpdated   int64       `json:"lastUpdated"`
+		LastUpdatedBy string      `json:"lastUpdatedBy"`
+		Meta          struct {
+			Kind        string      `json:"kind"`
+			WinningTest interface{} `json:"winningTest"`
+		} `json:"meta,omitempty"`
+		ModelID    string        `json:"modelId"`
+		Name       string        `json:"name"`
+		Published  string        `json:"published"`
+		Query      []interface{} `json:"query"`
+		StartDate  int64         `json:"startDate,omitempty"`
+		Variations struct {
+		} `json:"variations,omitempty"`
+		Rev string `json:"rev"`
+	} `json:"results"`
 }
 
 // nextIndex used to get the index from the shared data.
@@ -168,29 +304,8 @@ func nextIndex(ctx context.Context) int {
 }
 
 type categoryParse struct {
-	ID                            int         `json:"id"`
-	Gender                        string      `json:"gender"`
-	Disabled                      bool        `json:"disabled"`
-	Notification                  string      `json:"notification"`
-	Permalink                     string      `json:"permalink"`
-	ProductsPerRow                int         `json:"products_per_row"`
-	Title                         string      `json:"title"`
-	UpdatedAt                     time.Time   `json:"updated_at"`
-	Description                   string      `json:"description"`
-	ShowSubnav                    bool        `json:"show_subnav"`
-	SitemapVisible                bool        `json:"sitemap_visible"`
-	BreadcrumbTitle               string      `json:"breadcrumb_title"`
-	TitleTag                      string      `json:"title_tag"`
-	DisplayGroupAspectRatio       string      `json:"display_group_aspect_ratio"`
-	DesktopContentPageID          interface{} `json:"desktop_content_page_id"`
-	MobileContentPageID           interface{} `json:"mobile_content_page_id"`
-	DesktopMarketingContentPageID interface{} `json:"desktop_marketing_content_page_id"`
-	MobileMarketingContentPageID  interface{} `json:"mobile_marketing_content_page_id"`
-	DesktopFooterContentPageID    interface{} `json:"desktop_footer_content_page_id"`
-	MobileFooterContentPageID     interface{} `json:"mobile_footer_content_page_id"`
-	DisabledDesktopContentPageID  interface{} `json:"disabled_desktop_content_page_id"`
-	DisabledMobileContentPageID   interface{} `json:"disabled_mobile_content_page_id"`
-	Groupings                     struct {
+	Permalink string `json:"permalink"`
+	Groupings struct {
 		DisplayGroup []struct {
 			ID                       int           `json:"id"`
 			Name                     string        `json:"name"`
@@ -283,18 +398,6 @@ type categoryParse struct {
 		Name          string   `json:"name"`
 		DisplayGroups []string `json:"display_groups"`
 	} `json:"subcategories"`
-	CollectionNavigationItems []struct {
-		ID               int    `json:"id"`
-		CollectionID     int    `json:"collection_id"`
-		Label            string `json:"label"`
-		ImageURL         string `json:"image_url"`
-		PermalinkType    string `json:"permalink_type"`
-		PermalinkID      int    `json:"permalink_id"`
-		CollectionFilter string `json:"collection_filter"`
-		DisplayFormat    string `json:"display_format"`
-		Position         int    `json:"position"`
-		Permalink        string `json:"permalink"`
-	} `json:"collection_navigation_items"`
 }
 
 func contains(s []string, str string) bool {
@@ -643,6 +746,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
 	opts := c.CrawlOptions(resp.Request.URL)
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		if matched := loadConfigXPidReg.FindStringSubmatch(string(respBody)); len(matched) > 1 && matched[1] != "" {
@@ -786,57 +895,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 		}
 	}
+	review, _ := strconv.ParseInt32(doc.Find(`meta[itemprop="reviewCount"]`).AttrOr("content", "0"))
+	rating, _ := strconv.ParseFloat32(doc.Find(`meta[itemprop="ratingValue"]`).AttrOr("content", "0.0"))
 
 	for _, proditem := range viewData.Products {
-		// reviewURL := "https://www.everlane.com/api/v2/reviews/filter?reviews[data][Include]=Products&reviews[data][Stats]=Reviews&reviews[data][Limit]=1&reviews[data][Offset]=0&reviews[filters][Filter][]=ProductId:" + strconv.Format(proditem.ID)
-		// c.logger.Debugf("Access %s", reviewURL)
-
-		// req, err := http.NewRequest(http.MethodGet, reviewURL, nil)
-		// req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
-		// req.Header.Set("Accept-Encoding", "gzip, deflate, br")
-		// req.Header.Set("Referer", resp.Request.URL.String())
-		// req.Header.Set("x-requested-with", "XMLHttpRequest")
-		// req.Header.Set("user-agent", resp.Request.Header.Get("User-Agent"))
-		// req.Header.Set("dpr", "2")
-		// req.Header.Set("viewport-width", "964")
-		// req.Header.Set("x-newrelic-id", "UQQOWV9ACgMGVFhR")
-		// if cookies, err := c.httpClient.Jar().Cookies(ctx, resp.Request.URL); err != nil {
-		// 	c.logger.Error(err)
-		// 	return err
-		// } else {
-		// 	for _, c := range cookies {
-		// 		if c.Name == "_csrf_token" {
-		// 			req.Header.Set("_csrf_token", c.Value)
-		// 			break
-		// 		}
-		// 	}
-		// }
-
-		// if respNew, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-		// 	EnableProxy: true,
-		// 	Reliability: opts.Reliability,
-		// }); err != nil {
-		// 	c.logger.Error(err)
-		// 	return err
-		// } else {
-		// 	respBody, err = io.ReadAll(respNew.Body)
-		// 	if err != nil {
-		// 		c.logger.Error(err)
-		// 		return err
-		// 	}
-		// }
-		// var viewReviewData parseReviewData
-		// if err := json.Unmarshal(respBody, &viewReviewData); err != nil {
-		// 	c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
-		// 	return err
-		// }
-
-		review := 0
-		rating := 0.0
-		// if viewReviewData.Includes.Products != nil {
-		// 	review = viewReviewData.Includes.Products[strconv.Format(proditem.ID)].ReviewStatistics.TotalReviewCount
-		// 	rating = (viewReviewData.Includes.Products[strconv.Format(proditem.ID)].ReviewStatistics.AverageOverallRating)
-		// }
 
 		var priceItem *productPriceItem
 		for _, item := range priceData.Products {
@@ -877,9 +939,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Currency: regulation.Currency_USD,
 			},
 			Stats: &pbItem.Stats{
-				ReviewCount: int32(review),
-				Rating:      float32(rating),
+				ReviewCount: review,
+				Rating:      rating,
 			},
+			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 		if proditem.PrimaryCollection.Gender == "male" {
 			item.Category = "Men"
@@ -896,7 +959,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		var medias []*pbMedia.Media
-		for _, mid := range proditem.Albums.Square {
+		for m, mid := range proditem.Albums.Square {
 			medias = append(medias, pbMedia.NewImageMedia(
 				"",
 				mid.Src,
@@ -904,9 +967,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				strings.ReplaceAll(mid.Src, ",q_auto,w_auto", ",h_300,q_40,w_300"),
 				strings.ReplaceAll(mid.Src, ",q_auto,w_auto", ",h_300,q_40,w_300"),
 				"",
-				mid.Tag == "primary",
+				mid.Tag == "primary" || m == 0,
 			))
 		}
+		item.Medias = append(item.Medias, medias...)
 
 		for _, rawSku := range proditem.Variants {
 			sku := pbItem.Sku{
@@ -923,6 +987,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			if rawSku.Available > 0 {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
 				sku.Stock.StockCount = int32(rawSku.Available)
+				item.Stock.StockStatus = pbItem.Stock_InStock
 			}
 
 			sku.Specs = append(sku.Specs, &colorSpec)
@@ -934,6 +999,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
+
 		if err = yield(ctx, &item); err != nil {
 			return err
 		}
@@ -944,7 +1010,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.everlane.com/collections/womens-all",
+		//"https://www.everlane.com/collections/womens-all",
 		// "https://www.everlane.com/collections/womens-outerwear?style=Jackets+%26+Coats",
 		// "https://www.everlane.com/collections/womens-newest-arrivals?style=Outerwear",
 		// "https://www.everlane.com/products/womens-cinchable-chore-jacket-canvas",
@@ -952,7 +1018,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		// "https://www.everlane.com/api/v2/product_groups?product_permalink=womens-fixed-waist-work-pant-militaryolive",
 		// "https://www.everlane.com/api/v2/product_groups?product_permalink=womens-human-box-cut-tee-white-black",
 		// "https://www.everlane.com/products/womens-human-box-cut-tee-white-black?collection=womens-sale",
-		// "https://www.everlane.com/products/womens-denim-chore-jacket-darkindigo?collection=womens-sale",
+		"https://www.everlane.com/products/womens-denim-chore-jacket-darkindigo?collection=womens-sale",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
