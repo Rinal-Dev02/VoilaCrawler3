@@ -4,7 +4,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
+	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
@@ -62,7 +62,7 @@ func (c *_Crawler) Version() int32 {
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
-	options.EnableSessionInit = true
+	options.EnableSessionInit = false
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
 
 	// NOTE: no need to set useragent here for user agent is dynamic
@@ -153,7 +153,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 
 			for j := range subNode2list.Nodes {
 				subNode := subNode2list.Eq(j)
-				href := subNode.Find(`a`).AttrOr("href", "")
+				href := subNode.Find(`a`).First().AttrOr("href", "")
 				if href == "" {
 					continue
 				}
@@ -164,13 +164,16 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 					continue
 				}
 				subCateName := ""
+				subCate2Name := ""
 				if subcat2 == "" {
 					subCateName = strings.TrimSpace(subNode.Text())
 				} else {
-					subCateName = subcat2 + " > " + strings.TrimSpace(subNode.Text())
+					subCateName = subcat2
+					subCate2Name = strings.TrimSpace(subNode.Text())
 				}
 
 				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				nnnctx = context.WithValue(nnctx, "SubCategory2", subCate2Name)
 				req, _ := http.NewRequest(http.MethodGet, href, nil)
 				if err := yield(nnnctx, req); err != nil {
 					return err
@@ -715,18 +718,25 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					Currency: regulation.Currency_USD,
 				},
 			}
-			for i, bread := range pageData.Navigation.Breadcrumbs {
-				switch i {
-				case 0:
-					item.Category = bread.Name
-				case 1:
-					item.SubCategory = bread.Name
-				case 2:
-					item.SubCategory2 = bread.Name
-				case 3:
-					item.SubCategory3 = bread.Name
-				case 4:
-					item.SubCategory4 = bread.Name
+			cate, subCate, subCate2 := context.GetString(ctx, "Category"), context.GetString(ctx, "SubCategory"), context.GetString(ctx, "SubCategory2")
+			if cate != "" && subCate != "" {
+				item.Category = cate
+				item.SubCategory = subCate
+				item.SubCategory2 = subCate2
+			} else {
+				for i, bread := range pageData.Navigation.Breadcrumbs {
+					switch i {
+					case 0:
+						item.Category = bread.Name
+					case 1:
+						item.SubCategory = bread.Name
+					case 2:
+						item.SubCategory2 = bread.Name
+					case 3:
+						item.SubCategory3 = bread.Name
+					case 4:
+						item.SubCategory4 = bread.Name
+					}
 				}
 			}
 
