@@ -292,6 +292,9 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 							logger.Error(err)
 							return err
 						}
+						if resp.Body == nil {
+							return errors.New("not response found")
+						}
 						defer resp.Body.Close()
 
 						if c.Bool("vv") {
