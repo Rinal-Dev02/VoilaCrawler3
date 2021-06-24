@@ -717,6 +717,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 				},
+				Stock: &pbItem.Stock{
+					StockStatus: pbItem.Stock_OutOfStock,
+				},
 			}
 			cate, subCate, subCate2 := context.GetString(ctx, "Category"), context.GetString(ctx, "SubCategory"), context.GetString(ctx, "SubCategory2")
 			if cate != "" && subCate != "" {
@@ -880,6 +883,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 				if rawSku.InStock {
 					sku.Stock.StockStatus = pbItem.Stock_InStock
+					item.Stock.StockStatus = pbItem.Stock_InStock
 				} else {
 					sku.Stock.StockStatus = pbItem.Stock_OutOfStock
 				}
@@ -891,6 +895,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 				if medias := colorMedias[rawSku.Color.Key]; medias != nil {
 					sku.Medias = medias
+				} else {
+					continue
 				}
 				item.SkuItems = append(item.SkuItems, &sku)
 			}
