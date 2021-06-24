@@ -161,6 +161,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 			if v := node.AttrOr("content", ""); v != "" {
 				if strings.HasPrefix(v, "//") {
 					v = "https:" + v
+				} else if strings.HasPrefix(v, "/") {
+					v = resp.CurrentUrl().Scheme + "://" + resp.CurrentUrl().Host + v
 				}
 				item.Medias = append(item.Medias, media.NewImageMedia("", v, "", "", "", "", false))
 			}
