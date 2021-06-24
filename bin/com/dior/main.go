@@ -26,9 +26,10 @@ import (
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
 type _Crawler struct {
 	// httpClient is the object of an http client
-	httpClient          http.Client
-	categoryPathMatcher *regexp.Regexp
-	productPathMatcher  *regexp.Regexp
+	httpClient                http.Client
+	categoryPathMatcher       *regexp.Regexp
+	categorySearchPathMatcher *regexp.Regexp
+	productPathMatcher        *regexp.Regexp
 	// logger is the log tool
 	logger glog.Log
 }
@@ -40,7 +41,8 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^/en_us([/a-z0-9A-Z-]+)$`),
+		categoryPathMatcher:       regexp.MustCompile(`^/en_us([/a-z0-9A-Z-]+)$`),
+		categorySearchPathMatcher: regexp.MustCompile(`^/en_us/products/search(.*)$`),
 		// this regular used to match product page url path
 		productPathMatcher: regexp.MustCompile(`^/en_us/products/(.*)$`),
 		logger:             logger.New("_Crawler"),
@@ -66,7 +68,7 @@ func (c *_Crawler) Version() int32 {
 // for the means of every options please see the definition.
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	opts := &crawler.CrawlOptions{
-		EnableHeadless: false,
+		EnableHeadless: true,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
 	}
@@ -118,7 +120,10 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if p == "/en_us" || p == "" {
 		return c.parseCategories(ctx, resp, yield)
 	}
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+
+	if c.categorySearchPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
+	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
@@ -246,11 +251,17 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if c == nil || yield == nil {
 		return nil
 	}
+	fmt.Print(`parseCategoryProducts`)
 
 	// read the response data from http response
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
+	}
+
+	if bytes.Contains(respBody, []byte(`<p class="multiline-text search-results-toolbar-no-results-message">Sorry, there is no results for your search`)) {
+		fmt.Println(`Page not found`)
+		return nil
 	}
 
 	matched := productsExtractReg.FindSubmatch(respBody)
@@ -531,6 +542,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	if bytes.Contains(respBody, []byte(`<span class="multiline-text">Our apologies, but we weren't able to find the page you are looking for.</span>`)) {
+		fmt.Println(`Page not found`)
+		return nil
+	}
+
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
 		c.logger.Debugf("%s", respBody)
@@ -548,9 +564,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	contentIndex := getIndex(viewData, "PRODUCTTITLE")
+	if contentIndex == -1 {
+		fmt.Println(`PRODUCTTITLE not found`)
+		return nil
+	}
 	contentData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 
 	contentIndex = getIndex(viewData, "PRODUCTSECTIONDESCRIPTION")
+	if contentIndex == -1 {
+		fmt.Println(`PRODUCTSECTIONDESCRIPTION not found`)
+		return nil
+	}
 	contentDescriptionData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 
 	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
@@ -592,6 +616,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	// image
 	var itemImg []*media.Media
 	contentIndex = getIndex(viewData, "PRODUCTMEDIAS")
+	if contentIndex == -1 {
+		fmt.Println(`PRODUCTMEDIAS not found`)
+		return nil
+	}
 	contentImgData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 	for ki, mid := range contentImgData.Items {
 		if mid.Type == "IMAGE" && len(mid.Images) > 0 {
@@ -618,6 +646,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		for j, rawSku := range contentData.Variations {
 			var itemImg []*media.Media
 			contentIndex = getIndex(viewData, "PRODUCTMEDIAS")
+			if contentIndex == -1 {
+				fmt.Println(`PRODUCTMEDIAS not found`)
+				return nil
+			}
 			contentImgData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 
 			for ki, mid := range contentImgData.Items {
@@ -717,7 +749,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 
 			item.SkuItems = append(item.SkuItems, &sku)
-
 		}
 	}
 
@@ -729,6 +760,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if item.Stock == nil {
 		item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock}
 	}
+	jsonData, err := json.Marshal(item)
+	fmt.Println(string(jsonData))
 
 	// yield item result
 	if err = yield(ctx, &item); err != nil {
@@ -755,7 +788,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.dior.com/en_us",
 		//"https://www.dior.com/en_us/womens-fashion/ready-to-wear/all-ready-to-wear",
 		//"https://www.dior.com/en_us/fragrance/mens-fragrance/all-products",
-		"https://www.dior.com/en_us/products/beauty-Y0998004-sauvage-parfum",
+		//"https://www.dior.com/en_us/products/beauty-Y0998004-sauvage-parfum",
 		// "https://www.dior.com/en_us/products/couture-124V03BM211_X5685-ribbed-knit-bar-jacket-navy-blue-double-breasted-virgin-wool",
 		// "https://www.dior.com/en_us/products/couture-93C1046A0121_C975-dior-oblique-tie-blue-and-black-silk",
 		//"https://www.dior.com/en_us/products/beauty-Y0061201-jules-eau-de-toilette",
@@ -763,6 +796,9 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.dior.com/en_us/products/beauty-Y0028965-dior-lip-tattoo-color-games-collection-limited-edition-colored-lip-tint-bare-lip-sensation-%E2%80%93-extreme-weightless-wear",
 		// "https://www.dior.com/en_us/products/couture-141B19A3842_X4813-dioriviera-blouse-raspberry-toile-de-jouy-reverse-cotton-poplin",
 		//"https://www.dior.com/en_us/products/beauty-Y0139000-5-couleurs-couture-eyeshadow-palette-high-pigment-long-wear-creamy-powder",
+		//"https://www.dior.com/en_us/fragrance/mens-fragrance/all-products",
+		//"https://www.dior.com/en_us/products/couture-HYN01TLC0U_C005-bath-mat-cannage",
+		"https://www.dior.com/en_us/products/search?query=hat",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -787,5 +823,6 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	//os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(New).Run(os.Args)
 }
