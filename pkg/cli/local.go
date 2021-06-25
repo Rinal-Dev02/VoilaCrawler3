@@ -23,75 +23,79 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Command {
+func localCommand(ctx context.Context, app *App, newFunc NewWithApp, extraFlags []cli.Flag) *cli.Command {
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:    "proxy-addr",
+			Usage:   "proxy server address",
+			EnvVars: []string{"VOILA_PROXY_URL"},
+		},
+		&cli.StringSliceFlag{
+			Name:  "target",
+			Usage: "use this target url for test if provided",
+		},
+		&cli.StringSliceFlag{
+			Name:  "type",
+			Usage: "target type to crawl",
+			Value: cli.NewStringSlice(item.SupportedTypes()...),
+		},
+		&cli.StringSliceFlag{
+			Name:  "level",
+			Usage: "proxy level, 1,2,3",
+		},
+		&cli.BoolFlag{
+			Name:  "enable-headless",
+			Usage: "Enable headless",
+		},
+		&cli.BoolFlag{
+			Name:  "enable-session-init",
+			Usage: "Enable session init",
+		},
+		&cli.BoolFlag{
+			Name:  "enable-lifo",
+			Usage: "Enable queue LIFO for requests",
+		},
+		&cli.BoolFlag{
+			Name:  "disable-checker",
+			Usage: "Disable result checker",
+		},
+		&cli.BoolFlag{
+			Name:  "disable-proxy",
+			Usage: "Disable proxy",
+		},
+		&cli.BoolFlag{
+			Name:  "pretty",
+			Usage: "print item detail in pretty json",
+		},
+		&cli.BoolFlag{
+			Name:    "report",
+			Aliases: []string{"r"},
+			Usage:   "print item detail in table model",
+		},
+	}
+	flags = append(flags, extraFlags...)
+	flags = append(flags, []cli.Flag{
+		&cli.BoolFlag{
+			Name:    "verbose",
+			Aliases: []string{"v"},
+			Usage:   "Verbose model, vv for in detail model",
+		},
+		&cli.BoolFlag{
+			Name:   "vv",
+			Usage:  "more verbose model",
+			Hidden: true,
+		},
+		&cli.BoolFlag{
+			Name:    "debug",
+			Usage:   "Enable debug[Deprecated], use -v instead",
+			EnvVars: []string{"DEBUG"},
+		},
+	}...)
 	return &cli.Command{
 		Name:        "test",
 		Usage:       "local test",
 		Description: "local test",
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:    "proxy-addr",
-				Usage:   "proxy server address",
-				EnvVars: []string{"VOILA_PROXY_URL"},
-			},
-			&cli.StringSliceFlag{
-				Name:  "target",
-				Usage: "use this target url for test if provided",
-			},
-			&cli.StringSliceFlag{
-				Name:  "type",
-				Usage: "target type to crawl",
-				Value: cli.NewStringSlice(item.SupportedTypes()...),
-			},
-			&cli.StringSliceFlag{
-				Name:  "level",
-				Usage: "proxy level, 1,2,3",
-			},
-			&cli.BoolFlag{
-				Name:  "enable-headless",
-				Usage: "Enable headless",
-			},
-			&cli.BoolFlag{
-				Name:  "enable-session-init",
-				Usage: "Enable session init",
-			},
-			&cli.BoolFlag{
-				Name:  "enable-lifo",
-				Usage: "Enable queue LIFO for requests",
-			},
-			&cli.BoolFlag{
-				Name:  "disable-checker",
-				Usage: "Disable result checker",
-			},
-			&cli.BoolFlag{
-				Name:  "disable-proxy",
-				Usage: "Disable proxy",
-			},
-			&cli.BoolFlag{
-				Name:  "pretty",
-				Usage: "print item detail in pretty json",
-			},
-			&cli.BoolFlag{
-				Name:    "report",
-				Aliases: []string{"r"},
-				Usage:   "print item detail in table model",
-			},
-			&cli.BoolFlag{
-				Name:    "verbose",
-				Aliases: []string{"v"},
-				Usage:   "Verbose model, vv for in detail model",
-			},
-			&cli.BoolFlag{
-				Name:   "vv",
-				Usage:  "more verbose model",
-				Hidden: true,
-			},
-			&cli.BoolFlag{
-				Name:    "debug",
-				Usage:   "Enable debug[Deprecated], use -v instead",
-				EnvVars: []string{"DEBUG"},
-			},
-		},
+		Flags:       flags,
 		Action: func(c *cli.Context) error {
 			logger := glog.New(glog.LogLevelInfo)
 
@@ -113,7 +117,7 @@ func localCommand(ctx context.Context, app *App, newFunc crawler.New) *cli.Comma
 				logger.Error(err)
 				return cli.NewExitError(err, 1)
 			}
-			node, err := newFunc(client, logger)
+			node, err := newFunc(c, client, logger)
 			if err != nil {
 				logger.Error(err)
 				return cli.NewExitError(err, 1)
