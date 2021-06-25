@@ -127,13 +127,73 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
+	if p == "/us/mens" || p == "/us/womens" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.yCmsContentSlot.main-menu__wrapper`).Find(`li`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`span>a`).First().Text())
+		if cateName == "" {
+			continue
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		subSel := node.Find(`.sub_menu__wrapper`).Find(`a`)
+		for k := range subSel.Nodes {
+			subNode2 := subSel.Eq(k)
+			subcat2 := subNode2.Find(`button`).Text()
+			if subcat2 == "" {
+				subcat2 = subNode2.First().Text()
+			}
+			subCateName := strings.TrimSpace(subcat2)
+
+			href := subNode2.AttrOr("href", "")
+			if href == "" {
+				continue
+			}
+
+			_, err := url.Parse(href)
+			if err != nil {
+				c.logger.Error("parse url %s failed", href)
+				continue
+			}
+
+			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+			req, _ := http.NewRequest(http.MethodGet, href, nil)
+			if err := yield(nnnctx, req); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get the index from the shared data.
@@ -491,7 +551,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			medias = append(medias, pbMedia.NewVideoMedia("", "", video.URL, 0, 0, 0, "", video.Alt, false))
 		}
 
-		for _, size := range prod.Sizes {
+		for s, size := range prod.Sizes {
 			sku := pbItem.Sku{
 				SourceId: size.Code,
 				Medias:   medias,
@@ -503,7 +563,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			sku.Specs = append(sku.Specs, &colorSpec, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    size.Code,
+				Id:    fmt.Sprintf("%s-%v", size.Code, s),
 				Name:  size.DisplayName,
 				Value: size.DisplayName,
 			})
@@ -594,7 +654,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					))
 				}
 
-				for _, size := range prod.VariantOptions {
+				for s, size := range prod.VariantOptions {
 					sku := pbItem.Sku{
 						SourceId: size.Code,
 						Medias:   medias,
@@ -606,7 +666,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					}
 					sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 						Type:  pbItem.SkuSpecType_SkuSpecSize,
-						Id:    size.Code,
+						Id:    fmt.Sprintf("%s-%v", size.Code, s),
 						Name:  size.SizeData,
 						Value: size.SizeData,
 					})
@@ -629,7 +689,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		// "https://www.matchesfashion.com/us/mens/shop/shoes",
 		// "https://www.matchesfashion.com/us/products/Raey-Chest-pocket-cotton-blend-jacket--1317200",
-		"https://www.matchesfashion.com/us/womens/shop/clothing/lingerie/briefs",
+		//"https://www.matchesfashion.com/us/womens/shop/clothing/lingerie/briefs",
+		"https://www.matchesfashion.com/us/mens",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
