@@ -122,12 +122,16 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	if c.categorySearchPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
+		fmt.Println(`categorySearchPathMatcher`)
+		return c.parseSearchKeywordProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+		fmt.Println(`productPathMatcher`)
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+		fmt.Println(`categoryPathMatcher`)
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
+	fmt.Println(`else`)
 	return crawler.ErrUnsupportedPath
 }
 
@@ -194,6 +198,7 @@ type CategoryStructure struct {
 // used to extract embaded json data in website page.
 // more about golang regulation see here https://golang.org/pkg/regexp/syntax/
 var productsExtractReg = regexp.MustCompile(`(?U)id="__NEXT_DATA__"\s*type="application/json">\s*({.*})\s*</script>`)
+var catproductsExtractReg = regexp.MustCompile(`(?U)algoliaJSONP_3({.*});`)
 
 func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -370,6 +375,233 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	// update the index of last page
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
+}
+
+//search API
+func (c *_Crawler) parseSearchKeywordProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	fmt.Print(`parseSearchKeywordProducts`)
+
+	// read the response data from http response
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\Output.html", respBody, 0644)
+
+	url := "https://kpgnq6fji9-2.algolianet.com/1/indexes/*?x-algolia-application-id=KPGNQ6FJI9&x-algolia-api-key=64e489d5d73ec5bbc8ef0d7713096fba&callback=algoliaJSONP_3&x-algolia-agent=Algolia%2520for%2520JavaScript%2520(3.35.1)%253B%2520Browser&0=%252F1%252Findexes%252Fdev_product_en_us%253Fquery%253Dhat%2526hitsPerPage%253D24%2526maxValuesPerFacet%253D10%2526page%253D0%2526highlightPreTag%253D%25253Cais-highlight-0000000000%25253E%2526highlightPostTag%253D%25253C%25252Fais-highlight-0000000000%25253E%2526clickAnalytics%253Dtrue%2526facets%253D%25255B%252522universe%252522%25255D%2526tagFilters%253D"
+	payload := strings.NewReader("{\"query\":\"\",\"variables\":{}}")
+
+	//client := &http.Client{}
+	req, err := http.NewRequest(http.MethodGet, url, payload)
+
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	req.Header.Add("x-algolia-agent", "Algolia for JavaScript (3.35.1); Browser")
+	req.Header.Add("x-algolia-application-id", "KPGNQ6FJI9")
+	req.Header.Add("x-algolia-api-key", "64e489d5d73ec5bbc8ef0d7713096fba")
+	req.Header.Add("callback", "algoliaJSONP_3")
+	req.Header.Add("0", "/1/indexes/dev_product_en_us?query=hat&hitsPerPage=24&maxValuesPerFacet=10&page=0&highlightPreTag=%3Cais-highlight-0000000000%3E&highlightPostTag=%3C%2Fais-highlight-0000000000%3E&clickAnalytics=true&facets=%5B%22universe%22%5D&tagFilters=")
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("accept", "*/*")
+
+	res, err := c.httpClient.Do(ctx, req)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	defer res.Body.Close()
+
+	body, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+	fmt.Println(string(body))
+
+	ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\Output_nr.html", body, 0644)
+
+	// if bytes.Contains(respBody, []byte(`<p class="multiline-text search-results-toolbar-no-results-message">Sorry, there is no results for your search`)) {
+	// 	fmt.Println(`Page not found`)
+	// 	return nil
+	// }
+
+	matched := catproductsExtractReg.FindSubmatch(body)
+	if len(matched) <= 1 {
+		c.logger.Debugf("%s", respBody)
+		return fmt.Errorf("extract search page info from %s failed, error=%s", resp.Request.URL, err)
+	}
+
+	var viewData parseSearchKeywordProducts
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+		return err
+	}
+
+	searchString := ""
+	lastIndex := nextIndex(ctx)
+	fmt.Println()
+	fmt.Println()
+
+	for _, idv := range viewData.Results[0].Hits {
+
+		rawurl := fmt.Sprintf("%s://%s/en_us/products/couture-%s", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.ObjectID)
+
+		fmt.Println(rawurl)
+		// req, err := http.NewRequest(http.MethodGet, rawurl, nil)
+		// if err != nil {
+		// 	c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
+		// 	return err
+		// }
+
+		// lastIndex += 1
+		// // set the index of the product crawled in the sub response
+		// nctx := context.WithValue(ctx, "item.index", lastIndex)
+		// // yield sub request
+		// if err := yield(nctx, req); err != nil {
+		// 	return err
+		// }
+
+	}
+
+	// get current page number
+	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("page"))
+	if page == 0 {
+		page = 1
+	}
+	// check if this is the last page
+	if searchString != "" {
+		if len(viewData.Results[0].Hits) >= viewData.Results[0].NbHits ||
+			page >= int64(viewData.Results[0].NbPages) {
+			return nil
+		}
+	} else {
+		return nil
+	}
+
+	// set pagination
+	u := *resp.Request.URL
+	vals := u.Query()
+	vals.Set("page", strconv.Format(page+1))
+	u.RawQuery = vals.Encode()
+
+	fmt.Println(`----------------------vals-------------------`)
+	fmt.Println(vals)
+
+	reqn, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	// update the index of last page
+	nctx := context.WithValue(ctx, "item.index", lastIndex)
+	return yield(nctx, reqn)
+}
+
+type parseSearchKeywordProducts struct {
+	Results []struct {
+		Hits []struct {
+			LightProductAPIID      string   `json:"light_product_api_id"`
+			Universe               string   `json:"universe"`
+			Title                  string   `json:"title"`
+			Subtitle               string   `json:"subtitle"`
+			SubtitleInt            string   `json:"subtitle_int"`
+			Description            string   `json:"description"`
+			Categories             []string `json:"categories"`
+			HierarchicalCategories struct {
+				Lvl0 string `json:"lvl0"`
+				Lvl1 string `json:"lvl1"`
+				Lvl2 string `json:"lvl2"`
+			} `json:"hierarchical_categories"`
+			CategoryLvl0              string `json:"category_lvl0"`
+			CategoryLvl1              string `json:"category_lvl1"`
+			CategoryLvl2              string `json:"category_lvl2"`
+			HierarchicalCategoriesInt struct {
+				Lvl0 string `json:"lvl0"`
+				Lvl1 string `json:"lvl1"`
+				Lvl2 string `json:"lvl2"`
+			} `json:"hierarchical_categories_int"`
+			ID              string   `json:"id"`
+			IsNew           bool     `json:"isNew"`
+			Name            string   `json:"name"`
+			Ean             string   `json:"ean"`
+			Image           string   `json:"image"`
+			TitleInt        string   `json:"title_int"`
+			CategoriesInt   []string `json:"categories_int"`
+			CategoryIntLvl0 string   `json:"category_int_lvl0"`
+			CategoryIntLvl1 string   `json:"category_int_lvl1"`
+			CategoryIntLvl2 string   `json:"category_int_lvl2"`
+			IsExclusive     bool     `json:"is_exclusive"`
+			IsBestseller    bool     `json:"is_bestseller"`
+			Price           struct {
+				Value    int    `json:"value"`
+				Currency string `json:"currency"`
+			} `json:"price"`
+			MinimumPrice struct {
+				Amount   int    `json:"amount"`
+				Currency string `json:"currency"`
+			} `json:"minimumPrice"`
+			HasMultiplePrices   bool    `json:"hasMultiplePrices"`
+			Scoring             float64 `json:"scoring"`
+			IsVtoGlassesEnabled bool    `json:"isVtoGlassesEnabled"`
+			ObjectID            string  `json:"objectID"`
+			HighlightResult     struct {
+				LightProductAPIID struct {
+					Value        string        `json:"value"`
+					MatchLevel   string        `json:"matchLevel"`
+					MatchedWords []interface{} `json:"matchedWords"`
+				} `json:"light_product_api_id"`
+				Title struct {
+					Value            string   `json:"value"`
+					MatchLevel       string   `json:"matchLevel"`
+					FullyHighlighted bool     `json:"fullyHighlighted"`
+					MatchedWords     []string `json:"matchedWords"`
+				} `json:"title"`
+				Subtitle struct {
+					Value        string        `json:"value"`
+					MatchLevel   string        `json:"matchLevel"`
+					MatchedWords []interface{} `json:"matchedWords"`
+				} `json:"subtitle"`
+				Description struct {
+					Value            string   `json:"value"`
+					MatchLevel       string   `json:"matchLevel"`
+					FullyHighlighted bool     `json:"fullyHighlighted"`
+					MatchedWords     []string `json:"matchedWords"`
+				} `json:"description"`
+				Categories []struct {
+					Value            string        `json:"value"`
+					MatchLevel       string        `json:"matchLevel"`
+					MatchedWords     []interface{} `json:"matchedWords"`
+					FullyHighlighted bool          `json:"fullyHighlighted,omitempty"`
+				} `json:"categories"`
+				ID struct {
+					Value        string        `json:"value"`
+					MatchLevel   string        `json:"matchLevel"`
+					MatchedWords []interface{} `json:"matchedWords"`
+				} `json:"id"`
+			} `json:"_highlightResult"`
+		} `json:"hits"`
+		NbHits      int `json:"nbHits"`
+		Page        int `json:"page"`
+		NbPages     int `json:"nbPages"`
+		HitsPerPage int `json:"hitsPerPage"`
+		Facets      struct {
+			Universe struct {
+				Couture int `json:"couture"`
+				Beauty  int `json:"beauty"`
+			} `json:"universe"`
+		} `json:"facets"`
+		ExhaustiveFacetsCount bool   `json:"exhaustiveFacetsCount"`
+		ExhaustiveNbHits      bool   `json:"exhaustiveNbHits"`
+		Query                 string `json:"query"`
+		QueryAfterRemoval     string `json:"queryAfterRemoval"`
+		Params                string `json:"params"`
+		Index                 string `json:"index"`
+		QueryID               string `json:"queryID"`
+		ProcessingTimeMS      int    `json:"processingTimeMS"`
+	} `json:"results"`
+	Params string `json:"params"`
 }
 
 // used to trim html labels in description
@@ -823,6 +1055,6 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	//os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
+	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(New).Run(os.Args)
 }
