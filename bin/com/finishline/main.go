@@ -93,13 +93,114 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if p == "" {
+		return c.parseCategories(ctx, resp, yield)
+	}
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`#desktop-mainmenu>li`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.AttrOr("data-mainitem", ""))
+		if cateName == "" {
+			continue
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		subSel := node.Find(`.menu-dropdown-row>div>ul`)
+		for k := range subSel.Nodes {
+			subNode := subSel.Eq(k)
+			subcat2 := strings.TrimSpace(subNode.Find(`strong`).First().Text())
+
+			subNode2 := subNode.Find(`li`)
+			for j := range subNode2.Nodes {
+				subNode := subNode2.Eq(j)
+
+				href := subNode.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subcat2 + " > " + strings.TrimSpace(subNode.Text())
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
+		if len(subSel.Nodes) == 0 { // new arrival
+			subSel = node.Find(`.navigation-promo-slide`)
+			if len(subSel.Nodes) == 0 {
+				subSel = node.Find(`.menu-dropdown-row`).Find(`a`)
+			}
+			for j := range subSel.Nodes {
+				subNode := subSel.Eq(j)
+
+				href := subNode.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					href = subNode.AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := strings.TrimSpace(subNode.Find(`a`).Text())
+				if subCateName == "" {
+					subCateName = subNode.AttrOr("title", "")
+				}
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func isRobotCheckPage(respBody []byte) bool {
@@ -234,6 +335,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 
 	{
@@ -327,6 +429,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 		}
 
+		item.Medias = medias
 		colorSpec := pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecColor,
 			Id:    style,
@@ -362,7 +465,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			sizeName := strings.TrimSpace(snode.Text())
 
 			sku := pbItem.Sku{
-				SourceId: string(skuId),
+				SourceId: fmt.Sprintf("%s-%v", skuId, i),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(currentPrice * 100),
@@ -374,6 +477,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			if !strings.Contains(snode.AttrOr("class", ""), "disabled") {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
 			}
 
 			sku.Specs = append(sku.Specs, &colorSpec)
@@ -395,12 +499,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
+		//"https://www.finishline.com",
 		// "https://www.finishline.com/store/only-sale-items/shoes/_/N-1g2z5sjZ1nc1fo0?icid=LP_sale_shoes50_PDCT",
-		"https://www.finishline.com/store/women/shoes/running/_/N-nat3jh?mnid=women_shoes_running",
+		//"https://www.finishline.com/store/women/shoes/running/_/N-nat3jh?mnid=women_shoes_running",
 		// "https://www.finishline.com/store/product/womens-nike-air-max-270-casual-shoes/prod2770847?styleId=AH6789&colorId=001",
 		// "https://www.finishline.com/store/product/mens-nike-challenger-og-casual-shoes/prod2820864?styleId=CW7645&colorId=003",
 		//"https://www.finishline.com/store/product/womens-puma-future-rider-play-on-casual-shoes/prod2795926?styleId=38182501&colorId=100",
-		// "https://www.finishline.com/store/product/big-kids-nike-air-force-1-low-casual-shoes/prod796065?styleId=314192&colorId=117",
+		"https://www.finishline.com/store/product/big-kids-nike-air-force-1-low-casual-shoes/prod796065?styleId=314192&colorId=117",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
