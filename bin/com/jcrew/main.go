@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"math"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/mitchellh/mapstructure"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
@@ -130,13 +132,98 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
+	if p == "/en_us" || p == "" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+var productsExtractReg = regexp.MustCompile(`(?U)id="__NEXT_DATA__"\s*type="application/json">\s*({.*})\s*</script>`)
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	matched := productsExtractReg.FindSubmatch(respBody)
+	if len(matched) <= 1 {
+		c.logger.Debugf("%s", respBody)
+		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
+		return err
+	}
+
+	ud := UniversalDTO{}
+	mapstructure.Decode(viewData.Props.InitialState.Navigation.Data.CmsNav, &ud)
+
+	for key, rawcat := range ud {
+
+		nnctx := context.WithValue(ctx, "Category", key)
+
+		for _, rawsubcat := range rawcat {
+
+			for _, rawsubcat2 := range rawsubcat.Links {
+
+				subCategory := rawsubcat.Header + " > " + rawsubcat2.Label
+
+				href := rawsubcat2.URL
+				if href == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Errorf("parse url %s failed", href)
+					continue
+				}
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nctx := context.WithValue(nnctx, "SubCategory", subCategory)
+					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+					if err := yield(nctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+type UniversalDTO map[string][]struct {
+	Header string `json:"header"`
+	Links  []struct {
+		URL   string `json:"url"`
+		Label string `json:"label"`
+	} `json:"links"`
+}
+
+type categoryStructure struct {
+	Props struct {
+		InitialState struct {
+			Navigation struct {
+				Data struct {
+					CmsNav interface{} `json:"cmsNav"`
+				} `json:"data"`
+			} `json:"navigation"`
+		} `json:"initialState"`
+	} `json:"props"`
 }
 
 // nextIndex used to get the index from the shared data.
@@ -1324,6 +1411,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\Output.html", respBody, 0644)
+
 	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
 		c.logger.Debug(err)
@@ -1359,6 +1448,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			// 	ReviewCount: int32(p.NumberOfReviews),
 			// 	Rating:      float32(p.ReviewAverageRating / 5.0),
 			// },
+			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
 		for _, model := range prod.PriceModel {
@@ -1385,6 +1475,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					))
 					colorImgs[color.ColorCode] = medias
 				}
+				item.Medias = append(item.Medias, medias...)
 			}
 		}
 
@@ -1406,6 +1497,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			if rawSku.ShowOnSale {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
 			}
 
 			// color
@@ -1462,11 +1554,12 @@ func Contains(a []string, x string) bool {
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
+		//"https://www.jcrew.com",
 		// "https://www.jcrew.com/c/womens_category/sweatshirts_sweatpants",
 		// "https://www.jcrew.com/r/sale/men/discount-60-70-off/discount-70-and-above",
-		"https://www.jcrew.com/p/mens_category/shirts/secret_wash/slim-stretch-secret-wash-shirt-in-organic-cotton-gingham/AA429",
+		//"https://www.jcrew.com/p/mens_category/shirts/secret_wash/slim-stretch-secret-wash-shirt-in-organic-cotton-gingham/AA429",
 		// "https://www.jcrew.com/p/womens_category/sweatshirts_sweatpants/pullovers/mariner-cloth-buttonup-hoodie/AW153?color_name=white-navy-mira-stripe",
-		// "https://www.jcrew.com/p/girls_category/pajamas/nightgowns/girls-flannel-nightgown-in-tartan/AE512?color_name=white-out-plaid-red-navy",
+		"https://www.jcrew.com/p/girls_category/pajamas/nightgowns/girls-flannel-nightgown-in-tartan/AE512?color_name=white-out-plaid-red-navy",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
