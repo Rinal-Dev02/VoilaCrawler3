@@ -103,12 +103,105 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
+	if p == "https://www.macys.com/" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	matched := categoryExtractReg.FindSubmatch(respBody)
+	if len(matched) <= 1 {
+		c.logger.Debugf("%s", respBody)
+		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
+		return err
+	}
+
+	for _, rawCat := range viewData {
+
+		cateName := rawCat.Text
+		if cateName == "" {
+			continue
+		}
+		//nnctx := context.WithValue(ctx, "Category", cateName)
+		fmt.Println(`cateName `, cateName)
+
+		for _, rawsubCat := range rawCat.Children[0].Group {
+
+			subcat := rawsubCat.Text
+			fmt.Println(`SubCat`, subcat)
+
+			for _, rawsubcatlvl2 := range rawsubCat.Children[0].Group {
+				currentsublvl2 := rawsubcatlvl2.Text
+
+				href := "https://www.macys.com/" + rawsubcatlvl2.URL
+				if href == "" {
+					continue
+				}
+				//fmt.Println(`SubCallvl2 `, currentsublvl2)
+
+				_, err := url.Parse(href)
+				if err != nil {
+					//c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := currentsublvl2
+				fmt.Println(subCateName)
+				// nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				// req, _ := http.NewRequest(http.MethodGet, href, nil)
+				// if err := yield(nnnctx, req); err != nil {
+				// 	return err
+				// }
+			}
+		}
+	}
+	return nil
+}
+
+type categoryStructure []struct {
+	ID       string `json:"id"`
+	Text     string `json:"text"`
+	URL      string `json:"url"`
+	Children []struct {
+		Group []struct {
+			ID             string `json:"id"`
+			Text           string `json:"text"`
+			FileName       string `json:"fileName"`
+			Width          int    `json:"width,omitempty"`
+			Height         int    `json:"height,omitempty"`
+			URLTemplate    string `json:"urlTemplate,omitempty"`
+			MediaType      string `json:"mediaType"`
+			MediaGroupType string `json:"mediaGroupType"`
+			Children       []struct {
+				Group []struct {
+					ID   string `json:"id"`
+					Text string `json:"text"`
+					URL  string `json:"url"`
+				} `json:"group"`
+			} `json:"children"`
+		} `json:"group"`
+	} `json:"children"`
 }
 
 // nextIndex used to get sharingData from context
@@ -604,7 +697,8 @@ type parseProductData struct {
 }
 
 var (
-	detailReg = regexp.MustCompile(`(?U)<script[^>]*>\s*window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
+	detailReg          = regexp.MustCompile(`(?U)<script[^>]*>\s*window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
+	categoryExtractReg = regexp.MustCompile(`(?U)<script\s*type='application/json'\s*data-mcom-header-menu-desktop='context\.header\.menu'>(\[.*\])\s*</script>`)
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
