@@ -94,6 +94,12 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+
+	if p == "/en_us" || p == "" {
+		return c.parseCategories(ctx, resp, yield)
+	}
+
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -103,6 +109,99 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 	return crawler.ErrUnsupportedPath
 }
+
+// --------------------------------------------------
+
+var categoriesExtractReg = regexp.MustCompile(`(?Us)window\.footlocker\.STATE_FROM_SERVER\s*=\s*({.*});`)
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	matched := categoriesExtractReg.FindSubmatch(respBody)
+	if len(matched) <= 1 {
+		c.logger.Debugf("%s", respBody)
+		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
+		return err
+	}
+
+	for _, rawcat := range viewData.Header.Model.Categories {
+		//fmt.Println(`category `, rawcat.Name)
+		nnctx := context.WithValue(ctx, "Category", rawcat.Name)
+
+		for _, rawsubcat := range rawcat.Categories {
+
+			for _, rawsubcatlvl2 := range rawsubcat.Links {
+
+				href := resp.Request.URL.String() + "/" + rawsubcatlvl2.URL
+				if href == "" {
+					continue
+				}
+
+				//fmt.Println(rawsubcat.Name + "  --> " + href)
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Errorf("parse url %s failed", href)
+					continue
+				}
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					//here reset tracing id to distiguish different category crawl
+					//This may exists duplicate requests
+					nctx := context.WithValue(nnctx, "SubCategory", rawsubcatlvl2.Text)
+					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+					if err := yield(nctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+type categoryStructure struct {
+	Header struct {
+		Model struct {
+			Links []struct {
+				Name     string `json:"name"`
+				LinkPath string `json:"linkPath"`
+			} `json:"links"`
+			ID         string `json:"id"`
+			Categories []struct {
+				Name       string `json:"name"`
+				Categories []struct {
+					Name  string `json:"name"`
+					Links []struct {
+						Text    string `json:"text"`
+						URL     string `json:"url"`
+						ShopAll bool   `json:"shopAll"`
+						ID      string `json:"id"`
+					} `json:"links"`
+					PromoLinks []interface{} `json:"promoLinks"`
+					CardLinks  []interface{} `json:"cardLinks"`
+					ID         string        `json:"id"`
+					Style      string        `json:"style,omitempty"`
+				} `json:"categories"`
+				ID       string `json:"id"`
+				LinkPath string `json:"linkPath,omitempty"`
+			} `json:"categories"`
+		} `json:"model"`
+	} `json:"header"`
+}
+
+// --------------------------------------------------
 
 // nextIndex used to get sharingData from context
 func nextIndex(ctx context.Context) int {
@@ -342,7 +441,6 @@ var (
 	//imageRegStart  = regexp.MustCompile(`(altset_)([a-zA-Z0-9(]+)`)
 	imageRegStart = regexp.MustCompile(`\(([^;]+)`)
 	//imageRegEnd  = regexp.MustCompile(`(,)(?!.*\1)`)
-
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -518,7 +616,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.footlocker.com/category/womens/clothing.html?query=Clothing+Womens%3Arelevance%3Aproducttype%3AClothing%3Agender%3AWomen%27s%3Aclothstyle%3AJackets",
+
+		"https://www.footlocker.com",
+		//"https://www.footlocker.com/category/womens/clothing.html?query=Clothing+Womens%3Arelevance%3Aproducttype%3AClothing%3Agender%3AWomen%27s%3Aclothstyle%3AJackets",
 		// "https://www.footlocker.com/product/jordan-true-flight-mens/42964062.html",
 		//"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
 	} {
