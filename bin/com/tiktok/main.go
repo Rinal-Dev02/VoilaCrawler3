@@ -5,10 +5,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
 	"io/ioutil"
+	rhttp "net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -16,13 +18,15 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/voiladev/VoilaCrawler/pkg/cli"
+	"github.com/urfave/cli/v2"
+	app "github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
+	"github.com/voiladev/VoilaCrawler/pkg/s3"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/protoutil"
 	"github.com/voiladev/go-framework/strconv"
@@ -33,6 +37,7 @@ import (
 type _Crawler struct {
 	crawler.MustImplementCrawler
 	httpClient http.Client
+	s3Client   *s3.S3Client
 
 	personalVideoList      *regexp.Regexp
 	personalVideoJSONList  *regexp.Regexp
@@ -44,9 +49,17 @@ type _Crawler struct {
 	logger glog.Log
 }
 
-func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
+func New(s3Client *s3.S3Client, httpClient http.Client, logger glog.Log) (crawler.Crawler, error) {
+	if s3Client == nil {
+		return nil, errors.New("invalid s3 client")
+	}
+	if httpClient == nil {
+		return nil, errors.New("invalid http client")
+	}
+
 	c := _Crawler{
-		httpClient:             client,
+		s3Client:               s3Client,
+		httpClient:             httpClient,
 		personalVideoList:      regexp.MustCompile(`^/@[0-9a-zA-Z-_.]+/?$`),
 		personalVideoJSONList:  regexp.MustCompile(`^/api/post/item_list/?$`),
 		detailPageReg:          regexp.MustCompile(`^/@[0-9a-zA-Z-_.]+/video/[0-9]+/?$`),
@@ -128,6 +141,29 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.download(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) persistentResource(ctx context.Context, name string, rawurl string) (string, error) {
+	if rawurl == "" {
+		return "", errors.New("invalid rawurl")
+	}
+	req, err := rhttp.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
+	if err != nil {
+		c.logger.Errorf("create request from url %s failed, error=%s", rawurl, err)
+		return "", err
+	}
+	resp, err := rhttp.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	obj, err := c.s3Client.Put(ctx, name, resp.Body)
+	if err != nil {
+		c.logger.Errorf("save cover failed, error=%s", err)
+		return "", err
+	}
+	return fmt.Sprintf("%s://%s%s", obj.Scheme, obj.Domain, obj.Path), nil
 }
 
 func (c *_Crawler) getCookies(ctx context.Context, rawUrl string) (string, int64, error) {
@@ -319,6 +355,16 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 		} else if prop.Video.Cover != "" {
 			item.Video.Cover.OriginalUrl = prop.Video.Cover
 		}
+		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
+			if u, err :=
+				c.persistentResource(ctx,
+					fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
+					item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
+				c.logger.Errorf("persistent cover resource failed, error=%s", err)
+			} else {
+				item.Video.Cover.OriginalUrl = u
+			}
+		}
 
 		cookie, expiresAt, err := c.getCookies(ctx, item.Video.OriginalUrl)
 		if err != nil {
@@ -468,6 +514,17 @@ func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Re
 			item.Video.Cover.OriginalUrl = prop.Video.OriginCover
 		} else if prop.Video.Cover != "" {
 			item.Video.Cover.OriginalUrl = prop.Video.Cover
+		}
+
+		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
+			if u, err :=
+				c.persistentResource(ctx,
+					fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
+					item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
+				c.logger.Errorf("persistent cover resource failed, error=%s", err)
+			} else {
+				item.Video.Cover.OriginalUrl = u
+			}
 		}
 
 		cookie, expiresAt, err := c.getCookies(ctx, item.Video.OriginalUrl)
@@ -627,6 +684,17 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 		} else if val, exists := doc.Find(`meta[property="og:image:secure_url"]`).Attr("content"); exists {
 			item.Video.Cover.OriginalUrl = html.UnescapeString(val)
 		}
+
+		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
+			if u, err :=
+				c.persistentResource(ctx,
+					fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
+					item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
+				c.logger.Errorf("persistent cover resource failed, error=%s", err)
+			} else {
+				item.Video.Cover.OriginalUrl = u
+			}
+		}
 	}
 
 	if item.Source == nil {
@@ -723,5 +791,16 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	cli.NewApp(New).Run(os.Args)
+	newCrawler := func(c *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
+		host, bucket := c.String("s3-addr"), c.String("s3-bucket")
+		s3Client, err := s3.New(host, bucket)
+		if err != nil {
+			return nil, err
+		}
+		return New(s3Client, client, logger)
+	}
+	app.NewApp(newCrawler,
+		&cli.StringFlag{Name: "s3-addr", Usage: "s3 sever address", Value: "172.31.130.253:32389"},
+		&cli.StringFlag{Name: "s3-bucket", Usage: "s3 bucket name", Value: "voila-downloads"},
+	).Run(os.Args)
 }

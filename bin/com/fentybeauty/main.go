@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"html"
 	"io/ioutil"
@@ -28,9 +27,10 @@ import (
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
 type _Crawler struct {
 	// httpClient is the object of an http client
-	httpClient          http.Client
-	categoryPathMatcher *regexp.Regexp
-	productPathMatcher  *regexp.Regexp
+	httpClient           http.Client
+	categoryPathMatcher  *regexp.Regexp
+	productPathMatcher   *regexp.Regexp
+	productPathMatcherV1 *regexp.Regexp
 	// logger is the log tool
 	logger glog.Log
 }
@@ -44,8 +44,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 		// this regular used to match category page url path
 		categoryPathMatcher: regexp.MustCompile(`^(/[a-z0-9-]+){1,6}$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^(/[a-zA-Z0-9\-]+){1,4}.html$`),
-		logger:             logger.New("_Crawler"),
+		productPathMatcher:   regexp.MustCompile(`^(/[a-zA-Z0-9\-]+){1,4}.html$`),
+		productPathMatcherV1: regexp.MustCompile(`^/products(/[a-zA-Z0-9\-]+){1,4}$`),
+		logger:               logger.New("_Crawler"),
 	}
 	return &c, nil
 }
@@ -117,13 +118,80 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if p == "" || p == "/pages/fentyskin" {
+		return c.parseCategories(ctx, resp, yield)
+	}
+
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.productPathMatcherV1.MatchString(resp.RawUrl().Path) {
+		return c.parseProductV1(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.header-nav__items > li`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a > span > span`).First().Text())
+		if cateName == "" {
+			continue
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		subSel := node.Find(`div`).Find(`a > span`)
+		for k := range subSel.Nodes {
+			subNode2 := subSel.Eq(k)
+			subcat2 := subNode2.Text()
+
+			subNode2list := subNode2.Find(`a`)
+
+			for j := range subNode2list.Nodes {
+				subNode := subNode2list.Eq(j)
+				href := subNode.AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subcat2 + " > " + strings.TrimSpace(subNode.Text())
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get the index from the shared data.
@@ -207,12 +275,9 @@ var productInfoReg = regexp.MustCompile(`(?U)_bluecoreTrack\.push\(\["trackProdu
 // parseProduct
 // TODO: for product set, not yield sub request for every prod.
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil {
-		return nil
-	}
 
-	if resp.StatusCode == http.StatusForbidden {
-		return errors.New("access denied")
+	if c == nil || yield == nil {
+		return nil
 	}
 
 	respbody, err := ioutil.ReadAll(resp.Body)
@@ -270,7 +335,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
-		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 	if item.Source.Id == "" {
 		item.Source.Id = strings.TrimSpace(doc.Find(`.product-number span[itemprop="productID"]`).Text())
@@ -387,6 +452,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			if !strings.Contains(node.AttrOr("class", ""), `unselectable`) {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
 			}
 
 			sku.Specs = append(sku.Specs, &colorSpec)
@@ -410,6 +476,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
+		item.Medias = append(item.Medias, item.GetMedias()...)
 		break
 	}
 	if len(item.SkuItems) == 0 {
@@ -427,6 +494,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 		if bytes.Contains(respbody, []byte("<p class=\"in-stock-msg\">In Stock</p>")) {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
+			item.Stock.StockStatus = pbItem.Stock_InStock
 		}
 
 		var sel *goquery.Selection
@@ -457,7 +525,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				"",
 				j == 0))
 		}
-
+		item.Medias = sku.Medias
 		// size
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecSize,
@@ -475,16 +543,248 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
+var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+
+func (c *_Crawler) parseProductV1(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respbody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respbody))
+	if err != nil {
+		return err
+	}
+
+	matched := doc.Find(`section[is="product-selector"]`).AttrOr("variants", "")
+	if matched == "" {
+		matched = doc.Find(`section[is="product-hero"]`).AttrOr("product-json", "")
+		if matched != "" {
+			matched = "[" + matched + "]"
+		} else {
+			return nil
+		}
+	}
+
+	prodInfoStr, err := url.QueryUnescape(matched)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	var prodInfo productVariants
+
+	if err := json.Unmarshal([]byte(prodInfoStr), &prodInfo); err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	canUrl := doc.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	if canUrl == "" {
+		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+	}
+
+	for _, prod := range prodInfo {
+
+		item := pbItem.Product{
+			Source: &pbItem.Source{
+				Id:           prod.ID,
+				CrawlUrl:     resp.Request.URL.String(),
+				CanonicalUrl: prod.URL,
+			},
+			Title:       prod.Title,
+			Description: strings.TrimSpace(htmlTrimRegp.ReplaceAllString(doc.Find(`.product-detail__contents`).Text(), "")),
+			BrandName:   "Fenty Beauty",
+			Price: &pbItem.Price{
+				Currency: regulation.Currency_USD,
+			},
+			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+		}
+
+		if prod.Available {
+			item.Stock.StockStatus = pbItem.Stock_InStock
+		}
+
+		//Note: Category Not available
+		//item.Category = "Home"
+
+		sizeIndex := -1
+		colorIndex := -1
+		for i, key := range prod.OptionNames {
+			if key == "Color" {
+				colorIndex = i
+			} else if key == "Size" {
+				sizeIndex = i
+			}
+		}
+
+		var medias []*pbMedia.Media
+		for j, mediumUrl := range prod.Media {
+			template := strings.Split(mediumUrl.Src, ".jpg")[0]
+			medias = append(medias, pbMedia.NewImageMedia(
+				strconv.Format(j),
+				template+".jpg",
+				mediumUrl.Src+"_1000x.jpg",
+				mediumUrl.Src+"_600x.jpg",
+				mediumUrl.Src+"_500x.jpg",
+				"",
+				j == 0,
+			))
+		}
+		item.Medias = append(item.Medias, medias...)
+
+		for _, rawsku := range prod.Variants {
+
+			currentPrice, _ := strconv.ParseInt(rawsku.Price)
+			msrp, _ := strconv.ParseInt(rawsku.CompareAtPrice)
+			discount := float32(0)
+
+			if msrp == 0 {
+				msrp = currentPrice
+			}
+			if msrp > currentPrice {
+				discount, _ = strconv.ParseFloat32((msrp - currentPrice) / msrp * 100)
+			}
+
+			sku := pbItem.Sku{
+				SourceId: rawsku.Sku,
+				Price: &pbItem.Price{
+					Currency: regulation.Currency_USD,
+					Current:  int32(currentPrice),
+					Msrp:     int32(msrp),
+					Discount: int32(discount),
+				},
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+				Medias: medias,
+			}
+
+			if prod.Available {
+				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
+			}
+
+			if colorIndex > -1 {
+				colorVal := ""
+				if colorIndex == 0 {
+					colorVal = rawsku.Option1
+				} else if colorIndex == 1 {
+					colorVal = rawsku.Option2
+				} else {
+					colorVal = rawsku.Option3
+				}
+
+				colorSpec := pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
+					Id:    rawsku.ID,
+					Name:  colorVal,
+					Value: colorVal,
+				}
+
+				sku.Specs = append(sku.Specs, &colorSpec)
+			}
+
+			if sizeIndex > -1 {
+				sizeVal := ""
+				if sizeIndex == 0 {
+					sizeVal = rawsku.Option1
+				} else if sizeIndex == 1 {
+					sizeVal = rawsku.Option2
+				} else {
+					sizeVal = rawsku.Option3
+				}
+
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					Id:    rawsku.ID,
+					Name:  sizeVal,
+					Value: sizeVal,
+				})
+			}
+
+			item.SkuItems = append(item.SkuItems, &sku)
+		}
+
+		// yield item result
+		if err = yield(ctx, &item); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type productVariants []struct {
+	ID          string `json:"id"`
+	Description string `json:"description"`
+	Vendor      string `json:"vendor"`
+	Type        string `json:"type"`
+	Media       []struct {
+		Src               string `json:"src"`
+		Alt               string `json:"alt"`
+		AttachedToVariant string `json:"attached_to_variant"`
+		Width             string `json:"width"`
+		Height            string `json:"height"`
+	} `json:"media"`
+	Videos   []interface{} `json:"videos"`
+	Variants []struct {
+		Available string `json:"available"`
+		Title     string `json:"title"`
+		ID        string `json:"id"`
+		Image     struct {
+			Src string `json:"src"`
+			Alt string `json:"alt"`
+		} `json:"image"`
+		Price          string `json:"price"`
+		Sku            string `json:"sku"`
+		CompareAtPrice string `json:"compare_at_price"`
+		Option1        string `json:"option1"`
+		Option2        string `json:"option2"`
+		Option3        string `json:"option3"`
+	} `json:"variants"`
+	Categories        []interface{} `json:"categories"`
+	Available         bool          `json:"available"`
+	Handle            string        `json:"handle"`
+	Title             string        `json:"title"`
+	FeaturedImage     string        `json:"featuredImage"`
+	Tags              []string      `json:"tags"`
+	Price             string        `json:"price"`
+	OptionNames       []string      `json:"optionNames"`
+	OptionsWithValues struct {
+		Color []string `json:"Color"`
+	} `json:"optionsWithValues"`
+	MicroCollectionHandle string        `json:"micro_collection_handle"`
+	MicroCollectionTags   []string      `json:"micro_collection_tags"`
+	Shade                 string        `json:"shade"`
+	ShadeHandle           string        `json:"shade_handle"`
+	ShadeCount            string        `json:"shadeCount"`
+	HideShadeRangeFilter  string        `json:"hide_shade_range_filter"`
+	IsBundle              bool          `json:"isBundle"`
+	BundledProducts       []interface{} `json:"bundled_products"`
+	FullPriceValue        string        `json:"full_price_value"`
+	FullPriceLabel        string        `json:"full_price_label"`
+	SwatchColorID         string        `json:"swatch_color_id"`
+	URL                   string        `json:"url"`
+}
+
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
+
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.fentybeauty.com/makeup-face",
+		//"https://www.fentybeauty.com/",
+		//"https://www.fentybeauty.com/makeup-face",
 		// "https://www.fentybeauty.com/powder-puff-setting-brush-170/27464.html?cgid=makeup-face-powder",
 		// "https://www.fentybeauty.com/pro-filtr-instant-retouch-setting-powder/FB30011.html?dwvar_FB30011_color=FB9005&cgid=makeup-face-powder",
 		// "https://www.fentybeauty.com/soft-matte-complexion-essentials-with-brush/pro-filter-foundation-essentials-brush.html?cgid=makeup-face",
 		// "https://www.fentybeauty.com/pro-filtr-soft-matte-longwear-foundation/FB30006.html?dwvar_FB30006_color=FB0340&cgid=makeup-face-foundation",
-		// "https://www.fentybeauty.com/two-lil-stunnas-mini-longwear-fluid-lip-color-duo/47670.html?cgid=sale",
-		// "https://www.fentybeauty.com/mattifying-complexion-essentials-with-sponge/mattifying-foundation-essentials-sponge.html",
+		//"https://www.fentybeauty.com/two-lil-stunnas-mini-longwear-fluid-lip-color-duo/47670.html?cgid=sale",
+		//"https://www.fentybeauty.com/mattifying-complexion-essentials-with-sponge/mattifying-foundation-essentials-sponge.html",
+
+		//"https://fentybeauty.com/products/mattemoiselle-plush-matte-lipstick-freckle-fiesta",
+		"https://fentybeauty.com/products/mattemoiselle-plush-matte-lipstick-shawty",
+		//"https://fentybeauty.com/products/fenty-skin-startr-set-us",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -509,5 +809,6 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(New).Run(os.Args)
 }
