@@ -138,9 +138,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	for _, key := range []string{
+		`link[rel="canonical"]`,
 		`meta[property="og:url"]`,
 		`meta[property="url"]`,
-		`link[rel="canonical"]`,
 	} {
 		v := dom.Find(key).AttrOr("content", dom.Find(key).AttrOr("href", ""))
 		if v != "" {
