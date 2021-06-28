@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
+	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	media "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
@@ -719,17 +719,23 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.BrandName = "DIOR"
 	}
 
-	for i, breadcrumb := range strings.Split(viewData.Props.Tracking.Datalayer.Ecommerce.Detail.Products[0].Category, "/") {
-		if i == 0 {
-			item.Category = breadcrumb
-		} else if i == 1 {
-			item.SubCategory = breadcrumb
-		} else if i == 2 {
-			item.SubCategory2 = breadcrumb
-		} else if i == 3 {
-			item.SubCategory3 = breadcrumb
-		} else if i == 4 {
-			item.SubCategory4 = breadcrumb
+	if context.GetString(ctx, "Category") != "" {
+		item.Category = context.GetString(ctx, "Category")
+		item.SubCategory = context.GetString(ctx, "SubCategory")
+		item.SubCategory2 = context.GetString(ctx, "SubCategory2")
+	} else {
+		for i, breadcrumb := range strings.Split(viewData.Props.Tracking.Datalayer.Ecommerce.Detail.Products[0].Category, "/") {
+			if i == 0 {
+				item.Category = breadcrumb
+			} else if i == 1 {
+				item.SubCategory = breadcrumb
+			} else if i == 2 {
+				item.SubCategory2 = breadcrumb
+			} else if i == 3 {
+				item.SubCategory3 = breadcrumb
+			} else if i == 4 {
+				item.SubCategory4 = breadcrumb
+			}
 		}
 	}
 
@@ -838,7 +844,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if contentIndex > -1 {
 
 			contentData = viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
-
 			originalPrice := (contentData.Price.Value)
 			//discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.DisplayPercentOff, "%"))
 			sku := pbItem.Sku{
@@ -853,22 +858,27 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			if contentData.Status == "AVAILABLE" || contentData.Status == "" {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
 			}
-
-			// color
-			//sku.Specs = append(sku.Specs, &itemColor)
-
-			//image
+			if contentData.Color != "" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
+					Id:    contentData.Color,
+					Name:  contentData.Color,
+					Value: contentData.Color,
+				})
+			}
+			if contentData.SizeLabel != "" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					Id:    contentData.Sku + "1",
+					Name:  contentData.SizeLabel,
+					Value: contentData.SizeLabel,
+				})
+			}
 			sku.Medias = itemImg
-
-			// size
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    contentData.Sku + "1",
-				Name:  contentData.SizeLabel,
-				Value: contentData.SizeLabel,
-			})
-
 			item.SkuItems = append(item.SkuItems, &sku)
+			if contentData.Universe != "" && item.CrowdType == "" {
+				item.CrowdType = contentData.Universe
+			}
 		}
 	}
 
