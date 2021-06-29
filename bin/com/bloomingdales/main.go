@@ -20,6 +20,7 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 
 	// pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
@@ -60,13 +61,16 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.EnableSessionInit = false
-	options.DisableCookieJar = true
-	// options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
-	options.MustHeader.Set("accept-encoding", "gzip, deflate, br")
+	//options.DisableCookieJar = true
+	options.Reliability = proxy.ProxyReliability_ReliabilityDefault
+	//options.MustHeader.Set("accept-encoding", "gzip, deflate, br")
+	options.MustHeader.Set("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
+	options.MustHeader.Set("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "currency", Value: `USD`, Path: "/"},
 		&http.Cookie{Name: "shippingCountry", Value: `US`, Path: "/"},
-		&http.Cookie{Name: "mercury", Value: `false`, Path: "/"},
+		&http.Cookie{Name: "mercury", Value: `true`, Path: "/"},
 	)
 
 	if u != nil {
@@ -107,13 +111,127 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
+	if p == "/index" || p == "" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	catUrl := "https://www.bloomingdales.com/xapi/navigate/v1/header?bypass_redirect=yes&viewType=Responsive&currencyCode=USD&_regionCode=US&_navigationType=BROWSE&_shoppingMode=SITE"
+	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
+	req.Header.Add("accept", "application/json, text/javascript, */*; q=0.01")
+	req.Header.Add("referer", "https://www.bloomingdales.com/")
+	req.Header.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+	req.Header.Add("x-requested-with", "XMLHttpRequest")
+
+	catreq, err := c.httpClient.Do(ctx, req)
+	if err != nil {
+		panic(err)
+	}
+	defer catreq.Body.Close()
+
+	catBody, err := ioutil.ReadAll(catreq.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(catBody, &viewData); err != nil {
+		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+		return err
+	}
+
+	for _, rawcat := range viewData.Menu {
+
+		nnctx := context.WithValue(ctx, "Category", rawcat.Text)
+
+		for _, rawsubcat := range rawcat.Children[0].Group {
+
+			if len(rawsubcat.Children) > 0 {
+
+				for _, rawsub2cat := range rawsubcat.Children[0].Group {
+
+					href := rawsub2cat.URL
+					if href == "" {
+						continue
+					}
+
+					fmt.Println(rawsubcat.Text + " > " + rawsub2cat.Text)
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Errorf("parse url %s failed", href)
+						continue
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Text+" > "+rawsub2cat.Text)
+						req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+						if err := yield(nctx, req); err != nil {
+							return err
+						}
+					}
+				}
+			} else {
+
+				href := rawsubcat.URL
+				if href == "" {
+					continue
+				}
+
+				fmt.Println(rawsubcat.Text)
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Errorf("parse url %s failed", href)
+					continue
+				}
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Text)
+					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+					if err := yield(nctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+type categoryStructure struct {
+	Menu []struct {
+		ID       string `json:"id"`
+		Text     string `json:"text"`
+		URL      string `json:"url"`
+		Children []struct {
+			Group []struct {
+				ID       string `json:"id"`
+				Text     string `json:"text"`
+				URL      string `json:"url"`
+				Children []struct {
+					Group []struct {
+						ID   string `json:"id"`
+						Text string `json:"text"`
+						URL  string `json:"url"`
+					} `json:"group"`
+				} `json:"children"`
+			} `json:"group"`
+		} `json:"children"`
+	} `json:"menu"`
 }
 
 // nextIndex used to get sharingData from context
@@ -187,142 +305,12 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 }
 
 type parseProductData struct {
-	Properties struct {
-		KlarnaLibraryID        string `json:"klarnaLibraryId"`
-		KlarnaLibrary          string `json:"klarnaLibrary"`
-		ProxyServiceHost       string `json:"proxyServiceHost"`
-		FooterServiceEndpoint  string `json:"footerServiceEndpoint"`
-		HeaderServiceEndpoint  string `json:"headerServiceEndpoint"`
-		KillswitchXapiURI      string `json:"killswitchXapiUri"`
-		FooterXapiURI          string `json:"footerXapiUri"`
-		HeaderXapiURI          string `json:"headerXapiUri"`
-		IsBot                  bool   `json:"isBot"`
-		FacebookAppID          string `json:"facebookAppId"`
-		WebConcurrency         string `json:"webConcurrency"`
-		StoreURLHost           string `json:"storeUrlHost"`
-		ImageBaseURL           string `json:"imageBaseUrl"`
-		AssetHost              string `json:"assetHost"`
-		Host                   string `json:"host"`
-		SecurityCspEnabled     bool   `json:"securityCspEnabled"`
-		IsTealiumEnabled       bool   `json:"isTealiumEnabled"`
-		WebcollageAPI          string `json:"webcollageApi"`
-		BrightcoveAPI          string `json:"brightcoveApi"`
-		BazaarvoicePrrAPI      string `json:"bazaarvoicePrrApi"`
-		BazaarvoiceIshipAPI    string `json:"bazaarvoiceIshipApi"`
-		BazaarvoiceAPI         string `json:"bazaarvoiceApi"`
-		CustomerServiceHost    string `json:"customerServiceHost"`
-		IsProduction           bool   `json:"isProduction"`
-		TagEnv                 string `json:"tagEnv"`
-		MasheryLocalHostHeader string `json:"masheryLocalHostHeader"`
-		ProductXapiHost        string `json:"productXapiHost"`
-		EntryPoint             string `json:"entryPoint"`
-		NodeEnv                string `json:"nodeEnv"`
-		XapiHost               string `json:"xapiHost"`
-		Key1                   string `json:"key1"`
-		RtoHost                string `json:"rtoHost"`
-		Brand                  string `json:"brand"`
-		DataMode               string `json:"dataMode"`
-		FooterSideCaching      string `json:"footerSideCaching"`
-		DtCollectorName        string `json:"dtCollectorName"`
-		DtNodeAgentPath        string `json:"dtNodeAgentPath"`
-		DtAgentName            string `json:"dtAgentName"`
-	} `json:"properties"`
 	Product struct {
 		ID     int `json:"id"`
 		Detail struct {
-			Name                 string `json:"name"`
-			Description          string `json:"description"`
-			SecondaryDescription string `json:"secondaryDescription"`
-			SeoKeywords          string `json:"seoKeywords"`
-			Flags                struct {
-				Chanel                                     bool `json:"chanel"`
-				Hermes                                     bool `json:"hermes"`
-				Coach                                      bool `json:"coach"`
-				HasWarranty                                bool `json:"hasWarranty"`
-				BigTicketItem                              bool `json:"bigTicketItem"`
-				PhoneOnly                                  bool `json:"phoneOnly"`
-				Registrable                                bool `json:"registrable"`
-				MasterProduct                              bool `json:"masterProduct"`
-				MemberProduct                              bool `json:"memberProduct"`
-				GwpIndicator                               bool `json:"gwpIndicator"`
-				TruefitEligible                            bool `json:"truefitEligible"`
-				FitPredictorEligible                       bool `json:"fitPredictorEligible"`
-				IsStoreOnlyProductOnline                   bool `json:"isStoreOnlyProductOnline"`
-				EligibleForPreOrder                        bool `json:"eligibleForPreOrder"`
-				CountryEligible                            bool `json:"countryEligible"`
-				HasColors                                  bool `json:"hasColors"`
-				Rebates                                    bool `json:"rebates"`
-				GiftCard                                   bool `json:"giftCard"`
-				SuppressColorSwatches                      bool `json:"suppressColorSwatches"`
-				HasColorSwatches                           bool `json:"hasColorSwatches"`
-				Beauty                                     bool `json:"beauty"`
-				EligibleForShopRunner                      bool `json:"eligibleForShopRunner"`
-				HasAdditionalImages                        bool `json:"hasAdditionalImages"`
-				BigTicketV2CItem                           bool `json:"bigTicketV2CItem"`
-				OnlineExclusive                            bool `json:"onlineExclusive"`
-				StoreOnlySpecial                           bool `json:"storeOnlySpecial"`
-				FinishLine                                 bool `json:"finishLine"`
-				Sitewidesale                               bool `json:"sitewidesale"`
-				ProtectionPlanEligible                     bool `json:"protectionPlanEligible"`
-				BannerForKidsChokeHazard                   bool `json:"bannerForKidsChokeHazard"`
-				SizePersistForMen                          bool `json:"sizePersistForMen"`
-				SizesDropdownForShoesEnabled               bool `json:"sizesDropdownForShoesEnabled"`
-				BigTicketDeliveryFeeRestructureEligible    bool `json:"bigTicketDeliveryFeeRestructureEligible"`
-				DimensionsCopyGroupEnabled                 bool `json:"dimensionsCopyGroupEnabled"`
-				MaterialCareSectionEnabled                 bool `json:"materialCareSectionEnabled"`
-				SizeAndFitEnabled                          bool `json:"sizeAndFitEnabled"`
-				ArBeauty                                   bool `json:"arBeauty"`
-				ArFurniture                                bool `json:"arFurniture"`
-				VirtualTryOn                               bool `json:"virtualTryOn"`
-				Experience3D                               bool `json:"experience3D"`
-				Experience360                              bool `json:"experience360"`
-				BackInStockOptOut                          bool `json:"backInStockOptOut"`
-				ConsolidatedProductComplex                 bool `json:"consolidatedProductComplex"`
-				WriteAReviewRedesignExpEnabled             bool `json:"writeAReviewRedesignExpEnabled"`
-				SiteMonetizationProduct                    bool `json:"siteMonetizationProduct"`
-				ConsolidatedMaster                         bool `json:"consolidatedMaster"`
-				ProcessedProdDesc                          bool `json:"processedProdDesc"`
-				EsecRemoveSecureUserTokenQueryParamEnabled bool `json:"esecRemoveSecureUserTokenQueryParamEnabled"`
-				SeeMoreExperienceEnabled                   bool `json:"seeMoreExperienceEnabled"`
-				SeeMoreAndSizeChartExperienceEnabled       bool `json:"seeMoreAndSizeChartExperienceEnabled"`
-				SizeChartExperienceEnabled                 bool `json:"sizeChartExperienceEnabled"`
-				GwpExperienceEnabled                       bool `json:"gwpExperienceEnabled"`
-				BcomsyndigoEnabled                         bool `json:"bcomsyndigoEnabled"`
-				StyleMeEnabled                             bool `json:"styleMeEnabled"`
-				ZeekitEnabled                              bool `json:"zeekitEnabled"`
-				AltModelSizesExperimentEnabled             bool `json:"altModelSizesExperimentEnabled"`
-				PDPColorized                               bool `json:"PDPColorized"`
-				IsShoeSizeSelectorsEnabled                 bool `json:"isShoeSizeSelectorsEnabled"`
-				IsEligibleForColorwayPromoBadging          bool `json:"isEligibleForColorwayPromoBadging"`
-				IsFewLeftMessageRedesignEnabled            bool `json:"isFewLeftMessageRedesignEnabled"`
-				IsTrueFitSizeAutoSelectEnabled             bool `json:"isTrueFitSizeAutoSelectEnabled"`
-				PdpProductEngagementPromptTrtTwoEnabled    bool `json:"pdpProductEngagementPromptTrtTwoEnabled"`
-				KlarnaEligible                             bool `json:"klarnaEligible"`
-				IsPdpBVReviewFormUpdatesEnabled            bool `json:"isPdpBVReviewFormUpdatesEnabled"`
-				Phase2DesktopBVAPITrt1Enabled              bool `json:"phase2DesktopBVApiTrt1Enabled"`
-				Phase2DesktopBVAPITrt2Enabled              bool `json:"phase2DesktopBVApiTrt2Enabled"`
-				Phase2MobileBVAPITrt1Enabled               bool `json:"phase2MobileBVApiTrt1Enabled"`
-				IsNew                                      bool `json:"isNew"`
-				IsFindationEnabled                         bool `json:"isFindationEnabled"`
-				PdpExpansionEnabled                        bool `json:"pdpExpansionEnabled"`
-				IsReviewPhotosUploadEnabled                bool `json:"isReviewPhotosUploadEnabled"`
-				IsWebCollageOutFromTabs                    bool `json:"isWebCollageOutFromTabs"`
-				IsDressSizeSelectorsEnabled                bool `json:"isDressSizeSelectorsEnabled"`
-				IsVideoImageRailEnabled                    bool `json:"isVideoImageRailEnabled"`
-				IsTrueCollectionsEnabled                   bool `json:"isTrueCollectionsEnabled"`
-				IsReviewsPage                              bool `json:"isReviewsPage"`
-				IsEGiftCard                                bool `json:"isEGiftCard"`
-			} `json:"flags"`
-			ReviewStatistics struct {
-				Aggregate struct {
-					Rating           float64 `json:"rating"`
-					RatingPercentage int     `json:"ratingPercentage"`
-					Count            int     `json:"count"`
-				} `json:"aggregate"`
-			} `json:"reviewStatistics"`
-			OrderedMasterGroupList []interface{} `json:"orderedMasterGroupList"`
-			MemberDisplayGroupsMap struct {
-			} `json:"memberDisplayGroupsMap"`
+			Name                  string   `json:"name"`
+			Description           string   `json:"description"`
+			SecondaryDescription  string   `json:"secondaryDescription"`
 			BulletText            []string `json:"bulletText"`
 			MaterialsAndCare      []string `json:"materialsAndCare"`
 			MaxQuantity           int      `json:"maxQuantity"`
@@ -336,18 +324,6 @@ type parseProductData struct {
 				SubBrand      string `json:"subBrand"`
 				BrandBreakout bool   `json:"brandBreakout"`
 			} `json:"brand"`
-			BulletLinks            []interface{} `json:"bulletLinks"`
-			PdfEmailDescription    string        `json:"pdfEmailDescription"`
-			MemberProductCount     int           `json:"memberProductCount"`
-			CompleteName           string        `json:"completeName"`
-			DimensionsHeaderText   string        `json:"dimensionsHeaderText"`
-			DressOccasion          string        `json:"dressOccasion"`
-			SizeLabel              string        `json:"sizeLabel"`
-			KidsChokingHazardLabel string        `json:"kidsChokingHazardLabel"`
-			Klarna                 struct {
-				KlarnaDataClientID    string `json:"klarnaDataClientId"`
-				KlarnaOnsiteJsSdkPath string `json:"klarnaOnsiteJsSdkPath"`
-			} `json:"klarna"`
 			ReviewTitle string `json:"reviewTitle"`
 		} `json:"detail"`
 		Relationships struct {
@@ -365,14 +341,7 @@ type parseProductData struct {
 					UpcNumber string `json:"upcNumber"`
 				} `json:"identifier"`
 				Availability struct {
-					CheckInStoreEligibility bool   `json:"checkInStoreEligibility"`
-					Available               bool   `json:"available"`
-					ShipDays                int    `json:"shipDays"`
-					Message                 string `json:"message"`
-					OrderType               string `json:"orderType"`
-					BopsAvailability        bool   `json:"bopsAvailability"`
-					BossAvailability        bool   `json:"bossAvailability"`
-					StoreAvailability       bool   `json:"storeAvailability"`
+					Available bool `json:"available"`
 				} `json:"availability"`
 				Traits struct {
 					Colors struct {
@@ -386,7 +355,6 @@ type parseProductData struct {
 				HolidayMessageEligible bool          `json:"holidayMessageEligible"`
 			} `json:"upcs"`
 		} `json:"relationships"`
-
 		Traits struct {
 			Colors struct {
 				SelectedColor int `json:"selectedColor"`
@@ -410,46 +378,10 @@ type parseProductData struct {
 							SwatchSpriteOffset   int    `json:"swatchSpriteOffset"`
 							SwatchSpriteURLIndex int    `json:"swatchSpriteUrlIndex"`
 						} `json:"images"`
-						SmallImagesSprites struct {
-							SpriteUrls      []string `json:"spriteUrls"`
-							ImagesWidth     int      `json:"imagesWidth"`
-							ImagesHeight    int      `json:"imagesHeight"`
-							ImagesPerSprite int      `json:"imagesPerSprite"`
-						} `json:"smallImagesSprites"`
-						LargeImagesSprites struct {
-							SpriteUrls      []string `json:"spriteUrls"`
-							ImagesWidth     int      `json:"imagesWidth"`
-							ImagesHeight    int      `json:"imagesHeight"`
-							ImagesPerSprite int      `json:"imagesPerSprite"`
-						} `json:"largeImagesSprites"`
-						PrimaryImage struct {
-							FilePath             string `json:"filePath"`
-							Name                 string `json:"name"`
-							ShowJumboSwatch      bool   `json:"showJumboSwatch"`
-							SwatchSpriteOffset   int    `json:"swatchSpriteOffset"`
-							SwatchSpriteURLIndex int    `json:"swatchSpriteUrlIndex"`
-						} `json:"primaryImage"`
 					} `json:"imagery"`
 					Sizes   []int `json:"sizes"`
 					Pricing struct {
 						Price struct {
-							PriceType struct {
-								OnEdv               bool `json:"onEdv"`
-								OnSale              bool `json:"onSale"`
-								UpcOnSale           bool `json:"upcOnSale"`
-								UpcOnEdv            bool `json:"upcOnEdv"`
-								MemberProductOnSale bool `json:"memberProductOnSale"`
-								WillBe              bool `json:"willBe"`
-								ApplicableToAllUpcs bool `json:"applicableToAllUpcs"`
-								SelectItemsOnSale   bool `json:"selectItemsOnSale"`
-								IsMasterNonRanged   bool `json:"isMasterNonRanged"`
-								IsFinalOfferType    bool `json:"isFinalOfferType"`
-								ShowFinalOfferText  bool `json:"showFinalOfferText"`
-							} `json:"priceType"`
-							Policy struct {
-								Text string `json:"text"`
-								URL  string `json:"url"`
-							} `json:"policy"`
 							TieredPrice []struct {
 								Label  string `json:"label"`
 								Values []struct {
@@ -464,18 +396,6 @@ type parseProductData struct {
 					} `json:"pricing"`
 					//} `json:"1817529"`
 				} `json:"colorMap"`
-				SwatchSprite struct {
-					SwatchSpriteUrls  []string `json:"swatchSpriteUrls"`
-					SpriteSwatchSize  int      `json:"spriteSwatchSize"`
-					SwatchesPerSprite int      `json:"swatchesPerSprite"`
-				} `json:"swatchSprite"`
-				LargeSwatchSprite struct {
-					SwatchSpriteUrls  []string `json:"swatchSpriteUrls"`
-					SpriteSwatchSize  int      `json:"spriteSwatchSize"`
-					SwatchesPerSprite int      `json:"swatchesPerSprite"`
-				} `json:"largeSwatchSprite"`
-				OrderedColorsByID   []int `json:"orderedColorsById"`
-				OrderedColorsByName []int `json:"orderedColorsByName"`
 			} `json:"colors"`
 			Sizes struct {
 				OrderedSizesBySeqNumber []int  `json:"orderedSizesBySeqNumber"`
@@ -487,14 +407,6 @@ type parseProductData struct {
 					Colors      []int  `json:"colors"`
 				} `json:"sizeMap"`
 			} `json:"sizes"`
-			TraitsMaps struct {
-				UpcMap        map[string]int `json:"upcMap"`
-				PriceToColors []struct {
-					Price    string `json:"price"`
-					ColorIds []int  `json:"colorIds"`
-					OnSale   bool   `json:"onSale"`
-				} `json:"priceToColors"`
-			} `json:"traitsMaps"`
 		} `json:"traits"`
 	} `json:"product"`
 	UtagData struct {
@@ -552,7 +464,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			CanonicalUrl: canUrl,
 		},
 		Title:       pd.Product.Detail.Name,
-		Description: pd.Product.Detail.Description,
+		Description: pd.Product.Detail.Description + strings.Join(pd.Product.Detail.BulletText, ", "),
 		BrandName:   pd.Product.Detail.Brand.Name,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
@@ -561,6 +473,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			ReviewCount: int32(reviewCount),
 			Rating:      float32(rating),
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 	for i, cate := range pd.Product.Relationships.Taxonomy.Categories {
 		switch i {
@@ -624,12 +537,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Discount: int32(discount),
 			},
 			Medias: medias,
-			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
-		// if rawSize.StockLevelStatus == "inStock" {  // ASk ?
-		// 	sku.Stock.StockStatus = pbItem.Stock_InStock
-		// 	//sku.Stock.StockCount = int32(rawSize.Quantity)
-		// }
+		item.Medias = append(item.Medias, medias...)
+		if rawSku.Availability.Available {
+			sku.Stock.StockStatus = pbItem.Stock_InStock
+			item.Stock.StockStatus = pbItem.Stock_InStock
+			//sku.Stock.StockCount = int32(rawSize.Quantity)
+		}
 
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecColor,
@@ -655,9 +570,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.bloomingdales.com/shop/womens-apparel/tops-tees?id=5619",
+		//"https://www.bloomingdales.com/?cm_sp=NAVIGATION-_-TOP_NAV-_-TOP_BLOOMIES_ICON",
+		//"https://www.bloomingdales.com/shop/womens-apparel/tops-tees?id=5619",
 		// "https://www.bloomingdales.com/shop/product/aqua-passion-sleeveless-maxi-dress-100-exclusive?ID=3996369&CategoryID=21683",
-		// "https://www.bloomingdales.com/shop/product/a.l.c.-kati-puff-sleeve-tee?ID=3202505&CategoryID=5619",
+		//"https://www.bloomingdales.com/shop/product/a.l.c.-kati-puff-sleeve-tee?ID=3202505&CategoryID=5619",
+		//"https://www.bloomingdales.com/shop/product/simon-miller-auto-club-graphic-oversized-tee?ID=4047681&CategoryID=2910",
+		"https://www.bloomingdales.com/shop/product/sunset-spring-embellished-denim-jacket-100-exclusive?ID=4077611&CategoryID=1001940",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
