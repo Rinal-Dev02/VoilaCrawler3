@@ -104,14 +104,82 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	if c.searchPathMatcher.MatchString(resp.Request.URL.Path) {
+	if resp.RawUrl().Path == "" || resp.RawUrl().Path == "/" {
+		return c.parseCategories(ctx, resp, yield)
+
+	}
+	if c.searchPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseSearch(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || resp.Request.URL.String() == "https://www.express.com/graphql" {
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || resp.RawUrl().String() == "https://www.express.com/graphql" {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	dom, err := resp.Selector()
+
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`ol[role="menubar"]>li`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		cateName := (node.Find(`a`).First().Contents().Text())
+		if cateName == "" {
+			continue
+		}
+
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		subSel1 := node.Find(`div>ol>li`)
+		for k := range subSel1.Nodes {
+			subNodeN := subSel1.Eq(k)
+
+			subCat1 := (subNodeN.Find("span").First().Contents().Text())
+			if subCat1 == "" {
+				continue
+			}
+
+			subSel := subNodeN.Find(`li`)
+			for j := range subSel.Nodes {
+
+				subNode := subSel.Eq(j)
+				href := subNode.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subCat1 + " > " + subNode.Text()
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 type product struct {
@@ -544,6 +612,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		} else {
 			c.logger.Error("review data not found")
 		}
+
 	}
 
 	opts := c.CrawlOptions(resp.Request.URL)
@@ -602,6 +671,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 			return err
 		}
+
 	}
 
 	reviewCount, _ := strconv.ParseInt(viewReviewData.AggregateRating.ReviewCount)
@@ -665,7 +735,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				ki == 0,
 			))
 		}
-
+		item.Medias = append(item.Medias, medias...)
 		for _, rawSku := range p.Skus {
 			originalPrice, _ := strconv.ParsePrice(rawSku.DisplayPrice)
 			msrp, _ := strconv.ParsePrice(rawSku.DisplayMSRP)
@@ -675,7 +745,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			sku := pbItem.Sku{
-				SourceId: rawSku.SkuID,
+				SourceId: fmt.Sprintf("%s-%s", rawSku.SkuID, p.IPColorCode),
 				Title:    viewData.Data.Product.Name,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
@@ -689,6 +759,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			if rawSku.OnlineInventoryCount > 0 {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
 				sku.Stock.StockCount = int32(rawSku.OnlineInventoryCount)
+				item.Stock.StockStatus = pbItem.Stock_InStock
 			}
 			sku.Specs = append(sku.Specs, &colorSpec)
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
@@ -709,10 +780,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) []*http.Request {
 	var reqs []*http.Request
 	for _, u := range []string{
-		"https://www.express.com/exp/search?q=Totes",
+		//"https://www.express.com",
+		//"https://www.express.com/exp/search?q=Totes",
 		// "https://www.express.com/womens-clothing/dresses/cat550007",
 		// "https://www.express.com/clothing/women/body-contour-cropped-square-neck-cami/pro/06418402/color/Light%20Pink/",
-		// "https://www.express.com/clothing/men/solid-performance-polo/pro/05047075/color/Pitch%20Black",
+		"https://www.express.com/clothing/men/solid-performance-polo/pro/05047075/color/Pitch%20Black",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
