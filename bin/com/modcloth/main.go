@@ -424,9 +424,14 @@ type RawProductDetailsNew struct {
 	Content             string        `json:"content"`
 }
 
-func TrimSpaceNewlineInByte(s []byte) []byte {
+func TrimSpaceNewlineInString(s string) string {
 	re := regexp.MustCompile(`\n`)
-	return re.ReplaceAll(s, []byte(" "))
+	resp := re.ReplaceAllString(s, " ")
+	resp = strings.ReplaceAll(resp, "\\n", " ")
+	resp = strings.ReplaceAll(resp, "\r", " ")
+	resp = strings.ReplaceAll(resp, "\t", " ")
+	resp = strings.ReplaceAll(resp, "  ", "")
+	return resp
 }
 
 // parseCategoryProducts parse api url from web page url
@@ -565,7 +570,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 		BrandName:   viewData.Brand.Name,
 		Title:       viewData.Name,
-		Description: viewData.Description,
+		Description: TrimSpaceNewlineInString(viewData.Description),
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
@@ -750,7 +755,7 @@ func (c *_Crawler) parseProductNew(ctx context.Context, resp *http.Response, yie
 		},
 		BrandName:   viewData.Vendor,
 		Title:       viewData.Title,
-		Description: htmlTrimRegp.ReplaceAllString(viewData.Description, " "),
+		Description: TrimSpaceNewlineInString(strings.TrimSpace((htmlTrimRegp.ReplaceAllString(viewData.Description, " ")))),
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
@@ -766,15 +771,15 @@ func (c *_Crawler) parseProductNew(ctx context.Context, resp *http.Response, yie
 
 		node := breadSel.Eq(i)
 		switch i {
-		case 0:
-			item.Category = strings.TrimSpace(node.Text())
 		case 1:
-			item.SubCategory = strings.TrimSpace(node.Text())
+			item.Category = strings.TrimSpace(node.Text())
 		case 2:
-			item.SubCategory2 = strings.TrimSpace(node.Text())
+			item.SubCategory = strings.TrimSpace(node.Text())
 		case 3:
-			item.SubCategory3 = strings.TrimSpace(node.Text())
+			item.SubCategory2 = strings.TrimSpace(node.Text())
 		case 4:
+			item.SubCategory3 = strings.TrimSpace(node.Text())
+		case 5:
 			item.SubCategory4 = strings.TrimSpace(node.Text())
 		}
 	}
@@ -854,11 +859,12 @@ func (c *_Crawler) parseProductNew(ctx context.Context, resp *http.Response, yie
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.modcloth.com",
-		// "https://www.modcloth.com/shop/best-selling-shoes",
+		//"https://www.modcloth.com/shop/best-selling-shoes",
 		//"https://www.modcloth.com/shop/shoes/t-u-k-the-zest-is-history-heel-in-burgundy/128047.html",
 		//"https://modcloth.com/products/spritely-as-spring-midi-dress-yellow?nosto=notfound-nosto-1",
 		//"https://modcloth.com/collections/cocktail-dresses/products/lace-lady-lace-fit-and-flare-dress-pink",
 		"https://modcloth.com/collections/flats/products/step-out-of-the-crowd-ballet-flat-mustard",
+		//"https://modcloth.com/products/step-out-of-the-crowd-ballet-flat-mustard",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
