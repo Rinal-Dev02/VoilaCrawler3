@@ -137,19 +137,18 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	}
 
 	for _, rawcat := range viewData.Header.Model.Categories {
-		//fmt.Println(`category `, rawcat.Name)
+
 		nnctx := context.WithValue(ctx, "Category", rawcat.Name)
 
 		for _, rawsubcat := range rawcat.Categories {
 
 			for _, rawsubcatlvl2 := range rawsubcat.Links {
 
-				href := resp.Request.URL.String() + "/" + rawsubcatlvl2.URL
+				href := rawsubcatlvl2.URL
 				if href == "" {
 					continue
 				}
 
-				//fmt.Println(rawsubcat.Name + "  --> " + href)
 				u, err := url.Parse(href)
 				if err != nil {
 					c.logger.Errorf("parse url %s failed", href)
@@ -157,9 +156,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 				}
 
 				if c.categoryPathMatcher.MatchString(u.Path) {
-					//here reset tracing id to distiguish different category crawl
-					//This may exists duplicate requests
-					nctx := context.WithValue(nnctx, "SubCategory", rawsubcatlvl2.Text)
+					nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Name+" > "+rawsubcatlvl2.Text)
 					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 					if err := yield(nctx, req); err != nil {
 						return err
@@ -174,28 +171,15 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 type categoryStructure struct {
 	Header struct {
 		Model struct {
-			Links []struct {
-				Name     string `json:"name"`
-				LinkPath string `json:"linkPath"`
-			} `json:"links"`
-			ID         string `json:"id"`
 			Categories []struct {
 				Name       string `json:"name"`
 				Categories []struct {
 					Name  string `json:"name"`
 					Links []struct {
-						Text    string `json:"text"`
-						URL     string `json:"url"`
-						ShopAll bool   `json:"shopAll"`
-						ID      string `json:"id"`
+						Text string `json:"text"`
+						URL  string `json:"url"`
 					} `json:"links"`
-					PromoLinks []interface{} `json:"promoLinks"`
-					CardLinks  []interface{} `json:"cardLinks"`
-					ID         string        `json:"id"`
-					Style      string        `json:"style,omitempty"`
 				} `json:"categories"`
-				ID       string `json:"id"`
-				LinkPath string `json:"linkPath,omitempty"`
 			} `json:"categories"`
 		} `json:"model"`
 	} `json:"header"`
@@ -283,32 +267,15 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 type parseProductResponse struct {
 	Details struct {
 		Data map[string][]struct {
-			Code                           string   `json:"code"`
-			DisplayCountDownTimer          bool     `json:"displayCountDownTimer"`
-			EligiblePaymentTypesForProduct []string `json:"eligiblePaymentTypesForProduct"`
-			FitVariant                     string   `json:"fitVariant"`
-			FreeShipping                   bool     `json:"freeShipping"`
-			FreeShippingMessage            string   `json:"freeShippingMessage"`
-			IsSelected                     bool     `json:"isSelected"`
-			LaunchProduct                  bool     `json:"launchProduct"`
-			MapEnable                      bool     `json:"mapEnable"`
-			Price                          struct {
+			Price struct {
 				CurrencyIso            string  `json:"currencyIso"`
 				FormattedOriginalPrice string  `json:"formattedOriginalPrice"`
 				FormattedValue         string  `json:"formattedValue"`
 				OriginalPrice          float64 `json:"originalPrice"`
 				Value                  float64 `json:"value"`
 			} `json:"price"`
-			RecaptchaOn               bool   `json:"recaptchaOn"`
-			Riskified                 bool   `json:"riskified"`
-			ShipToAndFromStore        bool   `json:"shipToAndFromStore"`
-			ShippingRestrictionExists bool   `json:"shippingRestrictionExists"`
-			Sku                       string `json:"sku"`
-			SkuExclusions             bool   `json:"skuExclusions"`
-			StockLevelStatus          string `json:"stockLevelStatus"`
-			WebOnlyLaunch             bool   `json:"webOnlyLaunch"`
-			Width                     string `json:"width"`
-			Products                  []struct {
+			Sku      string `json:"sku"`
+			Products []struct {
 				Attributes []struct {
 					ID    string `json:"id"`
 					Type  string `json:"type"`
@@ -326,11 +293,9 @@ type parseProductResponse struct {
 					OriginalPrice          float64 `json:"originalPrice"`
 					Value                  float64 `json:"value"`
 				} `json:"price"`
-				SingleStoreInventory         bool   `json:"singleStoreInventory"`
-				SizeAvailableInStores        bool   `json:"sizeAvailableInStores"`
-				SizeAvailableInStoresMessage string `json:"sizeAvailableInStoresMessage,omitempty"`
-				StockLevelStatus             string `json:"stockLevelStatus"`
-				Style                        struct {
+
+				StockLevelStatus string `json:"stockLevelStatus"`
+				Style            struct {
 					ID    string `json:"id"`
 					Type  string `json:"type"`
 					Value string `json:"value"`
@@ -350,61 +315,14 @@ type parseProductResponse struct {
 				Code string `json:"code"`
 				Name string `json:"name"`
 			} `json:"categories"`
-			IsGiftCard      bool   `json:"isGiftCard"`
-			Description     string `json:"description"`
-			ModelNumber     string `json:"modelNumber"`
-			IsNewProduct    bool   `json:"isNewProduct"`
-			IsSaleProduct   bool   `json:"isSaleProduct"`
-			IsEmailGiftCard bool   `json:"isEmailGiftCard"`
-			SizeChart       []struct {
+			IsGiftCard  bool   `json:"isGiftCard"`
+			Description string `json:"description"`
+			SizeChart   []struct {
 				Label string   `json:"label"`
 				Sizes []string `json:"sizes"`
 			} `json:"sizeChart"`
 			SizeMessage string `json:"sizeMessage"`
 		} `json:"product"`
-		Reviews struct {
-			P566155CHTML struct {
-				Results []struct {
-					Rating        int    `json:"rating"`
-					ReviewBody    string `json:"reviewBody"`
-					Name          string `json:"name"`
-					Author        string `json:"author"`
-					DatePublished string `json:"datePublished"`
-				} `json:"results"`
-				Details struct {
-					ReviewCount int     `json:"reviewCount"`
-					RatingValue float64 `json:"ratingValue"`
-					BestRating  float64 `json:"bestRating"`
-					WorstRating float64 `json:"worstRating"`
-				} `json:"details"`
-			} `json:"/product/converse-all-star-lugged-hi-womens/566155C.html"`
-		} `json:"reviews"`
-		Selected struct {
-			P566155CHTML struct {
-				Price struct {
-					CurrencyIso            string  `json:"currencyIso"`
-					FormattedOriginalPrice string  `json:"formattedOriginalPrice"`
-					FormattedValue         string  `json:"formattedValue"`
-					OriginalPrice          float64 `json:"originalPrice"`
-					Value                  float64 `json:"value"`
-				} `json:"price"`
-				Style            string `json:"style"`
-				Width            string `json:"width"`
-				StyleSku         string `json:"styleSku"`
-				StyleCode        string `json:"styleCode"`
-				MapEnable        bool   `json:"mapEnable"`
-				FreeShipping     bool   `json:"freeShipping"`
-				WebOnlyLaunch    bool   `json:"webOnlyLaunch"`
-				SkuExclusions    bool   `json:"skuExclusions"`
-				IsLaunchProduct  bool   `json:"isLaunchProduct"`
-				IsInStock        bool   `json:"isInStock"`
-				IsKlarnaEligible bool   `json:"isKlarnaEligible"`
-				Fit              string `json:"fit"`
-			} `json:"/product/converse-all-star-lugged-hi-womens/566155C.html"`
-		} `json:"selected"`
-		AgeBuckets struct {
-			P566155CHTML []interface{} `json:"/product/converse-all-star-lugged-hi-womens/566155C.html"`
-		} `json:"ageBuckets"`
 	} `json:"details"`
 	Router struct {
 		Location struct {
@@ -443,6 +361,8 @@ var (
 	//imageRegEnd  = regexp.MustCompile(`(,)(?!.*\1)`)
 )
 
+var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -452,6 +372,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err != nil {
 		c.logger.Error(err)
 		return err
+	}
+
+	if bytes.Contains(respBody, []byte(`The product you are trying to view is no longer available.</`)) {
+		fmt.Println(`not found`)
+		return nil
 	}
 
 	matched := detailReg.FindSubmatch(respBody)
@@ -482,6 +407,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	for _, p := range i.Details.Data[strconv.Format(router)] {
+		brand := i.Details.Product[router].Brand
+		if brand == "" {
+			brand = "FootLocker"
+		}
 		Sku := p.Sku
 		item := pbItem.Product{
 			Source: &pbItem.Source{
@@ -490,11 +419,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				CanonicalUrl: canUrl,
 			},
 			Title:       i.Details.Product[router].Name,
-			Description: i.Details.Product[router].Description,
-			BrandName:   i.Details.Product[router].Brand,
+			Description: htmlTrimRegp.ReplaceAllString(i.Details.Product[router].Description, ""),
+			BrandName:   brand,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
+			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 		for j, cate := range i.Details.Product[router].Categories {
 			switch j {
@@ -517,7 +447,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			discount := (msrp - current) * 100 / msrp
 
 			sku := pbItem.Sku{
-				SourceId: strconv.Format(rawSize.Code),
+				SourceId: fmt.Sprintf("%s-%s", rawSize.Code, rawSize.Style.ID),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(current * 100),
@@ -528,6 +458,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			if rawSize.StockLevelStatus == "inStock" {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
 			}
 
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
@@ -603,7 +534,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 
-		//fmt.Println(&item)
+		jsonData, err := json.Marshal(item)
+		fmt.Println(string(jsonData))
 
 		// yield item result
 		if err = yield(ctx, &item); err != nil {
@@ -617,10 +549,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 
-		"https://www.footlocker.com",
+		//"https://www.footlocker.com",
 		//"https://www.footlocker.com/category/womens/clothing.html?query=Clothing+Womens%3Arelevance%3Aproducttype%3AClothing%3Agender%3AWomen%27s%3Aclothstyle%3AJackets",
-		// "https://www.footlocker.com/product/jordan-true-flight-mens/42964062.html",
-		//"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
+		//"https://www.footlocker.com/product/jordan-true-flight-mens/42964062.html",
+		//"https://www.footlocker.com/product/nike-air-futura-t-shirt-mens/42388005.html",
+		//"https://www.footlocker.com/product/~/D5302492.html",
+		//"https://www.footlocker.com/product/~/M4457002.html",
+		"https://www.footlocker.com/product/nike-festival-flow-shorts-mens/D5301121.html",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
