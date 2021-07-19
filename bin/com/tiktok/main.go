@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,8 +37,9 @@ import (
 
 type _Crawler struct {
 	crawler.MustImplementCrawler
-	httpClient http.Client
-	s3Client   *s3.S3Client
+	httpClient  http.Client
+	rhttpClient *rhttp.Client
+	s3Client    *s3.S3Client
 
 	personalVideoList      *regexp.Regexp
 	personalVideoJSONList  *regexp.Regexp
@@ -58,8 +60,11 @@ func New(s3Client *s3.S3Client, httpClient http.Client, logger glog.Log) (crawle
 	}
 
 	c := _Crawler{
-		s3Client:               s3Client,
-		httpClient:             httpClient,
+		s3Client:   s3Client,
+		httpClient: httpClient,
+		rhttpClient: &rhttp.Client{
+			Transport: &rhttp.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+		},
 		personalVideoList:      regexp.MustCompile(`^/@[0-9a-zA-Z-_.]+/?$`),
 		personalVideoJSONList:  regexp.MustCompile(`^/api/post/item_list/?$`),
 		detailPageReg:          regexp.MustCompile(`^/@[0-9a-zA-Z-_.]+/video/[0-9]+/?$`),
@@ -109,6 +114,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 	if bytes.Contains(respBody, []byte("user_verify_page_description")) {
 		opts := c.CrawlOptions(resp.Request.URL)
+		c.logger.Errorf("user verify page")
 		// reload the request
 		if r, err := c.httpClient.DoWithOptions(ctx, resp.Request, http.Options{
 			EnableProxy:       true,
@@ -125,20 +131,62 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		resp.Body = http.NewReader(respBody)
 	}
 
+	callback := func(ctx context.Context, val interface{}) error {
+		if val == nil {
+			return nil
+		}
+
+		switch item := val.(type) {
+		case *pbItem.Tiktok_Author:
+			if item.GetAvatar() != "" {
+				if u, err :=
+					c.persistentResource(ctx,
+						fmt.Sprintf("tiktok_avatar_%s.jpg", item.GetId()),
+						item.GetAvatar()); err != nil {
+					c.logger.Errorf("persistent cover resource failed, error=%s", err)
+				} else {
+					item.Avatar = u
+				}
+			}
+		case *pbItem.Tiktok_Item:
+			if item.GetAuthor().GetAvatar() != "" {
+				if u, err :=
+					c.persistentResource(ctx,
+						fmt.Sprintf("tiktok_avatar_%s.jpg", item.GetSource().GetId()),
+						item.GetAuthor().GetAvatar()); err != nil {
+					c.logger.Errorf("persistent cover resource failed, error=%s", err)
+				} else {
+					item.Author.Avatar = u
+				}
+			}
+			if item.GetVideo().GetCover().GetOriginalUrl() != "" {
+				if u, err :=
+					c.persistentResource(ctx,
+						fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
+						item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
+					c.logger.Errorf("persistent cover resource failed, error=%s", err)
+				} else {
+					item.Video.Cover.OriginalUrl = u
+				}
+			}
+		}
+		return yield(ctx, val)
+	}
+
 	if context.IsTargetTypeSupported(ctx, &pbItem.Tiktok_Author{}) {
-		return c.parseAuthor(ctx, resp, yield)
+		return c.parseAuthor(ctx, resp, callback)
 	}
 
 	if c.personalVideoList.MatchString(resp.Request.URL.Path) {
-		return c.parsePersonalVideoList(ctx, resp, yield)
+		return c.parsePersonalVideoList(ctx, resp, callback)
 	} else if c.personalVideoJSONList.MatchString(resp.Request.URL.Path) {
-		return c.parsePersonalVideoJSONList(ctx, resp, yield)
+		return c.parsePersonalVideoJSONList(ctx, resp, callback)
 	} else if c.detailShortLinkPageReg.MatchString(resp.Request.URL.Path) ||
 		c.detailPageReg.MatchString(resp.Request.URL.Path) ||
 		c.detailInternalPageReg.MatchString(resp.Request.URL.Path) {
-		return c.parseDetail(ctx, resp, yield)
+		return c.parseDetail(ctx, resp, callback)
 	} else if c.downloadVideoReg.MatchString(resp.Request.URL.Path) {
-		return c.download(ctx, resp, yield)
+		return c.download(ctx, resp, callback)
 	}
 	return crawler.ErrUnsupportedPath
 }
@@ -152,7 +200,7 @@ func (c *_Crawler) persistentResource(ctx context.Context, name string, rawurl s
 		c.logger.Errorf("create request from url %s failed, error=%s", rawurl, err)
 		return "", err
 	}
-	resp, err := rhttp.DefaultClient.Do(req)
+	resp, err := c.rhttpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -355,16 +403,6 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 		} else if prop.Video.Cover != "" {
 			item.Video.Cover.OriginalUrl = prop.Video.Cover
 		}
-		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
-			if u, err :=
-				c.persistentResource(ctx,
-					fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
-					item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
-				c.logger.Errorf("persistent cover resource failed, error=%s", err)
-			} else {
-				item.Video.Cover.OriginalUrl = u
-			}
-		}
 
 		cookie, expiresAt, err := c.getCookies(ctx, item.Video.OriginalUrl)
 		if err != nil {
@@ -516,17 +554,6 @@ func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Re
 			item.Video.Cover.OriginalUrl = prop.Video.Cover
 		}
 
-		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
-			if u, err :=
-				c.persistentResource(ctx,
-					fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
-					item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
-				c.logger.Errorf("persistent cover resource failed, error=%s", err)
-			} else {
-				item.Video.Cover.OriginalUrl = u
-			}
-		}
-
 		cookie, expiresAt, err := c.getCookies(ctx, item.Video.OriginalUrl)
 		if err != nil {
 			return err
@@ -570,14 +597,14 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 		return nil
 	}
 
-	vals := resp.Request.URL.Query()
-	vals.Del("lang")
-	if len(vals) > 0 {
-		req := resp.Request
-		req.URL.RawQuery = "lang=en"
+	// vals := resp.Request.URL.Query()
+	// vals.Del("lang")
+	// if len(vals) > 0 {
+	// 	req := resp.Request
+	// 	req.URL.RawQuery = "lang=en"
 
-		return yield(ctx, req)
-	}
+	// 	return yield(ctx, req)
+	// }
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -684,17 +711,6 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 		} else if val, exists := doc.Find(`meta[property="og:image:secure_url"]`).Attr("content"); exists {
 			item.Video.Cover.OriginalUrl = html.UnescapeString(val)
 		}
-
-		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
-			if u, err :=
-				c.persistentResource(ctx,
-					fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
-					item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
-				c.logger.Errorf("persistent cover resource failed, error=%s", err)
-			} else {
-				item.Video.Cover.OriginalUrl = u
-			}
-		}
 	}
 
 	if item.Source == nil {
@@ -800,7 +816,7 @@ func main() {
 		return New(s3Client, client, logger)
 	}
 	app.NewApp(newCrawler,
-		&cli.StringFlag{Name: "s3-addr", Usage: "s3 sever address", Value: "172.31.130.253:32389"},
+		&cli.StringFlag{Name: "s3-addr", Usage: "s3 sever address", Value: "172.31.141.244:30931"},
 		&cli.StringFlag{Name: "s3-bucket", Usage: "s3 bucket name", Value: "voila-downloads"},
 	).Run(os.Args)
 }
