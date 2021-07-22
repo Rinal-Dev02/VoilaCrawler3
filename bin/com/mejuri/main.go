@@ -147,7 +147,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-	if p == "/shop/t/type" || p == "/info/gift-guides" || p == "/style-edit" {
+	if p == "/shop/t/type" || p == "/info/gift-guides" || p == "/style-edit" || p == "" {
 		return c.parseCategories(ctx, resp, yield)
 	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -1326,15 +1326,11 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		if cateName == "" {
 			continue
 		}
-		//nnctx := context.WithValue(ctx, "Category", cateName)
-		fmt.Println(`cateName `, cateName)
+		nnctx := context.WithValue(ctx, "Category", cateName)
 
 		for _, rawsub1Cat := range rawCat.Children {
 
 			subcat := rawsub1Cat.Text
-			if subcat != "" {
-				fmt.Println(`SubCat-1`, subcat)
-			}
 
 			for _, rawsub2Cat := range rawsub1Cat.Children {
 				subcat2 := rawsub2Cat.Text
@@ -1346,21 +1342,19 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 				if href == "" {
 					continue
 				}
-				//fmt.Println(`link `, href)
-
 				_, err := url.Parse(href)
 				if err != nil {
-					//c.logger.Error("parse url %s failed", href)
+					c.logger.Error("parse url %s failed", href)
 					continue
 				}
 
 				subCateName := subcat + " > " + subcat2
-				fmt.Println(`SubCatName `, subCateName)
 
-				// nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-				// req, _ := http.NewRequest(http.MethodGet, href, nil)
-				// if err := yield(nnnctx, req); err != nil {
-				// return err
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+				req, _ := http.NewRequest(http.MethodGet, href, nil)
+				if err := yield(nnnctx, req); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -1612,7 +1606,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
 	}
 
-	fmt.Println(doc.Find(`.yotpo-sum-reviews`).Text())
 	review, _ := strconv.ParseInt(strings.Split(strings.TrimSpace(doc.Find(`.yotpo-sum-reviews`).Text()), " ")[0])
 	rating, _ := strconv.ParseFloat(strconv.Format(strings.ReplaceAll(doc.Find(`.yotpo-stars`).Text(), " star rating", "")))
 
@@ -1621,7 +1614,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if pi > 0 && prodslug != "" {
 
 			produrl := resp.Request.URL.Scheme + "://" + resp.Request.URL.Host + "/api/v2/products/" + prodslug
-			fmt.Println(produrl)
+
 			req, err := http.NewRequest(http.MethodGet, produrl, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -1668,7 +1661,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			},
 			Title:       viewData.Name,
 			Description: desc,
-			BrandName:   "",
+			BrandName:   "Mejuri",
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 			},
@@ -1676,6 +1669,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				ReviewCount: int32(review),
 				Rating:      float32(rating),
 			},
+			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
 		var medias []*media.Media
@@ -1727,6 +1721,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 				if viewData.Available {
 					sku.Stock.StockStatus = pbItem.Stock_InStock
+					item.Stock.StockStatus = pbItem.Stock_InStock
 				}
 
 				if color != "" {
@@ -1775,6 +1770,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
+
 		if err = yield(ctx, &item); err != nil {
 			return err
 		}
@@ -1784,11 +1780,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://mejuri.com/",
-		"https://mejuri.com/shop/t/type?fbm=Gold%20Vermeil",
+		//"https://mejuri.com/",
+		//"https://mejuri.com/shop/t/type?fbm=Gold%20Vermeil",
 		//"https://mejuri.com/shop/products/large-diamond-necklace",
 		//"https://mejuri.com/shop/products/heirloom-ring-garnet",
 		//"https://mejuri.com/shop/t/type/pendants",
+		"https://mejuri.com/shop/products/heirloom-ring-garnet",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
