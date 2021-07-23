@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
+	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	media "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
@@ -26,9 +26,11 @@ import (
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
 type _Crawler struct {
 	// httpClient is the object of an http client
-	httpClient          http.Client
-	categoryPathMatcher *regexp.Regexp
-	productPathMatcher  *regexp.Regexp
+	httpClient                      http.Client
+	categoryPathMatcher             *regexp.Regexp
+	categorySearchPathMatcher       *regexp.Regexp
+	categorySearchPathPagingMatcher *regexp.Regexp
+	productPathMatcher              *regexp.Regexp
 	// logger is the log tool
 	logger glog.Log
 }
@@ -40,7 +42,9 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^/en_us([/a-z0-9A-Z-]+)$`),
+		categoryPathMatcher:             regexp.MustCompile(`^/en_us([/a-z0-9A-Z-]+)$`),
+		categorySearchPathMatcher:       regexp.MustCompile(`^/en_us/products/search(.*)$`),
+		categorySearchPathPagingMatcher: regexp.MustCompile(`^/1/indexes/\*/queries(.*)$`),
 		// this regular used to match product page url path
 		productPathMatcher: regexp.MustCompile(`^/en_us/products/(.*)$`),
 		logger:             logger.New("_Crawler"),
@@ -66,7 +70,7 @@ func (c *_Crawler) Version() int32 {
 // for the means of every options please see the definition.
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	opts := &crawler.CrawlOptions{
-		EnableHeadless: false,
+		EnableHeadless: true,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
 	}
@@ -118,9 +122,15 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if p == "/en_us" || p == "" {
 		return c.parseCategories(ctx, resp, yield)
 	}
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+
+	if c.categorySearchPathMatcher.MatchString(resp.Request.URL.Path) || c.categorySearchPathPagingMatcher.MatchString(resp.Request.URL.Path) {
+
+		return c.parseSearchKeywordProducts(ctx, resp, yield)
+	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
@@ -189,6 +199,8 @@ type CategoryStructure struct {
 // used to extract embaded json data in website page.
 // more about golang regulation see here https://golang.org/pkg/regexp/syntax/
 var productsExtractReg = regexp.MustCompile(`(?U)id="__NEXT_DATA__"\s*type="application/json">\s*({.*})\s*</script>`)
+var catproductsExtractReg = regexp.MustCompile(`(?U)algoliaJSONP_3({.*});`)
+var pageReg = regexp.MustCompile(`&page=\d+`)
 
 func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -212,7 +224,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 			continue
 		}
 		nnctx := context.WithValue(ctx, "Category", cateName)
-		//fmt.Println(`cateName `, cateName)
 
 		subSel := node.Find(`.navigation-desktop-section-link`).Find(`a`)
 		for j := range subSel.Nodes {
@@ -237,7 +248,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -251,6 +261,11 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
+	}
+
+	if bytes.Contains(respBody, []byte(`<p class="multiline-text search-results-toolbar-no-results-message">Sorry, there is no results for your search`)) {
+		fmt.Println(`Page not found`)
+		return nil
 	}
 
 	matched := productsExtractReg.FindSubmatch(respBody)
@@ -315,7 +330,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 					} else {
 						continue
 					}
-					//fmt.Println(rawurl)
 					req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 					if err != nil {
 						c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
@@ -359,6 +373,123 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	// update the index of last page
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
+}
+
+//search API
+func (c *_Crawler) parseSearchKeywordProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	// read the response data from http response
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	url := "https://kpgnq6fji9-1.algolianet.com/1/indexes/*/queries?x-algolia-agent=Algolia%2520for%2520JavaScript%2520(3.35.1)%253B%2520Browser&x-algolia-application-id=KPGNQ6FJI9&x-algolia-api-key=64e489d5d73ec5bbc8ef0d7713096fba"
+
+	query := resp.Request.URL.Query().Get("query")
+	payload := ""
+	if c.categorySearchPathMatcher.MatchString(resp.Request.URL.Path) {
+
+		if query != "" {
+			payload = `{"requests":[{"indexName":"dev_product_en_us","params":"query=` + query + `&hitsPerPage=100&maxValuesPerFacet=10&page=0&highlightPreTag=%3Cais-highlight-0000000000%3E&highlightPostTag=%3C%2Fais-highlight-0000000000%3E&clickAnalytics=true&facets=%5B%22universe%22%5D&tagFilters="}]}`
+		}
+
+		req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(payload))
+
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+		req.Header.Add("Content-Type", "application/json")
+
+		res, err := c.httpClient.Do(ctx, req)
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+		defer res.Body.Close()
+
+		respBody, err = ioutil.ReadAll(res.Body)
+		if err != nil {
+			fmt.Println(err)
+			return err
+		}
+	}
+
+	var viewData parseSearchKeywordProducts
+	if err := json.Unmarshal(respBody, &viewData); err != nil {
+		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+		return err
+	}
+
+	lastIndex := nextIndex(ctx)
+	if len(viewData.Results) == 0 {
+		fmt.Println(`not proper response `)
+		return nil
+	}
+	for _, idv := range viewData.Results[0].Hits {
+
+		rawurl := fmt.Sprintf("%s://%s/en_us/products/couture-%s", resp.Request.URL.Scheme, resp.Request.URL.Host, idv.ObjectID)
+
+		//fmt.Println(rawurl)
+		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
+		if err != nil {
+			c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
+			return err
+		}
+
+		lastIndex += 1
+		// set the index of the product crawled in the sub response
+		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		// yield sub request
+		if err := yield(nctx, req); err != nil {
+			return err
+		}
+	}
+
+	// get current page number
+	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("page"))
+	if page == 0 {
+		page = 1
+	}
+	// check if this is the last page
+	if viewData.Results == nil {
+		return nil
+	}
+
+	if len(viewData.Results[0].Hits) >= viewData.Results[0].NbHits ||
+		page >= int64(viewData.Results[0].NbPages) {
+		return nil
+	}
+
+	if query == "" && viewData.Results[0].Params != "" {
+		payload = `{"requests":[{"indexName":"dev_product_en_us","params":"` + viewData.Results[0].Params + `"}]}`
+	}
+	payload = pageReg.ReplaceAllString(payload, fmt.Sprintf("%s%v", "&page=", viewData.Results[0].Page+1))
+
+	reqn, _ := http.NewRequest(http.MethodPost, url, strings.NewReader(payload))
+	// update the index of last page
+	nctx := context.WithValue(ctx, "item.index", lastIndex)
+	return yield(nctx, reqn)
+}
+
+type parseSearchKeywordProducts struct {
+	Results []struct {
+		Hits []struct {
+			ObjectID string `json:"objectID"`
+		} `json:"hits"`
+		NbHits      int    `json:"nbHits"`
+		Page        int    `json:"page"`
+		NbPages     int    `json:"nbPages"`
+		HitsPerPage int    `json:"hitsPerPage"`
+		Params      string `json:"params"`
+		Index       string `json:"index"`
+		QueryID     string `json:"queryID"`
+	} `json:"results"`
+	Params string `json:"params"`
 }
 
 // used to trim html labels in description
@@ -531,6 +662,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	if bytes.Contains(respBody, []byte(`<span class="multiline-text">Our apologies, but we weren't able to find the page you are looking for.</span>`)) {
+		fmt.Println(`Page not found`)
+		return nil
+	}
+
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
 		c.logger.Debugf("%s", respBody)
@@ -548,9 +684,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	contentIndex := getIndex(viewData, "PRODUCTTITLE")
+	if contentIndex == -1 {
+		fmt.Println(`PRODUCTTITLE not found`)
+		return nil
+	}
 	contentData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 
 	contentIndex = getIndex(viewData, "PRODUCTSECTIONDESCRIPTION")
+	if contentIndex == -1 {
+		fmt.Println(`PRODUCTSECTIONDESCRIPTION not found`)
+		return nil
+	}
 	contentDescriptionData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 
 	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
@@ -575,23 +719,33 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.BrandName = "DIOR"
 	}
 
-	for i, breadcrumb := range strings.Split(viewData.Props.Tracking.Datalayer.Ecommerce.Detail.Products[0].Category, "/") {
-		if i == 0 {
-			item.Category = breadcrumb
-		} else if i == 1 {
-			item.SubCategory = breadcrumb
-		} else if i == 2 {
-			item.SubCategory2 = breadcrumb
-		} else if i == 3 {
-			item.SubCategory3 = breadcrumb
-		} else if i == 4 {
-			item.SubCategory4 = breadcrumb
+	if context.GetString(ctx, "Category") != "" {
+		item.Category = context.GetString(ctx, "Category")
+		item.SubCategory = context.GetString(ctx, "SubCategory")
+		item.SubCategory2 = context.GetString(ctx, "SubCategory2")
+	} else {
+		for i, breadcrumb := range strings.Split(viewData.Props.Tracking.Datalayer.Ecommerce.Detail.Products[0].Category, "/") {
+			if i == 0 {
+				item.Category = breadcrumb
+			} else if i == 1 {
+				item.SubCategory = breadcrumb
+			} else if i == 2 {
+				item.SubCategory2 = breadcrumb
+			} else if i == 3 {
+				item.SubCategory3 = breadcrumb
+			} else if i == 4 {
+				item.SubCategory4 = breadcrumb
+			}
 		}
 	}
 
 	// image
 	var itemImg []*media.Media
 	contentIndex = getIndex(viewData, "PRODUCTMEDIAS")
+	if contentIndex == -1 {
+		fmt.Println(`PRODUCTMEDIAS not found`)
+		return nil
+	}
 	contentImgData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 	for ki, mid := range contentImgData.Items {
 		if mid.Type == "IMAGE" && len(mid.Images) > 0 {
@@ -618,6 +772,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		for j, rawSku := range contentData.Variations {
 			var itemImg []*media.Media
 			contentIndex = getIndex(viewData, "PRODUCTMEDIAS")
+			if contentIndex == -1 {
+				fmt.Println(`PRODUCTMEDIAS not found`)
+				return nil
+			}
 			contentImgData := viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
 
 			for ki, mid := range contentImgData.Items {
@@ -686,7 +844,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if contentIndex > -1 {
 
 			contentData = viewData.Props.InitialReduxState.CONTENT.CmsContent.Elements[contentIndex]
-
 			originalPrice := (contentData.Price.Value)
 			//discount, _ := strconv.ParseInt(strings.TrimSuffix(rawSku.DisplayPercentOff, "%"))
 			sku := pbItem.Sku{
@@ -701,23 +858,27 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			if contentData.Status == "AVAILABLE" || contentData.Status == "" {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
 			}
-
-			// color
-			//sku.Specs = append(sku.Specs, &itemColor)
-
-			//image
+			if contentData.Color != "" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
+					Id:    contentData.Color,
+					Name:  contentData.Color,
+					Value: contentData.Color,
+				})
+			}
+			if contentData.SizeLabel != "" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					Id:    contentData.Sku + "1",
+					Name:  contentData.SizeLabel,
+					Value: contentData.SizeLabel,
+				})
+			}
 			sku.Medias = itemImg
-
-			// size
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    contentData.Sku + "1",
-				Name:  contentData.SizeLabel,
-				Value: contentData.SizeLabel,
-			})
-
 			item.SkuItems = append(item.SkuItems, &sku)
-
+			if contentData.Universe != "" && item.CrowdType == "" {
+				item.CrowdType = contentData.Universe
+			}
 		}
 	}
 
@@ -755,7 +916,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.dior.com/en_us",
 		//"https://www.dior.com/en_us/womens-fashion/ready-to-wear/all-ready-to-wear",
 		//"https://www.dior.com/en_us/fragrance/mens-fragrance/all-products",
-		"https://www.dior.com/en_us/products/beauty-Y0998004-sauvage-parfum",
+		//"https://www.dior.com/en_us/products/beauty-Y0998004-sauvage-parfum",
 		// "https://www.dior.com/en_us/products/couture-124V03BM211_X5685-ribbed-knit-bar-jacket-navy-blue-double-breasted-virgin-wool",
 		// "https://www.dior.com/en_us/products/couture-93C1046A0121_C975-dior-oblique-tie-blue-and-black-silk",
 		//"https://www.dior.com/en_us/products/beauty-Y0061201-jules-eau-de-toilette",
@@ -763,6 +924,10 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.dior.com/en_us/products/beauty-Y0028965-dior-lip-tattoo-color-games-collection-limited-edition-colored-lip-tint-bare-lip-sensation-%E2%80%93-extreme-weightless-wear",
 		// "https://www.dior.com/en_us/products/couture-141B19A3842_X4813-dioriviera-blouse-raspberry-toile-de-jouy-reverse-cotton-poplin",
 		//"https://www.dior.com/en_us/products/beauty-Y0139000-5-couleurs-couture-eyeshadow-palette-high-pigment-long-wear-creamy-powder",
+		//"https://www.dior.com/en_us/fragrance/mens-fragrance/all-products",
+		//"https://www.dior.com/en_us/products/couture-HYN01TLC0U_C005-bath-mat-cannage",
+		"https://www.dior.com/en_us/products/search?query=women",
+		//"https://kpgnq6fji9-1.algolianet.com/1/indexes/*/queries?x-algolia-agent=Algolia%2520for%2520JavaScript%2520(3.35.1)%253B%2520Browser&x-algolia-application-id=KPGNQ6FJI9&x-algolia-api-key=64e489d5d73ec5bbc8ef0d7713096fba",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
