@@ -114,6 +114,11 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+
+	if p == "/en-us/women" || p == "/en-us/men" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
@@ -121,6 +126,91 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`#categoryTabContent > ul`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := "Men"
+		if strings.Contains(node.AttrOr("id", ""), "women-nav") {
+			cateName = "Women"
+		}
+
+		nnctx := context.WithValue(ctx, "Category", cateName)
+		subSel := node.Find(`.nav-item .nav-item-parent`)
+
+		for k := range subSel.Nodes {
+			subNode2 := subSel.Eq(k)
+			subcat2 := subNode2.Find(`span`).First().Text()
+
+			subNode2list := subNode2.Find(`li`)
+
+			for j := range subNode2list.Nodes {
+				subNode := subNode2list.Eq(j)
+				href := subNode.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subcat2 + " > " + strings.TrimSpace(subNode.Text())
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+
+			if len(subNode2list.Nodes) == 0 {
+
+				href := subNode2.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subcat2
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func isRobotCheckPage(respBody []byte) bool {
@@ -426,15 +516,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:       p.LongSKU,
-			CrawlUrl: resp.Request.URL.String(),
-			GroupId:  p.HSCode,
+			Id:           p.LongSKU,
+			CrawlUrl:     resp.Request.URL.String(),
+			CanonicalUrl: canUrl,
+			GroupId:      p.HSCode,
 		},
 		BrandName: p.Brand.Name,
 		Title:     p.Name,
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 	for i, bread := range p.Breadcrumbs {
 		switch i {
@@ -500,6 +592,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if rawSku.Stock > 0 {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
 			sku.Stock.StockCount = int32(rawSku.Stock)
+			item.Stock.StockStatus = pbItem.Stock_InStock
 		}
 
 		// color
@@ -556,10 +649,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.24s.com/en-us/nash-face-t-shirt-acne-studios_ACNDDJX8GRYMZZXS00",
+		//"https://www.24s.com/en-us/women",
+		//"https://www.24s.com/en-us/nash-face-t-shirt-acne-studios_ACNDDJX8GRYMZZXS00",
 		//"https://www.24s.com/en-us/women/ready-to-wear/coats",
 		//"https://www.24s.com/en-us/long-coat-acne-studios_ACNEWD32BEIWD03800?color=camel-melange",
 		//"https://www.24s.com/en-us/jinn-85-pumps-jimmy-choo_JCHZK4R3GEESI39500?color=dark-moss",
+		"https://www.24s.com/en-us/printed-t-shirt-undercover_UNDXQQ5GWHTMNZ0200?color=white",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
