@@ -21,6 +21,7 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"github.com/voiladev/go-framework/text"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -157,45 +158,74 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		return err
 	}
 
-	sel := dom.Find(`.header-nav__items > li`)
-
+	sel := dom.Find(`nav.header-nav--desktop ul.header-nav__items > li`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a > span > span`).First().Text())
+		cateName := text.Clean(node.Find(`a`).First().AttrOr("title", node.Find(`a`).First().Find("span>span").Text()))
 		if cateName == "" {
 			continue
 		}
 		nnctx := context.WithValue(ctx, "Category", cateName)
 
-		subSel := node.Find(`div`).Find(`a > span`)
+		subSel := node.Find(`.header-nav__subnav .shop-meganav__items>div`)
 		for k := range subSel.Nodes {
-			subNode2 := subSel.Eq(k)
-			subcat2 := subNode2.Text()
-
-			subNode2list := subNode2.Find(`a`)
-
-			for j := range subNode2list.Nodes {
-				subNode := subNode2list.Eq(j)
-				href := subNode.AttrOr("href", "")
-				if href == "" {
-					continue
+			subNode := subSel.Eq(k)
+			if strings.Contains(subNode.AttrOr("class", ""), "shop-meganav__item-wrapper") {
+				aSel := subNode.Find(`a.js-sub-link`)
+				for ai := range aSel.Nodes {
+					aNode := aSel.Eq(ai)
+					href := aNode.AttrOr("href", "")
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+					subCate := text.Clean(aNode.AttrOr("title", aNode.Text()))
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						nnnctx := context.WithValue(nnctx, "SubCategory", subCate)
+						req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+						if err := yield(nnnctx, req); err != nil {
+							return err
+						}
+					}
 				}
-
+			} else if strings.Contains(subNode.AttrOr("class", ""), "shop-meganav__submenu") {
+				aNode := subNode.Find(`a`).First()
+				href := aNode.AttrOr("href", "")
 				u, err := url.Parse(href)
 				if err != nil {
 					c.logger.Error("parse url %s failed", href)
 					continue
 				}
-
-				subCateName := subcat2 + " > " + strings.TrimSpace(subNode.Text())
+				subCate := text.Clean(aNode.AttrOr("title", aNode.Text()))
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCate)
 				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 					if err := yield(nnnctx, req); err != nil {
 						return err
 					}
 				}
+
+				subSel2 := subNode.Find(`.shop-meganav__submenu__links a.js-sub-link`)
+				for l := range subSel2.Nodes {
+					aNode := subSel2.Eq(l)
+					href := aNode.AttrOr("href", "")
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+					subCate := text.Clean(aNode.AttrOr("title", aNode.Text()))
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						nnnnctx := context.WithValue(nnnctx, "SubCategory2", subCate)
+						req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+						if err := yield(nnnnctx, req); err != nil {
+							return err
+						}
+					}
+				}
 			}
+
 		}
 	}
 	return nil
