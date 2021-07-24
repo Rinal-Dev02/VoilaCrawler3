@@ -150,7 +150,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		return nil
 	}
 
-
 	dom, err := resp.Selector()
 
 	if err != nil {
@@ -367,7 +366,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
 	}
 	// c.logger.Debugf("data: %s", matched[1])
