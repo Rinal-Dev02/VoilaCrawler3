@@ -403,6 +403,16 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 		} else if prop.Video.Cover != "" {
 			item.Video.Cover.OriginalUrl = prop.Video.Cover
 		}
+		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
+			if u, err :=
+				c.persistentResource(ctx,
+					fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
+					item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
+				c.logger.Errorf("persistent cover resource failed, error=%s", err)
+			} else {
+				item.Video.Cover.OriginalUrl = u
+			}
+		}
 
 		cookie, expiresAt, err := c.getCookies(ctx, item.Video.OriginalUrl)
 		if err != nil {
@@ -552,6 +562,17 @@ func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Re
 			item.Video.Cover.OriginalUrl = prop.Video.OriginCover
 		} else if prop.Video.Cover != "" {
 			item.Video.Cover.OriginalUrl = prop.Video.Cover
+		}
+
+		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
+			if u, err :=
+				c.persistentResource(ctx,
+					fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
+					item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
+				c.logger.Errorf("persistent cover resource failed, error=%s", err)
+			} else {
+				item.Video.Cover.OriginalUrl = u
+			}
 		}
 
 		cookie, expiresAt, err := c.getCookies(ctx, item.Video.OriginalUrl)
@@ -710,6 +731,17 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 			item.Video.Cover.OriginalUrl = html.UnescapeString(val)
 		} else if val, exists := doc.Find(`meta[property="og:image:secure_url"]`).Attr("content"); exists {
 			item.Video.Cover.OriginalUrl = html.UnescapeString(val)
+		}
+
+		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
+			if u, err :=
+				c.persistentResource(ctx,
+					fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
+					item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
+				c.logger.Errorf("persistent cover resource failed, error=%s", err)
+			} else {
+				item.Video.Cover.OriginalUrl = u
+			}
 		}
 	}
 
