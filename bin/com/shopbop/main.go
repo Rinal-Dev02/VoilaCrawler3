@@ -68,7 +68,7 @@ func (c *_Crawler) Version() int32 {
 // for the means of every options please see the definition.
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	opts := &crawler.CrawlOptions{
-		EnableHeadless: false,
+		EnableHeadless: true,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
 		Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
