@@ -609,6 +609,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			} else {
 				sizeVal = sizeVal + " / " + mid.Label
 			}
+			break
+		}
+		if sizeVal == "" {
+			sizeVal = rawSku.SizeCode
 		}
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecSize,
