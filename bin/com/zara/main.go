@@ -122,13 +122,104 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
+	if p == "/us" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	sel := dom.Find(`.layout-categories__container>li`)
+
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" {
+			continue
+		}
+
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		subSel1 := node.Find(`.layout-categories-category--level-2`)
+
+		for k := range subSel1.Nodes {
+			subNode1 := subSel1.Eq(k)
+			subCat1 := strings.TrimSpace(subNode1.Find(`a`).First().Text())
+
+			subSel2 := subNode1.Find(`li`)
+			for l := range subSel2.Nodes {
+				subNode2 := subSel2.Eq(l)
+				subCat2 := strings.TrimSpace(subNode2.Find(`a`).First().Text())
+
+				href := subNode2.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCateName := subCat1 + " > " + subCat2
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+
+			if len(subSel2.Nodes) == 0 {
+
+				subCat1 := strings.TrimSpace(subNode1.Find(`a`).First().Text())
+
+				href := subNode1.Find(`a`).AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCat1)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // nextIndex used to get the index from the shared data.
@@ -525,6 +616,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Msrp:     int32(viewData.Product.OldPrice),
 			Discount: int32(viewData.Product.DisplayDiscountPercentag),
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 	if item.Price.Msrp == 0 {
 		item.Price.Msrp = item.Price.Current
@@ -587,8 +679,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				},
 				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
+			item.Description = rawColor.Description
 			if viewData.Product.Detail.IsBuyable {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
 			}
 
 			sku.Specs = append(sku.Specs, &colorSpec, &pbItem.SkuSpecOption{
@@ -600,6 +694,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
+
 	if len(item.SkuItems) > 0 {
 		// yield item result
 		if err = yield(ctx, &item); err != nil {
@@ -615,10 +710,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.zara.com/us/en/woman-bags-l1024.html?v1=1719123",
+		//"https://www.zara.com/us/",
+		//"https://www.zara.com/us/en/woman-bags-l1024.html?v1=1719123",
 		// "https://www.zara.com/us/en/fabric-bucket-bag-with-pocket-p16619710.html?v1=100626185&v2=1719123",
 		// "https://www.zara.com/us/en/quilted-velvet-maxi-crossbody-bag-p16311710.html?v1=95124768&v2=1719102",
-		// "https://www.zara.com/us/en/text-detail-belt-bag-p16363710.html?v1=79728740&v2=1719123",
+		//"https://www.zara.com/us/en/text-detail-belt-bag-p16363710.html?v1=79728740&v2=1719123",
+		"https://www.zara.com/us/en/combination-multi-pocket-backpack-p13508620.html?v1=78506501&v2=1862570",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
