@@ -68,7 +68,7 @@ func (c *_Crawler) Version() int32 {
 // for the means of every options please see the definition.
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	opts := &crawler.CrawlOptions{
-		EnableHeadless: false,
+		EnableHeadless: true,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
 		Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
@@ -149,7 +149,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	if c == nil || yield == nil {
 		return nil
 	}
-
 
 	dom, err := resp.Selector()
 
@@ -367,7 +366,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	matched := productsExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
 		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
 	}
 	// c.logger.Debugf("data: %s", matched[1])
