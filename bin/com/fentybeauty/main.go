@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"io/ioutil"
 	"math"
 	"net/url"
 	"os"
@@ -22,6 +21,7 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"github.com/voiladev/go-framework/text"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -129,7 +129,15 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	} else if c.productPathMatcherV1.MatchString(resp.RawUrl().Path) {
 		return c.parseProductV1(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
+		respBody, err := resp.RawBody()
+		if err != nil {
+			return err
+		}
+		if bytes.Contains(respBody, []byte(`grid-tile`)) {
+			return c.parseCategoryProducts(ctx, resp, yield)
+		} else if bytes.Contains(respBody, []byte(`is="collection"`)) {
+			return c.parseCategoryProductsV1(ctx, resp, yield)
+		}
 	}
 	return crawler.ErrUnsupportedPath
 }
@@ -139,7 +147,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		return nil
 	}
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := resp.RawBody()
 	if err != nil {
 		return err
 	}
@@ -150,45 +158,74 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		return err
 	}
 
-	sel := dom.Find(`.header-nav__items > li`)
-
+	sel := dom.Find(`nav.header-nav--desktop ul.header-nav__items > li`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a > span > span`).First().Text())
+		cateName := text.Clean(node.Find(`a`).First().AttrOr("title", node.Find(`a`).First().Find("span>span").Text()))
 		if cateName == "" {
 			continue
 		}
 		nnctx := context.WithValue(ctx, "Category", cateName)
 
-		subSel := node.Find(`div`).Find(`a > span`)
+		subSel := node.Find(`.header-nav__subnav .shop-meganav__items>div`)
 		for k := range subSel.Nodes {
-			subNode2 := subSel.Eq(k)
-			subcat2 := subNode2.Text()
-
-			subNode2list := subNode2.Find(`a`)
-
-			for j := range subNode2list.Nodes {
-				subNode := subNode2list.Eq(j)
-				href := subNode.AttrOr("href", "")
-				if href == "" {
-					continue
+			subNode := subSel.Eq(k)
+			if strings.Contains(subNode.AttrOr("class", ""), "shop-meganav__item-wrapper") {
+				aSel := subNode.Find(`a.js-sub-link`)
+				for ai := range aSel.Nodes {
+					aNode := aSel.Eq(ai)
+					href := aNode.AttrOr("href", "")
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+					subCate := text.Clean(aNode.AttrOr("title", aNode.Text()))
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						nnnctx := context.WithValue(nnctx, "SubCategory", subCate)
+						req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+						if err := yield(nnnctx, req); err != nil {
+							return err
+						}
+					}
 				}
-
+			} else if strings.Contains(subNode.AttrOr("class", ""), "shop-meganav__submenu") {
+				aNode := subNode.Find(`a`).First()
+				href := aNode.AttrOr("href", "")
 				u, err := url.Parse(href)
 				if err != nil {
 					c.logger.Error("parse url %s failed", href)
 					continue
 				}
-
-				subCateName := subcat2 + " > " + strings.TrimSpace(subNode.Text())
+				subCate := text.Clean(aNode.AttrOr("title", aNode.Text()))
+				nnnctx := context.WithValue(nnctx, "SubCategory", subCate)
 				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 					if err := yield(nnnctx, req); err != nil {
 						return err
 					}
 				}
+
+				subSel2 := subNode.Find(`.shop-meganav__submenu__links a.js-sub-link`)
+				for l := range subSel2.Nodes {
+					aNode := subSel2.Eq(l)
+					href := aNode.AttrOr("href", "")
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+					subCate := text.Clean(aNode.AttrOr("title", aNode.Text()))
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						nnnnctx := context.WithValue(nnnctx, "SubCategory2", subCate)
+						req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+						if err := yield(nnnnctx, req); err != nil {
+							return err
+						}
+					}
+				}
 			}
+
 		}
 	}
 	return nil
@@ -210,7 +247,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return nil
 	}
 
-	respBody, err := ioutil.ReadAll(resp.Body)
+	respBody, err := resp.RawBody()
 	if err != nil {
 		return err
 	}
@@ -228,6 +265,78 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 		if href, _ := node.Find(`.product-tile .product-link[itemprop="url"]`).Attr("href"); href != "" {
+			req, err := http.NewRequest(http.MethodGet, href, nil)
+			if err != nil {
+				c.logger.Error(err)
+				continue
+			}
+			lastIndex += 1
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			if err := yield(nctx, req); err != nil {
+				return err
+			}
+		}
+	}
+
+	if !bytes.Contains(respBody, []byte("<div class=\"infinite-scroll-placeholder\"")) {
+		// nextpage not found
+		return nil
+	}
+	nextUrl := doc.Find(".infinite-scroll-placeholder").AttrOr("data-grid-url", "")
+	if nextUrl == "" {
+		return nil
+	}
+	nextUrl = html.UnescapeString(nextUrl)
+
+	req, _ := http.NewRequest(http.MethodGet, nextUrl, nil)
+	vals := req.URL.Query()
+	vals.Set("sz", "48")
+	req.URL.RawQuery = vals.Encode()
+
+	// update the index of last page
+	nctx := context.WithValue(ctx, "item.index", lastIndex)
+	return yield(nctx, req)
+}
+
+func (c *_Crawler) parseCategoryProductsV1(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	respBody, err := resp.RawBody()
+	if err != nil {
+		return err
+	}
+
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	matched := doc.Find(`div[is="collection"]`).AttrOr("first-products", "")
+	if matched == "" {
+		return nil
+	}
+
+	prodInfoStr, err := url.QueryUnescape(matched)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	var prodInfo productVariants
+
+	if err := json.Unmarshal([]byte(prodInfoStr), &prodInfo); err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	lastIndex := nextIndex(ctx)
+
+	for _, item := range prodInfo {
+
+		if href := item.URL; href != "" {
+
 			req, err := http.NewRequest(http.MethodGet, href, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -280,7 +389,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return nil
 	}
 
-	respbody, err := ioutil.ReadAll(resp.Body)
+	respbody, err := resp.RawBody()
 	if err != nil {
 		return err
 	}
@@ -551,7 +660,7 @@ func (c *_Crawler) parseProductV1(ctx context.Context, resp *http.Response, yiel
 		return nil
 	}
 
-	respbody, err := ioutil.ReadAll(resp.Body)
+	respbody, err := resp.RawBody()
 	if err != nil {
 		return err
 	}
@@ -783,8 +892,9 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.fentybeauty.com/mattifying-complexion-essentials-with-sponge/mattifying-foundation-essentials-sponge.html",
 
 		//"https://fentybeauty.com/products/mattemoiselle-plush-matte-lipstick-freckle-fiesta",
-		"https://fentybeauty.com/products/mattemoiselle-plush-matte-lipstick-shawty",
+		//"https://fentybeauty.com/products/mattemoiselle-plush-matte-lipstick-shawty",
 		//"https://fentybeauty.com/products/fenty-skin-startr-set-us",
+		"https://fentybeauty.com/collections/best-sellers",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -809,6 +919,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(New).Run(os.Args)
 }
