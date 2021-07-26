@@ -621,6 +621,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			} else {
 				sizeVal = sizeVal + " / " + mid.Label
 			}
+			break
+		}
+		if sizeVal == "" {
+			sizeVal = rawSku.SizeCode
 		}
 		if sizeVal == "" {
 			sizeVal = rawSku.SizeLabel
