@@ -22,6 +22,7 @@ import (
 	pbMedia "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 )
@@ -74,6 +75,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
+		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
 	}
 }
 
@@ -333,6 +335,7 @@ type productDetail struct {
 		SizeCode      string `json:"sizeCode"`
 		LongSKU       string `json:"longSKU"`
 		HasOffer      bool   `json:"hasOffer"`
+		SizeLabel     string `json:"sizeLabel"`
 		SellerSKU     string `json:"sellerSKU,omitempty"`
 		Stock         int    `json:"stock,omitempty"`
 		Replenishment bool   `json:"replenishment,omitempty"`
@@ -407,10 +410,12 @@ type productDetail struct {
 		Slug string `json:"slug"`
 		Name string `json:"name"`
 	} `json:"brand"`
-	AvailableShippingMethod []string `json:"availableShippingMethod"`
-	HSCode                  string   `json:"HSCode"`
-	BulletPoints            []string `json:"bulletPoints"`
-	Timestamp               int64    `json:"timestamp"`
+	AvailableShippingMethod []string      `json:"availableShippingMethod"`
+	HSCode                  string        `json:"HSCode"`
+	BulletPoints            []interface{} `json:"bulletPoints"`
+	HierarchicalCategories  []struct {
+		Label string `json:"label"`
+	} `json:"hierarchicalCategories"`
 }
 
 type parseProductResponse struct {
@@ -479,6 +484,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err != nil {
 		return err
 	}
+
 	matched := productDetailExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
 		c.logger.Debugf("%s", respBody)
@@ -487,8 +493,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	var viewData parseProductResponse
 	if err := json.Unmarshal(matched[1], &viewData); err != nil {
-		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
-		return err
+		//c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
+		//return err
 	}
 
 	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
@@ -528,7 +534,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
-	for i, bread := range p.Breadcrumbs {
+
+	for i, bread := range p.HierarchicalCategories {
 		switch i {
 		case 0:
 			item.CrowdType = bread.Label
@@ -546,8 +553,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	description := p.Description
 	for _, rawDesc := range p.BulletPoints {
-		description = description + rawDesc + ". "
+		description = description + rawDesc.(string) + ". "
 	}
+	description = description + ", Material: " + p.ProductInformation.CompositionEn + " Color: " + p.ProductInformation.BrandColor + ","
+	if p.ProductInformation.Dimensions != "" {
+		description = description + " SIZE & MEASUREMENTS: " + p.ProductInformation.Dimensions + " " + p.ProductInformation.BrandInformation
+	}
+
 	item.Description = description
 
 	currentPrice := 0
@@ -610,6 +622,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				sizeVal = sizeVal + " / " + mid.Label
 			}
 		}
+		if sizeVal == "" {
+			sizeVal = rawSku.SizeLabel
+		}
+
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecSize,
 			Id:    rawSku.SizeCode,
@@ -655,6 +671,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.24s.com/en-us/long-coat-acne-studios_ACNEWD32BEIWD03800?color=camel-melange",
 		//"https://www.24s.com/en-us/jinn-85-pumps-jimmy-choo_JCHZK4R3GEESI39500?color=dark-moss",
 		"https://www.24s.com/en-us/printed-t-shirt-undercover_UNDXQQ5GWHTMNZ0200?color=white",
+		//"https://www.24s.com/en-us/fluo-pink-enamel-v-ring-djula_DJU282F7GOLLU1A100",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
