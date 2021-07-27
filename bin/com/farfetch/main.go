@@ -58,7 +58,7 @@ func (c *_Crawler) Version() int32 {
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
-	options.EnableSessionInit = true
+	options.EnableSessionInit = false
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "ckm-ctx-sf", Value: `%2F`, Path: "/"},
@@ -145,6 +145,10 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		}
 	}
 
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	if p == "" {
+		return c.parseCategories(ctx, resp, yield)
+	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yieldWrap)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -177,6 +181,162 @@ type productListType struct {
 var prodDataExtraReg = regexp.MustCompile(`(?Ums)window\['__initialState_portal-slices-listing__'\]\s*=\s*({.*});?\s*</script>`)
 var prodDataExtraReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__'\]\s*=\s*(".*");</script>`)
 var prodDataExtraReg2 = regexp.MustCompile(`(?Ums)window\.__HYDRATION_STATE__\s*=\s*(".*");</script>`)
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	catUrl := "https://www.farfetch.com/headerslice/meganav/GetGenderChildren?genderId=19018&isPreviewMode=false"
+	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
+	req.Header.Add("accept", "application/json, text/plain, */*")
+	req.Header.Add("referer", "https://www.farfetch.com/")
+	req.Header.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+	req.Header.Add("x-requested-with", "XMLHttpRequest")
+
+	catreq, err := c.httpClient.Do(ctx, req)
+	if err != nil {
+		panic(err)
+	}
+	defer catreq.Body.Close()
+
+	catBody, err := ioutil.ReadAll(catreq.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	var viewData categoryChildrenStructure
+	if err := json.Unmarshal(catBody, &viewData); err != nil {
+		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+		return err
+	}
+
+	for _, rawCat := range viewData.Children {
+		cateName := "Kids"
+
+		subCatName := rawCat.Title
+		if subCatName == "" {
+			continue
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		subCat1Name := ""
+		for _, rawsubCat := range rawCat.Children {
+
+			for _, rawsub2Cat := range rawsubCat.Children {
+
+				href := rawsub2Cat.Href
+				if rawsub2Cat.Href == "" {
+					subCat1Name = rawsub2Cat.Title
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subCate2Name := subCatName + " > " + rawsub2Cat.Title
+				if subCat1Name != "" {
+					subCate2Name = subCatName + " > " + subCat1Name + " > " + rawsub2Cat.Title
+				}
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subCate2Name)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	sel := dom.Find(`nav[role="navigation"]`)
+	fmt.Println(len(sel.Nodes))
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.AttrOr("aria-label", ""))
+		if cateName == "" {
+			continue
+		}
+		nnctx := context.WithValue(ctx, "Category", cateName)
+
+		subsel1 := node.Find(`ul[data-test="list"]>li`)
+		for k := range subsel1.Nodes {
+			subnode1 := subsel1.Eq(k)
+			if len(subnode1.Find(`div`).Nodes) == 0 {
+				continue
+			}
+			subcat1 := subnode1.Find(`a`).First().Text()
+			if subcat1 == "" {
+				continue
+			}
+			if len(subnode1.Find(`a`).First().Find(`span`).Nodes) > 0 {
+				subcat1 = subnode1.Find(`a`).First().Find(`span`).Text()
+			}
+
+			subcat2 := subnode1.Find(`div > ul > li > ul > li`)
+
+			subtitle := ""
+			for j := range subcat2.Nodes {
+				currentsubcat := subcat2.Eq(j)
+
+				if len(currentsubcat.Find(`a`).Nodes) == 0 {
+					subtitle = currentsubcat.Text()
+					continue
+				}
+
+				href := currentsubcat.Find(`a`).AttrOr("href", "")
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+
+				subcat2name := subcat1 + ` > ` + subtitle + ` > ` + currentsubcat.Find(`p`).First().Text()
+
+				if c.categoryPathMatcher.MatchString(u.Path) {
+					nnnctx := context.WithValue(nnctx, "SubCategory", subcat2name)
+					req, _ := http.NewRequest(http.MethodGet, href, nil)
+					if err := yield(nnnctx, req); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+type categoryChildrenStructure struct {
+	Children []struct {
+		Type       string `json:"type"`
+		UniqueName string `json:"uniqueName"`
+		Children   []struct {
+			Type     string `json:"type"`
+			Children []struct {
+				Title string `json:"title"`
+				Href  string `json:"href"`
+			} `json:"children"`
+		} `json:"children"`
+		Title string `json:"title"`
+		Href  string `json:"href"`
+	} `json:"children"`
+}
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -233,21 +393,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 }
 
 type parseProductResponse struct {
-	Links  struct{} `json:"_links"`
-	Config struct {
-		ContactFormURI              string      `json:"contactFormUri"`
-		FitPredictorEnv             string      `json:"fitPredictorEnv"`
-		NoRedirectOnAddToBagEnabled interface{} `json:"noRedirectOnAddToBagEnabled"`
-		ShoppingBagURL              string      `json:"shoppingBagUrl"`
-		SizeGuideSliceID            string      `json:"sizeGuideSliceId"`
-		StaticContentBaseURI        string      `json:"staticContentBaseUri"`
-	} `json:"config"`
-	IsSSRMobile    bool `json:"isSSRMobile"`
-	OutOfStockPage struct {
-		OutOfStockLinks     interface{} `json:"outOfStockLinks"`
-		ShowNewOutOfStock   bool        `json:"showNewOutOfStock"`
-		ShowOutOfStockSlice bool        `json:"showOutOfStockSlice"`
-	} `json:"outOfStockPage"`
 	ProductViewModel struct {
 		Breadcrumb []struct {
 			Data_ffref string `json:"data-ffref"`
@@ -255,55 +400,7 @@ type parseProductResponse struct {
 			Href       string `json:"href"`
 			Text       string `json:"text"`
 		} `json:"breadcrumb"`
-		Care struct {
-			Disclaimer   interface{} `json:"disclaimer"`
-			Instructions struct {
-				Washing_instructions []string `json:"washing instructions"`
-			} `json:"instructions"`
-		} `json:"care"`
-		Categories struct {
-			All struct {
-				One35967 string `json:"135967"`
-				One35983 string `json:"135983"`
-				One36099 string `json:"136099"`
-			} `json:"all"`
-			Category struct {
-				ID   int64  `json:"id"`
-				Name string `json:"name"`
-			} `json:"category"`
-			SubCategory struct {
-				ID   int64  `json:"id"`
-				Name string `json:"name"`
-			} `json:"subCategory"`
-		} `json:"categories"`
-		CategoriesTree []struct {
-			ID            int64  `json:"id"`
-			Name          string `json:"name"`
-			SubCategories []struct {
-				ID            int64  `json:"id"`
-				Name          string `json:"name"`
-				SubCategories []struct {
-					ID            int64         `json:"id"`
-					Name          string        `json:"name"`
-					SubCategories []interface{} `json:"subCategories"`
-				} `json:"subCategories"`
-			} `json:"subCategories"`
-		} `json:"categoriesTree"`
-		Composition struct {
-			Materials struct {
-				_ []string `json:""`
-			} `json:"materials"`
-		} `json:"composition"`
 		DesignerDetails struct {
-			Description     string `json:"description"`
-			DesignerColour  string `json:"designerColour"`
-			DesignerStyleID string `json:"designerStyleId"`
-			ID              int64  `json:"id"`
-			Link            struct {
-				Data_ffref string `json:"data-ffref"`
-				Href       string `json:"href"`
-				Text       string `json:"text"`
-			} `json:"link"`
 			Name string `json:"name"`
 		} `json:"designerDetails"`
 		Details struct {
@@ -313,82 +410,16 @@ type parseProductResponse struct {
 			Description string `json:"description"`
 			Gender      int64  `json:"gender"`
 			GenderName  string `json:"genderName"`
-			Link        struct {
-				Data_ffref interface{} `json:"data-ffref"`
-				Href       string      `json:"href"`
-				Text       interface{} `json:"text"`
-			} `json:"link"`
-			MadeIn struct {
-				Label string `json:"label"`
-			} `json:"madeIn"`
-			MadeInLabel           string      `json:"madeInLabel"`
-			MerchandiseTag        string      `json:"merchandiseTag"`
-			MerchandiseTagField   string      `json:"merchandiseTagField"`
-			MerchandiseTagID      interface{} `json:"merchandiseTagId"`
-			MerchandisingLabelIds []int64     `json:"merchandisingLabelIds"`
-			MerchantID            int64       `json:"merchantId"`
-			ProductID             int64       `json:"productId"`
-			RichText              struct {
-				Description []struct {
-					Blocks []struct {
-						DisplayOptions struct{} `json:"displayOptions"`
-						Items          []struct {
-							DisplayOptions struct{}    `json:"displayOptions"`
-							Name           interface{} `json:"name"`
-							Type           string      `json:"type"`
-							Value          string      `json:"value"`
-						} `json:"items"`
-						Name interface{} `json:"name"`
-						Type string      `json:"type"`
-					} `json:"blocks"`
-					DisplayOptions struct{}    `json:"displayOptions"`
-					Name           interface{} `json:"name"`
-					Type           string      `json:"type"`
-				} `json:"description"`
-				Highlights []struct {
-					Blocks []struct {
-						DisplayOptions struct{} `json:"displayOptions"`
-						Items          []struct {
-							DisplayOptions struct {
-								Display string `json:"display"`
-							} `json:"displayOptions"`
-							Name  interface{} `json:"name"`
-							Type  string      `json:"type"`
-							Value string      `json:"value"`
-						} `json:"items"`
-						Name string `json:"name"`
-						Type string `json:"type"`
-					} `json:"blocks"`
-					DisplayOptions struct{}    `json:"displayOptions"`
-					Name           interface{} `json:"name"`
-					Type           string      `json:"type"`
-				} `json:"highlights"`
-			} `json:"richText"`
+
+			MerchantID int64 `json:"merchantId"`
+			ProductID  int64 `json:"productId"`
+
 			ShortDescription string `json:"shortDescription"`
 			StyleID          int64  `json:"styleId"`
 		} `json:"details"`
-		FitPredictor struct {
-			Alternative    string      `json:"alternative"`
-			IsContextValid bool        `json:"isContextValid"`
-			SizeSystemID   interface{} `json:"sizeSystemId"`
-		} `json:"fitPredictor"`
+
 		Images struct {
-			Details struct {
-				Six00     string `json:"600"`
-				Alt       string `json:"alt"`
-				Index     int64  `json:"index"`
-				Large     string `json:"large"`
-				Medium    string `json:"medium"`
-				Size200   string `json:"size200"`
-				Size240   string `json:"size240"`
-				Size300   string `json:"size300"`
-				Small     string `json:"small"`
-				Thumbnail string `json:"thumbnail"`
-				Zoom      string `json:"zoom"`
-			} `json:"details"`
-			HasRunway               bool `json:"hasRunway"`
-			IsEligibleForLimoncello bool `json:"isEligibleForLimoncello"`
-			Main                    []struct {
+			Main []struct {
 				Six00     string `json:"600"`
 				Alt       string `json:"alt"`
 				Index     int64  `json:"index"`
@@ -402,27 +433,7 @@ type parseProductResponse struct {
 				Zoom      string `json:"zoom"`
 			} `json:"main"`
 		} `json:"images"`
-		Measurements struct {
-			Available           []string      `json:"available"`
-			Category            interface{}   `json:"category"`
-			DefaultMeasurement  int64         `json:"defaultMeasurement"`
-			DefaultSize         int64         `json:"defaultSize"`
-			ExtraMeasurements   []interface{} `json:"extraMeasurements"`
-			FittingInformation  []string      `json:"fittingInformation"`
-			FriendlyScaleName   string        `json:"friendlyScaleName"`
-			IsOneSize           bool          `json:"isOneSize"`
-			IsSingleMeasurement bool          `json:"isSingleMeasurement"`
-			ModelHeight         []string      `json:"modelHeight"`
-			ModelIsWearing      string        `json:"modelIsWearing"`
-			ModelMeasurements   struct {
-				Bust_Chest []string `json:"bust/Chest"`
-				Height     []string `json:"height"`
-				Hips       []string `json:"hips"`
-				Waist      []string `json:"waist"`
-			} `json:"modelMeasurements"`
-			SizeDescription struct{} `json:"sizeDescription"`
-			Sizes           struct{} `json:"sizes"`
-		} `json:"measurements"`
+
 		PriceInfo struct {
 			Default struct {
 				CurrencyCode                  string  `json:"currencyCode"`
@@ -440,19 +451,7 @@ type parseProductResponse struct {
 				PriceTags []string `json:"priceTags"`
 			} `json:"default"`
 		} `json:"priceInfo"`
-		ProductHeroPage struct {
-			RulesApplyToProduct bool `json:"rulesApplyToProduct"`
-		} `json:"productHeroPage"`
-		ProductOfferVariant string      `json:"productOfferVariant"`
-		SeeMoreLinks        interface{} `json:"seeMoreLinks"`
-		Share               struct {
-			SocialIcons []struct {
-				Type string `json:"type"`
-				URL  string `json:"url"`
-			} `json:"socialIcons"`
-		} `json:"share"`
-		SimilarProducts interface{} `json:"similarProducts"`
-		Sizes           struct {
+		Sizes struct {
 			Available map[string]struct {
 				Description string `json:"description"`
 				LastInStock bool   `json:"lastInStock"`
@@ -461,17 +460,7 @@ type parseProductResponse struct {
 				StoreID     int64  `json:"storeId"`
 				VariantID   string `json:"variantId"`
 			} `json:"available"`
-			CleanScaleDescription string      `json:"cleanScaleDescription"`
-			ConvertedScaleID      interface{} `json:"convertedScaleId"`
-			FriendlyScaleName     string      `json:"friendlyScaleName"`
-			IsOneSize             bool        `json:"isOneSize"`
-			IsOnlyOneLeft         bool        `json:"isOnlyOneLeft"`
-			ScaleDescription      string      `json:"scaleDescription"`
-			ScaleID               int64       `json:"scaleId"`
-			SelectedSize          interface{} `json:"selectedSize"`
-			ShowUnisex            bool        `json:"showUnisex"`
 		} `json:"sizes"`
-		ViewMoreLinks interface{} `json:"viewMoreLinks"`
 	} `json:"productViewModel"`
 	Promotions interface{} `json:"promotions"`
 }
@@ -493,6 +482,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
+	if bytes.Contains(respBody, []byte(`Sorry, this piece is currently out of stock<`)) {
+		fmt.Println(`Product not available`)
+		return nil
+	}
 	matched := detailReg.FindSubmatch(respBody)
 	if len(matched) == 0 {
 		matched = detailReg1.FindSubmatch(respBody)
@@ -570,11 +563,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 	for i, bread := range i.ProductViewModel.Breadcrumb {
-		if i == 0 {
-			continue
-		}
 		switch i {
 		case 1:
 			item.Category = bread.Text
@@ -625,6 +616,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if rawSize.Quantity > 0 {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
 			sku.Stock.StockCount = int32(rawSize.Quantity)
+			item.Stock.StockStatus = pbItem.Stock_InStock
 		}
 
 		if color != "" {
@@ -653,13 +645,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.farfetch.com/de/shopping/women/denim-1/items.aspx",
+		"https://www.farfetch.com",
+		//"https://www.farfetch.com/de/shopping/women/denim-1/items.aspx",
 		// "https://www.farfetch.com/shopping/women/denim-1/items.aspx",
 		// "https://www.farfetch.com/shopping/women/low-classic-rolled-cuffs-high-waisted-jeans-item-16070965.aspx?storeid=9359",
 		// "https://www.farfetch.com/de/shopping/women/aztech-mountain-galena-mantel-item-15896311.aspx?storeid=10254",
 		//"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
 		//"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
-		// "https://www.farfetch.com/sets/women/new-in-this-week-eu-women.aspx?view=90&sort=4&scale=280&category=136310",
+		//"https://www.farfetch.com/sets/women/new-in-this-week-eu-women.aspx?view=90&sort=4&scale=280&category=136310",
+
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
