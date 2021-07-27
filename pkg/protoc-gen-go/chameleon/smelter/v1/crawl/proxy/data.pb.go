@@ -449,6 +449,100 @@ func (x *RequestWrap) GetOptions() *Request_Options {
 	return nil
 }
 
+// RegisterInfo
+type RegisterInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Address
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// EnableProxy
+	EnableProxy bool `protobuf:"varint,2,opt,name=enableProxy,proto3" json:"enableProxy,omitempty"`
+	// EnableHeadless
+	EnableHeadless bool `protobuf:"varint,3,opt,name=enableHeadless,proto3" json:"enableHeadless,omitempty"`
+	// ThreadLimit
+	ThreadLimit int32 `protobuf:"varint,4,opt,name=threadLimit,proto3" json:"threadLimit,omitempty"`
+	// Reliability
+	Reliability []ProxyReliability `protobuf:"varint,5,rep,packed,name=reliability,proto3,enum=chameleon.smelter.v1.crawl.proxy.ProxyReliability" json:"reliability,omitempty"`
+	// Tag
+	Tag map[string]string `protobuf:"bytes,6,rep,name=tag,proto3" json:"tag,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *RegisterInfo) Reset() {
+	*x = RegisterInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_chameleon_smelter_v1_crawl_proxy_data_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *RegisterInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterInfo) ProtoMessage() {}
+
+func (x *RegisterInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_chameleon_smelter_v1_crawl_proxy_data_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterInfo.ProtoReflect.Descriptor instead.
+func (*RegisterInfo) Descriptor() ([]byte, []int) {
+	return file_chameleon_smelter_v1_crawl_proxy_data_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RegisterInfo) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *RegisterInfo) GetEnableProxy() bool {
+	if x != nil {
+		return x.EnableProxy
+	}
+	return false
+}
+
+func (x *RegisterInfo) GetEnableHeadless() bool {
+	if x != nil {
+		return x.EnableHeadless
+	}
+	return false
+}
+
+func (x *RegisterInfo) GetThreadLimit() int32 {
+	if x != nil {
+		return x.ThreadLimit
+	}
+	return 0
+}
+
+func (x *RegisterInfo) GetReliability() []ProxyReliability {
+	if x != nil {
+		return x.Reliability
+	}
+	return nil
+}
+
+func (x *RegisterInfo) GetTag() map[string]string {
+	if x != nil {
+		return x.Tag
+	}
+	return nil
+}
+
 // Options
 type Request_Options struct {
 	state         protoimpl.MessageState
@@ -480,7 +574,7 @@ type Request_Options struct {
 func (x *Request_Options) Reset() {
 	*x = Request_Options{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_chameleon_smelter_v1_crawl_proxy_data_proto_msgTypes[3]
+		mi := &file_chameleon_smelter_v1_crawl_proxy_data_proto_msgTypes[4]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -493,7 +587,7 @@ func (x *Request_Options) String() string {
 func (*Request_Options) ProtoMessage() {}
 
 func (x *Request_Options) ProtoReflect() protoreflect.Message {
-	mi := &file_chameleon_smelter_v1_crawl_proxy_data_proto_msgTypes[3]
+	mi := &file_chameleon_smelter_v1_crawl_proxy_data_proto_msgTypes[4]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -699,7 +793,30 @@ var file_chameleon_smelter_v1_crawl_proxy_data_proto_rawDesc = []byte{
 	0x28, 0x0b, 0x32, 0x31, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73,
 	0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e,
 	0x70, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x2e, 0x4f, 0x70,
-	0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x07, 0x6f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x2a, 0x9f,
+	0x74, 0x69, 0x6f, 0x6e, 0x73, 0x52, 0x07, 0x6f, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x22, 0xed,
+	0x02, 0x0a, 0x0c, 0x52, 0x65, 0x67, 0x69, 0x73, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x12,
+	0x18, 0x0a, 0x07, 0x61, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09,
+	0x52, 0x07, 0x61, 0x64, 0x64, 0x72, 0x65, 0x73, 0x73, 0x12, 0x20, 0x0a, 0x0b, 0x65, 0x6e, 0x61,
+	0x62, 0x6c, 0x65, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x0b,
+	0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x12, 0x26, 0x0a, 0x0e, 0x65,
+	0x6e, 0x61, 0x62, 0x6c, 0x65, 0x48, 0x65, 0x61, 0x64, 0x6c, 0x65, 0x73, 0x73, 0x18, 0x03, 0x20,
+	0x01, 0x28, 0x08, 0x52, 0x0e, 0x65, 0x6e, 0x61, 0x62, 0x6c, 0x65, 0x48, 0x65, 0x61, 0x64, 0x6c,
+	0x65, 0x73, 0x73, 0x12, 0x20, 0x0a, 0x0b, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64, 0x4c, 0x69, 0x6d,
+	0x69, 0x74, 0x18, 0x04, 0x20, 0x01, 0x28, 0x05, 0x52, 0x0b, 0x74, 0x68, 0x72, 0x65, 0x61, 0x64,
+	0x4c, 0x69, 0x6d, 0x69, 0x74, 0x12, 0x54, 0x0a, 0x0b, 0x72, 0x65, 0x6c, 0x69, 0x61, 0x62, 0x69,
+	0x6c, 0x69, 0x74, 0x79, 0x18, 0x05, 0x20, 0x03, 0x28, 0x0e, 0x32, 0x32, 0x2e, 0x63, 0x68, 0x61,
+	0x6d, 0x65, 0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76,
+	0x31, 0x2e, 0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x50, 0x72,
+	0x6f, 0x78, 0x79, 0x52, 0x65, 0x6c, 0x69, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x52, 0x0b,
+	0x72, 0x65, 0x6c, 0x69, 0x61, 0x62, 0x69, 0x6c, 0x69, 0x74, 0x79, 0x12, 0x49, 0x0a, 0x03, 0x74,
+	0x61, 0x67, 0x18, 0x06, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x37, 0x2e, 0x63, 0x68, 0x61, 0x6d, 0x65,
+	0x6c, 0x65, 0x6f, 0x6e, 0x2e, 0x73, 0x6d, 0x65, 0x6c, 0x74, 0x65, 0x72, 0x2e, 0x76, 0x31, 0x2e,
+	0x63, 0x72, 0x61, 0x77, 0x6c, 0x2e, 0x70, 0x72, 0x6f, 0x78, 0x79, 0x2e, 0x52, 0x65, 0x67, 0x69,
+	0x73, 0x74, 0x65, 0x72, 0x49, 0x6e, 0x66, 0x6f, 0x2e, 0x54, 0x61, 0x67, 0x45, 0x6e, 0x74, 0x72,
+	0x79, 0x52, 0x03, 0x74, 0x61, 0x67, 0x1a, 0x36, 0x0a, 0x08, 0x54, 0x61, 0x67, 0x45, 0x6e, 0x74,
+	0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01, 0x2a, 0x9f,
 	0x01, 0x0a, 0x10, 0x50, 0x72, 0x6f, 0x78, 0x79, 0x52, 0x65, 0x6c, 0x69, 0x61, 0x62, 0x69, 0x6c,
 	0x69, 0x74, 0x79, 0x12, 0x16, 0x0a, 0x12, 0x52, 0x65, 0x6c, 0x69, 0x61, 0x62, 0x69, 0x6c, 0x69,
 	0x74, 0x79, 0x44, 0x65, 0x66, 0x61, 0x75, 0x6c, 0x74, 0x10, 0x00, 0x12, 0x12, 0x0a, 0x0e, 0x52,
@@ -729,33 +846,37 @@ func file_chameleon_smelter_v1_crawl_proxy_data_proto_rawDescGZIP() []byte {
 }
 
 var file_chameleon_smelter_v1_crawl_proxy_data_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_chameleon_smelter_v1_crawl_proxy_data_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_chameleon_smelter_v1_crawl_proxy_data_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_chameleon_smelter_v1_crawl_proxy_data_proto_goTypes = []interface{}{
 	(ProxyReliability)(0),   // 0: chameleon.smelter.v1.crawl.proxy.ProxyReliability
 	(*Request)(nil),         // 1: chameleon.smelter.v1.crawl.proxy.Request
 	(*Response)(nil),        // 2: chameleon.smelter.v1.crawl.proxy.Response
 	(*RequestWrap)(nil),     // 3: chameleon.smelter.v1.crawl.proxy.RequestWrap
-	(*Request_Options)(nil), // 4: chameleon.smelter.v1.crawl.proxy.Request.Options
-	nil,                     // 5: chameleon.smelter.v1.crawl.proxy.Request.HeadersEntry
-	nil,                     // 6: chameleon.smelter.v1.crawl.proxy.Response.HeadersEntry
-	(*http.ListValue)(nil),  // 7: chameleon.api.http.ListValue
+	(*RegisterInfo)(nil),    // 4: chameleon.smelter.v1.crawl.proxy.RegisterInfo
+	(*Request_Options)(nil), // 5: chameleon.smelter.v1.crawl.proxy.Request.Options
+	nil,                     // 6: chameleon.smelter.v1.crawl.proxy.Request.HeadersEntry
+	nil,                     // 7: chameleon.smelter.v1.crawl.proxy.Response.HeadersEntry
+	nil,                     // 8: chameleon.smelter.v1.crawl.proxy.RegisterInfo.TagEntry
+	(*http.ListValue)(nil),  // 9: chameleon.api.http.ListValue
 }
 var file_chameleon_smelter_v1_crawl_proxy_data_proto_depIdxs = []int32{
-	5,  // 0: chameleon.smelter.v1.crawl.proxy.Request.headers:type_name -> chameleon.smelter.v1.crawl.proxy.Request.HeadersEntry
-	4,  // 1: chameleon.smelter.v1.crawl.proxy.Request.options:type_name -> chameleon.smelter.v1.crawl.proxy.Request.Options
+	6,  // 0: chameleon.smelter.v1.crawl.proxy.Request.headers:type_name -> chameleon.smelter.v1.crawl.proxy.Request.HeadersEntry
+	5,  // 1: chameleon.smelter.v1.crawl.proxy.Request.options:type_name -> chameleon.smelter.v1.crawl.proxy.Request.Options
 	2,  // 2: chameleon.smelter.v1.crawl.proxy.Request.response:type_name -> chameleon.smelter.v1.crawl.proxy.Response
-	6,  // 3: chameleon.smelter.v1.crawl.proxy.Response.headers:type_name -> chameleon.smelter.v1.crawl.proxy.Response.HeadersEntry
+	7,  // 3: chameleon.smelter.v1.crawl.proxy.Response.headers:type_name -> chameleon.smelter.v1.crawl.proxy.Response.HeadersEntry
 	1,  // 4: chameleon.smelter.v1.crawl.proxy.Response.request:type_name -> chameleon.smelter.v1.crawl.proxy.Request
 	1,  // 5: chameleon.smelter.v1.crawl.proxy.RequestWrap.request:type_name -> chameleon.smelter.v1.crawl.proxy.Request
-	4,  // 6: chameleon.smelter.v1.crawl.proxy.RequestWrap.options:type_name -> chameleon.smelter.v1.crawl.proxy.Request.Options
-	0,  // 7: chameleon.smelter.v1.crawl.proxy.Request.Options.reliability:type_name -> chameleon.smelter.v1.crawl.proxy.ProxyReliability
-	7,  // 8: chameleon.smelter.v1.crawl.proxy.Request.HeadersEntry.value:type_name -> chameleon.api.http.ListValue
-	7,  // 9: chameleon.smelter.v1.crawl.proxy.Response.HeadersEntry.value:type_name -> chameleon.api.http.ListValue
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	5,  // 6: chameleon.smelter.v1.crawl.proxy.RequestWrap.options:type_name -> chameleon.smelter.v1.crawl.proxy.Request.Options
+	0,  // 7: chameleon.smelter.v1.crawl.proxy.RegisterInfo.reliability:type_name -> chameleon.smelter.v1.crawl.proxy.ProxyReliability
+	8,  // 8: chameleon.smelter.v1.crawl.proxy.RegisterInfo.tag:type_name -> chameleon.smelter.v1.crawl.proxy.RegisterInfo.TagEntry
+	0,  // 9: chameleon.smelter.v1.crawl.proxy.Request.Options.reliability:type_name -> chameleon.smelter.v1.crawl.proxy.ProxyReliability
+	9,  // 10: chameleon.smelter.v1.crawl.proxy.Request.HeadersEntry.value:type_name -> chameleon.api.http.ListValue
+	9,  // 11: chameleon.smelter.v1.crawl.proxy.Response.HeadersEntry.value:type_name -> chameleon.api.http.ListValue
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_chameleon_smelter_v1_crawl_proxy_data_proto_init() }
@@ -801,6 +922,18 @@ func file_chameleon_smelter_v1_crawl_proxy_data_proto_init() {
 			}
 		}
 		file_chameleon_smelter_v1_crawl_proxy_data_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*RegisterInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_chameleon_smelter_v1_crawl_proxy_data_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Request_Options); i {
 			case 0:
 				return &v.state
@@ -819,7 +952,7 @@ func file_chameleon_smelter_v1_crawl_proxy_data_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_chameleon_smelter_v1_crawl_proxy_data_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

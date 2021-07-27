@@ -8,6 +8,275 @@ from chameleon.security.identity import service_message_pb2 as chameleon_dot_sec
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
+class RoleManagerStub(object):
+    """RoleManager
+    """
+
+    def __init__(self, channel):
+        """Constructor.
+
+        Args:
+            channel: A grpc.Channel.
+        """
+        self.Get = channel.unary_unary(
+                '/chameleon.security.identity.RoleManager/Get',
+                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.GetRoleRequest.SerializeToString,
+                response_deserializer=chameleon_dot_security_dot_identity_dot_data__pb2.Role.FromString,
+                )
+        self.List = channel.unary_unary(
+                '/chameleon.security.identity.RoleManager/List',
+                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ListRoleRequest.SerializeToString,
+                response_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ListRoleResponse.FromString,
+                )
+        self.Create = channel.unary_unary(
+                '/chameleon.security.identity.RoleManager/Create',
+                request_serializer=chameleon_dot_security_dot_identity_dot_data__pb2.Role.SerializeToString,
+                response_deserializer=chameleon_dot_security_dot_identity_dot_data__pb2.Role.FromString,
+                )
+        self.Update = channel.unary_unary(
+                '/chameleon.security.identity.RoleManager/Update',
+                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.UpdateRoleRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                )
+        self.AddRule = channel.unary_unary(
+                '/chameleon.security.identity.RoleManager/AddRule',
+                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.AddRoleRuleRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                )
+        self.ResetRule = channel.unary_unary(
+                '/chameleon.security.identity.RoleManager/ResetRule',
+                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ResetRoleRuleRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                )
+        self.DeleteRule = channel.unary_unary(
+                '/chameleon.security.identity.RoleManager/DeleteRule',
+                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.DeleteRoleRuleRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                )
+
+
+class RoleManagerServicer(object):
+    """RoleManager
+    """
+
+    def Get(self, request, context):
+        """获得一个角色
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def List(self, request, context):
+        """列出角色列表
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Create(self, request, context):
+        """创建角色
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Update(self, request, context):
+        """更新角色信息
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def AddRule(self, request, context):
+        """AddRule
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ResetRule(self, request, context):
+        """ResetRule
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteRule(self, request, context):
+        """DeleteRule
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+
+def add_RoleManagerServicer_to_server(servicer, server):
+    rpc_method_handlers = {
+            'Get': grpc.unary_unary_rpc_method_handler(
+                    servicer.Get,
+                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.GetRoleRequest.FromString,
+                    response_serializer=chameleon_dot_security_dot_identity_dot_data__pb2.Role.SerializeToString,
+            ),
+            'List': grpc.unary_unary_rpc_method_handler(
+                    servicer.List,
+                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ListRoleRequest.FromString,
+                    response_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ListRoleResponse.SerializeToString,
+            ),
+            'Create': grpc.unary_unary_rpc_method_handler(
+                    servicer.Create,
+                    request_deserializer=chameleon_dot_security_dot_identity_dot_data__pb2.Role.FromString,
+                    response_serializer=chameleon_dot_security_dot_identity_dot_data__pb2.Role.SerializeToString,
+            ),
+            'Update': grpc.unary_unary_rpc_method_handler(
+                    servicer.Update,
+                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.UpdateRoleRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'AddRule': grpc.unary_unary_rpc_method_handler(
+                    servicer.AddRule,
+                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.AddRoleRuleRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'ResetRule': grpc.unary_unary_rpc_method_handler(
+                    servicer.ResetRule,
+                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ResetRoleRuleRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'DeleteRule': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteRule,
+                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.DeleteRoleRuleRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+    }
+    generic_handler = grpc.method_handlers_generic_handler(
+            'chameleon.security.identity.RoleManager', rpc_method_handlers)
+    server.add_generic_rpc_handlers((generic_handler,))
+
+
+ # This class is part of an EXPERIMENTAL API.
+class RoleManager(object):
+    """RoleManager
+    """
+
+    @staticmethod
+    def Get(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.RoleManager/Get',
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.GetRoleRequest.SerializeToString,
+            chameleon_dot_security_dot_identity_dot_data__pb2.Role.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def List(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.RoleManager/List',
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.ListRoleRequest.SerializeToString,
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.ListRoleResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Create(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.RoleManager/Create',
+            chameleon_dot_security_dot_identity_dot_data__pb2.Role.SerializeToString,
+            chameleon_dot_security_dot_identity_dot_data__pb2.Role.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Update(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.RoleManager/Update',
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.UpdateRoleRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def AddRule(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.RoleManager/AddRule',
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.AddRoleRuleRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ResetRule(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.RoleManager/ResetRule',
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.ResetRoleRuleRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def DeleteRule(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.RoleManager/DeleteRule',
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.DeleteRoleRuleRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+
 class UserManagerStub(object):
     """用户管理器
     """
@@ -31,7 +300,7 @@ class UserManagerStub(object):
         self.Who = channel.unary_unary(
                 '/chameleon.security.identity.UserManager/Who',
                 request_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-                response_deserializer=chameleon_dot_security_dot_identity_dot_data__pb2.User.FromString,
+                response_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.WhoResponse.FromString,
                 )
         self.Exist = channel.unary_unary(
                 '/chameleon.security.identity.UserManager/Exist',
@@ -71,11 +340,6 @@ class UserManagerStub(object):
         self.AddRole = channel.unary_unary(
                 '/chameleon.security.identity.UserManager/AddRole',
                 request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.AddUserRoleRequest.SerializeToString,
-                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-                )
-        self.ReplaceRole = channel.unary_unary(
-                '/chameleon.security.identity.UserManager/ReplaceRole',
-                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ReplaceUserRoleRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
         self.DeleteRole = channel.unary_unary(
@@ -138,7 +402,7 @@ class UserManagerServicer(object):
 
     def Get(self, request, context):
         """获得一个用户
-        __注意__： 需要admin scope权限，即使id == 当前用户id。当前用户请使用`who`方法。
+        __注意__： 需要security.identity.user 权限，即使id == 当前用户id。当前用户请使用`who`方法。
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -174,13 +438,6 @@ class UserManagerServicer(object):
 
     def AddRole(self, request, context):
         """增加用户角色
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ReplaceRole(self, request, context):
-        """替换用户角色
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -223,7 +480,7 @@ def add_UserManagerServicer_to_server(servicer, server):
             'Who': grpc.unary_unary_rpc_method_handler(
                     servicer.Who,
                     request_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-                    response_serializer=chameleon_dot_security_dot_identity_dot_data__pb2.User.SerializeToString,
+                    response_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.WhoResponse.SerializeToString,
             ),
             'Exist': grpc.unary_unary_rpc_method_handler(
                     servicer.Exist,
@@ -263,11 +520,6 @@ def add_UserManagerServicer_to_server(servicer, server):
             'AddRole': grpc.unary_unary_rpc_method_handler(
                     servicer.AddRole,
                     request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.AddUserRoleRequest.FromString,
-                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-            ),
-            'ReplaceRole': grpc.unary_unary_rpc_method_handler(
-                    servicer.ReplaceRole,
-                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ReplaceUserRoleRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
             'DeleteRole': grpc.unary_unary_rpc_method_handler(
@@ -343,7 +595,7 @@ class UserManager(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.UserManager/Who',
             google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-            chameleon_dot_security_dot_identity_dot_data__pb2.User.FromString,
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.WhoResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -479,23 +731,6 @@ class UserManager(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.UserManager/AddRole',
             chameleon_dot_security_dot_identity_dot_service__message__pb2.AddUserRoleRequest.SerializeToString,
-            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
-    def ReplaceRole(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.UserManager/ReplaceRole',
-            chameleon_dot_security_dot_identity_dot_service__message__pb2.ReplaceUserRoleRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
@@ -682,19 +917,14 @@ class ApplicationManagerStub(object):
                 request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ClearApplicationWhiteRedirectURIsRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
-        self.AddApplicationScope = channel.unary_unary(
-                '/chameleon.security.identity.ApplicationManager/AddApplicationScope',
-                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.AddApplicationScopeRequest.SerializeToString,
+        self.AddApplicationRole = channel.unary_unary(
+                '/chameleon.security.identity.ApplicationManager/AddApplicationRole',
+                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.AddApplicationRoleRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
-        self.ResetApplicationScope = channel.unary_unary(
-                '/chameleon.security.identity.ApplicationManager/ResetApplicationScope',
-                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ResetApplicationScopeRequest.SerializeToString,
-                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-                )
-        self.RemoveApplicationScope = channel.unary_unary(
-                '/chameleon.security.identity.ApplicationManager/RemoveApplicationScope',
-                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.RemoveApplicationScopeRequest.SerializeToString,
+        self.RemoveApplicationRole = channel.unary_unary(
+                '/chameleon.security.identity.ApplicationManager/RemoveApplicationRole',
+                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.RemoveApplicationRoleRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
 
@@ -873,22 +1103,15 @@ class ApplicationManagerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def AddApplicationScope(self, request, context):
-        """添加应用scope
+    def AddApplicationRole(self, request, context):
+        """添加应用Role
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ResetApplicationScope(self, request, context):
-        """重置应用scope
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def RemoveApplicationScope(self, request, context):
-        """删除应用scope
+    def RemoveApplicationRole(self, request, context):
+        """删除应用Role
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -1017,19 +1240,14 @@ def add_ApplicationManagerServicer_to_server(servicer, server):
                     request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ClearApplicationWhiteRedirectURIsRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
-            'AddApplicationScope': grpc.unary_unary_rpc_method_handler(
-                    servicer.AddApplicationScope,
-                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.AddApplicationScopeRequest.FromString,
+            'AddApplicationRole': grpc.unary_unary_rpc_method_handler(
+                    servicer.AddApplicationRole,
+                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.AddApplicationRoleRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
-            'ResetApplicationScope': grpc.unary_unary_rpc_method_handler(
-                    servicer.ResetApplicationScope,
-                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.ResetApplicationScopeRequest.FromString,
-                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
-            ),
-            'RemoveApplicationScope': grpc.unary_unary_rpc_method_handler(
-                    servicer.RemoveApplicationScope,
-                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.RemoveApplicationScopeRequest.FromString,
+            'RemoveApplicationRole': grpc.unary_unary_rpc_method_handler(
+                    servicer.RemoveApplicationRole,
+                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.RemoveApplicationRoleRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
     }
@@ -1452,7 +1670,7 @@ class ApplicationManager(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def AddApplicationScope(request,
+    def AddApplicationRole(request,
             target,
             options=(),
             channel_credentials=None,
@@ -1462,14 +1680,14 @@ class ApplicationManager(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.ApplicationManager/AddApplicationScope',
-            chameleon_dot_security_dot_identity_dot_service__message__pb2.AddApplicationScopeRequest.SerializeToString,
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.ApplicationManager/AddApplicationRole',
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.AddApplicationRoleRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
-    def ResetApplicationScope(request,
+    def RemoveApplicationRole(request,
             target,
             options=(),
             channel_credentials=None,
@@ -1479,25 +1697,8 @@ class ApplicationManager(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.ApplicationManager/ResetApplicationScope',
-            chameleon_dot_security_dot_identity_dot_service__message__pb2.ResetApplicationScopeRequest.SerializeToString,
-            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
-    def RemoveApplicationScope(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.ApplicationManager/RemoveApplicationScope',
-            chameleon_dot_security_dot_identity_dot_service__message__pb2.RemoveApplicationScopeRequest.SerializeToString,
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.ApplicationManager/RemoveApplicationRole',
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.RemoveApplicationRoleRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

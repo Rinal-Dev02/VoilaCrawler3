@@ -14,6 +14,7 @@ import (
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
+	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
@@ -123,7 +124,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 	shareCtx = context.WithValue(shareCtx, crawler.TracingIdKey, rawreq.GetTracingId())
 	shareCtx = context.WithValue(shareCtx, crawler.JobIdKey, rawreq.GetJobId())
 	shareCtx = context.WithValue(shareCtx, crawler.ReqIdKey, rawreq.GetReqId())
-	shareCtx = context.WithValue(shareCtx, crawler.StoreIdKey, rawreq.GetStoreId())
+	shareCtx = context.WithValue(shareCtx, crawler.SiteIdKey, rawreq.GetSiteId())
 	shareCtx = context.WithValue(shareCtx, crawler.TargetTypeKey, strings.Join(rawreq.GetOptions().GetTargetTypes(), ","))
 
 	req, err := buildRequest(rawreq)
@@ -161,6 +162,22 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 			tracingId = tid
 		}
 
+		if ctxutil.GetString(shareCtx, crawler.MainCategoryKey) != "" ||
+			ctxutil.GetString(shareCtx, crawler.CategoryKey) != "" {
+			switch val := i.(type) {
+			case *http.Request:
+				i = &pbItem.Category{
+					MainCategory: ctxutil.GetString(shareCtx, crawler.MainCategoryKey),
+					Category:     ctxutil.GetString(shareCtx, crawler.CategoryKey),
+					SubCategory:  ctxutil.GetString(shareCtx, crawler.SubCategoryKey),
+					SubCategory2: ctxutil.GetString(shareCtx, crawler.SubCategory2Key),
+					SubCategory3: ctxutil.GetString(shareCtx, crawler.SubCategory3Key),
+					SubCategory4: ctxutil.GetString(shareCtx, crawler.SubCategory4Key),
+					Url:          val.URL.String(),
+				}
+			}
+		}
+
 		switch val := i.(type) {
 		case *http.Request:
 			if val.URL.Host == "" {
@@ -178,7 +195,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 				TracingId:     tracingId,
 				JobId:         rawreq.GetJobId(),
 				ReqId:         rawreq.GetReqId(),
-				StoreId:       rawreq.GetStoreId(),
+				SiteId:        rawreq.GetSiteId(),
 				Url:           val.URL.String(),
 				Method:        val.Method,
 				Parent:        rawreq,
@@ -225,7 +242,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 			val.ReqId = rawreq.GetReqId()
 			val.TracingId = tracingId
 			val.JobId = rawreq.GetJobId()
-			val.StoreId = rawreq.GetStoreId()
+			val.SiteId = rawreq.GetSiteId()
 			val.Timestamp = time.Now().UnixNano() / 1000000
 
 			data, _ := anypb.New(val)

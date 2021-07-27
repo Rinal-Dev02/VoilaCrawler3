@@ -12,6 +12,154 @@ DESCRIPTOR.CopyToProto(FileDescriptor)
 
 
 
+from .service_pb2_grpc import RoleManagerServicer as _RoleManagerServicer, RoleManagerStub as _RoleManagerStub, add_RoleManagerServicer_to_server
+
+class RoleManagerServicer(_RoleManagerServicer):
+    class Wrapper(object):
+        """The servicer wrapper object
+        """
+        def __init__(self, servicer, interceptor=None):
+            """Create a new Wrapper
+            """
+            self.desc = ServiceDesc([ x for x in FileDescriptor.service if x.name == "RoleManager" ][0], FileDescriptor.package)
+            self.servicer = servicer
+            self.interceptor = interceptor
+
+	
+        def Get(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("Get")
+                if not methodDesc:
+                    raise RuntimeError("Method [Get] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.Get)
+            return self.servicer.Get(request, context)
+	
+        def List(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("List")
+                if not methodDesc:
+                    raise RuntimeError("Method [List] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.List)
+            return self.servicer.List(request, context)
+	
+        def Create(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("Create")
+                if not methodDesc:
+                    raise RuntimeError("Method [Create] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.Create)
+            return self.servicer.Create(request, context)
+	
+        def Update(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("Update")
+                if not methodDesc:
+                    raise RuntimeError("Method [Update] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.Update)
+            return self.servicer.Update(request, context)
+	
+        def AddRule(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("AddRule")
+                if not methodDesc:
+                    raise RuntimeError("Method [AddRule] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.AddRule)
+            return self.servicer.AddRule(request, context)
+	
+        def ResetRule(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("ResetRule")
+                if not methodDesc:
+                    raise RuntimeError("Method [ResetRule] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.ResetRule)
+            return self.servicer.ResetRule(request, context)
+	
+        def DeleteRule(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("DeleteRule")
+                if not methodDesc:
+                    raise RuntimeError("Method [DeleteRule] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.DeleteRule)
+            return self.servicer.DeleteRule(request, context)
+	
+
+    @classmethod
+    def addToServer(cls, servicer, server, *args, **kwargs):
+        """Add this servicer to server
+        Args:
+            servicer(object): The servicer
+            server(gRPC server): The gRPC server
+        """
+        return add_RoleManagerServicer_to_server(cls.Wrapper(servicer, *args, **kwargs), server)
+
+class RoleManagerStub(object):
+    def __init__(self, channel, interceptor = None):
+        """Create a new RoleManagerStub object
+        """
+        self.____desc = ServiceDesc([ x for x in FileDescriptor.service if x.name == "RoleManager" ][0], FileDescriptor.package)
+        self.____stub = _RoleManagerStub(channel)
+        self.____interceptor = interceptor
+
+	
+    def Get(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("Get")
+            if not methodDesc:
+                raise RuntimeError("Method [Get] description not found")
+            return self.____interceptor(self.____stub.Get, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.Get(request, timeout, metadata, credentials)
+	
+    def List(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("List")
+            if not methodDesc:
+                raise RuntimeError("Method [List] description not found")
+            return self.____interceptor(self.____stub.List, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.List(request, timeout, metadata, credentials)
+	
+    def Create(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("Create")
+            if not methodDesc:
+                raise RuntimeError("Method [Create] description not found")
+            return self.____interceptor(self.____stub.Create, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.Create(request, timeout, metadata, credentials)
+	
+    def Update(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("Update")
+            if not methodDesc:
+                raise RuntimeError("Method [Update] description not found")
+            return self.____interceptor(self.____stub.Update, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.Update(request, timeout, metadata, credentials)
+	
+    def AddRule(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("AddRule")
+            if not methodDesc:
+                raise RuntimeError("Method [AddRule] description not found")
+            return self.____interceptor(self.____stub.AddRule, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.AddRule(request, timeout, metadata, credentials)
+	
+    def ResetRule(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("ResetRule")
+            if not methodDesc:
+                raise RuntimeError("Method [ResetRule] description not found")
+            return self.____interceptor(self.____stub.ResetRule, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.ResetRule(request, timeout, metadata, credentials)
+	
+    def DeleteRule(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("DeleteRule")
+            if not methodDesc:
+                raise RuntimeError("Method [DeleteRule] description not found")
+            return self.____interceptor(self.____stub.DeleteRule, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.DeleteRule(request, timeout, metadata, credentials)
+	
+
+
+
 from .service_pb2_grpc import UserManagerServicer as _UserManagerServicer, UserManagerStub as _UserManagerStub, add_UserManagerServicer_to_server
 
 class UserManagerServicer(_UserManagerServicer):
@@ -113,14 +261,6 @@ class UserManagerServicer(_UserManagerServicer):
                     raise RuntimeError("Method [AddRole] description not found")
                 return self.interceptor(request, context, methodDesc, self.servicer.AddRole)
             return self.servicer.AddRole(request, context)
-	
-        def ReplaceRole(self, request, context):
-            if self.interceptor:
-                methodDesc = self.desc.methods.get("ReplaceRole")
-                if not methodDesc:
-                    raise RuntimeError("Method [ReplaceRole] description not found")
-                return self.interceptor(request, context, methodDesc, self.servicer.ReplaceRole)
-            return self.servicer.ReplaceRole(request, context)
 	
         def DeleteRole(self, request, context):
             if self.interceptor:
@@ -252,14 +392,6 @@ class UserManagerStub(object):
                 raise RuntimeError("Method [AddRole] description not found")
             return self.____interceptor(self.____stub.AddRole, methodDesc, request, timeout, metadata, credentials)
         return self.____stub.AddRole(request, timeout, metadata, credentials)
-	
-    def ReplaceRole(self, request, timeout=None, metadata=None, credentials=None):
-        if self.____interceptor:
-            methodDesc = self.____desc.methods.get("ReplaceRole")
-            if not methodDesc:
-                raise RuntimeError("Method [ReplaceRole] description not found")
-            return self.____interceptor(self.____stub.ReplaceRole, methodDesc, request, timeout, metadata, credentials)
-        return self.____stub.ReplaceRole(request, timeout, metadata, credentials)
 	
     def DeleteRole(self, request, timeout=None, metadata=None, credentials=None):
         if self.____interceptor:
@@ -494,29 +626,21 @@ class ApplicationManagerServicer(_ApplicationManagerServicer):
                 return self.interceptor(request, context, methodDesc, self.servicer.ClearWhiteRedirectURIs)
             return self.servicer.ClearWhiteRedirectURIs(request, context)
 	
-        def AddApplicationScope(self, request, context):
+        def AddApplicationRole(self, request, context):
             if self.interceptor:
-                methodDesc = self.desc.methods.get("AddApplicationScope")
+                methodDesc = self.desc.methods.get("AddApplicationRole")
                 if not methodDesc:
-                    raise RuntimeError("Method [AddApplicationScope] description not found")
-                return self.interceptor(request, context, methodDesc, self.servicer.AddApplicationScope)
-            return self.servicer.AddApplicationScope(request, context)
+                    raise RuntimeError("Method [AddApplicationRole] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.AddApplicationRole)
+            return self.servicer.AddApplicationRole(request, context)
 	
-        def ResetApplicationScope(self, request, context):
+        def RemoveApplicationRole(self, request, context):
             if self.interceptor:
-                methodDesc = self.desc.methods.get("ResetApplicationScope")
+                methodDesc = self.desc.methods.get("RemoveApplicationRole")
                 if not methodDesc:
-                    raise RuntimeError("Method [ResetApplicationScope] description not found")
-                return self.interceptor(request, context, methodDesc, self.servicer.ResetApplicationScope)
-            return self.servicer.ResetApplicationScope(request, context)
-	
-        def RemoveApplicationScope(self, request, context):
-            if self.interceptor:
-                methodDesc = self.desc.methods.get("RemoveApplicationScope")
-                if not methodDesc:
-                    raise RuntimeError("Method [RemoveApplicationScope] description not found")
-                return self.interceptor(request, context, methodDesc, self.servicer.RemoveApplicationScope)
-            return self.servicer.RemoveApplicationScope(request, context)
+                    raise RuntimeError("Method [RemoveApplicationRole] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.RemoveApplicationRole)
+            return self.servicer.RemoveApplicationRole(request, context)
 	
 
     @classmethod
@@ -729,29 +853,21 @@ class ApplicationManagerStub(object):
             return self.____interceptor(self.____stub.ClearWhiteRedirectURIs, methodDesc, request, timeout, metadata, credentials)
         return self.____stub.ClearWhiteRedirectURIs(request, timeout, metadata, credentials)
 	
-    def AddApplicationScope(self, request, timeout=None, metadata=None, credentials=None):
+    def AddApplicationRole(self, request, timeout=None, metadata=None, credentials=None):
         if self.____interceptor:
-            methodDesc = self.____desc.methods.get("AddApplicationScope")
+            methodDesc = self.____desc.methods.get("AddApplicationRole")
             if not methodDesc:
-                raise RuntimeError("Method [AddApplicationScope] description not found")
-            return self.____interceptor(self.____stub.AddApplicationScope, methodDesc, request, timeout, metadata, credentials)
-        return self.____stub.AddApplicationScope(request, timeout, metadata, credentials)
+                raise RuntimeError("Method [AddApplicationRole] description not found")
+            return self.____interceptor(self.____stub.AddApplicationRole, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.AddApplicationRole(request, timeout, metadata, credentials)
 	
-    def ResetApplicationScope(self, request, timeout=None, metadata=None, credentials=None):
+    def RemoveApplicationRole(self, request, timeout=None, metadata=None, credentials=None):
         if self.____interceptor:
-            methodDesc = self.____desc.methods.get("ResetApplicationScope")
+            methodDesc = self.____desc.methods.get("RemoveApplicationRole")
             if not methodDesc:
-                raise RuntimeError("Method [ResetApplicationScope] description not found")
-            return self.____interceptor(self.____stub.ResetApplicationScope, methodDesc, request, timeout, metadata, credentials)
-        return self.____stub.ResetApplicationScope(request, timeout, metadata, credentials)
-	
-    def RemoveApplicationScope(self, request, timeout=None, metadata=None, credentials=None):
-        if self.____interceptor:
-            methodDesc = self.____desc.methods.get("RemoveApplicationScope")
-            if not methodDesc:
-                raise RuntimeError("Method [RemoveApplicationScope] description not found")
-            return self.____interceptor(self.____stub.RemoveApplicationScope, methodDesc, request, timeout, metadata, credentials)
-        return self.____stub.RemoveApplicationScope(request, timeout, metadata, credentials)
+                raise RuntimeError("Method [RemoveApplicationRole] description not found")
+            return self.____interceptor(self.____stub.RemoveApplicationRole, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.RemoveApplicationRole(request, timeout, metadata, credentials)
 	
 
 

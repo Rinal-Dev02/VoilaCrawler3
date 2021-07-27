@@ -42,6 +42,22 @@ class AuthorizerServicer(_AuthorizerServicer):
                 return self.interceptor(request, context, methodDesc, self.servicer.GetUserInfo)
             return self.servicer.GetUserInfo(request, context)
 	
+        def Register(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("Register")
+                if not methodDesc:
+                    raise RuntimeError("Method [Register] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.Register)
+            return self.servicer.Register(request, context)
+	
+        def ResetPassword(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("ResetPassword")
+                if not methodDesc:
+                    raise RuntimeError("Method [ResetPassword] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.ResetPassword)
+            return self.servicer.ResetPassword(request, context)
+	
         def Authorize(self, request, context):
             if self.interceptor:
                 methodDesc = self.desc.methods.get("Authorize")
@@ -124,6 +140,22 @@ class AuthorizerStub(object):
                 raise RuntimeError("Method [GetUserInfo] description not found")
             return self.____interceptor(self.____stub.GetUserInfo, methodDesc, request, timeout, metadata, credentials)
         return self.____stub.GetUserInfo(request, timeout, metadata, credentials)
+	
+    def Register(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("Register")
+            if not methodDesc:
+                raise RuntimeError("Method [Register] description not found")
+            return self.____interceptor(self.____stub.Register, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.Register(request, timeout, metadata, credentials)
+	
+    def ResetPassword(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("ResetPassword")
+            if not methodDesc:
+                raise RuntimeError("Method [ResetPassword] description not found")
+            return self.____interceptor(self.____stub.ResetPassword, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.ResetPassword(request, timeout, metadata, credentials)
 	
     def Authorize(self, request, timeout=None, metadata=None, credentials=None):
         if self.____interceptor:

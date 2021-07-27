@@ -16,6 +16,8 @@ func init() {
 		
 		File_chameleon_smelter_v1_crawl_proxy_data_proto,
 		
+		File_chameleon_smelter_v1_crawl_proxy_service_proto,
+		
     )
 
     var err error

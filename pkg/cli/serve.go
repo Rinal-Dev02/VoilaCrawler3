@@ -134,7 +134,7 @@ func serveCommand(ctx context.Context, app *App, newFunc NewWithApp, extraFlags 
 								data, _ := anypb.New(&pbCrawl.ConnectRequest_Ping{
 									Timestamp:      time.Now().Unix(),
 									Id:             crawler.ID(),
-									StoreId:        crawler.ID(),
+									SiteId:         crawler.ID(),
 									Version:        crawler.Version(),
 									AllowedDomains: crawler.AllowedDomains(),
 									ServePort:      int32(app.servePort),

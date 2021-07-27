@@ -22,7 +22,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'\n\033com.chameleon.security.authB\nTokenProtoP\001Z\034chameleon/security/auth;auth',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n#chameleon/security/auth/token.proto\x12\x17\x63hameleon.security.auth\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc9\x01\n\x08Identity\x12:\n\x03\x61pp\x18\x01 \x01(\x0b\x32-.chameleon.security.auth.Identity.Application\x12\x34\n\x04user\x18\x02 \x01(\x0b\x32&.chameleon.security.auth.Identity.User\x12\x0e\n\x06scopes\x18\x03 \x03(\t\x1a\'\n\x0b\x41pplication\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x1a\x12\n\x04User\x12\n\n\x02id\x18\x01 \x01(\t\"\x96\x01\n\tSignature\x12\r\n\x05\x61ppID\x18\x01 \x01(\t\x12\x0c\n\x04path\x18\x02 \x01(\t\x12\x0f\n\x07package\x18\x03 \x01(\t\x12\x0f\n\x07service\x18\x04 \x01(\t\x12\x0e\n\x06method\x18\x05 \x01(\t\x12\r\n\x05keyID\x18\x0e \x01(\t\x12+\n\x07utctime\x18\x0f \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x9b\x01\n\x0b\x41\x63\x63\x65ssToken\x12\x33\n\x08identity\x18\x01 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12+\n\x07utctime\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12*\n\x06utcexp\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\xa0\x01\n\x10ImpersonateToken\x12\x33\n\x08identity\x18\x01 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12+\n\x07utctime\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12*\n\x06utcexp\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp*h\n\tTokenType\x12\x14\n\x10TokenTypeUnknown\x10\x00\x12\x13\n\x0fTokenTypeBearer\x10\x01\x12\x18\n\x14TokenTypeImpersonate\x10\x02\x12\x16\n\x12TokenTypeSignature\x10\x03\x42I\n\x1b\x63om.chameleon.security.authB\nTokenProtoP\x01Z\x1c\x63hameleon/security/auth;authb\x06proto3'
+  serialized_pb=b'\n#chameleon/security/auth/token.proto\x12\x17\x63hameleon.security.auth\x1a\x1fgoogle/protobuf/timestamp.proto\"\xb6\x02\n\x08Identity\x12:\n\x03\x61pp\x18\x01 \x01(\x0b\x32-.chameleon.security.auth.Identity.Application\x12\x34\n\x04user\x18\x02 \x01(\x0b\x32&.chameleon.security.auth.Identity.User\x12\r\n\x05roles\x18\x03 \x03(\t\x12=\n\x06scopes\x18\x04 \x03(\x0b\x32-.chameleon.security.auth.Identity.ScopesEntry\x1a\'\n\x0b\x41pplication\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x1a\x12\n\x04User\x12\n\n\x02id\x18\x01 \x01(\t\x1a-\n\x0bScopesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\x05:\x02\x38\x01\"\x96\x01\n\tSignature\x12\r\n\x05\x61ppID\x18\x01 \x01(\t\x12\x0c\n\x04path\x18\x02 \x01(\t\x12\x0f\n\x07package\x18\x03 \x01(\t\x12\x0f\n\x07service\x18\x04 \x01(\t\x12\x0e\n\x06method\x18\x05 \x01(\t\x12\r\n\x05keyID\x18\x0e \x01(\t\x12+\n\x07utctime\x18\x0f \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x9b\x01\n\x0b\x41\x63\x63\x65ssToken\x12\x33\n\x08identity\x18\x01 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12+\n\x07utctime\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12*\n\x06utcexp\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\xa0\x01\n\x10ImpersonateToken\x12\x33\n\x08identity\x18\x01 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12+\n\x07utctime\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12*\n\x06utcexp\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp*h\n\tTokenType\x12\x14\n\x10TokenTypeUnknown\x10\x00\x12\x13\n\x0fTokenTypeBearer\x10\x01\x12\x18\n\x14TokenTypeImpersonate\x10\x02\x12\x16\n\x12TokenTypeSignature\x10\x03\x42I\n\x1b\x63om.chameleon.security.authB\nTokenProtoP\x01Z\x1c\x63hameleon/security/auth;authb\x06proto3'
   ,
   dependencies=[google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,])
 
@@ -56,8 +56,8 @@ _TOKENTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=775,
-  serialized_end=879,
+  serialized_start=884,
+  serialized_end=988,
 )
 _sym_db.RegisterEnumDescriptor(_TOKENTYPE)
 
@@ -103,8 +103,8 @@ _IDENTITY_APPLICATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=240,
-  serialized_end=279,
+  serialized_start=302,
+  serialized_end=341,
 )
 
 _IDENTITY_USER = _descriptor.Descriptor(
@@ -134,8 +134,46 @@ _IDENTITY_USER = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=281,
-  serialized_end=299,
+  serialized_start=343,
+  serialized_end=361,
+)
+
+_IDENTITY_SCOPESENTRY = _descriptor.Descriptor(
+  name='ScopesEntry',
+  full_name='chameleon.security.auth.Identity.ScopesEntry',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='key', full_name='chameleon.security.auth.Identity.ScopesEntry.key', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='value', full_name='chameleon.security.auth.Identity.ScopesEntry.value', index=1,
+      number=2, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=b'8\001',
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=363,
+  serialized_end=408,
 )
 
 _IDENTITY = _descriptor.Descriptor(
@@ -161,8 +199,15 @@ _IDENTITY = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='scopes', full_name='chameleon.security.auth.Identity.scopes', index=2,
+      name='roles', full_name='chameleon.security.auth.Identity.roles', index=2,
       number=3, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='scopes', full_name='chameleon.security.auth.Identity.scopes', index=3,
+      number=4, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -170,7 +215,7 @@ _IDENTITY = _descriptor.Descriptor(
   ],
   extensions=[
   ],
-  nested_types=[_IDENTITY_APPLICATION, _IDENTITY_USER, ],
+  nested_types=[_IDENTITY_APPLICATION, _IDENTITY_USER, _IDENTITY_SCOPESENTRY, ],
   enum_types=[
   ],
   serialized_options=None,
@@ -180,7 +225,7 @@ _IDENTITY = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=98,
-  serialized_end=299,
+  serialized_end=408,
 )
 
 
@@ -253,8 +298,8 @@ _SIGNATURE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=302,
-  serialized_end=452,
+  serialized_start=411,
+  serialized_end=561,
 )
 
 
@@ -299,8 +344,8 @@ _ACCESSTOKEN = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=455,
-  serialized_end=610,
+  serialized_start=564,
+  serialized_end=719,
 )
 
 
@@ -345,14 +390,16 @@ _IMPERSONATETOKEN = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=613,
-  serialized_end=773,
+  serialized_start=722,
+  serialized_end=882,
 )
 
 _IDENTITY_APPLICATION.containing_type = _IDENTITY
 _IDENTITY_USER.containing_type = _IDENTITY
+_IDENTITY_SCOPESENTRY.containing_type = _IDENTITY
 _IDENTITY.fields_by_name['app'].message_type = _IDENTITY_APPLICATION
 _IDENTITY.fields_by_name['user'].message_type = _IDENTITY_USER
+_IDENTITY.fields_by_name['scopes'].message_type = _IDENTITY_SCOPESENTRY
 _SIGNATURE.fields_by_name['utctime'].message_type = google_dot_protobuf_dot_timestamp__pb2._TIMESTAMP
 _ACCESSTOKEN.fields_by_name['identity'].message_type = _IDENTITY
 _ACCESSTOKEN.fields_by_name['utctime'].message_type = google_dot_protobuf_dot_timestamp__pb2._TIMESTAMP
@@ -382,6 +429,13 @@ Identity = _reflection.GeneratedProtocolMessageType('Identity', (_message.Messag
     # @@protoc_insertion_point(class_scope:chameleon.security.auth.Identity.User)
     })
   ,
+
+  'ScopesEntry' : _reflection.GeneratedProtocolMessageType('ScopesEntry', (_message.Message,), {
+    'DESCRIPTOR' : _IDENTITY_SCOPESENTRY,
+    '__module__' : 'chameleon.security.auth.token_pb2'
+    # @@protoc_insertion_point(class_scope:chameleon.security.auth.Identity.ScopesEntry)
+    })
+  ,
   'DESCRIPTOR' : _IDENTITY,
   '__module__' : 'chameleon.security.auth.token_pb2'
   # @@protoc_insertion_point(class_scope:chameleon.security.auth.Identity)
@@ -389,6 +443,7 @@ Identity = _reflection.GeneratedProtocolMessageType('Identity', (_message.Messag
 _sym_db.RegisterMessage(Identity)
 _sym_db.RegisterMessage(Identity.Application)
 _sym_db.RegisterMessage(Identity.User)
+_sym_db.RegisterMessage(Identity.ScopesEntry)
 
 Signature = _reflection.GeneratedProtocolMessageType('Signature', (_message.Message,), {
   'DESCRIPTOR' : _SIGNATURE,
@@ -413,4 +468,5 @@ _sym_db.RegisterMessage(ImpersonateToken)
 
 
 DESCRIPTOR._options = None
+_IDENTITY_SCOPESENTRY._options = None
 # @@protoc_insertion_point(module_scope)
