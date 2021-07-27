@@ -13,6 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 from google.protobuf import descriptor_pb2 as google_dot_protobuf_dot_descriptor__pb2
+from protobuf.options import api_pb2 as protobuf_dot_options_dot_api__pb2
 from protobuf.options import auth_pb2 as protobuf_dot_options_dot_auth__pb2
 
 
@@ -22,14 +23,22 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z\021protobuf;protobuf',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x1aprotobuf/annotations.proto\x12\x08protobuf\x1a google/protobuf/descriptor.proto\x1a\x1bprotobuf/options/auth.proto:J\n\x04\x61uth\x12\x1e.google.protobuf.MethodOptions\x18\xa0\xf0\x30 \x01(\x0b\x32\x1a.protobuf.options.AuthRule:1\n\x04text\x12!.google.protobuf.EnumValueOptions\x18\x84\xf1\x30 \x01(\tB\x13Z\x11protobuf;protobufb\x06proto3'
+  serialized_pb=b'\n\x1aprotobuf/annotations.proto\x12\x08protobuf\x1a google/protobuf/descriptor.proto\x1a\x1aprotobuf/options/api.proto\x1a\x1bprotobuf/options/auth.proto:E\n\x03\x61pi\x12\x1f.google.protobuf.ServiceOptions\x18\xa0\xf0\x30 \x01(\x0b\x32\x15.protobuf.options.API:J\n\x04\x61uth\x12\x1e.google.protobuf.MethodOptions\x18\xa0\xf0\x30 \x01(\x0b\x32\x1a.protobuf.options.AuthRule:1\n\x04text\x12!.google.protobuf.EnumValueOptions\x18\x84\xf1\x30 \x01(\tB\x13Z\x11protobuf;protobufb\x06proto3'
   ,
-  dependencies=[google_dot_protobuf_dot_descriptor__pb2.DESCRIPTOR,protobuf_dot_options_dot_auth__pb2.DESCRIPTOR,])
+  dependencies=[google_dot_protobuf_dot_descriptor__pb2.DESCRIPTOR,protobuf_dot_options_dot_api__pb2.DESCRIPTOR,protobuf_dot_options_dot_auth__pb2.DESCRIPTOR,])
 
 
+API_FIELD_NUMBER = 800800
+api = _descriptor.FieldDescriptor(
+  name='api', full_name='protobuf.api', index=0,
+  number=800800, type=11, cpp_type=10, label=1,
+  has_default_value=False, default_value=None,
+  message_type=None, enum_type=None, containing_type=None,
+  is_extension=True, extension_scope=None,
+  serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key)
 AUTH_FIELD_NUMBER = 800800
 auth = _descriptor.FieldDescriptor(
-  name='auth', full_name='protobuf.auth', index=0,
+  name='auth', full_name='protobuf.auth', index=1,
   number=800800, type=11, cpp_type=10, label=1,
   has_default_value=False, default_value=None,
   message_type=None, enum_type=None, containing_type=None,
@@ -37,17 +46,20 @@ auth = _descriptor.FieldDescriptor(
   serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key)
 TEXT_FIELD_NUMBER = 800900
 text = _descriptor.FieldDescriptor(
-  name='text', full_name='protobuf.text', index=1,
+  name='text', full_name='protobuf.text', index=2,
   number=800900, type=9, cpp_type=9, label=1,
   has_default_value=False, default_value=b"".decode('utf-8'),
   message_type=None, enum_type=None, containing_type=None,
   is_extension=True, extension_scope=None,
   serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key)
 
+DESCRIPTOR.extensions_by_name['api'] = api
 DESCRIPTOR.extensions_by_name['auth'] = auth
 DESCRIPTOR.extensions_by_name['text'] = text
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
+api.message_type = protobuf_dot_options_dot_api__pb2._API
+google_dot_protobuf_dot_descriptor__pb2.ServiceOptions.RegisterExtension(api)
 auth.message_type = protobuf_dot_options_dot_auth__pb2._AUTHRULE
 google_dot_protobuf_dot_descriptor__pb2.MethodOptions.RegisterExtension(auth)
 google_dot_protobuf_dot_descriptor__pb2.EnumValueOptions.RegisterExtension(text)

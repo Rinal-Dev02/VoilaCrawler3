@@ -22,7 +22,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'\n\033com.chameleon.security.authB\017CredentialProtoP\001Z\034chameleon/security/auth;auth',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n(chameleon/security/auth/credential.proto\x12\x17\x63hameleon.security.auth\x1a&chameleon/security/identity/data.proto\"\x89\x03\n\x0eUserCredential\x12\x39\n\x04type\x18\x01 \x01(\x0e\x32+.chameleon.security.auth.UserCredentialType\x12=\n\x04user\x18\x02 \x01(\x0b\x32/.chameleon.security.auth.UserCredentialUserData\x12K\n\x0cnamePassword\x18\x03 \x01(\x0b\x32\x33.chameleon.security.auth.UserNamePasswordCredentialH\x00\x12P\n\x0f\x65xternalAccount\x18\x04 \x01(\x0b\x32\x35.chameleon.security.auth.UserExternalAcountCredentialH\x00\x12L\n\x10\x61nonymousAccount\x18\x05 \x01(\x0b\x32\x30.chameleon.security.auth.UserAnonymousCredentialH\x00\x42\x10\n\x0eUserCredential\"\x99\x02\n\x16UserCredentialUserData\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\x12G\n\x04info\x18\x03 \x03(\x0b\x32\x39.chameleon.security.auth.UserCredentialUserData.InfoEntry\x12\x12\n\nresetRoles\x18\x04 \x01(\x08\x12\x11\n\tresetInfo\x18\x05 \x01(\x08\x12\x45\n\rmanageOptions\x18\n \x01(\x0b\x32..chameleon.security.identity.UserManageOptions\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"l\n\x1aUserNamePasswordCredential\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x10\n\x08password\x18\x02 \x01(\t\x12\x13\n\x0bnewPassword\x18\x03 \x01(\t\x12\x15\n\rresetPassword\x18\x04 \x01(\x08\"8\n\x1cUserExternalAcountCredential\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\"%\n\x17UserAnonymousCredential\x12\n\n\x02id\x18\x01 \x01(\t*\x8f\x01\n\x12UserCredentialType\x12\x19\n\x15UserCredentialUnknown\x10\x00\x12\x1e\n\x1aUserCredentialNamePassword\x10\x01\x12!\n\x1dUserCredentialExternalAccount\x10\x02\x12\x1b\n\x17UserCredentialAnonymous\x10\x03\x42N\n\x1b\x63om.chameleon.security.authB\x0f\x43redentialProtoP\x01Z\x1c\x63hameleon/security/auth;authb\x06proto3'
+  serialized_pb=b'\n(chameleon/security/auth/credential.proto\x12\x17\x63hameleon.security.auth\x1a&chameleon/security/identity/data.proto\"\x87\x03\n\x0eUserCredential\x12\x39\n\x04type\x18\x01 \x01(\x0e\x32+.chameleon.security.auth.UserCredentialType\x12=\n\x04user\x18\x02 \x01(\x0b\x32/.chameleon.security.auth.UserCredentialUserData\x12I\n\x0bkeyPassword\x18\x03 \x01(\x0b\x32\x32.chameleon.security.auth.UserKeyPasswordCredentialH\x00\x12P\n\x0f\x65xternalAccount\x18\x04 \x01(\x0b\x32\x35.chameleon.security.auth.UserExternalAcountCredentialH\x00\x12L\n\x10\x61nonymousAccount\x18\x05 \x01(\x0b\x32\x30.chameleon.security.auth.UserAnonymousCredentialH\x00\x42\x10\n\x0eUserCredential\"\xa8\x02\n\x16UserCredentialUserData\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\r\n\x05\x65mail\x18\x02 \x01(\t\x12\r\n\x05roles\x18\x06 \x03(\t\x12G\n\x04info\x18\x07 \x03(\x0b\x32\x39.chameleon.security.auth.UserCredentialUserData.InfoEntry\x12\x12\n\nresetRoles\x18\x08 \x01(\x08\x12\x11\n\tresetInfo\x18\t \x01(\x08\x12\x45\n\rmanageOptions\x18\n \x01(\x0b\x32..chameleon.security.identity.UserManageOptions\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"f\n\x19UserKeyPasswordCredential\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x10\n\x08password\x18\x02 \x01(\t\x12\x13\n\x0bnewPassword\x18\x03 \x01(\t\x12\x15\n\rresetPassword\x18\x04 \x01(\x08\"8\n\x1cUserExternalAcountCredential\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\"%\n\x17UserAnonymousCredential\x12\n\n\x02id\x18\x01 \x01(\t*\xb0\x01\n\x12UserCredentialType\x12\x19\n\x15UserCredentialUnknown\x10\x00\x12\x1e\n\x1aUserCredentialNamePassword\x10\x01\x12\x1f\n\x1bUserCredentialEmailPassword\x10\x02\x12!\n\x1dUserCredentialExternalAccount\x10\x08\x12\x1b\n\x17UserCredentialAnonymous\x10\nBN\n\x1b\x63om.chameleon.security.authB\x0f\x43redentialProtoP\x01Z\x1c\x63hameleon/security/auth;authb\x06proto3'
   ,
   dependencies=[chameleon_dot_security_dot_identity_dot_data__pb2.DESCRIPTOR,])
 
@@ -44,28 +44,34 @@ _USERCREDENTIALTYPE = _descriptor.EnumDescriptor(
       type=None,
       create_key=_descriptor._internal_create_key),
     _descriptor.EnumValueDescriptor(
-      name='UserCredentialExternalAccount', index=2, number=2,
+      name='UserCredentialEmailPassword', index=2, number=2,
       serialized_options=None,
       type=None,
       create_key=_descriptor._internal_create_key),
     _descriptor.EnumValueDescriptor(
-      name='UserCredentialAnonymous', index=3, number=3,
+      name='UserCredentialExternalAccount', index=3, number=8,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='UserCredentialAnonymous', index=4, number=10,
       serialized_options=None,
       type=None,
       create_key=_descriptor._internal_create_key),
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=997,
-  serialized_end=1140,
+  serialized_start=1004,
+  serialized_end=1180,
 )
 _sym_db.RegisterEnumDescriptor(_USERCREDENTIALTYPE)
 
 UserCredentialType = enum_type_wrapper.EnumTypeWrapper(_USERCREDENTIALTYPE)
 UserCredentialUnknown = 0
 UserCredentialNamePassword = 1
-UserCredentialExternalAccount = 2
-UserCredentialAnonymous = 3
+UserCredentialEmailPassword = 2
+UserCredentialExternalAccount = 8
+UserCredentialAnonymous = 10
 
 
 
@@ -92,7 +98,7 @@ _USERCREDENTIAL = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='namePassword', full_name='chameleon.security.auth.UserCredential.namePassword', index=2,
+      name='keyPassword', full_name='chameleon.security.auth.UserCredential.keyPassword', index=2,
       number=3, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -130,7 +136,7 @@ _USERCREDENTIAL = _descriptor.Descriptor(
     fields=[]),
   ],
   serialized_start=110,
-  serialized_end=503,
+  serialized_end=501,
 )
 
 
@@ -168,8 +174,8 @@ _USERCREDENTIALUSERDATA_INFOENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=744,
-  serialized_end=787,
+  serialized_start=757,
+  serialized_end=800,
 )
 
 _USERCREDENTIALUSERDATA = _descriptor.Descriptor(
@@ -188,35 +194,42 @@ _USERCREDENTIALUSERDATA = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='roles', full_name='chameleon.security.auth.UserCredentialUserData.roles', index=1,
-      number=2, type=9, cpp_type=9, label=3,
+      name='email', full_name='chameleon.security.auth.UserCredentialUserData.email', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='roles', full_name='chameleon.security.auth.UserCredentialUserData.roles', index=2,
+      number=6, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='info', full_name='chameleon.security.auth.UserCredentialUserData.info', index=2,
-      number=3, type=11, cpp_type=10, label=3,
+      name='info', full_name='chameleon.security.auth.UserCredentialUserData.info', index=3,
+      number=7, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='resetRoles', full_name='chameleon.security.auth.UserCredentialUserData.resetRoles', index=3,
-      number=4, type=8, cpp_type=7, label=1,
+      name='resetRoles', full_name='chameleon.security.auth.UserCredentialUserData.resetRoles', index=4,
+      number=8, type=8, cpp_type=7, label=1,
       has_default_value=False, default_value=False,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='resetInfo', full_name='chameleon.security.auth.UserCredentialUserData.resetInfo', index=4,
-      number=5, type=8, cpp_type=7, label=1,
+      name='resetInfo', full_name='chameleon.security.auth.UserCredentialUserData.resetInfo', index=5,
+      number=9, type=8, cpp_type=7, label=1,
       has_default_value=False, default_value=False,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='manageOptions', full_name='chameleon.security.auth.UserCredentialUserData.manageOptions', index=5,
+      name='manageOptions', full_name='chameleon.security.auth.UserCredentialUserData.manageOptions', index=6,
       number=10, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -234,42 +247,42 @@ _USERCREDENTIALUSERDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=506,
-  serialized_end=787,
+  serialized_start=504,
+  serialized_end=800,
 )
 
 
-_USERNAMEPASSWORDCREDENTIAL = _descriptor.Descriptor(
-  name='UserNamePasswordCredential',
-  full_name='chameleon.security.auth.UserNamePasswordCredential',
+_USERKEYPASSWORDCREDENTIAL = _descriptor.Descriptor(
+  name='UserKeyPasswordCredential',
+  full_name='chameleon.security.auth.UserKeyPasswordCredential',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='username', full_name='chameleon.security.auth.UserNamePasswordCredential.username', index=0,
+      name='key', full_name='chameleon.security.auth.UserKeyPasswordCredential.key', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='password', full_name='chameleon.security.auth.UserNamePasswordCredential.password', index=1,
+      name='password', full_name='chameleon.security.auth.UserKeyPasswordCredential.password', index=1,
       number=2, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='newPassword', full_name='chameleon.security.auth.UserNamePasswordCredential.newPassword', index=2,
+      name='newPassword', full_name='chameleon.security.auth.UserKeyPasswordCredential.newPassword', index=2,
       number=3, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='resetPassword', full_name='chameleon.security.auth.UserNamePasswordCredential.resetPassword', index=3,
+      name='resetPassword', full_name='chameleon.security.auth.UserKeyPasswordCredential.resetPassword', index=3,
       number=4, type=8, cpp_type=7, label=1,
       has_default_value=False, default_value=False,
       message_type=None, enum_type=None, containing_type=None,
@@ -287,8 +300,8 @@ _USERNAMEPASSWORDCREDENTIAL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=789,
-  serialized_end=897,
+  serialized_start=802,
+  serialized_end=904,
 )
 
 
@@ -326,8 +339,8 @@ _USEREXTERNALACOUNTCREDENTIAL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=899,
-  serialized_end=955,
+  serialized_start=906,
+  serialized_end=962,
 )
 
 
@@ -358,18 +371,18 @@ _USERANONYMOUSCREDENTIAL = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=957,
-  serialized_end=994,
+  serialized_start=964,
+  serialized_end=1001,
 )
 
 _USERCREDENTIAL.fields_by_name['type'].enum_type = _USERCREDENTIALTYPE
 _USERCREDENTIAL.fields_by_name['user'].message_type = _USERCREDENTIALUSERDATA
-_USERCREDENTIAL.fields_by_name['namePassword'].message_type = _USERNAMEPASSWORDCREDENTIAL
+_USERCREDENTIAL.fields_by_name['keyPassword'].message_type = _USERKEYPASSWORDCREDENTIAL
 _USERCREDENTIAL.fields_by_name['externalAccount'].message_type = _USEREXTERNALACOUNTCREDENTIAL
 _USERCREDENTIAL.fields_by_name['anonymousAccount'].message_type = _USERANONYMOUSCREDENTIAL
 _USERCREDENTIAL.oneofs_by_name['UserCredential'].fields.append(
-  _USERCREDENTIAL.fields_by_name['namePassword'])
-_USERCREDENTIAL.fields_by_name['namePassword'].containing_oneof = _USERCREDENTIAL.oneofs_by_name['UserCredential']
+  _USERCREDENTIAL.fields_by_name['keyPassword'])
+_USERCREDENTIAL.fields_by_name['keyPassword'].containing_oneof = _USERCREDENTIAL.oneofs_by_name['UserCredential']
 _USERCREDENTIAL.oneofs_by_name['UserCredential'].fields.append(
   _USERCREDENTIAL.fields_by_name['externalAccount'])
 _USERCREDENTIAL.fields_by_name['externalAccount'].containing_oneof = _USERCREDENTIAL.oneofs_by_name['UserCredential']
@@ -381,7 +394,7 @@ _USERCREDENTIALUSERDATA.fields_by_name['info'].message_type = _USERCREDENTIALUSE
 _USERCREDENTIALUSERDATA.fields_by_name['manageOptions'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._USERMANAGEOPTIONS
 DESCRIPTOR.message_types_by_name['UserCredential'] = _USERCREDENTIAL
 DESCRIPTOR.message_types_by_name['UserCredentialUserData'] = _USERCREDENTIALUSERDATA
-DESCRIPTOR.message_types_by_name['UserNamePasswordCredential'] = _USERNAMEPASSWORDCREDENTIAL
+DESCRIPTOR.message_types_by_name['UserKeyPasswordCredential'] = _USERKEYPASSWORDCREDENTIAL
 DESCRIPTOR.message_types_by_name['UserExternalAcountCredential'] = _USEREXTERNALACOUNTCREDENTIAL
 DESCRIPTOR.message_types_by_name['UserAnonymousCredential'] = _USERANONYMOUSCREDENTIAL
 DESCRIPTOR.enum_types_by_name['UserCredentialType'] = _USERCREDENTIALTYPE
@@ -409,12 +422,12 @@ UserCredentialUserData = _reflection.GeneratedProtocolMessageType('UserCredentia
 _sym_db.RegisterMessage(UserCredentialUserData)
 _sym_db.RegisterMessage(UserCredentialUserData.InfoEntry)
 
-UserNamePasswordCredential = _reflection.GeneratedProtocolMessageType('UserNamePasswordCredential', (_message.Message,), {
-  'DESCRIPTOR' : _USERNAMEPASSWORDCREDENTIAL,
+UserKeyPasswordCredential = _reflection.GeneratedProtocolMessageType('UserKeyPasswordCredential', (_message.Message,), {
+  'DESCRIPTOR' : _USERKEYPASSWORDCREDENTIAL,
   '__module__' : 'chameleon.security.auth.credential_pb2'
-  # @@protoc_insertion_point(class_scope:chameleon.security.auth.UserNamePasswordCredential)
+  # @@protoc_insertion_point(class_scope:chameleon.security.auth.UserKeyPasswordCredential)
   })
-_sym_db.RegisterMessage(UserNamePasswordCredential)
+_sym_db.RegisterMessage(UserKeyPasswordCredential)
 
 UserExternalAcountCredential = _reflection.GeneratedProtocolMessageType('UserExternalAcountCredential', (_message.Message,), {
   'DESCRIPTOR' : _USEREXTERNALACOUNTCREDENTIAL,

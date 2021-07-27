@@ -13,6 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
+from chameleon.security.identity import data_pb2 as chameleon_dot_security_dot_identity_dot_data__pb2
 from chameleon.security.auth import auth_pb2 as chameleon_dot_security_dot_auth_dot_auth__pb2
 from chameleon.security.auth import token_pb2 as chameleon_dot_security_dot_auth_dot_token__pb2
 from chameleon.security.auth import credential_pb2 as chameleon_dot_security_dot_auth_dot_credential__pb2
@@ -24,9 +25,9 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'\n\033com.chameleon.security.authB\023ServiceMessageProtoP\001Z\034chameleon/security/auth;auth',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n-chameleon/security/auth/service_message.proto\x12\x17\x63hameleon.security.auth\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\"chameleon/security/auth/auth.proto\x1a#chameleon/security/auth/token.proto\x1a(chameleon/security/auth/credential.proto\"\'\n\x19GetApplicationInfoRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\xcc\x01\n\x1aGetApplicationInfoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12K\n\x04info\x18\x03 \x03(\x0b\x32=.chameleon.security.auth.GetApplicationInfoResponse.InfoEntry\x12\x1a\n\x12isSecurityCritical\x18\x04 \x01(\x08\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\" \n\x12GetUserInfoRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\xa2\x01\n\x13GetUserInfoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x44\n\x04info\x18\x03 \x03(\x0b\x32\x36.chameleon.security.auth.GetUserInfoResponse.InfoEntry\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x8c\x02\n\x10\x41uthorizeRequest\x12/\n\x04type\x18\x01 \x01(\x0e\x32!.chameleon.security.auth.AuthType\x12\x36\n\x03\x61pp\x18\x02 \x01(\x0b\x32).chameleon.security.auth.AuthorizeAppData\x12\x38\n\x04user\x18\x03 \x01(\x0b\x32*.chameleon.security.auth.AuthorizeUserData\x12\x0e\n\x06scopes\x18\x04 \x03(\t\x12\x12\n\nttlSeconds\x18\x05 \x01(\x03\x12\x31\n\x05\x61gent\x18\x0f \x01(\x0b\x32\".chameleon.security.auth.UserAgent\"t\n\x10\x41uthorizeAppData\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06secret\x18\x02 \x01(\t\x12\x13\n\x0bredirectURI\x18\x03 \x01(\t\x12\x19\n\x11\x61uthorizationCode\x18\x04 \x01(\t\x12\x14\n\x0crefreshToken\x18\x05 \x01(\t\"_\n\x11\x41uthorizeUserData\x12\r\n\x05token\x18\x01 \x01(\t\x12;\n\ncredential\x18\x02 \x01(\x0b\x32\'.chameleon.security.auth.UserCredential\"\x82\x02\n\x11\x41uthorizeResponse\x12\x31\n\x05\x65rror\x18\x01 \x01(\x0e\x32\".chameleon.security.auth.AuthError\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x35\n\x04\x64\x61ta\x18\x03 \x01(\x0b\x32\'.chameleon.security.auth.AuthorizedData\x12\x35\n\x04user\x18\x04 \x01(\x0b\x32\'.chameleon.security.auth.AuthorizedUser\x12;\n\x03\x61pp\x18\x05 \x01(\x0b\x32..chameleon.security.auth.AuthorizedApplication\"\x9b\x01\n\x0e\x41uthorizedData\x12\x15\n\rauthorizeCode\x18\x01 \x01(\t\x12\x13\n\x0b\x61\x63\x63\x65ssToken\x18\x02 \x01(\t\x12\x14\n\x0crefreshToken\x18\x03 \x01(\t\x12\x1a\n\x12\x61\x63\x63\x65ssTokenExpires\x18\x04 \x01(\x03\x12\x1b\n\x13refreshTokenExpires\x18\x05 \x01(\x03\x12\x0e\n\x06scopes\x18\x06 \x03(\t\"\x1c\n\x0e\x41uthorizedUser\x12\n\n\x02id\x18\x01 \x01(\t\"b\n\x15\x41uthorizedApplication\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0bredirectURI\x18\x03 \x01(\t\x12\x1a\n\x12isSecurityCritical\x18\x04 \x01(\x08\"+\n\x1aValidateAccessTokenRequest\x12\r\n\x05token\x18\x01 \x01(\t\"c\n\x1bValidateAccessTokenResposne\x12\x33\n\x08identity\x18\x01 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12\x0f\n\x07\x65xpires\x18\x02 \x01(\x03\"i\n\x18PermitApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\x12.\n\nexpireTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"9\n\x18RevokeApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\"g\n\x16\x44\x65nyApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\x12.\n\nexpireTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"i\n\x16\x41uthorizeAccessRequest\x12:\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32,.chameleon.security.auth.AuthorizeAccessData\x12\x13\n\x0bimpersonate\x18\x02 \x01(\x08\"\x9c\x02\n\x17\x41uthorizeAccessResponse\x12\x35\n\tsignature\x18\x01 \x01(\x0b\x32\".chameleon.security.auth.Signature\x12\x39\n\x0b\x61\x63\x63\x65ssToken\x18\x02 \x01(\x0b\x32$.chameleon.security.auth.AccessToken\x12\x43\n\x10impersonateToken\x18\x03 \x01(\x0b\x32).chameleon.security.auth.ImpersonateToken\x12\x33\n\x08identity\x18\x04 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12\x15\n\rimpersonation\x18\x05 \x01(\tBR\n\x1b\x63om.chameleon.security.authB\x13ServiceMessageProtoP\x01Z\x1c\x63hameleon/security/auth;authb\x06proto3'
+  serialized_pb=b'\n-chameleon/security/auth/service_message.proto\x12\x17\x63hameleon.security.auth\x1a\x1fgoogle/protobuf/timestamp.proto\x1a&chameleon/security/identity/data.proto\x1a\"chameleon/security/auth/auth.proto\x1a#chameleon/security/auth/token.proto\x1a(chameleon/security/auth/credential.proto\"\'\n\x19GetApplicationInfoRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\xcc\x01\n\x1aGetApplicationInfoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12K\n\x04info\x18\x03 \x03(\x0b\x32=.chameleon.security.auth.GetApplicationInfoResponse.InfoEntry\x12\x1a\n\x12isSecurityCritical\x18\x04 \x01(\x08\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"a\n\x12GetUserInfoRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12?\n\x05\x66ield\x18\x03 \x01(\x0e\x32\x30.chameleon.security.identity.UserUniqueFieldType\"\x85\x01\n\x13GetUserInfoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06\x61vatar\x18\x05 \x01(\t\x12\x11\n\tfirstName\x18\x06 \x01(\t\x12\x10\n\x08lastName\x18\x07 \x01(\t\x12\x0e\n\x06locale\x18\t \x01(\t\x12\x0f\n\x07\x63hannel\x18\n \x01(\t\"\xfc\x01\n\x0fRegisterRequest\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\r\n\x05\x65mail\x18\x03 \x01(\t\x12\r\n\x05roles\x18\t \x03(\t\x12\x10\n\x08password\x18\x0b \x01(\t\x12\x17\n\x0fprotocolVersion\x18\x0f \x01(\t\x12\x13\n\x0b\x63hannelCode\x18\x1a \x01(\t\x12\x0e\n\x06locale\x18\x1b \x01(\t\x12@\n\x04info\x18\x1f \x03(\x0b\x32\x32.chameleon.security.auth.RegisterRequest.InfoEntry\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x12\n\x10RegisterResponse\"s\n\x14ResetPasswordRequest\x1a\x1a\n\tSendEmail\x12\r\n\x05\x65mail\x18\x01 \x01(\t\x1a?\n\rResetPassword\x12\r\n\x05token\x18\x01 \x01(\t\x12\r\n\x05\x65mail\x18\x02 \x01(\t\x12\x10\n\x08password\x18\x03 \x01(\t\"\x8b\x02\n\x10\x41uthorizeRequest\x12/\n\x04type\x18\x01 \x01(\x0e\x32!.chameleon.security.auth.AuthType\x12\x36\n\x03\x61pp\x18\x02 \x01(\x0b\x32).chameleon.security.auth.AuthorizeAppData\x12\x38\n\x04user\x18\x03 \x01(\x0b\x32*.chameleon.security.auth.AuthorizeUserData\x12\r\n\x05roles\x18\x04 \x03(\t\x12\x12\n\nttlSeconds\x18\x05 \x01(\x03\x12\x31\n\x05\x61gent\x18\x0f \x01(\x0b\x32\".chameleon.security.auth.UserAgent\"t\n\x10\x41uthorizeAppData\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06secret\x18\x02 \x01(\t\x12\x13\n\x0bredirectURI\x18\x03 \x01(\t\x12\x19\n\x11\x61uthorizationCode\x18\x04 \x01(\t\x12\x14\n\x0crefreshToken\x18\x05 \x01(\t\"_\n\x11\x41uthorizeUserData\x12\r\n\x05token\x18\x01 \x01(\t\x12;\n\ncredential\x18\x02 \x01(\x0b\x32\'.chameleon.security.auth.UserCredential\"\x82\x02\n\x11\x41uthorizeResponse\x12\x31\n\x05\x65rror\x18\x01 \x01(\x0e\x32\".chameleon.security.auth.AuthError\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x35\n\x04\x64\x61ta\x18\x03 \x01(\x0b\x32\'.chameleon.security.auth.AuthorizedData\x12\x35\n\x04user\x18\x04 \x01(\x0b\x32\'.chameleon.security.auth.AuthorizedUser\x12;\n\x03\x61pp\x18\x05 \x01(\x0b\x32..chameleon.security.auth.AuthorizedApplication\"\x9a\x01\n\x0e\x41uthorizedData\x12\x15\n\rauthorizeCode\x18\x01 \x01(\t\x12\x13\n\x0b\x61\x63\x63\x65ssToken\x18\x02 \x01(\t\x12\x14\n\x0crefreshToken\x18\x03 \x01(\t\x12\x1a\n\x12\x61\x63\x63\x65ssTokenExpires\x18\x04 \x01(\x03\x12\x1b\n\x13refreshTokenExpires\x18\x05 \x01(\x03\x12\r\n\x05roles\x18\x06 \x03(\t\"\x1c\n\x0e\x41uthorizedUser\x12\n\n\x02id\x18\x01 \x01(\t\"b\n\x15\x41uthorizedApplication\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0bredirectURI\x18\x03 \x01(\t\x12\x1a\n\x12isSecurityCritical\x18\x04 \x01(\x08\"+\n\x1aValidateAccessTokenRequest\x12\r\n\x05token\x18\x01 \x01(\t\"c\n\x1bValidateAccessTokenResposne\x12\x33\n\x08identity\x18\x01 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12\x0f\n\x07\x65xpires\x18\x02 \x01(\x03\"i\n\x18PermitApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\x12.\n\nexpireTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"9\n\x18RevokeApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\"g\n\x16\x44\x65nyApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\x12.\n\nexpireTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"i\n\x16\x41uthorizeAccessRequest\x12:\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32,.chameleon.security.auth.AuthorizeAccessData\x12\x13\n\x0bimpersonate\x18\x02 \x01(\x08\"\x9c\x02\n\x17\x41uthorizeAccessResponse\x12\x35\n\tsignature\x18\x01 \x01(\x0b\x32\".chameleon.security.auth.Signature\x12\x39\n\x0b\x61\x63\x63\x65ssToken\x18\x02 \x01(\x0b\x32$.chameleon.security.auth.AccessToken\x12\x43\n\x10impersonateToken\x18\x03 \x01(\x0b\x32).chameleon.security.auth.ImpersonateToken\x12\x33\n\x08identity\x18\x04 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12\x15\n\rimpersonation\x18\x05 \x01(\tBR\n\x1b\x63om.chameleon.security.authB\x13ServiceMessageProtoP\x01Z\x1c\x63hameleon/security/auth;authb\x06proto3'
   ,
-  dependencies=[google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_auth__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_token__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_credential__pb2.DESCRIPTOR,])
+  dependencies=[google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,chameleon_dot_security_dot_identity_dot_data__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_auth__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_token__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_credential__pb2.DESCRIPTOR,])
 
 
 
@@ -58,8 +59,8 @@ _GETAPPLICATIONINFOREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=222,
-  serialized_end=261,
+  serialized_start=262,
+  serialized_end=301,
 )
 
 
@@ -97,8 +98,8 @@ _GETAPPLICATIONINFORESPONSE_INFOENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=425,
-  serialized_end=468,
+  serialized_start=465,
+  serialized_end=508,
 )
 
 _GETAPPLICATIONINFORESPONSE = _descriptor.Descriptor(
@@ -149,8 +150,8 @@ _GETAPPLICATIONINFORESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=264,
-  serialized_end=468,
+  serialized_start=304,
+  serialized_end=508,
 )
 
 
@@ -169,6 +170,13 @@ _GETUSERINFOREQUEST = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='field', full_name='chameleon.security.auth.GetUserInfoRequest.field', index=1,
+      number=3, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -181,48 +189,10 @@ _GETUSERINFOREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=470,
-  serialized_end=502,
+  serialized_start=510,
+  serialized_end=607,
 )
 
-
-_GETUSERINFORESPONSE_INFOENTRY = _descriptor.Descriptor(
-  name='InfoEntry',
-  full_name='chameleon.security.auth.GetUserInfoResponse.InfoEntry',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='key', full_name='chameleon.security.auth.GetUserInfoResponse.InfoEntry.key', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='value', full_name='chameleon.security.auth.GetUserInfoResponse.InfoEntry.value', index=1,
-      number=2, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=b'8\001',
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=425,
-  serialized_end=468,
-)
 
 _GETUSERINFORESPONSE = _descriptor.Descriptor(
   name='GetUserInfoResponse',
@@ -247,16 +217,44 @@ _GETUSERINFORESPONSE = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='info', full_name='chameleon.security.auth.GetUserInfoResponse.info', index=2,
-      number=3, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
+      name='avatar', full_name='chameleon.security.auth.GetUserInfoResponse.avatar', index=2,
+      number=5, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='firstName', full_name='chameleon.security.auth.GetUserInfoResponse.firstName', index=3,
+      number=6, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='lastName', full_name='chameleon.security.auth.GetUserInfoResponse.lastName', index=4,
+      number=7, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='locale', full_name='chameleon.security.auth.GetUserInfoResponse.locale', index=5,
+      number=9, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='channel', full_name='chameleon.security.auth.GetUserInfoResponse.channel', index=6,
+      number=10, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
-  nested_types=[_GETUSERINFORESPONSE_INFOENTRY, ],
+  nested_types=[],
   enum_types=[
   ],
   serialized_options=None,
@@ -265,8 +263,253 @@ _GETUSERINFORESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=505,
-  serialized_end=667,
+  serialized_start=610,
+  serialized_end=743,
+)
+
+
+_REGISTERREQUEST_INFOENTRY = _descriptor.Descriptor(
+  name='InfoEntry',
+  full_name='chameleon.security.auth.RegisterRequest.InfoEntry',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='key', full_name='chameleon.security.auth.RegisterRequest.InfoEntry.key', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='value', full_name='chameleon.security.auth.RegisterRequest.InfoEntry.value', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=b'8\001',
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=465,
+  serialized_end=508,
+)
+
+_REGISTERREQUEST = _descriptor.Descriptor(
+  name='RegisterRequest',
+  full_name='chameleon.security.auth.RegisterRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='name', full_name='chameleon.security.auth.RegisterRequest.name', index=0,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='email', full_name='chameleon.security.auth.RegisterRequest.email', index=1,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='roles', full_name='chameleon.security.auth.RegisterRequest.roles', index=2,
+      number=9, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='password', full_name='chameleon.security.auth.RegisterRequest.password', index=3,
+      number=11, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='protocolVersion', full_name='chameleon.security.auth.RegisterRequest.protocolVersion', index=4,
+      number=15, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='channelCode', full_name='chameleon.security.auth.RegisterRequest.channelCode', index=5,
+      number=26, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='locale', full_name='chameleon.security.auth.RegisterRequest.locale', index=6,
+      number=27, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='info', full_name='chameleon.security.auth.RegisterRequest.info', index=7,
+      number=31, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[_REGISTERREQUEST_INFOENTRY, ],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=746,
+  serialized_end=998,
+)
+
+
+_REGISTERRESPONSE = _descriptor.Descriptor(
+  name='RegisterResponse',
+  full_name='chameleon.security.auth.RegisterResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1000,
+  serialized_end=1018,
+)
+
+
+_RESETPASSWORDREQUEST_SENDEMAIL = _descriptor.Descriptor(
+  name='SendEmail',
+  full_name='chameleon.security.auth.ResetPasswordRequest.SendEmail',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='email', full_name='chameleon.security.auth.ResetPasswordRequest.SendEmail.email', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1044,
+  serialized_end=1070,
+)
+
+_RESETPASSWORDREQUEST_RESETPASSWORD = _descriptor.Descriptor(
+  name='ResetPassword',
+  full_name='chameleon.security.auth.ResetPasswordRequest.ResetPassword',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='token', full_name='chameleon.security.auth.ResetPasswordRequest.ResetPassword.token', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='email', full_name='chameleon.security.auth.ResetPasswordRequest.ResetPassword.email', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='password', full_name='chameleon.security.auth.ResetPasswordRequest.ResetPassword.password', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1072,
+  serialized_end=1135,
+)
+
+_RESETPASSWORDREQUEST = _descriptor.Descriptor(
+  name='ResetPasswordRequest',
+  full_name='chameleon.security.auth.ResetPasswordRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[_RESETPASSWORDREQUEST_SENDEMAIL, _RESETPASSWORDREQUEST_RESETPASSWORD, ],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1020,
+  serialized_end=1135,
 )
 
 
@@ -300,7 +543,7 @@ _AUTHORIZEREQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='scopes', full_name='chameleon.security.auth.AuthorizeRequest.scopes', index=3,
+      name='roles', full_name='chameleon.security.auth.AuthorizeRequest.roles', index=3,
       number=4, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -332,8 +575,8 @@ _AUTHORIZEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=670,
-  serialized_end=938,
+  serialized_start=1138,
+  serialized_end=1405,
 )
 
 
@@ -392,8 +635,8 @@ _AUTHORIZEAPPDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=940,
-  serialized_end=1056,
+  serialized_start=1407,
+  serialized_end=1523,
 )
 
 
@@ -431,8 +674,8 @@ _AUTHORIZEUSERDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1058,
-  serialized_end=1153,
+  serialized_start=1525,
+  serialized_end=1620,
 )
 
 
@@ -491,8 +734,8 @@ _AUTHORIZERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1156,
-  serialized_end=1414,
+  serialized_start=1623,
+  serialized_end=1881,
 )
 
 
@@ -540,7 +783,7 @@ _AUTHORIZEDDATA = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='scopes', full_name='chameleon.security.auth.AuthorizedData.scopes', index=5,
+      name='roles', full_name='chameleon.security.auth.AuthorizedData.roles', index=5,
       number=6, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -558,8 +801,8 @@ _AUTHORIZEDDATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1417,
-  serialized_end=1572,
+  serialized_start=1884,
+  serialized_end=2038,
 )
 
 
@@ -590,8 +833,8 @@ _AUTHORIZEDUSER = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1574,
-  serialized_end=1602,
+  serialized_start=2040,
+  serialized_end=2068,
 )
 
 
@@ -643,8 +886,8 @@ _AUTHORIZEDAPPLICATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1604,
-  serialized_end=1702,
+  serialized_start=2070,
+  serialized_end=2168,
 )
 
 
@@ -675,8 +918,8 @@ _VALIDATEACCESSTOKENREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1704,
-  serialized_end=1747,
+  serialized_start=2170,
+  serialized_end=2213,
 )
 
 
@@ -714,8 +957,8 @@ _VALIDATEACCESSTOKENRESPOSNE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1749,
-  serialized_end=1848,
+  serialized_start=2215,
+  serialized_end=2314,
 )
 
 
@@ -760,8 +1003,8 @@ _PERMITAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1850,
-  serialized_end=1955,
+  serialized_start=2316,
+  serialized_end=2421,
 )
 
 
@@ -799,8 +1042,8 @@ _REVOKEAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1957,
-  serialized_end=2014,
+  serialized_start=2423,
+  serialized_end=2480,
 )
 
 
@@ -845,8 +1088,8 @@ _DENYAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2016,
-  serialized_end=2119,
+  serialized_start=2482,
+  serialized_end=2585,
 )
 
 
@@ -884,8 +1127,8 @@ _AUTHORIZEACCESSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2121,
-  serialized_end=2226,
+  serialized_start=2587,
+  serialized_end=2692,
 )
 
 
@@ -944,14 +1187,17 @@ _AUTHORIZEACCESSRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2229,
-  serialized_end=2513,
+  serialized_start=2695,
+  serialized_end=2979,
 )
 
 _GETAPPLICATIONINFORESPONSE_INFOENTRY.containing_type = _GETAPPLICATIONINFORESPONSE
 _GETAPPLICATIONINFORESPONSE.fields_by_name['info'].message_type = _GETAPPLICATIONINFORESPONSE_INFOENTRY
-_GETUSERINFORESPONSE_INFOENTRY.containing_type = _GETUSERINFORESPONSE
-_GETUSERINFORESPONSE.fields_by_name['info'].message_type = _GETUSERINFORESPONSE_INFOENTRY
+_GETUSERINFOREQUEST.fields_by_name['field'].enum_type = chameleon_dot_security_dot_identity_dot_data__pb2._USERUNIQUEFIELDTYPE
+_REGISTERREQUEST_INFOENTRY.containing_type = _REGISTERREQUEST
+_REGISTERREQUEST.fields_by_name['info'].message_type = _REGISTERREQUEST_INFOENTRY
+_RESETPASSWORDREQUEST_SENDEMAIL.containing_type = _RESETPASSWORDREQUEST
+_RESETPASSWORDREQUEST_RESETPASSWORD.containing_type = _RESETPASSWORDREQUEST
 _AUTHORIZEREQUEST.fields_by_name['type'].enum_type = chameleon_dot_security_dot_auth_dot_auth__pb2._AUTHTYPE
 _AUTHORIZEREQUEST.fields_by_name['app'].message_type = _AUTHORIZEAPPDATA
 _AUTHORIZEREQUEST.fields_by_name['user'].message_type = _AUTHORIZEUSERDATA
@@ -973,6 +1219,9 @@ DESCRIPTOR.message_types_by_name['GetApplicationInfoRequest'] = _GETAPPLICATIONI
 DESCRIPTOR.message_types_by_name['GetApplicationInfoResponse'] = _GETAPPLICATIONINFORESPONSE
 DESCRIPTOR.message_types_by_name['GetUserInfoRequest'] = _GETUSERINFOREQUEST
 DESCRIPTOR.message_types_by_name['GetUserInfoResponse'] = _GETUSERINFORESPONSE
+DESCRIPTOR.message_types_by_name['RegisterRequest'] = _REGISTERREQUEST
+DESCRIPTOR.message_types_by_name['RegisterResponse'] = _REGISTERRESPONSE
+DESCRIPTOR.message_types_by_name['ResetPasswordRequest'] = _RESETPASSWORDREQUEST
 DESCRIPTOR.message_types_by_name['AuthorizeRequest'] = _AUTHORIZEREQUEST
 DESCRIPTOR.message_types_by_name['AuthorizeAppData'] = _AUTHORIZEAPPDATA
 DESCRIPTOR.message_types_by_name['AuthorizeUserData'] = _AUTHORIZEUSERDATA
@@ -1019,19 +1268,56 @@ GetUserInfoRequest = _reflection.GeneratedProtocolMessageType('GetUserInfoReques
 _sym_db.RegisterMessage(GetUserInfoRequest)
 
 GetUserInfoResponse = _reflection.GeneratedProtocolMessageType('GetUserInfoResponse', (_message.Message,), {
-
-  'InfoEntry' : _reflection.GeneratedProtocolMessageType('InfoEntry', (_message.Message,), {
-    'DESCRIPTOR' : _GETUSERINFORESPONSE_INFOENTRY,
-    '__module__' : 'chameleon.security.auth.service_message_pb2'
-    # @@protoc_insertion_point(class_scope:chameleon.security.auth.GetUserInfoResponse.InfoEntry)
-    })
-  ,
   'DESCRIPTOR' : _GETUSERINFORESPONSE,
   '__module__' : 'chameleon.security.auth.service_message_pb2'
   # @@protoc_insertion_point(class_scope:chameleon.security.auth.GetUserInfoResponse)
   })
 _sym_db.RegisterMessage(GetUserInfoResponse)
-_sym_db.RegisterMessage(GetUserInfoResponse.InfoEntry)
+
+RegisterRequest = _reflection.GeneratedProtocolMessageType('RegisterRequest', (_message.Message,), {
+
+  'InfoEntry' : _reflection.GeneratedProtocolMessageType('InfoEntry', (_message.Message,), {
+    'DESCRIPTOR' : _REGISTERREQUEST_INFOENTRY,
+    '__module__' : 'chameleon.security.auth.service_message_pb2'
+    # @@protoc_insertion_point(class_scope:chameleon.security.auth.RegisterRequest.InfoEntry)
+    })
+  ,
+  'DESCRIPTOR' : _REGISTERREQUEST,
+  '__module__' : 'chameleon.security.auth.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.auth.RegisterRequest)
+  })
+_sym_db.RegisterMessage(RegisterRequest)
+_sym_db.RegisterMessage(RegisterRequest.InfoEntry)
+
+RegisterResponse = _reflection.GeneratedProtocolMessageType('RegisterResponse', (_message.Message,), {
+  'DESCRIPTOR' : _REGISTERRESPONSE,
+  '__module__' : 'chameleon.security.auth.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.auth.RegisterResponse)
+  })
+_sym_db.RegisterMessage(RegisterResponse)
+
+ResetPasswordRequest = _reflection.GeneratedProtocolMessageType('ResetPasswordRequest', (_message.Message,), {
+
+  'SendEmail' : _reflection.GeneratedProtocolMessageType('SendEmail', (_message.Message,), {
+    'DESCRIPTOR' : _RESETPASSWORDREQUEST_SENDEMAIL,
+    '__module__' : 'chameleon.security.auth.service_message_pb2'
+    # @@protoc_insertion_point(class_scope:chameleon.security.auth.ResetPasswordRequest.SendEmail)
+    })
+  ,
+
+  'ResetPassword' : _reflection.GeneratedProtocolMessageType('ResetPassword', (_message.Message,), {
+    'DESCRIPTOR' : _RESETPASSWORDREQUEST_RESETPASSWORD,
+    '__module__' : 'chameleon.security.auth.service_message_pb2'
+    # @@protoc_insertion_point(class_scope:chameleon.security.auth.ResetPasswordRequest.ResetPassword)
+    })
+  ,
+  'DESCRIPTOR' : _RESETPASSWORDREQUEST,
+  '__module__' : 'chameleon.security.auth.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.auth.ResetPasswordRequest)
+  })
+_sym_db.RegisterMessage(ResetPasswordRequest)
+_sym_db.RegisterMessage(ResetPasswordRequest.SendEmail)
+_sym_db.RegisterMessage(ResetPasswordRequest.ResetPassword)
 
 AuthorizeRequest = _reflection.GeneratedProtocolMessageType('AuthorizeRequest', (_message.Message,), {
   'DESCRIPTOR' : _AUTHORIZEREQUEST,
@@ -1134,5 +1420,5 @@ _sym_db.RegisterMessage(AuthorizeAccessResponse)
 
 DESCRIPTOR._options = None
 _GETAPPLICATIONINFORESPONSE_INFOENTRY._options = None
-_GETUSERINFORESPONSE_INFOENTRY._options = None
+_REGISTERREQUEST_INFOENTRY._options = None
 # @@protoc_insertion_point(module_scope)

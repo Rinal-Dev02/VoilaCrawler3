@@ -21,7 +21,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z\rerrors;errors',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x11\x65rrors/code.proto\x12\x06\x65rrors*\xad\x02\n\x04\x43ode\x12\x06\n\x02OK\x10\x00\x12\r\n\tCancelled\x10\x01\x12\x0b\n\x07Unknown\x10\x02\x12\x13\n\x0fInvalidArgument\x10\x03\x12\x14\n\x10\x44\x65\x61\x64lineExceeded\x10\x04\x12\x0c\n\x08NotFound\x10\x05\x12\x11\n\rAlreadyExists\x10\x06\x12\x14\n\x10PermissionDenied\x10\x07\x12\x13\n\x0fUnauthenticated\x10\x10\x12\x15\n\x11ResourceExhausted\x10\x08\x12\x16\n\x12\x46\x61iledPrecondition\x10\t\x12\x0b\n\x07\x41\x62orted\x10\n\x12\x0e\n\nOutOfRange\x10\x0b\x12\x11\n\rUnimplemented\x10\x0c\x12\x0c\n\x08Internal\x10\r\x12\x0f\n\x0bUnavailable\x10\x0e\x12\x0c\n\x08\x44\x61taLoss\x10\x0f\x42\x0fZ\rerrors;errorsb\x06proto3'
+  serialized_pb=b'\n\x11\x65rrors/code.proto\x12\x06\x65rrors*\xbb\x02\n\x04\x43ode\x12\x06\n\x02OK\x10\x00\x12\r\n\tCancelled\x10\x01\x12\x0b\n\x07Unknown\x10\x02\x12\x13\n\x0fInvalidArgument\x10\x03\x12\x14\n\x10\x44\x65\x61\x64lineExceeded\x10\x04\x12\x0c\n\x08NotFound\x10\x05\x12\x11\n\rAlreadyExists\x10\x06\x12\x14\n\x10PermissionDenied\x10\x07\x12\x13\n\x0fUnauthenticated\x10\x10\x12\x15\n\x11ResourceExhausted\x10\x08\x12\x16\n\x12\x46\x61iledPrecondition\x10\t\x12\x0b\n\x07\x41\x62orted\x10\n\x12\x0e\n\nOutOfRange\x10\x0b\x12\x11\n\rUnimplemented\x10\x0c\x12\x0c\n\x08Internal\x10\r\x12\x0f\n\x0bUnavailable\x10\x0e\x12\x0c\n\x08\x44\x61taLoss\x10\x0f\x12\x0c\n\x08Redirect\x10\x15\x42\x0fZ\rerrors;errorsb\x06proto3'
 )
 
 _CODE = _descriptor.EnumDescriptor(
@@ -116,11 +116,16 @@ _CODE = _descriptor.EnumDescriptor(
       serialized_options=None,
       type=None,
       create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='Redirect', index=17, number=21,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
   ],
   containing_type=None,
   serialized_options=None,
   serialized_start=30,
-  serialized_end=331,
+  serialized_end=345,
 )
 _sym_db.RegisterEnumDescriptor(_CODE)
 
@@ -142,6 +147,7 @@ Unimplemented = 12
 Internal = 13
 Unavailable = 14
 DataLoss = 15
+Redirect = 21
 
 
 DESCRIPTOR.enum_types_by_name['Code'] = _CODE

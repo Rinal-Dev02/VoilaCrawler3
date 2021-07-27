@@ -22,7 +22,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z&chameleon/smelter/v1/crawl/proxy;proxy',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n+chameleon/smelter/v1/crawl/proxy/data.proto\x12 chameleon.smelter.v1.crawl.proxy\x1a\x1d\x63hameleon/api/http/data.proto\"\xb1\x05\n\x07Request\x12\x11\n\ttracingId\x18\x01 \x01(\t\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\r\n\x05reqId\x18\x03 \x01(\t\x12\x0e\n\x06method\x18\x06 \x01(\t\x12\x0b\n\x03url\x18\x07 \x01(\t\x12G\n\x07headers\x18\x08 \x03(\x0b\x32\x36.chameleon.smelter.v1.crawl.proxy.Request.HeadersEntry\x12\x0c\n\x04\x62ody\x18\t \x01(\x0c\x12\x42\n\x07options\x18\x0b \x01(\x0b\x32\x31.chameleon.smelter.v1.crawl.proxy.Request.Options\x12<\n\x08response\x18\x0f \x01(\x0b\x32*.chameleon.smelter.v1.crawl.proxy.Response\x1a\xaf\x02\n\x07Options\x12\x13\n\x0b\x65nableProxy\x18\x01 \x01(\x08\x12G\n\x0breliability\x18\x02 \x01(\x0e\x32\x32.chameleon.smelter.v1.crawl.proxy.ProxyReliability\x12\x16\n\x0e\x65nableHeadless\x18\x03 \x01(\x08\x12\x16\n\x0ejsWaitDuration\x18\x04 \x01(\x03\x12\x19\n\x11\x65nableSessionInit\x18\x05 \x01(\x08\x12\x13\n\x0bkeepSession\x18\x06 \x01(\x08\x12\x18\n\x10\x64isableCookieJar\x18\x07 \x01(\x08\x12\x18\n\x10maxTtlPerRequest\x18\x08 \x01(\x03\x12\x17\n\x0f\x64isableRedirect\x18\x0b \x01(\x08\x12\x19\n\x11requestFilterKeys\x18\x0f \x03(\t\x1aM\n\x0cHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.chameleon.api.http.ListValue:\x02\x38\x01\"\x8a\x03\n\x08Response\x12\x12\n\nstatusCode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\x12\r\n\x05proto\x18\x03 \x01(\t\x12\x12\n\nprotoMajor\x18\x04 \x01(\x05\x12\x12\n\nprotoMinor\x18\x05 \x01(\x05\x12H\n\x07headers\x18\x06 \x03(\x0b\x32\x37.chameleon.smelter.v1.crawl.proxy.Response.HeadersEntry\x12\x0c\n\x04\x62ody\x18\t \x01(\x0c\x12\x15\n\rbodyCacheLink\x18\x0b \x01(\t\x12\x10\n\x08\x64uration\x18\x0c \x01(\x03\x12\x17\n\x0f\x61verageDuration\x18\r \x01(\x03\x12:\n\x07request\x18\x0f \x01(\x0b\x32).chameleon.smelter.v1.crawl.proxy.Request\x1aM\n\x0cHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.chameleon.api.http.ListValue:\x02\x38\x01\"\xec\x01\n\x0bRequestWrap\x12\r\n\x05reqId\x18\x01 \x01(\t\x12:\n\x07request\x18\x02 \x01(\x0b\x32).chameleon.smelter.v1.crawl.proxy.Request\x12\x10\n\x08\x64\x65\x61\x64line\x18\x06 \x01(\x03\x12\x11\n\texecCount\x18\x07 \x01(\x05\x12\x10\n\x08\x64uration\x18\x0b \x01(\x03\x12\x17\n\x0f\x61verageDuration\x18\x0c \x01(\x03\x12\x42\n\x07options\x18\x0f \x01(\x0b\x32\x31.chameleon.smelter.v1.crawl.proxy.Request.Options*\x9f\x01\n\x10ProxyReliability\x12\x16\n\x12ReliabilityDefault\x10\x00\x12\x12\n\x0eReliabilityLow\x10\x01\x12\x15\n\x11ReliabilityMedium\x10\x02\x12\x13\n\x0fReliabilityHigh\x10\x03\x12\x17\n\x13ReliabilityRealtime\x10\t\x12\x1a\n\x16ReliabilityIntelligent\x10\nB(Z&chameleon/smelter/v1/crawl/proxy;proxyb\x06proto3'
+  serialized_pb=b'\n+chameleon/smelter/v1/crawl/proxy/data.proto\x12 chameleon.smelter.v1.crawl.proxy\x1a\x1d\x63hameleon/api/http/data.proto\"\xb1\x05\n\x07Request\x12\x11\n\ttracingId\x18\x01 \x01(\t\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\r\n\x05reqId\x18\x03 \x01(\t\x12\x0e\n\x06method\x18\x06 \x01(\t\x12\x0b\n\x03url\x18\x07 \x01(\t\x12G\n\x07headers\x18\x08 \x03(\x0b\x32\x36.chameleon.smelter.v1.crawl.proxy.Request.HeadersEntry\x12\x0c\n\x04\x62ody\x18\t \x01(\x0c\x12\x42\n\x07options\x18\x0b \x01(\x0b\x32\x31.chameleon.smelter.v1.crawl.proxy.Request.Options\x12<\n\x08response\x18\x0f \x01(\x0b\x32*.chameleon.smelter.v1.crawl.proxy.Response\x1a\xaf\x02\n\x07Options\x12\x13\n\x0b\x65nableProxy\x18\x01 \x01(\x08\x12G\n\x0breliability\x18\x02 \x01(\x0e\x32\x32.chameleon.smelter.v1.crawl.proxy.ProxyReliability\x12\x16\n\x0e\x65nableHeadless\x18\x03 \x01(\x08\x12\x16\n\x0ejsWaitDuration\x18\x04 \x01(\x03\x12\x19\n\x11\x65nableSessionInit\x18\x05 \x01(\x08\x12\x13\n\x0bkeepSession\x18\x06 \x01(\x08\x12\x18\n\x10\x64isableCookieJar\x18\x07 \x01(\x08\x12\x18\n\x10maxTtlPerRequest\x18\x08 \x01(\x03\x12\x17\n\x0f\x64isableRedirect\x18\x0b \x01(\x08\x12\x19\n\x11requestFilterKeys\x18\x0f \x03(\t\x1aM\n\x0cHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.chameleon.api.http.ListValue:\x02\x38\x01\"\x8a\x03\n\x08Response\x12\x12\n\nstatusCode\x18\x01 \x01(\x05\x12\x0e\n\x06status\x18\x02 \x01(\t\x12\r\n\x05proto\x18\x03 \x01(\t\x12\x12\n\nprotoMajor\x18\x04 \x01(\x05\x12\x12\n\nprotoMinor\x18\x05 \x01(\x05\x12H\n\x07headers\x18\x06 \x03(\x0b\x32\x37.chameleon.smelter.v1.crawl.proxy.Response.HeadersEntry\x12\x0c\n\x04\x62ody\x18\t \x01(\x0c\x12\x15\n\rbodyCacheLink\x18\x0b \x01(\t\x12\x10\n\x08\x64uration\x18\x0c \x01(\x03\x12\x17\n\x0f\x61verageDuration\x18\r \x01(\x03\x12:\n\x07request\x18\x0f \x01(\x0b\x32).chameleon.smelter.v1.crawl.proxy.Request\x1aM\n\x0cHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12,\n\x05value\x18\x02 \x01(\x0b\x32\x1d.chameleon.api.http.ListValue:\x02\x38\x01\"\xec\x01\n\x0bRequestWrap\x12\r\n\x05reqId\x18\x01 \x01(\t\x12:\n\x07request\x18\x02 \x01(\x0b\x32).chameleon.smelter.v1.crawl.proxy.Request\x12\x10\n\x08\x64\x65\x61\x64line\x18\x06 \x01(\x03\x12\x11\n\texecCount\x18\x07 \x01(\x05\x12\x10\n\x08\x64uration\x18\x0b \x01(\x03\x12\x17\n\x0f\x61verageDuration\x18\x0c \x01(\x03\x12\x42\n\x07options\x18\x0f \x01(\x0b\x32\x31.chameleon.smelter.v1.crawl.proxy.Request.Options\"\x9c\x02\n\x0cRegisterInfo\x12\x0f\n\x07\x61\x64\x64ress\x18\x01 \x01(\t\x12\x13\n\x0b\x65nableProxy\x18\x02 \x01(\x08\x12\x16\n\x0e\x65nableHeadless\x18\x03 \x01(\x08\x12\x13\n\x0bthreadLimit\x18\x04 \x01(\x05\x12G\n\x0breliability\x18\x05 \x03(\x0e\x32\x32.chameleon.smelter.v1.crawl.proxy.ProxyReliability\x12\x44\n\x03tag\x18\x06 \x03(\x0b\x32\x37.chameleon.smelter.v1.crawl.proxy.RegisterInfo.TagEntry\x1a*\n\x08TagEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01*\x9f\x01\n\x10ProxyReliability\x12\x16\n\x12ReliabilityDefault\x10\x00\x12\x12\n\x0eReliabilityLow\x10\x01\x12\x15\n\x11ReliabilityMedium\x10\x02\x12\x13\n\x0fReliabilityHigh\x10\x03\x12\x17\n\x13ReliabilityRealtime\x10\t\x12\x1a\n\x16ReliabilityIntelligent\x10\nB(Z&chameleon/smelter/v1/crawl/proxy;proxyb\x06proto3'
   ,
   dependencies=[chameleon_dot_api_dot_http_dot_data__pb2.DESCRIPTOR,])
 
@@ -66,8 +66,8 @@ _PROXYRELIABILITY = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=1441,
-  serialized_end=1600,
+  serialized_start=1728,
+  serialized_end=1887,
 )
 _sym_db.RegisterEnumDescriptor(_PROXYRELIABILITY)
 
@@ -514,6 +514,111 @@ _REQUESTWRAP = _descriptor.Descriptor(
   serialized_end=1438,
 )
 
+
+_REGISTERINFO_TAGENTRY = _descriptor.Descriptor(
+  name='TagEntry',
+  full_name='chameleon.smelter.v1.crawl.proxy.RegisterInfo.TagEntry',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='key', full_name='chameleon.smelter.v1.crawl.proxy.RegisterInfo.TagEntry.key', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='value', full_name='chameleon.smelter.v1.crawl.proxy.RegisterInfo.TagEntry.value', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=b'8\001',
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1683,
+  serialized_end=1725,
+)
+
+_REGISTERINFO = _descriptor.Descriptor(
+  name='RegisterInfo',
+  full_name='chameleon.smelter.v1.crawl.proxy.RegisterInfo',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='address', full_name='chameleon.smelter.v1.crawl.proxy.RegisterInfo.address', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='enableProxy', full_name='chameleon.smelter.v1.crawl.proxy.RegisterInfo.enableProxy', index=1,
+      number=2, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='enableHeadless', full_name='chameleon.smelter.v1.crawl.proxy.RegisterInfo.enableHeadless', index=2,
+      number=3, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='threadLimit', full_name='chameleon.smelter.v1.crawl.proxy.RegisterInfo.threadLimit', index=3,
+      number=4, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='reliability', full_name='chameleon.smelter.v1.crawl.proxy.RegisterInfo.reliability', index=4,
+      number=5, type=14, cpp_type=8, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='tag', full_name='chameleon.smelter.v1.crawl.proxy.RegisterInfo.tag', index=5,
+      number=6, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[_REGISTERINFO_TAGENTRY, ],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1441,
+  serialized_end=1725,
+)
+
 _REQUEST_OPTIONS.fields_by_name['reliability'].enum_type = _PROXYRELIABILITY
 _REQUEST_OPTIONS.containing_type = _REQUEST
 _REQUEST_HEADERSENTRY.fields_by_name['value'].message_type = chameleon_dot_api_dot_http_dot_data__pb2._LISTVALUE
@@ -527,9 +632,13 @@ _RESPONSE.fields_by_name['headers'].message_type = _RESPONSE_HEADERSENTRY
 _RESPONSE.fields_by_name['request'].message_type = _REQUEST
 _REQUESTWRAP.fields_by_name['request'].message_type = _REQUEST
 _REQUESTWRAP.fields_by_name['options'].message_type = _REQUEST_OPTIONS
+_REGISTERINFO_TAGENTRY.containing_type = _REGISTERINFO
+_REGISTERINFO.fields_by_name['reliability'].enum_type = _PROXYRELIABILITY
+_REGISTERINFO.fields_by_name['tag'].message_type = _REGISTERINFO_TAGENTRY
 DESCRIPTOR.message_types_by_name['Request'] = _REQUEST
 DESCRIPTOR.message_types_by_name['Response'] = _RESPONSE
 DESCRIPTOR.message_types_by_name['RequestWrap'] = _REQUESTWRAP
+DESCRIPTOR.message_types_by_name['RegisterInfo'] = _REGISTERINFO
 DESCRIPTOR.enum_types_by_name['ProxyReliability'] = _PROXYRELIABILITY
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -578,8 +687,24 @@ RequestWrap = _reflection.GeneratedProtocolMessageType('RequestWrap', (_message.
   })
 _sym_db.RegisterMessage(RequestWrap)
 
+RegisterInfo = _reflection.GeneratedProtocolMessageType('RegisterInfo', (_message.Message,), {
+
+  'TagEntry' : _reflection.GeneratedProtocolMessageType('TagEntry', (_message.Message,), {
+    'DESCRIPTOR' : _REGISTERINFO_TAGENTRY,
+    '__module__' : 'chameleon.smelter.v1.crawl.proxy.data_pb2'
+    # @@protoc_insertion_point(class_scope:chameleon.smelter.v1.crawl.proxy.RegisterInfo.TagEntry)
+    })
+  ,
+  'DESCRIPTOR' : _REGISTERINFO,
+  '__module__' : 'chameleon.smelter.v1.crawl.proxy.data_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.smelter.v1.crawl.proxy.RegisterInfo)
+  })
+_sym_db.RegisterMessage(RegisterInfo)
+_sym_db.RegisterMessage(RegisterInfo.TagEntry)
+
 
 DESCRIPTOR._options = None
 _REQUEST_HEADERSENTRY._options = None
 _RESPONSE_HEADERSENTRY._options = None
+_REGISTERINFO_TAGENTRY._options = None
 # @@protoc_insertion_point(module_scope)

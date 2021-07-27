@@ -21,7 +21,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z\030protobuf/options;options',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x1bprotobuf/options/auth.proto\x12\x10protobuf.options\"Z\n\x08\x41uthRule\x12*\n\x05level\x18\x01 \x01(\x0e\x32\x1b.protobuf.options.AuthLevel\x12\r\n\x05scope\x18\x02 \x01(\t\x12\x13\n\x0brequireUser\x18\x03 \x01(\x08*=\n\tAuthLevel\x12\n\n\x06NoAuth\x10\x00\x12\x10\n\x0cOptionalAuth\x10\x01\x12\x12\n\x0eRestrictedAuth\x10\x02\x42\x1aZ\x18protobuf/options;optionsb\x06proto3'
+  serialized_pb=b'\n\x1bprotobuf/options/auth.proto\x12\x10protobuf.options\"\x85\x01\n\x08\x41uthRule\x12*\n\x05level\x18\x01 \x01(\x0e\x32\x1b.protobuf.options.AuthLevel\x12\r\n\x05scope\x18\x02 \x01(\t\x12)\n\x04verb\x18\x03 \x01(\x0e\x32\x1b.protobuf.options.ScopeVerb\x12\x13\n\x0brequireUser\x18\x06 \x01(\x08*=\n\tAuthLevel\x12\n\n\x06NoAuth\x10\x00\x12\x10\n\x0cOptionalAuth\x10\x01\x12\x12\n\x0eRestrictedAuth\x10\x02*B\n\tScopeVerb\x12\x08\n\x04\x41UTO\x10\x00\x12\x07\n\x03GET\x10\x01\x12\n\n\x06\x43REATE\x10\x03\x12\n\n\x06UPDATE\x10\x04\x12\n\n\x06\x44\x45LETE\x10\x06\x42\x1aZ\x18protobuf/options;optionsb\x06proto3'
 )
 
 _AUTHLEVEL = _descriptor.EnumDescriptor(
@@ -49,15 +49,61 @@ _AUTHLEVEL = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=141,
-  serialized_end=202,
+  serialized_start=185,
+  serialized_end=246,
 )
 _sym_db.RegisterEnumDescriptor(_AUTHLEVEL)
 
 AuthLevel = enum_type_wrapper.EnumTypeWrapper(_AUTHLEVEL)
+_SCOPEVERB = _descriptor.EnumDescriptor(
+  name='ScopeVerb',
+  full_name='protobuf.options.ScopeVerb',
+  filename=None,
+  file=DESCRIPTOR,
+  create_key=_descriptor._internal_create_key,
+  values=[
+    _descriptor.EnumValueDescriptor(
+      name='AUTO', index=0, number=0,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='GET', index=1, number=1,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='CREATE', index=2, number=3,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='UPDATE', index=3, number=4,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+    _descriptor.EnumValueDescriptor(
+      name='DELETE', index=4, number=6,
+      serialized_options=None,
+      type=None,
+      create_key=_descriptor._internal_create_key),
+  ],
+  containing_type=None,
+  serialized_options=None,
+  serialized_start=248,
+  serialized_end=314,
+)
+_sym_db.RegisterEnumDescriptor(_SCOPEVERB)
+
+ScopeVerb = enum_type_wrapper.EnumTypeWrapper(_SCOPEVERB)
 NoAuth = 0
 OptionalAuth = 1
 RestrictedAuth = 2
+AUTO = 0
+GET = 1
+CREATE = 3
+UPDATE = 4
+DELETE = 6
 
 
 
@@ -84,8 +130,15 @@ _AUTHRULE = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='requireUser', full_name='protobuf.options.AuthRule.requireUser', index=2,
-      number=3, type=8, cpp_type=7, label=1,
+      name='verb', full_name='protobuf.options.AuthRule.verb', index=2,
+      number=3, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='requireUser', full_name='protobuf.options.AuthRule.requireUser', index=3,
+      number=6, type=8, cpp_type=7, label=1,
       has_default_value=False, default_value=False,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -102,13 +155,15 @@ _AUTHRULE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=49,
-  serialized_end=139,
+  serialized_start=50,
+  serialized_end=183,
 )
 
 _AUTHRULE.fields_by_name['level'].enum_type = _AUTHLEVEL
+_AUTHRULE.fields_by_name['verb'].enum_type = _SCOPEVERB
 DESCRIPTOR.message_types_by_name['AuthRule'] = _AUTHRULE
 DESCRIPTOR.enum_types_by_name['AuthLevel'] = _AUTHLEVEL
+DESCRIPTOR.enum_types_by_name['ScopeVerb'] = _SCOPEVERB
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 AuthRule = _reflection.GeneratedProtocolMessageType('AuthRule', (_message.Message,), {

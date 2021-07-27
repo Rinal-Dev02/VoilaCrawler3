@@ -17,7 +17,7 @@ var (
 	TracingIdKey  = &shareValue{}
 	JobIdKey      = &shareValue{}
 	ReqIdKey      = &shareValue{}
-	StoreIdKey    = &shareValue{}
+	SiteIdKey     = &shareValue{}
 	TargetTypeKey = &shareValue{}
 )
 

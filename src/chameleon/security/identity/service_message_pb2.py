@@ -22,11 +22,408 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'\n\037com.chameleon.security.identityB\023ServiceMessageProtoP\001Z$chameleon/security/identity;identity',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n1chameleon/security/identity/service_message.proto\x12\x1b\x63hameleon.security.identity\x1a\"chameleon/api/rest/querysort.proto\x1a&chameleon/security/identity/data.proto\"<\n\x10\x43ountUserRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\"\"\n\x11\x43ountUserResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x05\"\x80\x01\n\x0fListUserRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\"p\n\x10ListUserResponse\x12\x30\n\x05users\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.User\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\" \n\x12IsUserExistRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\"\n\x13IsUserExistsRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"#\n\x14IsUserExistsResponse\x12\x0b\n\x03ids\x18\x01 \x03(\t\"\x1c\n\x0eGetUserRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\x1e\n\x0fGetsUserRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"D\n\x10GetsUserResponse\x12\x30\n\x05users\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.User\"\x85\x01\n\x11UpdateUserRequest\x12/\n\x04user\x18\x01 \x01(\x0b\x32!.chameleon.security.identity.User\x12?\n\x07options\x18\x02 \x01(\x0b\x32..chameleon.security.identity.UpdateUserOptions\":\n\x11UpdateUserOptions\x12\x11\n\tresetInfo\x18\x01 \x01(\x08\x12\x12\n\nresetRoles\x18\x02 \x01(\x08\"!\n\x13GetUserRolesRequest\x12\n\n\x02id\x18\x01 \x01(\t\"%\n\x14GetUserRolesResponse\x12\r\n\x05roles\x18\x01 \x03(\t\"/\n\x12\x41\x64\x64UserRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"3\n\x16ReplaceUserRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"2\n\x15\x44\x65leteUserRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"4\n\x11\x44\x65leteUserRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\" \n\x12RestoreUserRequest\x12\n\n\x02id\x18\x01 \x01(\t\"C\n\x17\x43ountApplicationRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\")\n\x18\x43ountApplicationResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x05\"\x87\x01\n\x16ListApplicationRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\"\x85\x01\n\x17ListApplicationResponse\x12>\n\x0c\x61pplications\x18\x01 \x03(\x0b\x32(.chameleon.security.identity.Application\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\"\'\n\x19IsApplicationExistRequest\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x1aIsApplicationExistsRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"*\n\x1bIsApplicationExistsResponse\x12\x0b\n\x03ids\x18\x01 \x03(\t\"#\n\x15GetApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\"%\n\x16GetsApplicationRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"Y\n\x17GetsApplicationResponse\x12>\n\x0c\x61pplications\x18\x01 \x03(\x0b\x32(.chameleon.security.identity.Application\"\xa1\x01\n\x18UpdateApplicationRequest\x12=\n\x0b\x61pplication\x18\x01 \x01(\x0b\x32(.chameleon.security.identity.Application\x12\x46\n\x07options\x18\x02 \x01(\x0b\x32\x35.chameleon.security.identity.UpdateApplicationOptions\"@\n\x18UpdateApplicationOptions\x12\x11\n\tresetInfo\x18\x01 \x01(\x08\x12\x11\n\tresetTags\x18\x02 \x01(\x08\";\n\x18\x44\x65leteApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\"\'\n\x19RestoreApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\"l\n\x1cSetApplicationOptionsRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12@\n\x07options\x18\x02 \x01(\x0b\x32/.chameleon.security.identity.ApplicationOptions\"5\n\x19SetApplicationTagsRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04tags\x18\x02 \x03(\t\"+\n\x1dResetApplicationSecretRequest\x12\n\n\x02id\x18\x01 \x01(\t\"0\n\x1eResetApplicationSecretResponse\x12\x0e\n\x06secret\x18\x01 \x01(\t\";\n\x1eGetApplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"A\n$GetApplicationSecretPublicKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"O\n\x1e\x41\x64\x64\x41pplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\x12\x12\n\nsetDefault\x18\x03 \x01(\x08\"B\n%SetApplicationDefaultSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\">\n!DeleteApplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"5\n\'GetApplicationDefaultRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\"?\n(GetApplicationDefaultRedirectURIResponse\x12\x13\n\x0bredirectURI\x18\x01 \x01(\t\"J\n\'SetApplicationDefaultRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bredirectURI\x18\x02 \x01(\t\"4\n&GetApplicationWhiteRedirectURIsRequest\x12\n\n\x02id\x18\x01 \x01(\t\"q\n\'GetApplicationWhiteRedirectURIsResponse\x12\x46\n\x04uris\x18\x01 \x03(\x0b\x32\x38.chameleon.security.identity.ApplicationWhiteRedirectURI\"z\n%AddApplicationWhiteRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x45\n\x03uri\x18\x02 \x01(\x0b\x32\x38.chameleon.security.identity.ApplicationWhiteRedirectURI\"E\n(DeleteApplicationWhiteRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05uriID\x18\x02 \x01(\t\"6\n(ClearApplicationWhiteRedirectURIsRequest\x12\n\n\x02id\x18\x01 \x01(\t\"8\n\x1a\x41\x64\x64\x41pplicationScopeRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06scopes\x18\x02 \x03(\t\":\n\x1cResetApplicationScopeRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06scopes\x18\x02 \x03(\t\";\n\x1dRemoveApplicationScopeRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06scopes\x18\x02 \x03(\tB^\n\x1f\x63om.chameleon.security.identityB\x13ServiceMessageProtoP\x01Z$chameleon/security/identity;identityb\x06proto3'
+  serialized_pb=b'\n1chameleon/security/identity/service_message.proto\x12\x1b\x63hameleon.security.identity\x1a\"chameleon/api/rest/querysort.proto\x1a&chameleon/security/identity/data.proto\"\x8d\x01\n\x0fListRoleRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\x12\x0b\n\x03ids\x18\x10 \x03(\t\"p\n\x10ListRoleResponse\x12\x30\n\x05roles\x18\x02 \x03(\x0b\x32!.chameleon.security.identity.Role\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\"\x1c\n\x0eGetRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\x1e\n\x0fGetsRoleRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"D\n\x10GetsRoleResponse\x12\x30\n\x05roles\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.Role\"D\n\x11UpdateRoleRequest\x12/\n\x04role\x18\x01 \x01(\x0b\x32!.chameleon.security.identity.Role\"Q\n\x12\x41\x64\x64RoleRuleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12/\n\x04rule\x18\x02 \x01(\x0b\x32!.chameleon.security.identity.Rule\"S\n\x14ResetRoleRuleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12/\n\x04rule\x18\x02 \x01(\x0b\x32!.chameleon.security.identity.Rule\"3\n\x15\x44\x65leteRoleRuleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06ruleId\x18\x02 \x01(\t\"4\n\x11\x44\x65leteRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\"<\n\x10\x43ountUserRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\"\"\n\x11\x43ountUserResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x05\"\x80\x01\n\x0fListUserRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\"p\n\x10ListUserResponse\x12\x30\n\x05users\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.User\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\"}\n\x0bWhoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06\x61vatar\x18\x05 \x01(\t\x12\x11\n\tfirstName\x18\x06 \x01(\t\x12\x10\n\x08lastName\x18\x07 \x01(\t\x12\x0e\n\x06locale\x18\t \x01(\t\x12\x0f\n\x07\x63hannel\x18\n \x01(\t\"d\n\x12IsUserExistRequest\x12?\n\x05\x66ield\x18\x01 \x01(\x0e\x32\x30.chameleon.security.identity.UserUniqueFieldType\x12\r\n\x05value\x18\x02 \x01(\t\"\"\n\x13IsUserExistsRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"#\n\x14IsUserExistsResponse\x12\x0b\n\x03ids\x18\x01 \x03(\t\"`\n\x0eGetUserRequest\x12?\n\x05\x66ield\x18\x01 \x01(\x0e\x32\x30.chameleon.security.identity.UserUniqueFieldType\x12\r\n\x05value\x18\x02 \x01(\t\"\x1e\n\x0fGetsUserRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"D\n\x10GetsUserResponse\x12\x30\n\x05users\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.User\"\x85\x01\n\x11UpdateUserRequest\x12/\n\x04user\x18\x01 \x01(\x0b\x32!.chameleon.security.identity.User\x12?\n\x07options\x18\x02 \x01(\x0b\x32..chameleon.security.identity.UpdateUserOptions\":\n\x11UpdateUserOptions\x12\x11\n\tresetInfo\x18\x01 \x01(\x08\x12\x12\n\nresetRoles\x18\x02 \x01(\x08\"!\n\x13GetUserRolesRequest\x12\n\n\x02id\x18\x01 \x01(\t\"%\n\x14GetUserRolesResponse\x12\r\n\x05roles\x18\x01 \x03(\t\"/\n\x12\x41\x64\x64UserRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"2\n\x15\x44\x65leteUserRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"4\n\x11\x44\x65leteUserRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\" \n\x12RestoreUserRequest\x12\n\n\x02id\x18\x01 \x01(\t\"C\n\x17\x43ountApplicationRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\")\n\x18\x43ountApplicationResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x05\"\x87\x01\n\x16ListApplicationRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\"\x85\x01\n\x17ListApplicationResponse\x12>\n\x0c\x61pplications\x18\x01 \x03(\x0b\x32(.chameleon.security.identity.Application\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\"\'\n\x19IsApplicationExistRequest\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x1aIsApplicationExistsRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"*\n\x1bIsApplicationExistsResponse\x12\x0b\n\x03ids\x18\x01 \x03(\t\"#\n\x15GetApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\"%\n\x16GetsApplicationRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"Y\n\x17GetsApplicationResponse\x12>\n\x0c\x61pplications\x18\x01 \x03(\x0b\x32(.chameleon.security.identity.Application\"\xa1\x01\n\x18UpdateApplicationRequest\x12=\n\x0b\x61pplication\x18\x01 \x01(\x0b\x32(.chameleon.security.identity.Application\x12\x46\n\x07options\x18\x02 \x01(\x0b\x32\x35.chameleon.security.identity.UpdateApplicationOptions\"@\n\x18UpdateApplicationOptions\x12\x11\n\tresetInfo\x18\x01 \x01(\x08\x12\x11\n\tresetTags\x18\x02 \x01(\x08\";\n\x18\x44\x65leteApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\"\'\n\x19RestoreApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\"l\n\x1cSetApplicationOptionsRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12@\n\x07options\x18\x02 \x01(\x0b\x32/.chameleon.security.identity.ApplicationOptions\"5\n\x19SetApplicationTagsRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04tags\x18\x02 \x03(\t\"+\n\x1dResetApplicationSecretRequest\x12\n\n\x02id\x18\x01 \x01(\t\"0\n\x1eResetApplicationSecretResponse\x12\x0e\n\x06secret\x18\x01 \x01(\t\";\n\x1eGetApplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"A\n$GetApplicationSecretPublicKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"O\n\x1e\x41\x64\x64\x41pplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\x12\x12\n\nsetDefault\x18\x03 \x01(\x08\"B\n%SetApplicationDefaultSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\">\n!DeleteApplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"5\n\'GetApplicationDefaultRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\"?\n(GetApplicationDefaultRedirectURIResponse\x12\x13\n\x0bredirectURI\x18\x01 \x01(\t\"J\n\'SetApplicationDefaultRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bredirectURI\x18\x02 \x01(\t\"4\n&GetApplicationWhiteRedirectURIsRequest\x12\n\n\x02id\x18\x01 \x01(\t\"q\n\'GetApplicationWhiteRedirectURIsResponse\x12\x46\n\x04uris\x18\x01 \x03(\x0b\x32\x38.chameleon.security.identity.ApplicationWhiteRedirectURI\"z\n%AddApplicationWhiteRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x45\n\x03uri\x18\x02 \x01(\x0b\x32\x38.chameleon.security.identity.ApplicationWhiteRedirectURI\"E\n(DeleteApplicationWhiteRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05uriID\x18\x02 \x01(\t\"6\n(ClearApplicationWhiteRedirectURIsRequest\x12\n\n\x02id\x18\x01 \x01(\t\"6\n\x19\x41\x64\x64\x41pplicationRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"9\n\x1cRemoveApplicationRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\tB^\n\x1f\x63om.chameleon.security.identityB\x13ServiceMessageProtoP\x01Z$chameleon/security/identity;identityb\x06proto3'
   ,
   dependencies=[chameleon_dot_api_dot_rest_dot_querysort__pb2.DESCRIPTOR,chameleon_dot_security_dot_identity_dot_data__pb2.DESCRIPTOR,])
 
 
+
+
+_LISTROLEREQUEST = _descriptor.Descriptor(
+  name='ListRoleRequest',
+  full_name='chameleon.security.identity.ListRoleRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='query', full_name='chameleon.security.identity.ListRoleRequest.query', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='sort', full_name='chameleon.security.identity.ListRoleRequest.sort', index=1,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='start', full_name='chameleon.security.identity.ListRoleRequest.start', index=2,
+      number=14, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='size', full_name='chameleon.security.identity.ListRoleRequest.size', index=3,
+      number=15, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='ids', full_name='chameleon.security.identity.ListRoleRequest.ids', index=4,
+      number=16, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=159,
+  serialized_end=300,
+)
+
+
+_LISTROLERESPONSE = _descriptor.Descriptor(
+  name='ListRoleResponse',
+  full_name='chameleon.security.identity.ListRoleResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='roles', full_name='chameleon.security.identity.ListRoleResponse.roles', index=0,
+      number=2, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='start', full_name='chameleon.security.identity.ListRoleResponse.start', index=1,
+      number=13, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='size', full_name='chameleon.security.identity.ListRoleResponse.size', index=2,
+      number=14, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='count', full_name='chameleon.security.identity.ListRoleResponse.count', index=3,
+      number=15, type=5, cpp_type=1, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=302,
+  serialized_end=414,
+)
+
+
+_GETROLEREQUEST = _descriptor.Descriptor(
+  name='GetRoleRequest',
+  full_name='chameleon.security.identity.GetRoleRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='id', full_name='chameleon.security.identity.GetRoleRequest.id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=416,
+  serialized_end=444,
+)
+
+
+_GETSROLEREQUEST = _descriptor.Descriptor(
+  name='GetsRoleRequest',
+  full_name='chameleon.security.identity.GetsRoleRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='ids', full_name='chameleon.security.identity.GetsRoleRequest.ids', index=0,
+      number=1, type=9, cpp_type=9, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=446,
+  serialized_end=476,
+)
+
+
+_GETSROLERESPONSE = _descriptor.Descriptor(
+  name='GetsRoleResponse',
+  full_name='chameleon.security.identity.GetsRoleResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='roles', full_name='chameleon.security.identity.GetsRoleResponse.roles', index=0,
+      number=1, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=478,
+  serialized_end=546,
+)
+
+
+_UPDATEROLEREQUEST = _descriptor.Descriptor(
+  name='UpdateRoleRequest',
+  full_name='chameleon.security.identity.UpdateRoleRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='role', full_name='chameleon.security.identity.UpdateRoleRequest.role', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=548,
+  serialized_end=616,
+)
+
+
+_ADDROLERULEREQUEST = _descriptor.Descriptor(
+  name='AddRoleRuleRequest',
+  full_name='chameleon.security.identity.AddRoleRuleRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='id', full_name='chameleon.security.identity.AddRoleRuleRequest.id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='rule', full_name='chameleon.security.identity.AddRoleRuleRequest.rule', index=1,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=618,
+  serialized_end=699,
+)
+
+
+_RESETROLERULEREQUEST = _descriptor.Descriptor(
+  name='ResetRoleRuleRequest',
+  full_name='chameleon.security.identity.ResetRoleRuleRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='id', full_name='chameleon.security.identity.ResetRoleRuleRequest.id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='rule', full_name='chameleon.security.identity.ResetRoleRuleRequest.rule', index=1,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=701,
+  serialized_end=784,
+)
+
+
+_DELETEROLERULEREQUEST = _descriptor.Descriptor(
+  name='DeleteRoleRuleRequest',
+  full_name='chameleon.security.identity.DeleteRoleRuleRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='id', full_name='chameleon.security.identity.DeleteRoleRuleRequest.id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='ruleId', full_name='chameleon.security.identity.DeleteRoleRuleRequest.ruleId', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=786,
+  serialized_end=837,
+)
+
+
+_DELETEROLEREQUEST = _descriptor.Descriptor(
+  name='DeleteRoleRequest',
+  full_name='chameleon.security.identity.DeleteRoleRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='id', full_name='chameleon.security.identity.DeleteRoleRequest.id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='permanently', full_name='chameleon.security.identity.DeleteRoleRequest.permanently', index=1,
+      number=2, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=839,
+  serialized_end=891,
+)
 
 
 _COUNTUSERREQUEST = _descriptor.Descriptor(
@@ -56,8 +453,8 @@ _COUNTUSERREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=158,
-  serialized_end=218,
+  serialized_start=893,
+  serialized_end=953,
 )
 
 
@@ -88,8 +485,8 @@ _COUNTUSERRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=220,
-  serialized_end=254,
+  serialized_start=955,
+  serialized_end=989,
 )
 
 
@@ -141,8 +538,8 @@ _LISTUSERREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=257,
-  serialized_end=385,
+  serialized_start=992,
+  serialized_end=1120,
 )
 
 
@@ -194,22 +591,64 @@ _LISTUSERRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=387,
-  serialized_end=499,
+  serialized_start=1122,
+  serialized_end=1234,
 )
 
 
-_ISUSEREXISTREQUEST = _descriptor.Descriptor(
-  name='IsUserExistRequest',
-  full_name='chameleon.security.identity.IsUserExistRequest',
+_WHORESPONSE = _descriptor.Descriptor(
+  name='WhoResponse',
+  full_name='chameleon.security.identity.WhoResponse',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='id', full_name='chameleon.security.identity.IsUserExistRequest.id', index=0,
+      name='id', full_name='chameleon.security.identity.WhoResponse.id', index=0,
       number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='name', full_name='chameleon.security.identity.WhoResponse.name', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='avatar', full_name='chameleon.security.identity.WhoResponse.avatar', index=2,
+      number=5, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='firstName', full_name='chameleon.security.identity.WhoResponse.firstName', index=3,
+      number=6, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='lastName', full_name='chameleon.security.identity.WhoResponse.lastName', index=4,
+      number=7, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='locale', full_name='chameleon.security.identity.WhoResponse.locale', index=5,
+      number=9, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='channel', full_name='chameleon.security.identity.WhoResponse.channel', index=6,
+      number=10, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -226,8 +665,47 @@ _ISUSEREXISTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=501,
-  serialized_end=533,
+  serialized_start=1236,
+  serialized_end=1361,
+)
+
+
+_ISUSEREXISTREQUEST = _descriptor.Descriptor(
+  name='IsUserExistRequest',
+  full_name='chameleon.security.identity.IsUserExistRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='field', full_name='chameleon.security.identity.IsUserExistRequest.field', index=0,
+      number=1, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='value', full_name='chameleon.security.identity.IsUserExistRequest.value', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=1363,
+  serialized_end=1463,
 )
 
 
@@ -258,8 +736,8 @@ _ISUSEREXISTSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=535,
-  serialized_end=569,
+  serialized_start=1465,
+  serialized_end=1499,
 )
 
 
@@ -290,8 +768,8 @@ _ISUSEREXISTSRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=571,
-  serialized_end=606,
+  serialized_start=1501,
+  serialized_end=1536,
 )
 
 
@@ -304,8 +782,15 @@ _GETUSERREQUEST = _descriptor.Descriptor(
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='id', full_name='chameleon.security.identity.GetUserRequest.id', index=0,
-      number=1, type=9, cpp_type=9, label=1,
+      name='field', full_name='chameleon.security.identity.GetUserRequest.field', index=0,
+      number=1, type=14, cpp_type=8, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='value', full_name='chameleon.security.identity.GetUserRequest.value', index=1,
+      number=2, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -322,8 +807,8 @@ _GETUSERREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=608,
-  serialized_end=636,
+  serialized_start=1538,
+  serialized_end=1634,
 )
 
 
@@ -354,8 +839,8 @@ _GETSUSERREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=638,
-  serialized_end=668,
+  serialized_start=1636,
+  serialized_end=1666,
 )
 
 
@@ -386,8 +871,8 @@ _GETSUSERRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=670,
-  serialized_end=738,
+  serialized_start=1668,
+  serialized_end=1736,
 )
 
 
@@ -425,8 +910,8 @@ _UPDATEUSERREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=741,
-  serialized_end=874,
+  serialized_start=1739,
+  serialized_end=1872,
 )
 
 
@@ -464,8 +949,8 @@ _UPDATEUSEROPTIONS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=876,
-  serialized_end=934,
+  serialized_start=1874,
+  serialized_end=1932,
 )
 
 
@@ -496,8 +981,8 @@ _GETUSERROLESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=936,
-  serialized_end=969,
+  serialized_start=1934,
+  serialized_end=1967,
 )
 
 
@@ -528,8 +1013,8 @@ _GETUSERROLESRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=971,
-  serialized_end=1008,
+  serialized_start=1969,
+  serialized_end=2006,
 )
 
 
@@ -567,47 +1052,8 @@ _ADDUSERROLEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1010,
-  serialized_end=1057,
-)
-
-
-_REPLACEUSERROLEREQUEST = _descriptor.Descriptor(
-  name='ReplaceUserRoleRequest',
-  full_name='chameleon.security.identity.ReplaceUserRoleRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='id', full_name='chameleon.security.identity.ReplaceUserRoleRequest.id', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='roles', full_name='chameleon.security.identity.ReplaceUserRoleRequest.roles', index=1,
-      number=2, type=9, cpp_type=9, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=1059,
-  serialized_end=1110,
+  serialized_start=2008,
+  serialized_end=2055,
 )
 
 
@@ -645,8 +1091,8 @@ _DELETEUSERROLEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1112,
-  serialized_end=1162,
+  serialized_start=2057,
+  serialized_end=2107,
 )
 
 
@@ -684,8 +1130,8 @@ _DELETEUSERREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1164,
-  serialized_end=1216,
+  serialized_start=2109,
+  serialized_end=2161,
 )
 
 
@@ -716,8 +1162,8 @@ _RESTOREUSERREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1218,
-  serialized_end=1250,
+  serialized_start=2163,
+  serialized_end=2195,
 )
 
 
@@ -748,8 +1194,8 @@ _COUNTAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1252,
-  serialized_end=1319,
+  serialized_start=2197,
+  serialized_end=2264,
 )
 
 
@@ -780,8 +1226,8 @@ _COUNTAPPLICATIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1321,
-  serialized_end=1362,
+  serialized_start=2266,
+  serialized_end=2307,
 )
 
 
@@ -833,8 +1279,8 @@ _LISTAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1365,
-  serialized_end=1500,
+  serialized_start=2310,
+  serialized_end=2445,
 )
 
 
@@ -886,8 +1332,8 @@ _LISTAPPLICATIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1503,
-  serialized_end=1636,
+  serialized_start=2448,
+  serialized_end=2581,
 )
 
 
@@ -918,8 +1364,8 @@ _ISAPPLICATIONEXISTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1638,
-  serialized_end=1677,
+  serialized_start=2583,
+  serialized_end=2622,
 )
 
 
@@ -950,8 +1396,8 @@ _ISAPPLICATIONEXISTSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1679,
-  serialized_end=1720,
+  serialized_start=2624,
+  serialized_end=2665,
 )
 
 
@@ -982,8 +1428,8 @@ _ISAPPLICATIONEXISTSRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1722,
-  serialized_end=1764,
+  serialized_start=2667,
+  serialized_end=2709,
 )
 
 
@@ -1014,8 +1460,8 @@ _GETAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1766,
-  serialized_end=1801,
+  serialized_start=2711,
+  serialized_end=2746,
 )
 
 
@@ -1046,8 +1492,8 @@ _GETSAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1803,
-  serialized_end=1840,
+  serialized_start=2748,
+  serialized_end=2785,
 )
 
 
@@ -1078,8 +1524,8 @@ _GETSAPPLICATIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1842,
-  serialized_end=1931,
+  serialized_start=2787,
+  serialized_end=2876,
 )
 
 
@@ -1117,8 +1563,8 @@ _UPDATEAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1934,
-  serialized_end=2095,
+  serialized_start=2879,
+  serialized_end=3040,
 )
 
 
@@ -1156,8 +1602,8 @@ _UPDATEAPPLICATIONOPTIONS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2097,
-  serialized_end=2161,
+  serialized_start=3042,
+  serialized_end=3106,
 )
 
 
@@ -1195,8 +1641,8 @@ _DELETEAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2163,
-  serialized_end=2222,
+  serialized_start=3108,
+  serialized_end=3167,
 )
 
 
@@ -1227,8 +1673,8 @@ _RESTOREAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2224,
-  serialized_end=2263,
+  serialized_start=3169,
+  serialized_end=3208,
 )
 
 
@@ -1266,8 +1712,8 @@ _SETAPPLICATIONOPTIONSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2265,
-  serialized_end=2373,
+  serialized_start=3210,
+  serialized_end=3318,
 )
 
 
@@ -1305,8 +1751,8 @@ _SETAPPLICATIONTAGSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2375,
-  serialized_end=2428,
+  serialized_start=3320,
+  serialized_end=3373,
 )
 
 
@@ -1337,8 +1783,8 @@ _RESETAPPLICATIONSECRETREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2430,
-  serialized_end=2473,
+  serialized_start=3375,
+  serialized_end=3418,
 )
 
 
@@ -1369,8 +1815,8 @@ _RESETAPPLICATIONSECRETRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2475,
-  serialized_end=2523,
+  serialized_start=3420,
+  serialized_end=3468,
 )
 
 
@@ -1408,8 +1854,8 @@ _GETAPPLICATIONSECRETKEYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2525,
-  serialized_end=2584,
+  serialized_start=3470,
+  serialized_end=3529,
 )
 
 
@@ -1447,8 +1893,8 @@ _GETAPPLICATIONSECRETPUBLICKEYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2586,
-  serialized_end=2651,
+  serialized_start=3531,
+  serialized_end=3596,
 )
 
 
@@ -1493,8 +1939,8 @@ _ADDAPPLICATIONSECRETKEYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2653,
-  serialized_end=2732,
+  serialized_start=3598,
+  serialized_end=3677,
 )
 
 
@@ -1532,8 +1978,8 @@ _SETAPPLICATIONDEFAULTSECRETKEYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2734,
-  serialized_end=2800,
+  serialized_start=3679,
+  serialized_end=3745,
 )
 
 
@@ -1571,8 +2017,8 @@ _DELETEAPPLICATIONSECRETKEYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2802,
-  serialized_end=2864,
+  serialized_start=3747,
+  serialized_end=3809,
 )
 
 
@@ -1603,8 +2049,8 @@ _GETAPPLICATIONDEFAULTREDIRECTURIREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2866,
-  serialized_end=2919,
+  serialized_start=3811,
+  serialized_end=3864,
 )
 
 
@@ -1635,8 +2081,8 @@ _GETAPPLICATIONDEFAULTREDIRECTURIRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2921,
-  serialized_end=2984,
+  serialized_start=3866,
+  serialized_end=3929,
 )
 
 
@@ -1674,8 +2120,8 @@ _SETAPPLICATIONDEFAULTREDIRECTURIREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2986,
-  serialized_end=3060,
+  serialized_start=3931,
+  serialized_end=4005,
 )
 
 
@@ -1706,8 +2152,8 @@ _GETAPPLICATIONWHITEREDIRECTURISREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3062,
-  serialized_end=3114,
+  serialized_start=4007,
+  serialized_end=4059,
 )
 
 
@@ -1738,8 +2184,8 @@ _GETAPPLICATIONWHITEREDIRECTURISRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3116,
-  serialized_end=3229,
+  serialized_start=4061,
+  serialized_end=4174,
 )
 
 
@@ -1777,8 +2223,8 @@ _ADDAPPLICATIONWHITEREDIRECTURIREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3231,
-  serialized_end=3353,
+  serialized_start=4176,
+  serialized_end=4298,
 )
 
 
@@ -1816,8 +2262,8 @@ _DELETEAPPLICATIONWHITEREDIRECTURIREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3355,
-  serialized_end=3424,
+  serialized_start=4300,
+  serialized_end=4369,
 )
 
 
@@ -1848,28 +2294,28 @@ _CLEARAPPLICATIONWHITEREDIRECTURISREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3426,
-  serialized_end=3480,
+  serialized_start=4371,
+  serialized_end=4425,
 )
 
 
-_ADDAPPLICATIONSCOPEREQUEST = _descriptor.Descriptor(
-  name='AddApplicationScopeRequest',
-  full_name='chameleon.security.identity.AddApplicationScopeRequest',
+_ADDAPPLICATIONROLEREQUEST = _descriptor.Descriptor(
+  name='AddApplicationRoleRequest',
+  full_name='chameleon.security.identity.AddApplicationRoleRequest',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='id', full_name='chameleon.security.identity.AddApplicationScopeRequest.id', index=0,
+      name='id', full_name='chameleon.security.identity.AddApplicationRoleRequest.id', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='scopes', full_name='chameleon.security.identity.AddApplicationScopeRequest.scopes', index=1,
+      name='roles', full_name='chameleon.security.identity.AddApplicationRoleRequest.roles', index=1,
       number=2, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -1887,28 +2333,28 @@ _ADDAPPLICATIONSCOPEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3482,
-  serialized_end=3538,
+  serialized_start=4427,
+  serialized_end=4481,
 )
 
 
-_RESETAPPLICATIONSCOPEREQUEST = _descriptor.Descriptor(
-  name='ResetApplicationScopeRequest',
-  full_name='chameleon.security.identity.ResetApplicationScopeRequest',
+_REMOVEAPPLICATIONROLEREQUEST = _descriptor.Descriptor(
+  name='RemoveApplicationRoleRequest',
+  full_name='chameleon.security.identity.RemoveApplicationRoleRequest',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='id', full_name='chameleon.security.identity.ResetApplicationScopeRequest.id', index=0,
+      name='id', full_name='chameleon.security.identity.RemoveApplicationRoleRequest.id', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='scopes', full_name='chameleon.security.identity.ResetApplicationScopeRequest.scopes', index=1,
+      name='roles', full_name='chameleon.security.identity.RemoveApplicationRoleRequest.roles', index=1,
       number=2, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -1926,53 +2372,23 @@ _RESETAPPLICATIONSCOPEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3540,
-  serialized_end=3598,
+  serialized_start=4483,
+  serialized_end=4540,
 )
 
-
-_REMOVEAPPLICATIONSCOPEREQUEST = _descriptor.Descriptor(
-  name='RemoveApplicationScopeRequest',
-  full_name='chameleon.security.identity.RemoveApplicationScopeRequest',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  create_key=_descriptor._internal_create_key,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='id', full_name='chameleon.security.identity.RemoveApplicationScopeRequest.id', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=b"".decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-    _descriptor.FieldDescriptor(
-      name='scopes', full_name='chameleon.security.identity.RemoveApplicationScopeRequest.scopes', index=1,
-      number=2, type=9, cpp_type=9, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  serialized_options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=3600,
-  serialized_end=3659,
-)
-
+_LISTROLEREQUEST.fields_by_name['query'].message_type = chameleon_dot_api_dot_rest_dot_querysort__pb2._QUERY
+_LISTROLEREQUEST.fields_by_name['sort'].message_type = chameleon_dot_api_dot_rest_dot_querysort__pb2._SORT
+_LISTROLERESPONSE.fields_by_name['roles'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._ROLE
+_GETSROLERESPONSE.fields_by_name['roles'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._ROLE
+_UPDATEROLEREQUEST.fields_by_name['role'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._ROLE
+_ADDROLERULEREQUEST.fields_by_name['rule'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._RULE
+_RESETROLERULEREQUEST.fields_by_name['rule'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._RULE
 _COUNTUSERREQUEST.fields_by_name['query'].message_type = chameleon_dot_api_dot_rest_dot_querysort__pb2._QUERY
 _LISTUSERREQUEST.fields_by_name['query'].message_type = chameleon_dot_api_dot_rest_dot_querysort__pb2._QUERY
 _LISTUSERREQUEST.fields_by_name['sort'].message_type = chameleon_dot_api_dot_rest_dot_querysort__pb2._SORT
 _LISTUSERRESPONSE.fields_by_name['users'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._USER
+_ISUSEREXISTREQUEST.fields_by_name['field'].enum_type = chameleon_dot_security_dot_identity_dot_data__pb2._USERUNIQUEFIELDTYPE
+_GETUSERREQUEST.fields_by_name['field'].enum_type = chameleon_dot_security_dot_identity_dot_data__pb2._USERUNIQUEFIELDTYPE
 _GETSUSERRESPONSE.fields_by_name['users'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._USER
 _UPDATEUSERREQUEST.fields_by_name['user'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._USER
 _UPDATEUSERREQUEST.fields_by_name['options'].message_type = _UPDATEUSEROPTIONS
@@ -1986,10 +2402,21 @@ _UPDATEAPPLICATIONREQUEST.fields_by_name['options'].message_type = _UPDATEAPPLIC
 _SETAPPLICATIONOPTIONSREQUEST.fields_by_name['options'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._APPLICATIONOPTIONS
 _GETAPPLICATIONWHITEREDIRECTURISRESPONSE.fields_by_name['uris'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._APPLICATIONWHITEREDIRECTURI
 _ADDAPPLICATIONWHITEREDIRECTURIREQUEST.fields_by_name['uri'].message_type = chameleon_dot_security_dot_identity_dot_data__pb2._APPLICATIONWHITEREDIRECTURI
+DESCRIPTOR.message_types_by_name['ListRoleRequest'] = _LISTROLEREQUEST
+DESCRIPTOR.message_types_by_name['ListRoleResponse'] = _LISTROLERESPONSE
+DESCRIPTOR.message_types_by_name['GetRoleRequest'] = _GETROLEREQUEST
+DESCRIPTOR.message_types_by_name['GetsRoleRequest'] = _GETSROLEREQUEST
+DESCRIPTOR.message_types_by_name['GetsRoleResponse'] = _GETSROLERESPONSE
+DESCRIPTOR.message_types_by_name['UpdateRoleRequest'] = _UPDATEROLEREQUEST
+DESCRIPTOR.message_types_by_name['AddRoleRuleRequest'] = _ADDROLERULEREQUEST
+DESCRIPTOR.message_types_by_name['ResetRoleRuleRequest'] = _RESETROLERULEREQUEST
+DESCRIPTOR.message_types_by_name['DeleteRoleRuleRequest'] = _DELETEROLERULEREQUEST
+DESCRIPTOR.message_types_by_name['DeleteRoleRequest'] = _DELETEROLEREQUEST
 DESCRIPTOR.message_types_by_name['CountUserRequest'] = _COUNTUSERREQUEST
 DESCRIPTOR.message_types_by_name['CountUserResponse'] = _COUNTUSERRESPONSE
 DESCRIPTOR.message_types_by_name['ListUserRequest'] = _LISTUSERREQUEST
 DESCRIPTOR.message_types_by_name['ListUserResponse'] = _LISTUSERRESPONSE
+DESCRIPTOR.message_types_by_name['WhoResponse'] = _WHORESPONSE
 DESCRIPTOR.message_types_by_name['IsUserExistRequest'] = _ISUSEREXISTREQUEST
 DESCRIPTOR.message_types_by_name['IsUserExistsRequest'] = _ISUSEREXISTSREQUEST
 DESCRIPTOR.message_types_by_name['IsUserExistsResponse'] = _ISUSEREXISTSRESPONSE
@@ -2001,7 +2428,6 @@ DESCRIPTOR.message_types_by_name['UpdateUserOptions'] = _UPDATEUSEROPTIONS
 DESCRIPTOR.message_types_by_name['GetUserRolesRequest'] = _GETUSERROLESREQUEST
 DESCRIPTOR.message_types_by_name['GetUserRolesResponse'] = _GETUSERROLESRESPONSE
 DESCRIPTOR.message_types_by_name['AddUserRoleRequest'] = _ADDUSERROLEREQUEST
-DESCRIPTOR.message_types_by_name['ReplaceUserRoleRequest'] = _REPLACEUSERROLEREQUEST
 DESCRIPTOR.message_types_by_name['DeleteUserRoleRequest'] = _DELETEUSERROLEREQUEST
 DESCRIPTOR.message_types_by_name['DeleteUserRequest'] = _DELETEUSERREQUEST
 DESCRIPTOR.message_types_by_name['RestoreUserRequest'] = _RESTOREUSERREQUEST
@@ -2036,10 +2462,79 @@ DESCRIPTOR.message_types_by_name['GetApplicationWhiteRedirectURIsResponse'] = _G
 DESCRIPTOR.message_types_by_name['AddApplicationWhiteRedirectURIRequest'] = _ADDAPPLICATIONWHITEREDIRECTURIREQUEST
 DESCRIPTOR.message_types_by_name['DeleteApplicationWhiteRedirectURIRequest'] = _DELETEAPPLICATIONWHITEREDIRECTURIREQUEST
 DESCRIPTOR.message_types_by_name['ClearApplicationWhiteRedirectURIsRequest'] = _CLEARAPPLICATIONWHITEREDIRECTURISREQUEST
-DESCRIPTOR.message_types_by_name['AddApplicationScopeRequest'] = _ADDAPPLICATIONSCOPEREQUEST
-DESCRIPTOR.message_types_by_name['ResetApplicationScopeRequest'] = _RESETAPPLICATIONSCOPEREQUEST
-DESCRIPTOR.message_types_by_name['RemoveApplicationScopeRequest'] = _REMOVEAPPLICATIONSCOPEREQUEST
+DESCRIPTOR.message_types_by_name['AddApplicationRoleRequest'] = _ADDAPPLICATIONROLEREQUEST
+DESCRIPTOR.message_types_by_name['RemoveApplicationRoleRequest'] = _REMOVEAPPLICATIONROLEREQUEST
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
+
+ListRoleRequest = _reflection.GeneratedProtocolMessageType('ListRoleRequest', (_message.Message,), {
+  'DESCRIPTOR' : _LISTROLEREQUEST,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.ListRoleRequest)
+  })
+_sym_db.RegisterMessage(ListRoleRequest)
+
+ListRoleResponse = _reflection.GeneratedProtocolMessageType('ListRoleResponse', (_message.Message,), {
+  'DESCRIPTOR' : _LISTROLERESPONSE,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.ListRoleResponse)
+  })
+_sym_db.RegisterMessage(ListRoleResponse)
+
+GetRoleRequest = _reflection.GeneratedProtocolMessageType('GetRoleRequest', (_message.Message,), {
+  'DESCRIPTOR' : _GETROLEREQUEST,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.GetRoleRequest)
+  })
+_sym_db.RegisterMessage(GetRoleRequest)
+
+GetsRoleRequest = _reflection.GeneratedProtocolMessageType('GetsRoleRequest', (_message.Message,), {
+  'DESCRIPTOR' : _GETSROLEREQUEST,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.GetsRoleRequest)
+  })
+_sym_db.RegisterMessage(GetsRoleRequest)
+
+GetsRoleResponse = _reflection.GeneratedProtocolMessageType('GetsRoleResponse', (_message.Message,), {
+  'DESCRIPTOR' : _GETSROLERESPONSE,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.GetsRoleResponse)
+  })
+_sym_db.RegisterMessage(GetsRoleResponse)
+
+UpdateRoleRequest = _reflection.GeneratedProtocolMessageType('UpdateRoleRequest', (_message.Message,), {
+  'DESCRIPTOR' : _UPDATEROLEREQUEST,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.UpdateRoleRequest)
+  })
+_sym_db.RegisterMessage(UpdateRoleRequest)
+
+AddRoleRuleRequest = _reflection.GeneratedProtocolMessageType('AddRoleRuleRequest', (_message.Message,), {
+  'DESCRIPTOR' : _ADDROLERULEREQUEST,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.AddRoleRuleRequest)
+  })
+_sym_db.RegisterMessage(AddRoleRuleRequest)
+
+ResetRoleRuleRequest = _reflection.GeneratedProtocolMessageType('ResetRoleRuleRequest', (_message.Message,), {
+  'DESCRIPTOR' : _RESETROLERULEREQUEST,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.ResetRoleRuleRequest)
+  })
+_sym_db.RegisterMessage(ResetRoleRuleRequest)
+
+DeleteRoleRuleRequest = _reflection.GeneratedProtocolMessageType('DeleteRoleRuleRequest', (_message.Message,), {
+  'DESCRIPTOR' : _DELETEROLERULEREQUEST,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.DeleteRoleRuleRequest)
+  })
+_sym_db.RegisterMessage(DeleteRoleRuleRequest)
+
+DeleteRoleRequest = _reflection.GeneratedProtocolMessageType('DeleteRoleRequest', (_message.Message,), {
+  'DESCRIPTOR' : _DELETEROLEREQUEST,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.DeleteRoleRequest)
+  })
+_sym_db.RegisterMessage(DeleteRoleRequest)
 
 CountUserRequest = _reflection.GeneratedProtocolMessageType('CountUserRequest', (_message.Message,), {
   'DESCRIPTOR' : _COUNTUSERREQUEST,
@@ -2068,6 +2563,13 @@ ListUserResponse = _reflection.GeneratedProtocolMessageType('ListUserResponse', 
   # @@protoc_insertion_point(class_scope:chameleon.security.identity.ListUserResponse)
   })
 _sym_db.RegisterMessage(ListUserResponse)
+
+WhoResponse = _reflection.GeneratedProtocolMessageType('WhoResponse', (_message.Message,), {
+  'DESCRIPTOR' : _WHORESPONSE,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.WhoResponse)
+  })
+_sym_db.RegisterMessage(WhoResponse)
 
 IsUserExistRequest = _reflection.GeneratedProtocolMessageType('IsUserExistRequest', (_message.Message,), {
   'DESCRIPTOR' : _ISUSEREXISTREQUEST,
@@ -2145,13 +2647,6 @@ AddUserRoleRequest = _reflection.GeneratedProtocolMessageType('AddUserRoleReques
   # @@protoc_insertion_point(class_scope:chameleon.security.identity.AddUserRoleRequest)
   })
 _sym_db.RegisterMessage(AddUserRoleRequest)
-
-ReplaceUserRoleRequest = _reflection.GeneratedProtocolMessageType('ReplaceUserRoleRequest', (_message.Message,), {
-  'DESCRIPTOR' : _REPLACEUSERROLEREQUEST,
-  '__module__' : 'chameleon.security.identity.service_message_pb2'
-  # @@protoc_insertion_point(class_scope:chameleon.security.identity.ReplaceUserRoleRequest)
-  })
-_sym_db.RegisterMessage(ReplaceUserRoleRequest)
 
 DeleteUserRoleRequest = _reflection.GeneratedProtocolMessageType('DeleteUserRoleRequest', (_message.Message,), {
   'DESCRIPTOR' : _DELETEUSERROLEREQUEST,
@@ -2391,26 +2886,19 @@ ClearApplicationWhiteRedirectURIsRequest = _reflection.GeneratedProtocolMessageT
   })
 _sym_db.RegisterMessage(ClearApplicationWhiteRedirectURIsRequest)
 
-AddApplicationScopeRequest = _reflection.GeneratedProtocolMessageType('AddApplicationScopeRequest', (_message.Message,), {
-  'DESCRIPTOR' : _ADDAPPLICATIONSCOPEREQUEST,
+AddApplicationRoleRequest = _reflection.GeneratedProtocolMessageType('AddApplicationRoleRequest', (_message.Message,), {
+  'DESCRIPTOR' : _ADDAPPLICATIONROLEREQUEST,
   '__module__' : 'chameleon.security.identity.service_message_pb2'
-  # @@protoc_insertion_point(class_scope:chameleon.security.identity.AddApplicationScopeRequest)
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.AddApplicationRoleRequest)
   })
-_sym_db.RegisterMessage(AddApplicationScopeRequest)
+_sym_db.RegisterMessage(AddApplicationRoleRequest)
 
-ResetApplicationScopeRequest = _reflection.GeneratedProtocolMessageType('ResetApplicationScopeRequest', (_message.Message,), {
-  'DESCRIPTOR' : _RESETAPPLICATIONSCOPEREQUEST,
+RemoveApplicationRoleRequest = _reflection.GeneratedProtocolMessageType('RemoveApplicationRoleRequest', (_message.Message,), {
+  'DESCRIPTOR' : _REMOVEAPPLICATIONROLEREQUEST,
   '__module__' : 'chameleon.security.identity.service_message_pb2'
-  # @@protoc_insertion_point(class_scope:chameleon.security.identity.ResetApplicationScopeRequest)
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.RemoveApplicationRoleRequest)
   })
-_sym_db.RegisterMessage(ResetApplicationScopeRequest)
-
-RemoveApplicationScopeRequest = _reflection.GeneratedProtocolMessageType('RemoveApplicationScopeRequest', (_message.Message,), {
-  'DESCRIPTOR' : _REMOVEAPPLICATIONSCOPEREQUEST,
-  '__module__' : 'chameleon.security.identity.service_message_pb2'
-  # @@protoc_insertion_point(class_scope:chameleon.security.identity.RemoveApplicationScopeRequest)
-  })
-_sym_db.RegisterMessage(RemoveApplicationScopeRequest)
+_sym_db.RegisterMessage(RemoveApplicationRoleRequest)
 
 
 DESCRIPTOR._options = None
