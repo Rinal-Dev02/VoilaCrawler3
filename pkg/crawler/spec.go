@@ -10,6 +10,7 @@ import (
 	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 )
 
 // CrawlOptions
@@ -124,12 +125,23 @@ type Crawler interface {
 	Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error
 }
 
+// ProductCrawler
+type ProductCrawler interface {
+	Crawler
+
+	// Categories get categories internally
+	GetCategories(ctx context.Context) ([]*pbCrawl.Item, error)
+
+	// GetBrands get brands internally
+	GetBrands(ctx context.Context) ([]*pbCrawl.Item, error)
+}
+
 // MustImplementCrawler
 type MustImplementCrawler struct{}
 
 // CanonicalUrl
 func (c *MustImplementCrawler) CanonicalUrl(rawurl string) (string, error) {
-	return "", nil
+	return "", pbError.ErrUnimplemented
 }
 
 type New func(client http.Client, logger glog.Log) (Crawler, error)

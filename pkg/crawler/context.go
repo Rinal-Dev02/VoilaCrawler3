@@ -23,3 +23,7 @@ var (
 	SubCategory3Key = "SubCategory3"
 	SubCategory4Key = "SubCategory4"
 )
+
+var (
+	CategoryKeys = []string{MainCategoryKey, CategoryKey, SubCategoryKey, SubCategory2Key, SubCategory3Key, SubCategory4Key}
+)

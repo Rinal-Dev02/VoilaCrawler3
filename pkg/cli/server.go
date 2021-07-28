@@ -17,6 +17,7 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"github.com/voiladev/go-framework/text"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -166,15 +167,45 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 			ctxutil.GetString(shareCtx, crawler.CategoryKey) != "" {
 			switch val := i.(type) {
 			case *http.Request:
-				i = &pbItem.Category{
-					MainCategory: ctxutil.GetString(shareCtx, crawler.MainCategoryKey),
-					Category:     ctxutil.GetString(shareCtx, crawler.CategoryKey),
-					SubCategory:  ctxutil.GetString(shareCtx, crawler.SubCategoryKey),
-					SubCategory2: ctxutil.GetString(shareCtx, crawler.SubCategory2Key),
-					SubCategory3: ctxutil.GetString(shareCtx, crawler.SubCategory3Key),
-					SubCategory4: ctxutil.GetString(shareCtx, crawler.SubCategory4Key),
-					Url:          val.URL.String(),
+				var (
+					cateNames      = []string{}
+					cateNameFilter = map[string]struct{}{}
+				)
+				for _, key := range crawler.CategoryKeys {
+					vals := strings.Split(text.Clean(ctxutil.GetString(shareCtx, key)), ">")
+					for _, val := range vals {
+						val = strings.Title(strings.ToLower(val))
+						if _, ok := cateNameFilter[val]; ok || val == "" {
+							continue
+						}
+						// Ignore too long names, in most cases the long name is not the cate name
+						if len([]rune(val)) > 48 {
+							continue
+						}
+						cateNames = append(cateNames, val)
+						cateNameFilter[val] = struct{}{}
+
+						// keep length to 6
+						if len(cateNames) == 6 {
+							break
+						}
+					}
 				}
+				var cate *pbItem.Category
+				for i := len(cateNames) - 1; i >= 0; i-- {
+					name := cateNames[i]
+
+					c := pbItem.Category{Name: name}
+					if i == len(cateNames)-1 {
+						c.Url = val.URL.String()
+						c.Depth = int32(i + 1)
+					}
+					if cate != nil {
+						c.Children = append(c.Children, cate)
+					}
+					cate = &c
+				}
+				i = cate
 			}
 		}
 

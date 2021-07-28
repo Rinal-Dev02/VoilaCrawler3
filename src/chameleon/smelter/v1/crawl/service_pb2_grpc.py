@@ -44,6 +44,11 @@ class CrawlerNodeStub(object):
                 request_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_data__pb2.Request.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_any__pb2.Any.FromString,
                 )
+        self.Call = channel.unary_unary(
+                '/chameleon.smelter.v1.crawl.CrawlerNode/Call',
+                request_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.CallRequest.SerializeToString,
+                response_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.CallResponse.FromString,
+                )
 
 
 class CrawlerNodeServicer(object):
@@ -79,12 +84,15 @@ class CrawlerNodeServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Parse(self, request, context):
-        """ParseAffiliat used to parse category,id info of an provided url. this url can be a product url
-        or a category url. if no info found, returns nothing.
-        NOTE: this api may be non-real time.
-        rpc ParseAffiliat(ParseAffiliatRequest) returns (ParseAffiliatResponse) {}
+        """Parse
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
-        Parse
+    def Call(self, request, context):
+        """Call used to get categories, brands
+        NOTE: this api may be non-real time.
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -117,6 +125,11 @@ def add_CrawlerNodeServicer_to_server(servicer, server):
                     servicer.Parse,
                     request_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_data__pb2.Request.FromString,
                     response_serializer=google_dot_protobuf_dot_any__pb2.Any.SerializeToString,
+            ),
+            'Call': grpc.unary_unary_rpc_method_handler(
+                    servicer.Call,
+                    request_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.CallRequest.FromString,
+                    response_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.CallResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -211,6 +224,23 @@ class CrawlerNode(object):
         return grpc.experimental.unary_stream(request, target, '/chameleon.smelter.v1.crawl.CrawlerNode/Parse',
             chameleon_dot_smelter_dot_v1_dot_crawl_dot_data__pb2.Request.SerializeToString,
             google_dot_protobuf_dot_any__pb2.Any.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Call(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.smelter.v1.crawl.CrawlerNode/Call',
+            chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.CallRequest.SerializeToString,
+            chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.CallResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -315,6 +345,11 @@ class CrawlerManagerStub(object):
                 request_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.DoParseRequest.SerializeToString,
                 response_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.DoParseResponse.FromString,
                 )
+        self.RemoteCall = channel.unary_unary(
+                '/chameleon.smelter.v1.crawl.CrawlerManager/RemoteCall',
+                request_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallRequest.SerializeToString,
+                response_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallResponse.FromString,
+                )
 
 
 class CrawlerManagerServicer(object):
@@ -350,22 +385,19 @@ class CrawlerManagerServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def DoParse(self, request, context):
-        """ParseAffiliat used to parse category,id info of an provided url. this url can be a product url
-        or a category url. if no info found, returns nothing.
-        NOTE: this api may be non-real time.
-        rpc ParseAffiliat(GatewayParseAffiliatRequest) returns (GatewayParseAffiliatResponse) {
-        option (google.api.http) = {
-        post: "/smelter/v1/crawl/parse_affiliat"
-        body: "*"
-        };
-        }
-
-        抓取 @desc 提交URL地址
+        """抓取 @desc 提交URL地址
         对于不同情况下，抓取的数据响应处理方式不同;
         对于定时抓取任务，或者全库抓取任务，抓取数据通过MQ提交给处理逻辑
 
         任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
         提交给爬虫管理中心；具体的数据格式见`CrawlerController`
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RemoteCall(self, request, context):
+        """RemoteCall
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -398,6 +430,11 @@ def add_CrawlerManagerServicer_to_server(servicer, server):
                     servicer.DoParse,
                     request_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.DoParseRequest.FromString,
                     response_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.DoParseResponse.SerializeToString,
+            ),
+            'RemoteCall': grpc.unary_unary_rpc_method_handler(
+                    servicer.RemoteCall,
+                    request_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallRequest.FromString,
+                    response_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -492,6 +529,23 @@ class CrawlerManager(object):
         return grpc.experimental.unary_unary(request, target, '/chameleon.smelter.v1.crawl.CrawlerManager/DoParse',
             chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.DoParseRequest.SerializeToString,
             chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.DoParseResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def RemoteCall(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.smelter.v1.crawl.CrawlerManager/RemoteCall',
+            chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallRequest.SerializeToString,
+            chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

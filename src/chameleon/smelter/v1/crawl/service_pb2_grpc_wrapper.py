@@ -66,6 +66,14 @@ class CrawlerNodeServicer(_CrawlerNodeServicer):
                 return self.interceptor(request, context, methodDesc, self.servicer.Parse)
             return self.servicer.Parse(request, context)
 	
+        def Call(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("Call")
+                if not methodDesc:
+                    raise RuntimeError("Method [Call] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.Call)
+            return self.servicer.Call(request, context)
+	
 
     @classmethod
     def addToServer(cls, servicer, server, *args, **kwargs):
@@ -124,6 +132,14 @@ class CrawlerNodeStub(object):
                 raise RuntimeError("Method [Parse] description not found")
             return self.____interceptor(self.____stub.Parse, methodDesc, request, timeout, metadata, credentials)
         return self.____stub.Parse(request, timeout, metadata, credentials)
+	
+    def Call(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("Call")
+            if not methodDesc:
+                raise RuntimeError("Method [Call] description not found")
+            return self.____interceptor(self.____stub.Call, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.Call(request, timeout, metadata, credentials)
 	
 
 
@@ -234,6 +250,14 @@ class CrawlerManagerServicer(_CrawlerManagerServicer):
                 return self.interceptor(request, context, methodDesc, self.servicer.DoParse)
             return self.servicer.DoParse(request, context)
 	
+        def RemoteCall(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("RemoteCall")
+                if not methodDesc:
+                    raise RuntimeError("Method [RemoteCall] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.RemoteCall)
+            return self.servicer.RemoteCall(request, context)
+	
 
     @classmethod
     def addToServer(cls, servicer, server, *args, **kwargs):
@@ -292,6 +316,14 @@ class CrawlerManagerStub(object):
                 raise RuntimeError("Method [DoParse] description not found")
             return self.____interceptor(self.____stub.DoParse, methodDesc, request, timeout, metadata, credentials)
         return self.____stub.DoParse(request, timeout, metadata, credentials)
+	
+    def RemoteCall(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("RemoteCall")
+            if not methodDesc:
+                raise RuntimeError("Method [RemoteCall] description not found")
+            return self.____interceptor(self.____stub.RemoteCall, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.RemoteCall(request, timeout, metadata, credentials)
 	
 
 

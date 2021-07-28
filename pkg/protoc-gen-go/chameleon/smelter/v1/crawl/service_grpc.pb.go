@@ -29,6 +29,9 @@ type CrawlerNodeClient interface {
 	CanonicalUrl(ctx context.Context, in *CanonicalUrlRequest, opts ...grpc.CallOption) (*CanonicalUrlResponse, error)
 	// Parse
 	Parse(ctx context.Context, in *Request, opts ...grpc.CallOption) (CrawlerNode_ParseClient, error)
+	// Call used to get categories, brands
+	// NOTE: this api may be non-real time.
+	Call(ctx context.Context, in *CallRequest, opts ...grpc.CallOption) (*CallResponse, error)
 }
 
 type crawlerNodeClient struct {
@@ -107,6 +110,15 @@ func (x *crawlerNodeParseClient) Recv() (*anypb.Any, error) {
 	return m, nil
 }
 
+func (c *crawlerNodeClient) Call(ctx context.Context, in *CallRequest, opts ...grpc.CallOption) (*CallResponse, error) {
+	out := new(CallResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.CrawlerNode/Call", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CrawlerNodeServer is the server API for CrawlerNode service.
 // All implementations must embed UnimplementedCrawlerNodeServer
 // for forward compatibility
@@ -121,6 +133,9 @@ type CrawlerNodeServer interface {
 	CanonicalUrl(context.Context, *CanonicalUrlRequest) (*CanonicalUrlResponse, error)
 	// Parse
 	Parse(*Request, CrawlerNode_ParseServer) error
+	// Call used to get categories, brands
+	// NOTE: this api may be non-real time.
+	Call(context.Context, *CallRequest) (*CallResponse, error)
 	mustEmbedUnimplementedCrawlerNodeServer()
 }
 
@@ -142,6 +157,9 @@ func (UnimplementedCrawlerNodeServer) CanonicalUrl(context.Context, *CanonicalUr
 }
 func (UnimplementedCrawlerNodeServer) Parse(*Request, CrawlerNode_ParseServer) error {
 	return status.Errorf(codes.Unimplemented, "method Parse not implemented")
+}
+func (UnimplementedCrawlerNodeServer) Call(context.Context, *CallRequest) (*CallResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Call not implemented")
 }
 func (UnimplementedCrawlerNodeServer) mustEmbedUnimplementedCrawlerNodeServer() {}
 
@@ -249,6 +267,24 @@ func (x *crawlerNodeParseServer) Send(m *anypb.Any) error {
 	return x.ServerStream.SendMsg(m)
 }
 
+func _CrawlerNode_Call_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CallRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CrawlerNodeServer).Call(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawl.CrawlerNode/Call",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CrawlerNodeServer).Call(ctx, req.(*CallRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CrawlerNode_ServiceDesc is the grpc.ServiceDesc for CrawlerNode service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -271,6 +307,10 @@ var CrawlerNode_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CanonicalUrl",
 			Handler:    _CrawlerNode_CanonicalUrl_Handler,
+		},
+		{
+			MethodName: "Call",
+			Handler:    _CrawlerNode_Call_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
@@ -422,6 +462,8 @@ type CrawlerManagerClient interface {
 	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
 	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
 	DoParse(ctx context.Context, in *DoParseRequest, opts ...grpc.CallOption) (*DoParseResponse, error)
+	// RemoteCall
+	RemoteCall(ctx context.Context, in *RemoteCallRequest, opts ...grpc.CallOption) (*RemoteCallResponse, error)
 }
 
 type crawlerManagerClient struct {
@@ -477,6 +519,15 @@ func (c *crawlerManagerClient) DoParse(ctx context.Context, in *DoParseRequest, 
 	return out, nil
 }
 
+func (c *crawlerManagerClient) RemoteCall(ctx context.Context, in *RemoteCallRequest, opts ...grpc.CallOption) (*RemoteCallResponse, error) {
+	out := new(RemoteCallResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.CrawlerManager/RemoteCall", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // CrawlerManagerServer is the server API for CrawlerManager service.
 // All implementations must embed UnimplementedCrawlerManagerServer
 // for forward compatibility
@@ -496,6 +547,8 @@ type CrawlerManagerServer interface {
 	// 任何一个实现了该接口的爬虫服务，都需要将在服务启动后将自身的爬虫信息
 	// 提交给爬虫管理中心；具体的数据格式见`CrawlerController`
 	DoParse(context.Context, *DoParseRequest) (*DoParseResponse, error)
+	// RemoteCall
+	RemoteCall(context.Context, *RemoteCallRequest) (*RemoteCallResponse, error)
 	mustEmbedUnimplementedCrawlerManagerServer()
 }
 
@@ -517,6 +570,9 @@ func (UnimplementedCrawlerManagerServer) GetCanonicalUrl(context.Context, *GetCa
 }
 func (UnimplementedCrawlerManagerServer) DoParse(context.Context, *DoParseRequest) (*DoParseResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DoParse not implemented")
+}
+func (UnimplementedCrawlerManagerServer) RemoteCall(context.Context, *RemoteCallRequest) (*RemoteCallResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoteCall not implemented")
 }
 func (UnimplementedCrawlerManagerServer) mustEmbedUnimplementedCrawlerManagerServer() {}
 
@@ -621,6 +677,24 @@ func _CrawlerManager_DoParse_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _CrawlerManager_RemoteCall_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoteCallRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(CrawlerManagerServer).RemoteCall(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawl.CrawlerManager/RemoteCall",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(CrawlerManagerServer).RemoteCall(ctx, req.(*RemoteCallRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // CrawlerManager_ServiceDesc is the grpc.ServiceDesc for CrawlerManager service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -647,6 +721,10 @@ var CrawlerManager_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DoParse",
 			Handler:    _CrawlerManager_DoParse_Handler,
+		},
+		{
+			MethodName: "RemoteCall",
+			Handler:    _CrawlerManager_RemoteCall_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
