@@ -35,7 +35,7 @@ type _Crawler struct {
 	logger              glog.Log
 }
 
-func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
+func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 
@@ -499,5 +499,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 }
 
 func main() {
-	cli.NewApp(New).Run(os.Args)
+	cli.NewApp(&_Crawler{}).Run(os.Args)
 }

@@ -24,7 +24,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
-func serveCommand(ctx context.Context, app *App, newFunc NewWithApp, extraFlags []cli.Flag) *cli.Command {
+func serveCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extraFlags []cli.Flag) *cli.Command {
 	flags := []cli.Flag{
 		&cli.StringFlag{
 			Name:  "host",
@@ -100,7 +100,7 @@ func serveCommand(ctx context.Context, app *App, newFunc NewWithApp, extraFlags 
 					}
 					return proxy.NewProxyClient(proxyAddr, jar, logger)
 				}),
-				fx.Provide(app.newFunc),
+				fx.Provide(newer),
 
 				// Register services
 				fx.Provide(NewCrawlerServer),

@@ -38,7 +38,7 @@ type _Crawler struct {
 // New returns an object of interface crawler.Crawler.
 // this is the entry of the spider plugin. the plugin manager will call this func to init the plugin.
 // view pkg/crawler/spec.go to know more about the interface `Crawler`
-func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
+func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
@@ -517,5 +517,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	cli.NewApp(New).Run(os.Args)
+	cli.NewApp(&_Crawler{}).Run(os.Args)
 }

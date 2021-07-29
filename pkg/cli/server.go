@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -107,6 +108,110 @@ func (s *CrawlerServer) CanonicalUrl(ctx context.Context, req *pbCrawl.Canonical
 	return &pbCrawl.CanonicalUrlResponse{
 		Data: &pbCrawl.CanonicalUrlResponse_Data{Url: curl},
 	}, nil
+}
+
+var (
+	protoMessageType   = reflect.TypeOf((*proto.Message)(nil)).Elem()
+	productCrawlerType = reflect.TypeOf((*crawler.ProductCrawler)(nil)).Elem()
+)
+
+func marshalAny(val reflect.Value) (*anypb.Any, error) {
+	if val.IsNil() || val.IsZero() {
+		return nil, errors.New("nil/invalid value")
+	}
+	if !val.Type().Implements(protoMessageType) {
+		return nil, errors.New("object not implement interface proto.Message")
+	}
+	interVal := val.Interface()
+	v, _ := interVal.(proto.Message)
+
+	if data, err := anypb.New(v); err != nil {
+		return nil, err
+	} else {
+		return data, nil
+	}
+}
+
+// Call
+func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pbCrawl.CallResponse, error) {
+	if s == nil || s.crawler == nil {
+		return nil, nil
+	}
+	if req.GetMethod() == "" {
+		return nil, pbError.ErrInvalidArgument.New(`method required`)
+	}
+	if !(req.GetMethod()[0] > 'A' && req.GetMethod()[0] < 'Z') {
+		return nil, pbError.ErrPermissionDenied.New(fmt.Sprintf(`private method "%s" is not callable`, req.GetMethod()))
+	}
+
+	cw := reflect.ValueOf(s.crawler)
+	if !cw.Type().Implements(productCrawlerType) {
+		return nil, pbError.ErrUnimplemented.New(fmt.Sprintf(`method "%s" unimplemented or is not callable`, req.GetMethod()))
+	}
+
+	if _, exists := productCrawlerType.MethodByName(req.GetMethod()); !exists {
+		return nil, pbError.ErrNotFound.New(fmt.Sprintf(`method "%s" not found`, req.GetMethod()))
+	}
+
+	caller := cw.MethodByName(req.GetMethod())
+	if caller.IsZero() {
+		return nil, pbError.ErrNotFound.New(fmt.Sprintf(`method "%s" not found`, req.GetMethod()))
+	}
+	if caller.Kind() != reflect.Func {
+		return nil, pbError.ErrInvalidArgument.New(fmt.Sprintf("%s is not callable", req.GetMethod()))
+	}
+
+	var (
+		inArgCount  = caller.Type().NumIn()
+		outArgCount = caller.Type().NumOut()
+	)
+	if inArgCount > 2 || outArgCount != 2 {
+		return nil, pbError.ErrInvalidArgument.New(fmt.Sprintf(`method "%s" want more in arguments`, req.GetMethod()))
+	}
+	inputs := []reflect.Value{}
+	switch inArgCount {
+	case 0:
+	case 1:
+		inputs = append(inputs, reflect.ValueOf(ctx))
+	case 2:
+		inputs = append(inputs, reflect.ValueOf(ctx), reflect.ValueOf(req.GetInput()))
+	}
+
+	vals := caller.Call(inputs)
+	if len(vals) != 2 {
+		return nil, pbError.ErrInternal.New("caller response count not correct")
+	}
+	if !vals[1].IsNil() {
+		val := vals[1].Interface()
+		err := val.(error)
+		s.logger.Error(err)
+		return nil, pbError.ErrInternal.New(err)
+	}
+
+	val := vals[0]
+	switch val.Kind() {
+	case reflect.Array:
+		var (
+			size = val.Len()
+			ret  pbCrawl.CallResponse
+		)
+		for i := 0; i < size; i++ {
+			if v, err := marshalAny(val.Index(i)); err != nil {
+				return nil, pbError.ErrInvalidArgument.New(err)
+			} else {
+				ret.Data = append(ret.Data, v)
+			}
+		}
+		return &ret, nil
+	case reflect.Ptr:
+		if v, err := marshalAny(val); err != nil {
+			return nil, pbError.ErrInvalidArgument.New(err)
+		} else {
+			return &pbCrawl.CallResponse{Data: []*anypb.Any{v}}, nil
+		}
+	default:
+		return nil, pbError.ErrInternal.New("unsuported returned value")
+	}
 }
 
 // Parse do http request first and then do parse

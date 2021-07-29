@@ -15,6 +15,7 @@ import (
 	"github.com/voiladev/VoilaCrawler/pkg/item"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http/cookiejar"
+	pbCrawlItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/VoilaCrawler/pkg/proxy"
 	"github.com/voiladev/go-framework/glog"
@@ -23,7 +24,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func localCommand(ctx context.Context, app *App, newFunc NewWithApp, extraFlags []cli.Flag) *cli.Command {
+func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extraFlags []cli.Flag) *cli.Command {
 	flags := []cli.Flag{
 		&cli.StringFlag{
 			Name:    "proxy-addr",
@@ -91,10 +92,100 @@ func localCommand(ctx context.Context, app *App, newFunc NewWithApp, extraFlags 
 			EnvVars: []string{"DEBUG"},
 		},
 	}...)
+
+	var subcmds []*cli.Command
+	if _, ok := newer.(crawler.ProductCrawler); ok {
+		callcmd := cli.Command{
+			Name:        "call",
+			Usage:       "call remote methods",
+			Description: "call remote methods",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "name",
+					Usage: "method name",
+				},
+				&cli.StringFlag{
+					Name:  "param",
+					Usage: "function params",
+				},
+			},
+			Action: func(c *cli.Context) error {
+				name := c.String("name")
+				if name == "" {
+					return cli.NewExitError("invalid method name", 1)
+				}
+				// param := c.String("param")
+
+				logger := glog.New(glog.LogLevelInfo)
+
+				verbose := c.Bool("verbose") || c.Bool("debug") || c.Bool("vv")
+				if verbose {
+					logger.SetLevel(glog.LogLevelDebug)
+					os.Setenv("DEBUG", "1")
+				}
+
+				proxyAddr := c.String("proxy-addr")
+				if proxyAddr == "" {
+					return errors.New("proxy address not specified")
+				}
+
+				jar := cookiejar.New()
+				client, err := proxy.NewProxyClient(proxyAddr, jar, logger)
+				if err != nil {
+					logger.Error(err)
+					return cli.NewExitError(err, 1)
+				}
+
+				val, err := newer.New(c, client, logger)
+				if err != nil {
+					logger.Error(err)
+					return cli.NewExitError(err, 1)
+				}
+				node := val.(crawler.ProductCrawler)
+
+				switch strings.ToLower(name) {
+				case strings.ToLower("GetCategories"):
+					ctx := context.WithValue(app.ctx, context.TracingIdKey, randutil.MustNewRandomID())
+					ctx = context.WithValue(ctx, context.JobIdKey, randutil.MustNewRandomID())
+
+					cates, err := node.GetCategories(ctx)
+					if err != nil {
+						logger.Error(err)
+						return cli.NewExitError(err, 1)
+					}
+					var prettyPrint func(cate *pbCrawlItem.Category, depth int)
+
+					prettyPrint = func(cate *pbCrawlItem.Category, depth int) {
+						pending := ""
+						if cate.Url != "" {
+							pending = " : " + cate.Url
+						}
+						count := ""
+						name := cate.Name
+						if len(cate.Children) > 0 {
+							count = fmt.Sprintf(" (%d)", len(cate.Children))
+							name = name + "/"
+						}
+						fmt.Printf("%s%s%s%s\n", strings.Repeat("    ", depth), name, count, pending)
+						for _, child := range cate.Children {
+							prettyPrint(child, depth+1)
+						}
+					}
+					for _, cate := range cates {
+						prettyPrint(cate, 0)
+					}
+				}
+				return nil
+			},
+		}
+		subcmds = append(subcmds, &callcmd)
+	}
+
 	return &cli.Command{
 		Name:        "test",
 		Usage:       "local test",
 		Description: "local test",
+		Subcommands: subcmds,
 		Flags:       flags,
 		Action: func(c *cli.Context) error {
 			logger := glog.New(glog.LogLevelInfo)
@@ -117,11 +208,13 @@ func localCommand(ctx context.Context, app *App, newFunc NewWithApp, extraFlags 
 				logger.Error(err)
 				return cli.NewExitError(err, 1)
 			}
-			node, err := newFunc(c, client, logger)
+			cw, err := newer.New(c, client, logger)
 			if err != nil {
 				logger.Error(err)
 				return cli.NewExitError(err, 1)
 			}
+
+			node := cw.(crawler.Crawler)
 			var (
 				reqFilter = map[string]struct{}{}
 				reqQueue  deque.Deque

@@ -4,14 +4,22 @@ import (
 	"errors"
 	"net/url"
 
+	"github.com/urfave/cli/v2"
 	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	pbHttp "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/http"
 	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
+	pbCrawlItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 )
+
+// NewCrawler interface
+type NewCrawler interface {
+	// New
+	New(c *cli.Context, client http.Client, logger glog.Log) (Crawler, error)
+}
 
 // CrawlOptions
 type CrawlOptions struct {
@@ -127,13 +135,8 @@ type Crawler interface {
 
 // ProductCrawler
 type ProductCrawler interface {
-	Crawler
-
 	// Categories get categories internally
-	GetCategories(ctx context.Context) ([]*pbCrawl.Item, error)
-
-	// GetBrands get brands internally
-	GetBrands(ctx context.Context) ([]*pbCrawl.Item, error)
+	GetCategories(context.Context) ([]*pbCrawlItem.Category, error)
 }
 
 // MustImplementCrawler
