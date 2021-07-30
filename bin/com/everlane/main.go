@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/url"
 	"os"
@@ -139,103 +138,6 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
-// Parse is the entry to run the spider.
-// ctx is the context of this run. if may contains the shared values in it.
-//   you can alse set some value by context.WithValue().
-//   but, to be sure that, the key must be string type, and the value must stringable,
-//   as string,int,int32 and so on.
-// resp is the http response, with contains the response data from target url.
-// yield is a callback to emit sub request, or the crawled target object.
-//   if you got an sub url, then you can use http.NewRequest to build a new request
-//   and emit it to spider controller for schedule. the ctx can be used to share the
-//   values between current response and next response.
-//   if you got an product item, then you can just emit it.
-// returns error when there are any errors happened.
-func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-
-	if p == "" || p == "/collections/womens-all" || p == "/collections/mens-all" || p == "/denim-guide" ||
-		p == "/collections/mens-jeans" || p == "/collections/track" || p == "/sale" {
-		return c.parseCategories(ctx, resp, yield)
-	}
-
-	if c.productPathMatcher.MatchString(resp.RawUrl().Path) || c.productApiPathMatcher.MatchString(resp.RawUrl().Path) {
-		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || c.categoryApiPathMatcher.MatchString(resp.RawUrl().Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	}
-	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	catUrl := "https://cdn.builder.io/api/v2/content/intl-menu?apiKey=444142b2cae54a19aeb8b5ba245feffe&cacheSeconds=300&userAttributes.foo=bar"
-
-	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
-	req.Header.Add("accept", "*/*")
-	req.Header.Add("referer", "https://www.everlane.com/")
-	req.Header.Add("accept-language", "en-US,en;q=0.9")
-
-	catreq, err := c.httpClient.Do(ctx, req)
-	if err != nil {
-		panic(err)
-	}
-	defer catreq.Body.Close()
-
-	catBody, err := ioutil.ReadAll(catreq.Body)
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	var viewData categoryStructure
-	if err := json.Unmarshal(catBody, &viewData); err != nil {
-		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
-		return err
-	}
-
-	for _, rawCat := range viewData.Results {
-
-		if rawCat.Name == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", rawCat.Name)
-
-		for _, rawsubCat := range rawCat.Data.Sections {
-
-			for _, rawsubcatlvl2 := range rawsubCat.Links {
-
-				href := "https://www.everlane.com/" + rawsubcatlvl2.URL
-				if rawsubcatlvl2.URL == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := rawsubCat.Text + " > " + rawsubcatlvl2.Text
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
 type categoryStructure struct {
 	Results []struct {
 		CreatedBy   string `json:"createdBy"`
@@ -295,6 +197,89 @@ type categoryStructure struct {
 		} `json:"variations,omitempty"`
 		Rev string `json:"rev"`
 	} `json:"results"`
+}
+
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	catUrl := "https://cdn.builder.io/api/v2/content/intl-menu?apiKey=444142b2cae54a19aeb8b5ba245feffe&cacheSeconds=300&userAttributes.foo=bar"
+	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
+	req.Header.Add("accept", "*/*")
+	req.Header.Add("referer", "https://www.everlane.com/")
+	req.Header.Add("accept-language", "en-US,en;q=0.9")
+	opts := c.CrawlOptions(req.URL)
+
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var viewData categoryStructure
+	if err := json.NewDecoder(resp.Body).Decode(&viewData); err != nil {
+		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	for _, rawCat := range viewData.Results {
+		if rawCat.Name == "" || strings.ToLower(rawCat.Name) == "about" {
+			continue
+		}
+		cate := pbItem.Category{Name: rawCat.Name}
+		cates = append(cates, &cate)
+
+		for _, rawsubCat := range rawCat.Data.Sections {
+			href, _ := c.CanonicalUrl(rawsubCat.URL)
+			subCate := pbItem.Category{Name: rawsubCat.Text, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+
+			for _, rawsubcatlvl2 := range rawsubCat.Links {
+				href, _ := c.CanonicalUrl(rawsubcatlvl2.URL)
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{Name: rawsubcatlvl2.Text, Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
+// Parse is the entry to run the spider.
+// ctx is the context of this run. if may contains the shared values in it.
+//   you can alse set some value by context.WithValue().
+//   but, to be sure that, the key must be string type, and the value must stringable,
+//   as string,int,int32 and so on.
+// resp is the http response, with contains the response data from target url.
+// yield is a callback to emit sub request, or the crawled target object.
+//   if you got an sub url, then you can use http.NewRequest to build a new request
+//   and emit it to spider controller for schedule. the ctx can be used to share the
+//   values between current response and next response.
+//   if you got an product item, then you can just emit it.
+// returns error when there are any errors happened.
+func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
+
+	if p == "" || p == "/collections/womens-all" || p == "/collections/mens-all" || p == "/denim-guide" ||
+		p == "/collections/mens-jeans" || p == "/collections/track" || p == "/sale" {
+		return crawler.ErrUnsupportedPath
+	}
+
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) || c.productApiPathMatcher.MatchString(resp.RawUrl().Path) {
+		return c.parseProduct(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || c.categoryApiPathMatcher.MatchString(resp.RawUrl().Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
+	}
+	return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get the index from the shared data.
