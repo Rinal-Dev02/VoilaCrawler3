@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -93,8 +94,16 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 		},
 	}...)
 
-	var subcmds []*cli.Command
+	var (
+		subcmds              []*cli.Command
+		supportedMethodNames []string
+	)
 	if _, ok := newer.(crawler.ProductCrawler); ok {
+		productCrawlerType := reflect.TypeOf((*crawler.ProductCrawler)(nil)).Elem()
+		for i := 0; i < productCrawlerType.NumMethod(); i++ {
+			method := productCrawlerType.Method(i)
+			supportedMethodNames = append(supportedMethodNames, method.Name)
+		}
 		callcmd := cli.Command{
 			Name:        "call",
 			Usage:       "call remote methods",
@@ -102,7 +111,7 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 			Flags: []cli.Flag{
 				&cli.StringFlag{
 					Name:  "name",
-					Usage: "method name",
+					Usage: fmt.Sprintf("method name, supported include %s", strings.Join(supportedMethodNames, ",")),
 				},
 				&cli.StringFlag{
 					Name:  "param",
@@ -114,10 +123,19 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 				if name == "" {
 					return cli.NewExitError("invalid method name", 1)
 				}
-				// param := c.String("param")
+				if !func() bool {
+					for _, n := range supportedMethodNames {
+						if name == n {
+							return true
+						}
+					}
+					return false
+				}() {
+					return cli.NewExitError("invalid method name", 1)
+				}
+				param := c.String("param")
 
 				logger := glog.New(glog.LogLevelInfo)
-
 				verbose := c.Bool("verbose") || c.Bool("debug") || c.Bool("vv")
 				if verbose {
 					logger.SetLevel(glog.LogLevelDebug)
@@ -126,7 +144,7 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 
 				proxyAddr := c.String("proxy-addr")
 				if proxyAddr == "" {
-					return errors.New("proxy address not specified")
+					return cli.NewExitError("proxy address not specified", 1)
 				}
 
 				jar := cookiejar.New()
@@ -141,18 +159,40 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 					logger.Error(err)
 					return cli.NewExitError(err, 1)
 				}
-				node := val.(crawler.ProductCrawler)
 
-				switch strings.ToLower(name) {
-				case strings.ToLower("GetCategories"):
+				node := reflect.ValueOf(val)
+				caller := node.MethodByName(name)
+				errType := caller.Type().Out(1)
+				if !errType.Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+					return cli.NewExitError(fmt.Sprintf("last output argument of method %s must be implement error interface", name), 1)
+				}
+				var (
+					inArgCount  = caller.Type().NumIn()
+					outArgCount = caller.Type().NumOut()
+					inputArgs   []reflect.Value
+				)
+				if inArgCount > 2 || outArgCount != 2 {
+					return cli.NewExitError("method define errors, method must define not more than 2 input args, with only two out args", 1)
+				}
+				switch inArgCount {
+				case 0:
+				case 1:
 					ctx := context.WithValue(app.ctx, context.TracingIdKey, randutil.MustNewRandomID())
 					ctx = context.WithValue(ctx, context.JobIdKey, randutil.MustNewRandomID())
+					inputArgs = append(inputArgs, reflect.ValueOf(ctx))
+				case 2:
+					ctx := context.WithValue(app.ctx, context.TracingIdKey, randutil.MustNewRandomID())
+					ctx = context.WithValue(ctx, context.JobIdKey, randutil.MustNewRandomID())
+					inputArgs = append(inputArgs, reflect.ValueOf(ctx), reflect.ValueOf(param))
+				}
 
-					cates, err := node.GetCategories(ctx)
-					if err != nil {
-						logger.Error(err)
-						return cli.NewExitError(err, 1)
-					}
+				vals := caller.Call(inputArgs)
+				if !vals[1].IsNil() {
+					return cli.NewExitError(vals[1].Interface(), 1)
+				}
+
+				switch val := vals[0].Interface().(type) {
+				case []*pbCrawlItem.Category:
 					var prettyPrint func(cate *pbCrawlItem.Category, depth int)
 
 					prettyPrint = func(cate *pbCrawlItem.Category, depth int) {
@@ -163,15 +203,14 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 						count := ""
 						name := cate.Name
 						if len(cate.Children) > 0 {
-							count = fmt.Sprintf(" (%d)", len(cate.Children))
-							name = name + "/"
+							count = fmt.Sprintf(" (%d)/", len(cate.Children))
 						}
 						fmt.Printf("%s%s%s%s\n", strings.Repeat("    ", depth), name, count, pending)
 						for _, child := range cate.Children {
 							prettyPrint(child, depth+1)
 						}
 					}
-					for _, cate := range cates {
+					for _, cate := range val {
 						prettyPrint(cate, 0)
 					}
 				}

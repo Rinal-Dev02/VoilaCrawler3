@@ -148,12 +148,15 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		return nil, fmt.Errorf("do http request failed with status %d %s", proxyResp.StatusCode, proxyResp.Status)
 	}
 
+	startTime := time.Now()
 	var proxyRespBody pbProxy.Response
 	if respBody, err := io.ReadAll(proxyResp.Body); err != nil {
 		return nil, err
 	} else if err := protojson.Unmarshal(respBody, &proxyRespBody); err != nil {
 		return nil, err
 	}
+	c.logger.Debugf("read response body cost %s", time.Now().Sub(startTime))
+
 	if proxyRespBody.GetStatusCode() == -1 {
 		return nil, errors.New(proxyRespBody.Status)
 	}
