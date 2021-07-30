@@ -102,6 +102,94 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	var cates []*pbItem.Category
+	for name, rawurl := range map[string]string{
+		"Beauty": "https://fentybeauty.com/",
+		"Skin":   "https://fentybeauty.com/pages/fentyskin",
+	} {
+		mainCate := pbItem.Category{Name: name}
+		cates = append(cates, &mainCate)
+
+		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
+		opts := c.CrawlOptions(req.URL)
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableSessionInit,
+			KeepSession:       opts.KeepSession,
+			Reliability:       opts.Reliability,
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		dom, err := resp.Selector()
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		sel := dom.Find(`nav.header-nav--desktop ul.header-nav__items > li`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			cateName := text.Clean(node.Find(`a`).First().AttrOr("title", node.Find(`a`).First().Find("span>span").Text()))
+			if strings.ToLower(cateName) != "shop" && strings.ToLower(cateName) != "sale" {
+				continue
+			}
+			href, _ := c.CanonicalUrl(node.Find("a").AttrOr("href", ""))
+
+			cate := pbItem.Category{Name: cateName, Url: href}
+			mainCate.Children = append(mainCate.Children, &cate)
+
+			subSel := node.Find(`.header-nav__subnav .shop-meganav__items>div`)
+			for k := range subSel.Nodes {
+				subNode := subSel.Eq(k)
+				if strings.Contains(subNode.AttrOr("class", ""), "shop-meganav__item-wrapper") {
+					aSel := subNode.Find(`a.js-sub-link`)
+					for ai := range aSel.Nodes {
+						aNode := aSel.Eq(ai)
+						href, _ := c.CanonicalUrl(aNode.AttrOr("href", ""))
+						if href == "" {
+							continue
+						}
+						subCateName := text.Clean(aNode.AttrOr("title", aNode.Text()))
+						if subCateName == "" {
+							continue
+						}
+						subCate := pbItem.Category{
+							Name: subCateName,
+							Url:  href,
+						}
+						cate.Children = append(cate.Children, &subCate)
+					}
+				} else if strings.Contains(subNode.AttrOr("class", ""), "shop-meganav__submenu") {
+					aNode := subNode.Find(`a`).First()
+					href, _ := c.CanonicalUrl(aNode.AttrOr("href", ""))
+
+					subCateName := text.Clean(aNode.AttrOr("title", aNode.Text()))
+					subCate := pbItem.Category{Name: subCateName, Url: href}
+					cate.Children = append(cate.Children, &subCate)
+
+					subSel2 := subNode.Find(`.shop-meganav__submenu__links a.js-sub-link`)
+					for l := range subSel2.Nodes {
+						aNode := subSel2.Eq(l)
+						href, _ := c.CanonicalUrl(aNode.AttrOr("href", ""))
+						if href == "" {
+							continue
+						}
+						subCate2Name := text.Clean(aNode.AttrOr("title", aNode.Text()))
+						subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+						subCate.Children = append(subCate.Children, &subCate2)
+					}
+				}
+			}
+		}
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -121,7 +209,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
 	if p == "" || p == "/pages/fentyskin" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
 	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
@@ -140,95 +228,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		}
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := resp.RawBody()
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`nav.header-nav--desktop ul.header-nav__items > li`)
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := text.Clean(node.Find(`a`).First().AttrOr("title", node.Find(`a`).First().Find("span>span").Text()))
-		if cateName == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subSel := node.Find(`.header-nav__subnav .shop-meganav__items>div`)
-		for k := range subSel.Nodes {
-			subNode := subSel.Eq(k)
-			if strings.Contains(subNode.AttrOr("class", ""), "shop-meganav__item-wrapper") {
-				aSel := subNode.Find(`a.js-sub-link`)
-				for ai := range aSel.Nodes {
-					aNode := aSel.Eq(ai)
-					href := aNode.AttrOr("href", "")
-					u, err := url.Parse(href)
-					if err != nil {
-						c.logger.Error("parse url %s failed", href)
-						continue
-					}
-					subCate := text.Clean(aNode.AttrOr("title", aNode.Text()))
-					if c.categoryPathMatcher.MatchString(u.Path) {
-						nnnctx := context.WithValue(nnctx, "SubCategory", subCate)
-						req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-						if err := yield(nnnctx, req); err != nil {
-							return err
-						}
-					}
-				}
-			} else if strings.Contains(subNode.AttrOr("class", ""), "shop-meganav__submenu") {
-				aNode := subNode.Find(`a`).First()
-				href := aNode.AttrOr("href", "")
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-				subCate := text.Clean(aNode.AttrOr("title", aNode.Text()))
-				nnnctx := context.WithValue(nnctx, "SubCategory", subCate)
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-
-				subSel2 := subNode.Find(`.shop-meganav__submenu__links a.js-sub-link`)
-				for l := range subSel2.Nodes {
-					aNode := subSel2.Eq(l)
-					href := aNode.AttrOr("href", "")
-					u, err := url.Parse(href)
-					if err != nil {
-						c.logger.Error("parse url %s failed", href)
-						continue
-					}
-					subCate := text.Clean(aNode.AttrOr("title", aNode.Text()))
-					if c.categoryPathMatcher.MatchString(u.Path) {
-						nnnnctx := context.WithValue(nnnctx, "SubCategory2", subCate)
-						req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-						if err := yield(nnnnctx, req); err != nil {
-							return err
-						}
-					}
-				}
-			}
-
-		}
-	}
-	return nil
 }
 
 // nextIndex used to get the index from the shared data.
