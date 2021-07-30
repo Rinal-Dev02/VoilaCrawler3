@@ -60,7 +60,7 @@ func (c *_Crawler) Version() int32 {
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
-	options.EnableSessionInit = false
+	options.EnableSessionInit = true
 	//options.DisableCookieJar = true
 	options.Reliability = proxy.ProxyReliability_ReliabilityDefault
 	//options.MustHeader.Set("accept-encoding", "gzip, deflate, br")
@@ -107,111 +107,6 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
-func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-
-	if p == "/index" || p == "" {
-		return c.parseCategories(ctx, resp, yield)
-	}
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	}
-	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	catUrl := "https://www.bloomingdales.com/xapi/navigate/v1/header?bypass_redirect=yes&viewType=Responsive&currencyCode=USD&_regionCode=US&_navigationType=BROWSE&_shoppingMode=SITE"
-	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
-	req.Header.Add("accept", "application/json, text/javascript, */*; q=0.01")
-	req.Header.Add("referer", "https://www.bloomingdales.com/")
-	req.Header.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
-	req.Header.Add("x-requested-with", "XMLHttpRequest")
-
-	catreq, err := c.httpClient.Do(ctx, req)
-	if err != nil {
-		panic(err)
-	}
-	defer catreq.Body.Close()
-
-	catBody, err := ioutil.ReadAll(catreq.Body)
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	var viewData categoryStructure
-	if err := json.Unmarshal(catBody, &viewData); err != nil {
-		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
-		return err
-	}
-
-	for _, rawcat := range viewData.Menu {
-
-		nnctx := context.WithValue(ctx, "Category", rawcat.Text)
-
-		for _, rawsubcat := range rawcat.Children[0].Group {
-
-			if len(rawsubcat.Children) > 0 {
-
-				for _, rawsub2cat := range rawsubcat.Children[0].Group {
-
-					href := rawsub2cat.URL
-					if href == "" {
-						continue
-					}
-
-					fmt.Println(rawsubcat.Text + " > " + rawsub2cat.Text)
-					u, err := url.Parse(href)
-					if err != nil {
-						c.logger.Errorf("parse url %s failed", href)
-						continue
-					}
-
-					if c.categoryPathMatcher.MatchString(u.Path) {
-						nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Text+" > "+rawsub2cat.Text)
-						req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-						if err := yield(nctx, req); err != nil {
-							return err
-						}
-					}
-				}
-			} else {
-
-				href := rawsubcat.URL
-				if href == "" {
-					continue
-				}
-
-				fmt.Println(rawsubcat.Text)
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Errorf("parse url %s failed", href)
-					continue
-				}
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Text)
-					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-					if err := yield(nctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
 type categoryStructure struct {
 	Menu []struct {
 		ID       string `json:"id"`
@@ -232,6 +127,96 @@ type categoryStructure struct {
 			} `json:"group"`
 		} `json:"children"`
 	} `json:"menu"`
+}
+
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	catUrl := "https://www.bloomingdales.com/xapi/navigate/v1/header?bypass_redirect=yes&viewType=Responsive&currencyCode=USD&_regionCode=US&_navigationType=BROWSE&_shoppingMode=SITE"
+	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
+	req.Header.Add("accept", "application/json, text/javascript, */*; q=0.01")
+	req.Header.Add("referer", "https://www.bloomingdales.com/")
+	req.Header.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+	req.Header.Add("x-requested-with", "XMLHttpRequest")
+	opts := c.CrawlOptions(req.URL)
+
+	catreq, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		KeepSession:       opts.KeepSession,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer catreq.Body.Close()
+
+	catBody, err := ioutil.ReadAll(catreq.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(catBody, &viewData); err != nil {
+		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	for _, rawcat := range viewData.Menu {
+		cate := pbItem.Category{
+			Name: rawcat.Text,
+		}
+		cates = append(cates, &cate)
+
+		for _, rawsubcat := range rawcat.Children[0].Group {
+			subCate := pbItem.Category{
+				Name: rawsubcat.Text,
+			}
+
+			if len(rawsubcat.Children) > 0 {
+				for _, rawsub2cat := range rawsubcat.Children[0].Group {
+					href := rawsub2cat.URL
+					if href == "" {
+						continue
+					}
+					href, err := c.CanonicalUrl(rawsub2cat.URL)
+					if err != nil {
+						continue
+					}
+					subCate2 := pbItem.Category{
+						Name: rawsub2cat.Text,
+						Url:  href,
+					}
+					subCate.Children = append(subCate.Children, &subCate2)
+				}
+			}
+
+			if rawsubcat.URL != "" {
+				if href, _ := c.CanonicalUrl(rawsubcat.URL); href != "" {
+					subCate.Url = href
+				}
+			}
+			cate.Children = append(cate.Children, &subCate)
+		}
+	}
+	return cates, nil
+}
+
+func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	if p == "/index" || p == "" {
+		return crawler.ErrUnsupportedPath
+	}
+	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseProduct(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
+	}
+	return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get sharingData from context
