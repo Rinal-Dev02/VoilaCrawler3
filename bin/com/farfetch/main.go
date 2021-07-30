@@ -85,13 +85,103 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		u.RawQuery = ""
 		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 var countriesPrefix = map[string]struct{}{"/ad": {}, "/ae": {}, "/ar-ae": {}, "/af": {}, "/ag": {}, "/ai": {}, "/al": {}, "/am": {}, "/an": {}, "/ao": {}, "/aq": {}, "/ar": {}, "/at": {}, "/au": {}, "/aw": {}, "/az": {}, "/ba": {}, "/bb": {}, "/bd": {}, "/be": {}, "/bf": {}, "/bg": {}, "/bh": {}, "/ar-bh": {}, "/bi": {}, "/bj": {}, "/bm": {}, "/bn": {}, "/bo": {}, "/br": {}, "/bs": {}, "/bt": {}, "/bv": {}, "/bw": {}, "/by": {}, "/bz": {}, "/ca": {}, "/cc": {}, "/cf": {}, "/cg": {}, "/ch": {}, "/ci": {}, "/ck": {}, "/cl": {}, "/cm": {}, "/cn": {}, "/co": {}, "/cr": {}, "/cv": {}, "/cx": {}, "/cy": {}, "/cz": {}, "/de": {}, "/dj": {}, "/dk": {}, "/dm": {}, "/do": {}, "/dz": {}, "/ec": {}, "/ee": {}, "/eg": {}, "/ar-eg": {}, "/eh": {}, "/es": {}, "/et": {}, "/fi": {}, "/fj": {}, "/fk": {}, "/fm": {}, "/fo": {}, "/fr": {}, "/ga": {}, "/uk": {}, "/gd": {}, "/ge": {}, "/gf": {}, "/gg": {}, "/gh": {}, "/gi": {}, "/gl": {}, "/gm": {}, "/gn": {}, "/gp": {}, "/gq": {}, "/gr": {}, "/gt": {}, "/gu": {}, "/gw": {}, "/gy": {}, "/hk": {}, "/hn": {}, "/hr": {}, "/ht": {}, "/hu": {}, "/ic": {}, "/id": {}, "/ie": {}, "/il": {}, "/in": {}, "/io": {}, "/iq": {}, "/ar-iq": {}, "/is": {}, "/it": {}, "/je": {}, "/jm": {}, "/jo": {}, "/ar-jo": {}, "/jp": {}, "/ke": {}, "/kg": {}, "/kh": {}, "/ki": {}, "/km": {}, "/kn": {}, "/kr": {}, "/kv": {}, "/kw": {}, "/ar-kw": {}, "/ky": {}, "/kz": {}, "/la": {}, "/lb": {}, "/ar-lb": {}, "/lc": {}, "/li": {}, "/lk": {}, "/ls": {}, "/lt": {}, "/lu": {}, "/lv": {}, "/ma": {}, "/mc": {}, "/md": {}, "/me": {}, "/mg": {}, "/mh": {}, "/mk": {}, "/ml": {}, "/mn": {}, "/mo": {}, "/mp": {}, "/mq": {}, "/mr": {}, "/ms": {}, "/mt": {}, "/mu": {}, "/mv": {}, "/mw": {}, "/mx": {}, "/my": {}, "/mz": {}, "/na": {}, "/nc": {}, "/ne": {}, "/nf": {}, "/ng": {}, "/ni": {}, "/nl": {}, "/no": {}, "/np": {}, "/nr": {}, "/nu": {}, "/nz": {}, "/om": {}, "/ar-om": {}, "/pa": {}, "/pe": {}, "/pf": {}, "/pg": {}, "/ph": {}, "/pk": {}, "/pl": {}, "/pm": {}, "/pn": {}, "/pr": {}, "/pt": {}, "/pw": {}, "/py": {}, "/qa": {}, "/ar-qa": {}, "/re": {}, "/ro": {}, "/rs": {}, "/ru": {}, "/rw": {}, "/sa": {}, "/ar-sa": {}, "/sb": {}, "/sc": {}, "/se": {}, "/sg": {}, "/sh": {}, "/si": {}, "/sk": {}, "/sl": {}, "/sm": {}, "/sn": {}, "/sr": {}, "/st": {}, "/sv": {}, "/sz": {}, "/tc": {}, "/td": {}, "/tg": {}, "/th": {}, "/tj": {}, "/tk": {}, "/tl": {}, "/tn": {}, "/to": {}, "/tr": {}, "/tt": {}, "/tv": {}, "/tw": {}, "/tz": {}, "/ua": {}, "/ug": {}, "/uy": {}, "/uz": {}, "/va": {}, "/vc": {}, "/ve": {}, "/vg": {}, "/vi": {}, "/vn": {}, "/vu": {}, "/wf": {}, "/xc": {}, "/ye": {}, "/za": {}, "/zm": {}, "/zw": {}}
 
 func getPathFirstSection(p string) string {
 	return "/" + strings.SplitN(strings.TrimPrefix(p, "/"), "/", 2)[0]
+}
+
+type categoryChildrenStructure struct {
+	Children []struct {
+		Type     string `json:"type"`
+		Title    string `json:"title"`
+		Href     string `json:"href"`
+		Children []struct {
+			Type     string `json:"type"`
+			Children []struct {
+				Title string `json:"title"`
+				Href  string `json:"href"`
+			} `json:"children"`
+		} `json:"children"`
+	} `json:"children"`
+}
+
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	var cates []*pbItem.Category
+
+	buildUrl := func(u string) string {
+		if u == "" {
+			return ""
+		}
+		u, _ = c.CanonicalUrl(u)
+		return u
+	}
+
+	for mainCate, rawurl := range map[string]string{
+		"Women": "https://www.farfetch.com/headerslice/meganav/GetGenderChildren?genderId=249&isPreviewMode=false",
+		"Men":   "https://www.farfetch.com/headerslice/meganav/GetGenderChildren?genderId=248&isPreviewMode=false",
+		"Kids":  "https://www.farfetch.com/headerslice/meganav/GetGenderChildren?genderId=19018&isPreviewMode=false",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
+		req.Header.Add("accept", "application/json, text/plain, */*")
+		req.Header.Add("referer", "https://www.farfetch.com/")
+		req.Header.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+		req.Header.Add("x-requested-with", "XMLHttpRequest")
+		opts := c.CrawlOptions(req.URL)
+
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    false,
+			EnableSessionInit: opts.EnableSessionInit,
+			KeepSession:       opts.KeepSession,
+			Reliability:       opts.Reliability,
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+		defer resp.Body.Close()
+
+		var viewData categoryChildrenStructure
+		if err := json.NewDecoder(resp.Body).Decode(&viewData); err != nil {
+			c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+			return nil, err
+		}
+
+		cate := pbItem.Category{
+			Name:  mainCate,
+			Depth: 1,
+		}
+		cates = append(cates, &cate)
+		for _, level1RawCate := range viewData.Children {
+			level1Cate := pbItem.Category{
+				Name: level1RawCate.Title,
+				Url:  buildUrl(level1RawCate.Href),
+			}
+			cate.Children = append(cate.Children, &level1Cate)
+
+			for _, wrapper := range level1RawCate.Children {
+				if wrapper.Type != "segment" {
+					continue
+				}
+
+				for _, level2RawCate := range wrapper.Children {
+					if level2RawCate.Title == "" || level2RawCate.Href == "" {
+						continue
+					}
+					level2Cate := pbItem.Category{
+						Name: level2RawCate.Title,
+						Url:  buildUrl(level2RawCate.Href),
+					}
+					level1Cate.Children = append(level1Cate.Children, &level2Cate)
+				}
+			}
+		}
+	}
+	return cates, nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -146,12 +236,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
-	}
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yieldWrap)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(p) {
 		return c.parseCategoryProducts(ctx, resp, yieldWrap)
 	}
 	return crawler.ErrUnsupportedPath
@@ -181,162 +268,6 @@ type productListType struct {
 var prodDataExtraReg = regexp.MustCompile(`(?Ums)window\['__initialState_portal-slices-listing__'\]\s*=\s*({.*});?\s*</script>`)
 var prodDataExtraReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__'\]\s*=\s*(".*");</script>`)
 var prodDataExtraReg2 = regexp.MustCompile(`(?Ums)window\.__HYDRATION_STATE__\s*=\s*(".*");</script>`)
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	catUrl := "https://www.farfetch.com/headerslice/meganav/GetGenderChildren?genderId=19018&isPreviewMode=false"
-	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
-	req.Header.Add("accept", "application/json, text/plain, */*")
-	req.Header.Add("referer", "https://www.farfetch.com/")
-	req.Header.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
-	req.Header.Add("x-requested-with", "XMLHttpRequest")
-
-	catreq, err := c.httpClient.Do(ctx, req)
-	if err != nil {
-		panic(err)
-	}
-	defer catreq.Body.Close()
-
-	catBody, err := ioutil.ReadAll(catreq.Body)
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	var viewData categoryChildrenStructure
-	if err := json.Unmarshal(catBody, &viewData); err != nil {
-		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
-		return err
-	}
-
-	for _, rawCat := range viewData.Children {
-		cateName := "Kids"
-
-		subCatName := rawCat.Title
-		if subCatName == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subCat1Name := ""
-		for _, rawsubCat := range rawCat.Children {
-
-			for _, rawsub2Cat := range rawsubCat.Children {
-
-				href := rawsub2Cat.Href
-				if rawsub2Cat.Href == "" {
-					subCat1Name = rawsub2Cat.Title
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCate2Name := subCatName + " > " + rawsub2Cat.Title
-				if subCat1Name != "" {
-					subCate2Name = subCatName + " > " + subCat1Name + " > " + rawsub2Cat.Title
-				}
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCate2Name)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-
-	sel := dom.Find(`nav[role="navigation"]`)
-	fmt.Println(len(sel.Nodes))
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.AttrOr("aria-label", ""))
-		if cateName == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subsel1 := node.Find(`ul[data-test="list"]>li`)
-		for k := range subsel1.Nodes {
-			subnode1 := subsel1.Eq(k)
-			if len(subnode1.Find(`div`).Nodes) == 0 {
-				continue
-			}
-			subcat1 := subnode1.Find(`a`).First().Text()
-			if subcat1 == "" {
-				continue
-			}
-			if len(subnode1.Find(`a`).First().Find(`span`).Nodes) > 0 {
-				subcat1 = subnode1.Find(`a`).First().Find(`span`).Text()
-			}
-
-			subcat2 := subnode1.Find(`div > ul > li > ul > li`)
-
-			subtitle := ""
-			for j := range subcat2.Nodes {
-				currentsubcat := subcat2.Eq(j)
-
-				if len(currentsubcat.Find(`a`).Nodes) == 0 {
-					subtitle = currentsubcat.Text()
-					continue
-				}
-
-				href := currentsubcat.Find(`a`).AttrOr("href", "")
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subcat2name := subcat1 + ` > ` + subtitle + ` > ` + currentsubcat.Find(`p`).First().Text()
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subcat2name)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
-type categoryChildrenStructure struct {
-	Children []struct {
-		Type       string `json:"type"`
-		UniqueName string `json:"uniqueName"`
-		Children   []struct {
-			Type     string `json:"type"`
-			Children []struct {
-				Title string `json:"title"`
-				Href  string `json:"href"`
-			} `json:"children"`
-		} `json:"children"`
-		Title string `json:"title"`
-		Href  string `json:"href"`
-	} `json:"children"`
-}
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
