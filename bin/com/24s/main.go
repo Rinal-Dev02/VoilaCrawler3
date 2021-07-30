@@ -108,6 +108,125 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.24s.com/en-us/women", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		KeepSession:       opts.KeepSession,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
+		sel := dom.Find(`#categoryTabContent > ul`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			cateName := "Men"
+			if strings.Contains(node.AttrOr("id", ""), "women-nav") {
+				cateName = "Women"
+			}
+
+			subSel := node.Find(`.nav-item .nav-item-parent`)
+
+			for k := range subSel.Nodes {
+				subNode2 := subSel.Eq(k)
+				subcate2 := subNode2.Find(`span`).First().Text()
+				subNode2list := subNode2.Find(`li`)
+
+				for j := range subNode2list.Nodes {
+					subNode := subNode2list.Eq(j)
+					href := subNode.Find(`a`).AttrOr("href", "")
+					subCate3 := subNode.Text()
+					if href == "" || subCate3 == "" {
+						continue
+					}
+
+					href, err := c.CanonicalUrl(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+					if err := yield([]string{cateName, subcate2, subCate3}, href); err != nil {
+						c.logger.Error(err)
+						return err
+					}
+				}
+
+				if len(subNode2list.Nodes) == 0 {
+					href := subNode2.Find(`a`).AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+
+					href, err := c.CanonicalUrl(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+					if err := yield([]string{cateName, subcate2}, href); err != nil {
+						c.logger.Error(err)
+						return err
+					}
+				}
+			}
+		}
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
+
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
+
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
+				}
+				cateMap[path] = cate
+				if lastCate != nil {
+					lastCate.Children = append(lastCate.Children, cate)
+				}
+				lastCate = cate
+
+				if i == 0 {
+					cates = append(cates, cate)
+				}
+			}
+		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -141,84 +260,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`#categoryTabContent > ul`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := "Men"
-		if strings.Contains(node.AttrOr("id", ""), "women-nav") {
-			cateName = "Women"
-		}
-
-		nnctx := context.WithValue(ctx, "Category", cateName)
-		subSel := node.Find(`.nav-item .nav-item-parent`)
-
-		for k := range subSel.Nodes {
-			subNode2 := subSel.Eq(k)
-			subcat2 := subNode2.Find(`span`).First().Text()
-
-			subNode2list := subNode2.Find(`li`)
-
-			for j := range subNode2list.Nodes {
-				subNode := subNode2list.Eq(j)
-				href := subNode.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subcat2 + " > " + strings.TrimSpace(subNode.Text())
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-
-			if len(subNode2list.Nodes) == 0 {
-
-				href := subNode2.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subcat2
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
 	}
 	return nil
 }
