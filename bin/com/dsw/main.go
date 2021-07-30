@@ -1,12 +1,10 @@
 package main
 
 import (
-	//"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/url"
 	"os"
@@ -100,138 +98,6 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
-func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-	if p == "/en/us" {
-		return c.parseCategories(ctx, resp, yield)
-	}
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.categoryAPIMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) || c.productAPIMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseProduct(ctx, resp, yield)
-	}
-	return crawler.ErrUnsupportedPath
-}
-
-var productsExtractReg = regexp.MustCompile(`(?U)window\.INITIAL_STATE\s*=\s*({.*})\s*</script>`)
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	catUrl := "https://www.dsw.com/api/v1/content/zones?contentCollection=%2Fcontent%2FDSW%2FContents%2FSharedContents%2FHeaderContent&locale=en_US&pushSite=DSW&tier=GUEST"
-
-	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
-	req.Header.Add("accept", "application/json, text/plain, */*")
-	req.Header.Add("referer", "https://www.dsw.com/en/us/")
-
-	catreq, err := c.httpClient.Do(ctx, req)
-	if err != nil {
-		panic(err)
-	}
-	defer catreq.Body.Close()
-
-	catBody, err := ioutil.ReadAll(catreq.Body)
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	var viewData categoryStructure
-	if err := json.Unmarshal(catBody, &viewData); err != nil {
-		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
-		return err
-	}
-
-	for _, rawcat := range viewData.ContentContentItem.Contents[0].TopNavList {
-
-		nnctx := context.WithValue(ctx, "Category", rawcat.CategoryName)
-
-		for _, rawsubcat := range rawcat.Shoes {
-
-			for _, rawlastcat := range rawsubcat.HeaderNavigation {
-
-				href := rawlastcat.LinkText.Path
-
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Errorf("parse url %s failed", href)
-					continue
-				}
-				if c.categoryPathMatcher.MatchString(u.Path) {
-
-					nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Name+">"+rawlastcat.Name)
-					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-					if err := yield(nctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
-		for _, rawsubcat := range rawcat.Spotlight {
-
-			for _, rawlastcat := range rawsubcat.HeaderNavigation {
-
-				href := rawlastcat.LinkText.Path
-
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Errorf("parse url %s failed", href)
-					continue
-				}
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Name+">"+rawlastcat.Name)
-					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-					if err := yield(nctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
-		for _, rawsubcat := range rawcat.Otws {
-
-			for _, rawlastcat := range rawsubcat.HeaderNavigation {
-
-				href := rawlastcat.LinkText.Path
-
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Errorf("parse url %s failed", href)
-					continue
-				}
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Name+">"+rawlastcat.Name)
-					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-					if err := yield(nctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
 type categoryStructure struct {
 	ContentContentItem struct {
 		Contents []struct {
@@ -271,6 +137,103 @@ type categoryStructure struct {
 		} `json:"contents"`
 	} `json:"contentContentItem"`
 }
+
+// GetCategories
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	catUrl := "https://www.dsw.com/api/v1/content/zones?contentCollection=%2Fcontent%2FDSW%2FContents%2FSharedContents%2FHeaderContent&locale=en_US&pushSite=DSW&tier=GUEST"
+
+	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
+	req.Header.Add("accept", "application/json, text/plain, */*")
+	req.Header.Add("referer", "https://www.dsw.com/en/us/")
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var viewData categoryStructure
+	if err := json.NewDecoder(resp.Body).Decode(&viewData); err != nil {
+		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+		return nil, err
+	}
+	var cates []*pbItem.Category
+	for _, rawcat := range viewData.ContentContentItem.Contents[0].TopNavList {
+		cate := pbItem.Category{Name: rawcat.CategoryName}
+		cates = append(cates, &cate)
+		for _, rawsubcat := range rawcat.Shoes {
+			subCate := pbItem.Category{Name: rawsubcat.Name}
+			cate.Children = append(cate.Children, &subCate)
+			for _, rawlastcat := range rawsubcat.HeaderNavigation {
+				href, _ := c.CanonicalUrl(rawlastcat.LinkText.Path)
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{
+					Name: rawlastcat.Name,
+					Url:  href,
+				}
+				subCate.Children = append(subCate2.Children, &subCate2)
+			}
+		}
+
+		for _, rawsubcat := range rawcat.Spotlight {
+			subCate := pbItem.Category{Name: rawsubcat.Name}
+			cate.Children = append(cate.Children, &subCate)
+			for _, rawlastcat := range rawsubcat.HeaderNavigation {
+				href, _ := c.CanonicalUrl(rawlastcat.LinkText.Path)
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{
+					Name: rawlastcat.Name,
+					Url:  href,
+				}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+
+		for _, rawsubcat := range rawcat.Otws {
+			subCate := pbItem.Category{Name: rawsubcat.Name}
+			cate.Children = append(cate.Children, &subCate)
+			for _, rawlastcat := range rawsubcat.HeaderNavigation {
+				href, _ := c.CanonicalUrl(rawlastcat.LinkText.Path)
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{
+					Name: rawlastcat.Name,
+					Url:  href,
+				}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
+func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
+	if p == "/en/us" {
+		return crawler.ErrUnsupportedPath
+	}
+	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.categoryAPIMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
+	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) || c.productAPIMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseProduct(ctx, resp, yield)
+	}
+	return crawler.ErrUnsupportedPath
+}
+
+var productsExtractReg = regexp.MustCompile(`(?U)window\.INITIAL_STATE\s*=\s*({.*})\s*</script>`)
 
 // nextIndex used to get sharingData from context
 func nextIndex(ctx context.Context) int {
