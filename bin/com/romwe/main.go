@@ -95,7 +95,7 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		u.RawQuery = ""
 		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {

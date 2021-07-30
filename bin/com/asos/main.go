@@ -101,7 +101,7 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		u.RawQuery = ""
 		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
@@ -147,12 +147,13 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 				subCate := strings.TrimSpace(linkNode.Text())
 
-				u, err := url.Parse(href)
+				href, err := c.CanonicalUrl(href)
 				if err != nil {
-					c.logger.Errorf("load url %s failed", href)
+					c.logger.Errorf("got invalid url %s", href)
 					continue
 				}
 
+				u, _ := url.Parse(href)
 				if strings.Contains(u.Path, "/gift-vouchers") {
 					continue
 				}
@@ -212,11 +213,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-	if p == "" || p == "/us/women" || p == "/us/men" {
-		return c.parseCategories(ctx, resp, yield)
-	}
-
-	if p == "/us/men/a-to-z-of-brands/cat" {
+	if p == "" || p == "/us/women" || p == "/us/men" || p == "/us/men/a-to-z-of-brands/cat" || p == "/us/women/a-to-z-of-brands/cat" {
 		return crawler.ErrUnsupportedPath
 	}
 

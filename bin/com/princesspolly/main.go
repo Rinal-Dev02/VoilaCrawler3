@@ -89,7 +89,7 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		}
 		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 func getPathFirstSection(p string) string {

@@ -76,11 +76,19 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.6pm.com"
+	}
+
 	if matched := c.productPathMatcher.FindStringSubmatch(u.Path); len(matched) == 2 {
 		u.Path = matched[1]
 		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
