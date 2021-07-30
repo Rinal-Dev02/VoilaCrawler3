@@ -99,39 +99,29 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
-func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	if resp.RawUrl().Path == "" || resp.RawUrl().Path == "/" {
-		return c.parseCategories(ctx, resp, yield)
-
-	}
-	if c.searchPathMatcher.MatchString(resp.RawUrl().Path) {
-		return c.parseSearch(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || resp.RawUrl().String() == "https://www.express.com/graphql" {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
-		return c.parseProduct(ctx, resp, yield)
-	}
-	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.express.com", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
 	}
 
 	dom, err := resp.Selector()
-
 	if err != nil {
 		c.logger.Error(err)
-		return err
+		return nil, err
 	}
 
+	var cates []*pbItem.Category
 	sel := dom.Find(`ol[role="menubar"]>li`)
-
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 
@@ -139,8 +129,8 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		if cateName == "" {
 			continue
 		}
-
-		nnctx := context.WithValue(ctx, "Category", cateName)
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
 
 		subSel1 := node.Find(`div>ol>li`)
 		for k := range subSel1.Nodes {
@@ -150,36 +140,40 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 			if subCat1 == "" {
 				continue
 			}
+			subCate := pbItem.Category{Name: subCat1}
+			cate.Children = append(cate.Children, &subCate)
 
 			subSel := subNodeN.Find(`li`)
 			for j := range subSel.Nodes {
-
 				subNode := subSel.Eq(j)
-				href := subNode.Find(`a`).AttrOr("href", "")
+				href, _ := c.CanonicalUrl(subNode.Find(`a`).AttrOr("href", ""))
 				if href == "" {
 					continue
 				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subCat1 + " > " + subNode.Text()
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
+				subCate2 := pbItem.Category{Name: subNode.Text(), Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
 			}
 		}
 	}
+	return cates, nil
+}
 
-	return nil
+func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	if resp.RawUrl().Path == "" || resp.RawUrl().Path == "/" {
+		return crawler.ErrUnsupportedPath
+	}
+	if c.searchPathMatcher.MatchString(resp.RawUrl().Path) {
+		return c.parseSearch(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || resp.RawUrl().String() == "https://www.express.com/graphql" {
+		return c.parseCategoryProducts(ctx, resp, yield)
+	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
+		return c.parseProduct(ctx, resp, yield)
+	}
+	return crawler.ErrUnsupportedPath
 }
 
 type product struct {
