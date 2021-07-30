@@ -109,6 +109,74 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.dior.com/en_us", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	sel := dom.Find(`.navigation-desktop__tab-wrapper`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" {
+			continue
+		}
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		sectionSel := node.Find(`.navigation-tab-content-column .navigation-desktop-section`)
+		for sectionIndex := range sectionSel.Nodes {
+			sectionNode := sectionSel.Eq(sectionIndex)
+
+			subCateNode := sectionNode.Find(`a.navigation-desktop-section-title`)
+			href := subCateNode.AttrOr("href", "")
+			href, _ = c.CanonicalUrl(href)
+
+			subCate := pbItem.Category{
+				Name: subCateNode.Text(),
+				Url:  href,
+			}
+			cate.Children = append(cate.Children, &subCate)
+
+			subSel := sectionNode.Find(`.navigation-desktop-section-link a`)
+			for j := range subSel.Nodes {
+				subCate2Node := subSel.Eq(j)
+				href := subCate2Node.AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+
+				href, err := c.CanonicalUrl(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+				subCateName := strings.TrimSpace(subCate2Node.Text())
+				subCate2 := pbItem.Category{Name: subCateName, Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -128,16 +196,15 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
 	if p == "/en_us" || p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
-
-	if c.categorySearchPathMatcher.MatchString(resp.Request.URL.Path) || c.categorySearchPathPagingMatcher.MatchString(resp.Request.URL.Path) {
+	if c.categorySearchPathMatcher.MatchString(p) || c.categorySearchPathPagingMatcher.MatchString(p) {
 
 		return c.parseSearchKeywordProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.productPathMatcher.MatchString(p) {
 
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(p) {
 
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
@@ -209,55 +276,6 @@ type CategoryStructure struct {
 var productsExtractReg = regexp.MustCompile(`(?U)id="__NEXT_DATA__"\s*type="application/json">\s*({.*})\s*</script>`)
 var catproductsExtractReg = regexp.MustCompile(`(?U)algoliaJSONP_3({.*});`)
 var pageReg = regexp.MustCompile(`&page=\d+`)
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.navigation-desktop__tab-wrapper`)
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
-		if cateName == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subSel := node.Find(`.navigation-desktop-section-link`).Find(`a`)
-		for j := range subSel.Nodes {
-			subNode := subSel.Eq(j)
-			href := subNode.AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-
-			_, err := url.Parse(href)
-			if err != nil {
-				c.logger.Error("parse url %s failed", href)
-				continue
-			}
-
-			subCateName := strings.TrimSpace(subNode.Text())
-
-			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-			req, _ := http.NewRequest(http.MethodGet, href, nil)
-			if err := yield(nnnctx, req); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
