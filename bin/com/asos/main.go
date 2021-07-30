@@ -212,11 +212,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-	if p == "" || p == "/us/women" || p == "/us/men" {
-		return c.parseCategories(ctx, resp, yield)
-	}
-
-	if p == "/us/men/a-to-z-of-brands/cat" {
+	if p == "" || p == "/us/women" || p == "/us/men" || p == "/us/men/a-to-z-of-brands/cat" || p == "/us/women/a-to-z-of-brands/cat" {
 		return crawler.ErrUnsupportedPath
 	}
 
