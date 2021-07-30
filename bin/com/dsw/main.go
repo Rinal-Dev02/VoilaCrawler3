@@ -1,7 +1,6 @@
 package main
 
 import (
-	//"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -99,11 +98,133 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+type categoryStructure struct {
+	ContentContentItem struct {
+		Contents []struct {
+			TopNavList []struct {
+				Name         string `json:"name"`
+				CategoryName string `json:"categoryName,omitempty"`
+				Otws         []struct {
+					Name             string `json:"name"`
+					HeaderNavigation []struct {
+						Name     string `json:"name"`
+						LinkText struct {
+							Path string `json:"path"`
+						} `json:"linkText,omitempty"`
+					} `json:"HeaderNavigation"`
+				} `json:"otws,omitempty"`
+				Shoes []struct {
+					Name             string `json:"name"`
+					HeaderNavigation []struct {
+						Name     string `json:"name"`
+						LinkText struct {
+							Path string `json:"path"`
+						} `json:"linkText"`
+					} `json:"HeaderNavigation"`
+				} `json:"shoes,omitempty"`
+				Spotlight []struct {
+					Name             string `json:"name"`
+					HeaderNavigation []struct {
+						Name     string `json:"name"`
+						LinkText struct {
+							Path        string `json:"path"`
+							LinkType    string `json:"linkType"`
+							QueryString string `json:"queryString"`
+						} `json:"linkText,omitempty"`
+					} `json:"HeaderNavigation"`
+				} `json:"spotlight,omitempty"`
+			} `json:"TopNavList"`
+		} `json:"contents"`
+	} `json:"contentContentItem"`
+}
+
+// GetCategories
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	catUrl := "https://www.dsw.com/api/v1/content/zones?contentCollection=%2Fcontent%2FDSW%2FContents%2FSharedContents%2FHeaderContent&locale=en_US&pushSite=DSW&tier=GUEST"
+
+	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
+	req.Header.Add("accept", "application/json, text/plain, */*")
+	req.Header.Add("referer", "https://www.dsw.com/en/us/")
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var viewData categoryStructure
+	if err := json.NewDecoder(resp.Body).Decode(&viewData); err != nil {
+		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+		return nil, err
+	}
+	var cates []*pbItem.Category
+	for _, rawcat := range viewData.ContentContentItem.Contents[0].TopNavList {
+		cate := pbItem.Category{Name: rawcat.CategoryName}
+		cates = append(cates, &cate)
+		for _, rawsubcat := range rawcat.Shoes {
+			subCate := pbItem.Category{Name: rawsubcat.Name}
+			cate.Children = append(cate.Children, &subCate)
+			for _, rawlastcat := range rawsubcat.HeaderNavigation {
+				href, _ := c.CanonicalUrl(rawlastcat.LinkText.Path)
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{
+					Name: rawlastcat.Name,
+					Url:  href,
+				}
+				subCate.Children = append(subCate2.Children, &subCate2)
+			}
+		}
+
+		for _, rawsubcat := range rawcat.Spotlight {
+			subCate := pbItem.Category{Name: rawsubcat.Name}
+			cate.Children = append(cate.Children, &subCate)
+			for _, rawlastcat := range rawsubcat.HeaderNavigation {
+				href, _ := c.CanonicalUrl(rawlastcat.LinkText.Path)
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{
+					Name: rawlastcat.Name,
+					Url:  href,
+				}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+
+		for _, rawsubcat := range rawcat.Otws {
+			subCate := pbItem.Category{Name: rawsubcat.Name}
+			cate.Children = append(cate.Children, &subCate)
+			for _, rawlastcat := range rawsubcat.HeaderNavigation {
+				href, _ := c.CanonicalUrl(rawlastcat.LinkText.Path)
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{
+					Name: rawlastcat.Name,
+					Url:  href,
+				}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
-
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
+	if p == "/en/us" {
+		return crawler.ErrUnsupportedPath
+	}
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.categoryAPIMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) || c.productAPIMatcher.MatchString(resp.Request.URL.Path) {
@@ -111,6 +232,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 	return crawler.ErrUnsupportedPath
 }
+
+var productsExtractReg = regexp.MustCompile(`(?U)window\.INITIAL_STATE\s*=\s*({.*})\s*</script>`)
 
 // nextIndex used to get sharingData from context
 func nextIndex(ctx context.Context) int {
@@ -159,130 +282,20 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	var r struct {
 		PageContentItem struct {
-			RuleLimit          string        `json:"ruleLimit"`
-			Name               string        `json:"name"`
-			TemplateTypes      []string      `json:"templateTypes"`
-			TemplateIds        []interface{} `json:"templateIds"`
-			Type               string        `json:"@type"`
-			ContentPaths       []string      `json:"contentPaths"`
-			EndecaSiteRootPath string        `json:"endeca:siteRootPath"`
-			EndecaContentPath  string        `json:"endeca:contentPath"`
-			Contents           []struct {
-				Name        string `json:"name"`
-				Type        string `json:"@type"`
+			Contents []struct {
 				MainContent []struct {
-					RuleLimit     string        `json:"ruleLimit"`
-					Name          string        `json:"name"`
-					TemplateTypes []string      `json:"templateTypes"`
-					TemplateIds   []interface{} `json:"templateIds"`
-					Type          string        `json:"@type"`
-					ContentPaths  []string      `json:"contentPaths"`
-					Contents      []struct {
+					Name     string `json:"name"`
+					Contents []struct {
 						LastRecNum int `json:"lastRecNum"`
 						Records    []struct {
 							Attributes struct {
-								ProductMinPrice              []string `json:"product.min_price"`
-								ProductProductTypeWeb        []string `json:"product.productTypeWeb"`
-								Gender                       []string `json:"gender"`
-								BrandLogoTileAvailable       []string `json:"brand.logoTileAvailable"`
-								NonMemberPrice               []string `json:"nonMemberPrice"`
-								ProductOriginalStyleID       []string `json:"product.originalStyleId"`
-								ProductDisplayName           []string `json:"product.displayName"`
-								Brand                        []string `json:"brand"`
-								Rating                       []string `json:"rating"`
-								AllAncestorsRepositoryID     []string `json:"allAncestors.repositoryId"`
-								ProductHasAnimatedImage      []string `json:"product.hasAnimatedImage"`
-								ProductCategory              []string `json:"product.category"`
-								ProductNonMemberMaxPrice     []string `json:"product.nonMemberMaxPrice"`
-								IsClearance                  []string `json:"isClearance"`
-								Msrp                         []string `json:"msrp"`
-								ProductDswBrandRepositoryID  []string `json:"product.dswBrand.repositoryId"`
-								ProductOriginalPrice         []string `json:"product.originalPrice"`
-								ProductReviewCount           []string `json:"product.reviewCount"`
-								ProductShowPriceInCart       []string `json:"product.showPriceInCart"`
-								ProductIsMinPriceinClearance []string `json:"product.isMinPriceinClearance"`
-								RecordID                     []string `json:"record.id"`
-								ProductSelectedColorCode     []string `json:"product.selectedColorCode"`
-								ProductRepositoryID          []string `json:"product.repositoryId"`
-								ProductOnClearance           []string `json:"product.on_clearance"`
-								ProductDefaultColorCode      []string `json:"product.defaultColorCode"`
-								ProductColorNames            []string `json:"product.colorNames"`
-								ProductIsMaxPriceinClearance []string `json:"product.isMaxPriceinClearance"`
-								ProductColorCodes            []string `json:"product.colorCodes"`
-								ProductNonMemberMinPrice     []string `json:"product.nonMemberMinPrice"`
-								ProductOnSale                []string `json:"product.on_sale"`
-								ProductMaxPrice              []string `json:"product.max_price"`
+								ProductOriginalStyleID []string `json:"product.originalStyleId"`
+								ProductDisplayName     []string `json:"product.displayName"`
+								Brand                  []string `json:"brand"`
 							} `json:"attributes,omitempty"`
-							DetailsAction struct {
-								SiteRootPath string `json:"siteRootPath"`
-								ContentPath  string `json:"contentPath"`
-								SiteState    struct {
-									SiteID         string `json:"siteId"`
-									SiteDefinition struct {
-										ID          string        `json:"id"`
-										Patterns    []interface{} `json:"patterns"`
-										DisplayName string        `json:"displayName"`
-									} `json:"siteDefinition"`
-									SiteDisplayName string `json:"siteDisplayName"`
-									ContentPath     string `json:"contentPath"`
-									Properties      struct {
-									} `json:"properties"`
-									ValidSite bool `json:"validSite"`
-								} `json:"siteState"`
-								RecordState string `json:"recordState"`
-							} `json:"detailsAction,omitempty"`
 							Records []struct {
-								Attributes struct {
-									ToeShape           []string `json:"toeShape"`
-									HeelHeight         []string `json:"heelHeight"`
-									Color              []string `json:"color"`
-									NonMemberPrice     []string `json:"nonMemberPrice"`
-									SkuIsClearanceItem []string `json:"sku.isClearanceItem"`
-									SkuInventory       []string `json:"sku.inventory"`
-									Materials          []string `json:"materials"`
-									Width              []string `json:"width"`
-									ColorCode          []string `json:"colorCode"`
-									ListPrice          []string `json:"listPrice"`
-								} `json:"attributes"`
-								DetailsAction struct {
-									SiteRootPath string `json:"siteRootPath"`
-									ContentPath  string `json:"contentPath"`
-									SiteState    struct {
-										SiteID         string `json:"siteId"`
-										SiteDefinition struct {
-											ID          string        `json:"id"`
-											Patterns    []interface{} `json:"patterns"`
-											DisplayName string        `json:"displayName"`
-										} `json:"siteDefinition"`
-										SiteDisplayName string `json:"siteDisplayName"`
-										ContentPath     string `json:"contentPath"`
-										Properties      struct {
-										} `json:"properties"`
-										ValidSite bool `json:"validSite"`
-									} `json:"siteState"`
-									RecordState string `json:"recordState"`
-								} `json:"detailsAction"`
-								NumRecords int `json:"numRecords"`
 							} `json:"records,omitempty"`
 						} `json:"records"`
-						PagingActionTemplate struct {
-							SiteRootPath string `json:"siteRootPath"`
-							ContentPath  string `json:"contentPath"`
-							SiteState    struct {
-								SiteID         string `json:"siteId"`
-								SiteDefinition struct {
-									ID          string        `json:"id"`
-									Patterns    []interface{} `json:"patterns"`
-									DisplayName string        `json:"displayName"`
-								} `json:"siteDefinition"`
-								SiteDisplayName string `json:"siteDisplayName"`
-								ContentPath     string `json:"contentPath"`
-								Properties      struct {
-								} `json:"properties"`
-								ValidSite bool `json:"validSite"`
-							} `json:"siteState"`
-							NavigationState string `json:"navigationState"`
-						} `json:"pagingActionTemplate"`
 						TotalNumRecs int `json:"totalNumRecs"`
 						RecsPerPage  int `json:"recsPerPage"`
 					} `json:"contents"`
@@ -365,48 +378,20 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 type parseProductResponse struct {
 	Response struct {
 		Product struct {
-			Occasion []struct {
-				DisplayName string `json:"displayName"`
-			} `json:"occasion"`
-			LongDescription string `json:"longDescription"`
-			ToeShape        struct {
-				DisplayName string `json:"displayName"`
-			} `json:"toeShape"`
-			HeelHeight struct {
-				DisplayName string `json:"displayName"`
-			} `json:"heelHeight"`
-			DisplayCompareAtPrice   bool          `json:"displayCompareAtPrice"`
-			DisplayName             string        `json:"displayName"`
-			StyleAssociatedProducts []interface{} `json:"styleAssociatedProducts"`
-			NonMemberMaxPrice       float64       `json:"nonMemberMaxPrice"`
-			IsActive                bool          `json:"isActive"`
-			DefaultColorCode        string        `json:"defaultColorCode"`
-			IsClearance             bool          `json:"isClearance"`
-			ShowSize                bool          `json:"showSize"`
-			DswBrand                struct {
+			LongDescription       string `json:"longDescription"`
+			DisplayCompareAtPrice bool   `json:"displayCompareAtPrice"`
+			DisplayName           string `json:"displayName"`
+			DswBrand              struct {
 				DisplayNameDefault string `json:"displayNameDefault"`
 				NavStringURL       string `json:"navStringURL"`
 			} `json:"dswBrand"`
 			AfterPayInstallmentPrice float64 `json:"afterPayInstallmentPrice"`
 			ID                       string  `json:"id"`
-			IsPreOrder               bool    `json:"isPreOrder"`
 			BvReviewCount            int     `json:"bvReviewCount"`
 			BvRating                 float64 `json:"bvRating"`
 			ShowWidth                bool    `json:"showWidth"`
-			ParentCategories         []struct {
-				DisplayName           string      `json:"displayName"`
-				Description           interface{} `json:"description"`
-				DefaultParentCategory interface{} `json:"defaultParentCategory"`
-				ID                    string      `json:"id"`
-				Type                  string      `json:"type"`
-			} `json:"parentCategories"`
-			Bullets         []string `json:"bullets"`
-			Productitemtype []struct {
-				DisplayName string `json:"displayName"`
-			} `json:"productitemtype"`
-			ChildSKUs []struct {
-				IsClearanceItem bool `json:"isClearanceItem"`
-				Color           struct {
+			ChildSKUs                []struct {
+				Color struct {
 					DisplayName string `json:"displayName"`
 					ColorCode   string `json:"colorCode"`
 				} `json:"color"`
@@ -418,65 +403,13 @@ type parseProductResponse struct {
 					DisplayName string  `json:"displayName"`
 					SizeCode    float64 `json:"sizeCode"`
 				} `json:"size"`
-				Materials []struct {
-					DisplayName string `json:"displayName"`
-				} `json:"materials"`
-				IsPreOrderItem bool   `json:"isPreOrderItem"`
-				ID             string `json:"id"`
-				Dimension      struct {
-					DisplayName      string  `json:"displayName"`
-					DimensionCode    string  `json:"dimensionCode"`
-					DimensionSeqCode float64 `json:"dimensionSeqCode"`
-				} `json:"dimension"`
-				SkuStockLevel      int  `json:"skuStockLevel"`
-				IsExclusiveLicense bool `json:"isExclusiveLicense"`
+				ID            string `json:"id"`
+				SkuStockLevel int    `json:"skuStockLevel"`
 			} `json:"childSKUs"`
-			SpinColorCode       string `json:"spinColorCode"`
-			HasAnimatedImage    bool   `json:"hasAnimatedImage"`
-			ProductTypeWeb      string `json:"productTypeWeb"`
-			RecommendationsURL  string `json:"recommendationsUrl"`
-			ProductStockLevel   int    `json:"productStockLevel"`
-			ExpeditedRestricted bool   `json:"expeditedRestricted"`
-			DefaultSKU          struct {
-				IsClearanceItem bool `json:"isClearanceItem"`
-				Color           struct {
-					DisplayName string `json:"displayName"`
-					ColorCode   string `json:"colorCode"`
-				} `json:"color"`
-				OriginalPrice  float64 `json:"originalPrice"`
-				NonMemberPrice float64 `json:"nonMemberPrice"`
-				Upc            string  `json:"upc"`
-				IsDropShipItem bool    `json:"isDropShipItem"`
-				Size           struct {
-					DisplayName string  `json:"displayName"`
-					SizeCode    float64 `json:"sizeCode"`
-				} `json:"size"`
-				Materials []struct {
-					DisplayName string `json:"displayName"`
-				} `json:"materials"`
-				IsPreOrderItem bool   `json:"isPreOrderItem"`
-				ID             string `json:"id"`
-				Dimension      struct {
-					DisplayName      string  `json:"displayName"`
-					DimensionCode    string  `json:"dimensionCode"`
-					DimensionSeqCode float64 `json:"dimensionSeqCode"`
-				} `json:"dimension"`
-				SkuStockLevel      int  `json:"skuStockLevel"`
-				IsExclusiveLicense bool `json:"isExclusiveLicense"`
-			} `json:"defaultSKU"`
-			ProductGender      string  `json:"productGender"`
-			PriceInCart        bool    `json:"priceInCart"`
-			NonMemberMinPrice  float64 `json:"nonMemberMinPrice"`
-			AncestorCategories []struct {
-				DisplayName string `json:"displayName"`
-				ID          string `json:"id"`
-			} `json:"ancestorCategories"`
-			IsGWPItem bool `json:"isGWPItem"`
-			Style     []struct {
-				DisplayName string `json:"displayName"`
-			} `json:"style"`
-			CurrencyCode string `json:"currencyCode"`
-			Breadcrumbs  []struct {
+			ProductGender     string  `json:"productGender"`
+			PriceInCart       bool    `json:"priceInCart"`
+			NonMemberMinPrice float64 `json:"nonMemberMinPrice"`
+			Breadcrumbs       []struct {
 				Text string `json:"text"`
 				URL  string `json:"url"`
 			} `json:"breadcrumbs"`
@@ -501,6 +434,8 @@ var (
 	q             parseProductImageResponse
 )
 
+var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil {
@@ -517,7 +452,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		fields := strings.Split(strings.TrimSuffix(resp.Request.URL.Path, "/"), "/")
 		rawurl := fmt.Sprintf("https://www.dsw.com/api/v1/products/%s?locale=en_US&pushSite=DSW", fields[len(fields)-1])
 		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
+		req.Header.Set("accept", "application/json, text/plain, */*")
 		req.Header.Set("Referer", resp.Request.URL.String())
+		cookie := resp.Response.Header
+
+		urbn_auth_payload := (strings.Join(cookie.Values(`Set-Cookie`), ";"))
+		req.Header.Set("cookie", urbn_auth_payload)
 		subresp, err = c.httpClient.DoWithOptions(ctx, req, http.Options{
 			EnableProxy: true,
 			Reliability: c.CrawlOptions(resp.Request.URL).Reliability,
@@ -552,6 +492,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	} else {
 		canUrl, _ = c.CanonicalUrl(crawlUrl)
 	}
+
+	desc, _ := url.QueryUnescape(viewData.Response.Product.LongDescription)
 	//Prepare product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
@@ -561,7 +503,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 		BrandName:   viewData.Response.Product.DswBrand.DisplayNameDefault,
 		Title:       viewData.Response.Product.DisplayName,
-		Description: viewData.Response.Product.LongDescription,
+		Description: htmlTrimRegp.ReplaceAllString(desc, " "),
 		CrowdType:   strings.ToLower(viewData.Response.Product.ProductGender),
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
@@ -570,6 +512,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			ReviewCount: int32(viewData.Response.Product.BvReviewCount),
 			Rating:      float32(viewData.Response.Product.BvRating),
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 	for i, cate := range viewData.Response.Product.Breadcrumbs {
 		switch i {
@@ -675,6 +618,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		mediasDict[web_Product_ID] = sku.Medias
 
 		item.SkuItems = append(item.SkuItems, &sku)
+		item.Medias = append(item.Medias, sku.Medias...)
 	}
 
 	// yield item result
@@ -687,10 +631,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		// "https://www.dsw.com/en/us/product/aston-grey-leu-oxford/386780?activeColor=240",
-		// "https://www.dsw.com/en/us/product/birkenstock-cotton-slub-womens-crew-socks/497778?activeColor=050",
-		"https://www.dsw.com/en/us/category/womens-socks/N-1z141jrZ1z128ueZ1z141dn?No=0",
-		// "https://www.dsw.com/api/v1/content/pages/_/N-1z141hwZ1z128ujZ1z141ju?pagePath=/pages/DSW/category&skipHeaderFooterContent=true&No=0&locale=en_US&pushSite=DSW&tier=GUEST",
+		//"https://www.dsw.com/en/us",
+		//"https://www.dsw.com/en/us/product/aston-grey-leu-oxford/386780?activeColor=240",
+		"https://www.dsw.com/en/us/product/birkenstock-cotton-slub-womens-crew-socks/497778?activeColor=050",
+		//"https://www.dsw.com/en/us/category/womens-socks/N-1z141jrZ1z128ueZ1z141dn?No=0",
+		//"https://www.dsw.com/api/v1/content/pages/_/N-1z141hwZ1z128ujZ1z141ju?pagePath=/pages/DSW/category&skipHeaderFooterContent=true&No=0&locale=en_US&pushSite=DSW&tier=GUEST",
 		//"https://www.dsw.com/api/v1/products/499002?locale=en_US&pushSite=DSW",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
