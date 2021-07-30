@@ -4,13 +4,22 @@ import (
 	"errors"
 	"net/url"
 
+	"github.com/urfave/cli/v2"
 	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	pbHttp "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/http"
 	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
+	pbCrawlItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 )
+
+// NewCrawler interface
+type NewCrawler interface {
+	// New
+	New(c *cli.Context, client http.Client, logger glog.Log) (Crawler, error)
+}
 
 // CrawlOptions
 type CrawlOptions struct {
@@ -124,12 +133,18 @@ type Crawler interface {
 	Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error
 }
 
+// ProductCrawler
+type ProductCrawler interface {
+	// Categories get categories internally
+	GetCategories(context.Context) ([]*pbCrawlItem.Category, error)
+}
+
 // MustImplementCrawler
 type MustImplementCrawler struct{}
 
 // CanonicalUrl
 func (c *MustImplementCrawler) CanonicalUrl(rawurl string) (string, error) {
-	return "", nil
+	return "", pbError.ErrUnimplemented
 }
 
 type New func(client http.Client, logger glog.Log) (Crawler, error)

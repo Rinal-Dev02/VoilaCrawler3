@@ -31,7 +31,7 @@ type _Crawler struct {
 	logger              glog.Log
 }
 
-func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
+func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
 		categoryPathMatcher: regexp.MustCompile(`^/categories([/A-Za-z0-9_-]+)$`),
@@ -487,6 +487,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
-	cli.NewApp(New).Run(os.Args)
+	cli.NewApp(&_Crawler{}).Run(os.Args)
 }

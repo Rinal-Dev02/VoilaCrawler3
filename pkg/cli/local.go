@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/voiladev/VoilaCrawler/pkg/item"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http/cookiejar"
+	pbCrawlItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/VoilaCrawler/pkg/proxy"
 	"github.com/voiladev/go-framework/glog"
@@ -23,7 +25,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func localCommand(ctx context.Context, app *App, newFunc NewWithApp, extraFlags []cli.Flag) *cli.Command {
+func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extraFlags []cli.Flag) *cli.Command {
 	flags := []cli.Flag{
 		&cli.StringFlag{
 			Name:    "proxy-addr",
@@ -91,10 +93,138 @@ func localCommand(ctx context.Context, app *App, newFunc NewWithApp, extraFlags 
 			EnvVars: []string{"DEBUG"},
 		},
 	}...)
+
+	var (
+		subcmds              []*cli.Command
+		supportedMethodNames []string
+	)
+	if _, ok := newer.(crawler.ProductCrawler); ok {
+		productCrawlerType := reflect.TypeOf((*crawler.ProductCrawler)(nil)).Elem()
+		for i := 0; i < productCrawlerType.NumMethod(); i++ {
+			method := productCrawlerType.Method(i)
+			supportedMethodNames = append(supportedMethodNames, method.Name)
+		}
+		callcmd := cli.Command{
+			Name:        "call",
+			Usage:       "call remote methods",
+			Description: "call remote methods",
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "name",
+					Usage: fmt.Sprintf("method name, supported include %s", strings.Join(supportedMethodNames, ",")),
+				},
+				&cli.StringFlag{
+					Name:  "param",
+					Usage: "function params",
+				},
+			},
+			Action: func(c *cli.Context) error {
+				name := c.String("name")
+				if name == "" {
+					return cli.NewExitError("invalid method name", 1)
+				}
+				if !func() bool {
+					for _, n := range supportedMethodNames {
+						if name == n {
+							return true
+						}
+					}
+					return false
+				}() {
+					return cli.NewExitError("invalid method name", 1)
+				}
+				param := c.String("param")
+
+				logger := glog.New(glog.LogLevelInfo)
+				verbose := c.Bool("verbose") || c.Bool("debug") || c.Bool("vv")
+				if verbose {
+					logger.SetLevel(glog.LogLevelDebug)
+					os.Setenv("DEBUG", "1")
+				}
+
+				proxyAddr := c.String("proxy-addr")
+				if proxyAddr == "" {
+					return cli.NewExitError("proxy address not specified", 1)
+				}
+
+				jar := cookiejar.New()
+				client, err := proxy.NewProxyClient(proxyAddr, jar, logger)
+				if err != nil {
+					logger.Error(err)
+					return cli.NewExitError(err, 1)
+				}
+
+				val, err := newer.New(c, client, logger)
+				if err != nil {
+					logger.Error(err)
+					return cli.NewExitError(err, 1)
+				}
+
+				node := reflect.ValueOf(val)
+				caller := node.MethodByName(name)
+				errType := caller.Type().Out(1)
+				if !errType.Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+					return cli.NewExitError(fmt.Sprintf("last output argument of method %s must be implement error interface", name), 1)
+				}
+				var (
+					inArgCount  = caller.Type().NumIn()
+					outArgCount = caller.Type().NumOut()
+					inputArgs   []reflect.Value
+				)
+				if inArgCount > 2 || outArgCount != 2 {
+					return cli.NewExitError("method define errors, method must define not more than 2 input args, with only two out args", 1)
+				}
+				switch inArgCount {
+				case 0:
+				case 1:
+					ctx := context.WithValue(app.ctx, context.TracingIdKey, randutil.MustNewRandomID())
+					ctx = context.WithValue(ctx, context.JobIdKey, randutil.MustNewRandomID())
+					inputArgs = append(inputArgs, reflect.ValueOf(ctx))
+				case 2:
+					ctx := context.WithValue(app.ctx, context.TracingIdKey, randutil.MustNewRandomID())
+					ctx = context.WithValue(ctx, context.JobIdKey, randutil.MustNewRandomID())
+					inputArgs = append(inputArgs, reflect.ValueOf(ctx), reflect.ValueOf(param))
+				}
+
+				vals := caller.Call(inputArgs)
+				if !vals[1].IsNil() {
+					return cli.NewExitError(vals[1].Interface(), 1)
+				}
+
+				switch val := vals[0].Interface().(type) {
+				case []*pbCrawlItem.Category:
+					var prettyPrint func(cate *pbCrawlItem.Category, depth int)
+
+					prettyPrint = func(cate *pbCrawlItem.Category, depth int) {
+						pending := ""
+						if cate.Url != "" {
+							pending = " : " + cate.Url
+						}
+						count := ""
+						name := cate.Name
+						if len(cate.Children) > 0 {
+							count = fmt.Sprintf(" (%d)/", len(cate.Children))
+						}
+						fmt.Printf("%s%s%s%s\n", strings.Repeat("    ", depth), name, count, pending)
+						for _, child := range cate.Children {
+							prettyPrint(child, depth+1)
+						}
+					}
+					for _, cate := range val {
+						prettyPrint(cate, 0)
+					}
+				}
+				return nil
+			},
+		}
+		subcmds = append(subcmds, &callcmd)
+	}
+
 	return &cli.Command{
 		Name:        "test",
 		Usage:       "local test",
 		Description: "local test",
+		Subcommands: subcmds,
 		Flags:       flags,
 		Action: func(c *cli.Context) error {
 			logger := glog.New(glog.LogLevelInfo)
@@ -117,11 +247,13 @@ func localCommand(ctx context.Context, app *App, newFunc NewWithApp, extraFlags 
 				logger.Error(err)
 				return cli.NewExitError(err, 1)
 			}
-			node, err := newFunc(c, client, logger)
+			cw, err := newer.New(c, client, logger)
 			if err != nil {
 				logger.Error(err)
 				return cli.NewExitError(err, 1)
 			}
+
+			node := cw.(crawler.Crawler)
 			var (
 				reqFilter = map[string]struct{}{}
 				reqQueue  deque.Deque

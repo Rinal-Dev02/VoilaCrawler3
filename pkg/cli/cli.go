@@ -11,20 +11,22 @@ import (
 
 	"github.com/urfave/cli/v2"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
-	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
-	"github.com/voiladev/go-framework/glog"
 	pbDesc "github.com/voiladev/protobuf/protoc-gen-go/protobuf"
+)
+
+type (
+	Context = cli.Context
 )
 
 var (
 	c = make(chan os.Signal, 1)
 )
 
-type (
-	New        = func(http.Client, glog.Log) (crawler.Crawler, error)
-	NewWithApp = func(*cli.Context, http.Client, glog.Log) (crawler.Crawler, error)
-)
+// type (
+// 	New        = func(http.Client, glog.Log) (interface{}, error)
+// 	NewWithApp = func(*cli.Context, http.Client, glog.Log) (interface{}, error)
+// )
 
 func init() {
 	signal.Notify(c, os.Interrupt)
@@ -71,20 +73,12 @@ type App struct {
 	cancelFunc context.CancelFunc
 
 	version   string
-	newFunc   NewWithApp
 	servePort int
 }
 
-func NewApp(newFunc interface{}, flags ...cli.Flag) *App {
-	var f NewWithApp
-	if v, ok := newFunc.(NewWithApp); ok {
-		f = v
-	} else if v, ok := newFunc.(New); ok {
-		f = func(c *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
-			return (v)(client, logger)
-		}
-	} else {
-		panic("unsupported new function")
+func NewApp(crawler crawler.NewCrawler, flags ...cli.Flag) *App {
+	if c == nil {
+		panic("Require crawler instance")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -98,7 +92,6 @@ func NewApp(newFunc interface{}, flags ...cli.Flag) *App {
 		ctx:        ctx,
 		cancelFunc: cancel,
 		version:    Version,
-		newFunc:    f,
 	}
 
 	app.cliApp.Name = "crawler"
@@ -108,8 +101,8 @@ func NewApp(newFunc interface{}, flags ...cli.Flag) *App {
 	app.cliApp.Usage = "crawler node"
 	app.cliApp.Version = app.version
 	app.cliApp.Commands = []*cli.Command{
-		serveCommand(ctx, &app, app.newFunc, flags),
-		localCommand(ctx, &app, app.newFunc, flags),
+		serveCommand(ctx, &app, crawler, flags),
+		localCommand(ctx, &app, crawler, flags),
 	}
 	return &app
 }

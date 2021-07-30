@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
+	"github.com/voiladev/go-framework/text"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -76,8 +78,24 @@ func (s *CrawlerServer) CrawlerOptions(ctx context.Context, req *pbCrawl.Crawler
 		return nil, pbError.ErrInternal.New(err)
 	}
 
+	var methods []*pbCrawl.CrawlerMethod
+	if _, ok := s.crawler.(crawler.ProductCrawler); ok {
+		for i := 0; i < productCrawlerType.NumMethod(); i++ {
+			method := productCrawlerType.Method(i)
+			cm := pbCrawl.CrawlerMethod{
+				Name: method.Name,
+			}
+			if inArgs := method.Type.NumIn(); inArgs > 0 {
+				firstInType := method.Type.In(0)
+				if !firstInType.Implements(reflect.TypeOf((*context.Context)(nil))) || inArgs > 1 {
+					cm.RequireInput = true
+				}
+			}
+		}
+	}
 	return &pbCrawl.CrawlerOptionsResponse{
-		Data: &opts,
+		Data:        &opts,
+		RemoteCalls: methods,
 	}, nil
 }
 
@@ -106,6 +124,110 @@ func (s *CrawlerServer) CanonicalUrl(ctx context.Context, req *pbCrawl.Canonical
 	return &pbCrawl.CanonicalUrlResponse{
 		Data: &pbCrawl.CanonicalUrlResponse_Data{Url: curl},
 	}, nil
+}
+
+var (
+	protoMessageType   = reflect.TypeOf((*proto.Message)(nil)).Elem()
+	productCrawlerType = reflect.TypeOf((*crawler.ProductCrawler)(nil)).Elem()
+)
+
+func marshalAny(val reflect.Value) (*anypb.Any, error) {
+	if val.IsNil() || val.IsZero() {
+		return nil, errors.New("nil/invalid value")
+	}
+	if !val.Type().Implements(protoMessageType) {
+		return nil, errors.New("object not implement interface proto.Message")
+	}
+	interVal := val.Interface()
+	v, _ := interVal.(proto.Message)
+
+	if data, err := anypb.New(v); err != nil {
+		return nil, err
+	} else {
+		return data, nil
+	}
+}
+
+// Call
+func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pbCrawl.CallResponse, error) {
+	if s == nil || s.crawler == nil {
+		return nil, nil
+	}
+	if req.GetMethod() == "" {
+		return nil, pbError.ErrInvalidArgument.New(`method required`)
+	}
+	if !(req.GetMethod()[0] > 'A' && req.GetMethod()[0] < 'Z') {
+		return nil, pbError.ErrPermissionDenied.New(fmt.Sprintf(`private method "%s" is not callable`, req.GetMethod()))
+	}
+
+	cw := reflect.ValueOf(s.crawler)
+	if !cw.Type().Implements(productCrawlerType) {
+		return nil, pbError.ErrUnimplemented.New(fmt.Sprintf(`method "%s" unimplemented or is not callable`, req.GetMethod()))
+	}
+
+	if _, exists := productCrawlerType.MethodByName(req.GetMethod()); !exists {
+		return nil, pbError.ErrNotFound.New(fmt.Sprintf(`method "%s" not found`, req.GetMethod()))
+	}
+
+	caller := cw.MethodByName(req.GetMethod())
+	if caller.IsZero() {
+		return nil, pbError.ErrNotFound.New(fmt.Sprintf(`method "%s" not found`, req.GetMethod()))
+	}
+	if caller.Kind() != reflect.Func {
+		return nil, pbError.ErrInvalidArgument.New(fmt.Sprintf("%s is not callable", req.GetMethod()))
+	}
+
+	var (
+		inArgCount  = caller.Type().NumIn()
+		outArgCount = caller.Type().NumOut()
+	)
+	if inArgCount > 2 || outArgCount != 2 {
+		return nil, pbError.ErrInvalidArgument.New(fmt.Sprintf(`method "%s" want more in arguments`, req.GetMethod()))
+	}
+	inputs := []reflect.Value{}
+	switch inArgCount {
+	case 0:
+	case 1:
+		inputs = append(inputs, reflect.ValueOf(ctx))
+	case 2:
+		inputs = append(inputs, reflect.ValueOf(ctx), reflect.ValueOf(req.GetInput()))
+	}
+
+	vals := caller.Call(inputs)
+	if len(vals) != 2 {
+		return nil, pbError.ErrInternal.New("caller response count not correct")
+	}
+	if !vals[1].IsNil() {
+		val := vals[1].Interface()
+		err := val.(error)
+		s.logger.Error(err)
+		return nil, pbError.ErrInternal.New(err)
+	}
+
+	val := vals[0]
+	switch val.Kind() {
+	case reflect.Array:
+		var (
+			size = val.Len()
+			ret  pbCrawl.CallResponse
+		)
+		for i := 0; i < size; i++ {
+			if v, err := marshalAny(val.Index(i)); err != nil {
+				return nil, pbError.ErrInvalidArgument.New(err)
+			} else {
+				ret.Data = append(ret.Data, v)
+			}
+		}
+		return &ret, nil
+	case reflect.Ptr:
+		if v, err := marshalAny(val); err != nil {
+			return nil, pbError.ErrInvalidArgument.New(err)
+		} else {
+			return &pbCrawl.CallResponse{Data: []*anypb.Any{v}}, nil
+		}
+	default:
+		return nil, pbError.ErrInternal.New("unsuported returned value")
+	}
 }
 
 // Parse do http request first and then do parse
@@ -166,15 +288,45 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 			ctxutil.GetString(shareCtx, crawler.CategoryKey) != "" {
 			switch val := i.(type) {
 			case *http.Request:
-				i = &pbItem.Category{
-					MainCategory: ctxutil.GetString(shareCtx, crawler.MainCategoryKey),
-					Category:     ctxutil.GetString(shareCtx, crawler.CategoryKey),
-					SubCategory:  ctxutil.GetString(shareCtx, crawler.SubCategoryKey),
-					SubCategory2: ctxutil.GetString(shareCtx, crawler.SubCategory2Key),
-					SubCategory3: ctxutil.GetString(shareCtx, crawler.SubCategory3Key),
-					SubCategory4: ctxutil.GetString(shareCtx, crawler.SubCategory4Key),
-					Url:          val.URL.String(),
+				var (
+					cateNames      = []string{}
+					cateNameFilter = map[string]struct{}{}
+				)
+				for _, key := range crawler.CategoryKeys {
+					vals := strings.Split(text.Clean(ctxutil.GetString(shareCtx, key)), ">")
+					for _, val := range vals {
+						val = strings.Title(strings.ToLower(val))
+						if _, ok := cateNameFilter[val]; ok || val == "" {
+							continue
+						}
+						// Ignore too long names, in most cases the long name is not the cate name
+						if len([]rune(val)) > 48 {
+							continue
+						}
+						cateNames = append(cateNames, val)
+						cateNameFilter[val] = struct{}{}
+
+						// keep length to 6
+						if len(cateNames) == 6 {
+							break
+						}
+					}
 				}
+				var cate *pbItem.Category
+				for i := len(cateNames) - 1; i >= 0; i-- {
+					name := cateNames[i]
+
+					c := pbItem.Category{Name: name}
+					if i == len(cateNames)-1 {
+						c.Url = val.URL.String()
+						c.Depth = int32(i + 1)
+					}
+					if cate != nil {
+						c.Children = append(c.Children, cate)
+					}
+					cate = &c
+				}
+				i = cate
 			}
 		}
 

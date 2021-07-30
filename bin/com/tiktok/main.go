@@ -51,15 +51,17 @@ type _Crawler struct {
 	logger glog.Log
 }
 
-func New(s3Client *s3.S3Client, httpClient http.Client, logger glog.Log) (crawler.Crawler, error) {
-	if s3Client == nil {
-		return nil, errors.New("invalid s3 client")
+func (_ *_Crawler) New(c *cli.Context, httpClient http.Client, logger glog.Log) (crawler.Crawler, error) {
+	host, bucket := c.String("s3-addr"), c.String("s3-bucket")
+	s3Client, err := s3.New(host, bucket)
+	if err != nil {
+		return nil, err
 	}
 	if httpClient == nil {
 		return nil, errors.New("invalid http client")
 	}
 
-	c := _Crawler{
+	cw := _Crawler{
 		s3Client:   s3Client,
 		httpClient: httpClient,
 		rhttpClient: &rhttp.Client{
@@ -73,7 +75,7 @@ func New(s3Client *s3.S3Client, httpClient http.Client, logger glog.Log) (crawle
 		downloadVideoReg:       regexp.MustCompile(`^/video/tos/alisg/tos\-alisg\-pve\-[a-z0-9]+/[a-z0-9]+/?$`),
 		logger:                 logger.New("_Crawler"),
 	}
-	return &c, nil
+	return &cw, nil
 }
 
 // ID
@@ -839,15 +841,7 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	newCrawler := func(c *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
-		host, bucket := c.String("s3-addr"), c.String("s3-bucket")
-		s3Client, err := s3.New(host, bucket)
-		if err != nil {
-			return nil, err
-		}
-		return New(s3Client, client, logger)
-	}
-	app.NewApp(newCrawler,
+	app.NewApp(&_Crawler{},
 		&cli.StringFlag{Name: "s3-addr", Usage: "s3 sever address", Value: "172.31.141.244:30931"},
 		&cli.StringFlag{Name: "s3-bucket", Usage: "s3 bucket name", Value: "voila-downloads"},
 	).Run(os.Args)

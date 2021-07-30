@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -24,6 +25,7 @@ import (
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
+	"github.com/voiladev/go-framework/text"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -37,7 +39,7 @@ type _Crawler struct {
 	logger                  glog.Log
 }
 
-func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
+func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:              client,
 		categoryPathMatcher:     regexp.MustCompile(`^(/[a-z0-9_-]+)?/(women|men)(/[a-z0-9_-]+){1,6}/cat/?$`),
@@ -100,6 +102,109 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		return u.String(), nil
 	}
 	return rawurl, nil
+}
+
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.asos.com/us/", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
+		sel := dom.Find(`#chrome-sticky-header nav[data-testid="primarynav-large"] button[data-id]`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			dataid := node.AttrOr("data-id", "")
+			if dataid == "" {
+				continue
+			}
+			cate := text.Clean(node.Text())
+
+			linkSel := dom.Find(fmt.Sprintf(`#%s ul[data-id="%s"]>li>ul>li>a[href]`, dataid, dataid))
+			for j := range linkSel.Nodes {
+				linkNode := linkSel.Eq(j)
+				href := linkNode.AttrOr("href", "")
+				if href == "" {
+					continue
+				}
+				subCate := strings.TrimSpace(linkNode.Text())
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Errorf("load url %s failed", href)
+					continue
+				}
+
+				if strings.Contains(u.Path, "/gift-vouchers") {
+					continue
+				}
+				mainCate := "women"
+				if strings.HasPrefix(u.Path, "/us/men") {
+					mainCate = "men"
+				}
+
+				if err := yield([]string{mainCate, cate, subCate}, href); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
+
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
+
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
+				}
+				cateMap[path] = cate
+				if lastCate != nil {
+					lastCate.Children = append(lastCate.Children, cate)
+				}
+				lastCate = cate
+
+				if i == 0 {
+					cates = append(cates, cate)
+				}
+			}
+		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	return cates, nil
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -821,5 +926,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	cli.NewApp(New).Run(os.Args)
+	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
