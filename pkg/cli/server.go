@@ -78,8 +78,24 @@ func (s *CrawlerServer) CrawlerOptions(ctx context.Context, req *pbCrawl.Crawler
 		return nil, pbError.ErrInternal.New(err)
 	}
 
+	var methods []*pbCrawl.CrawlerMethod
+	if _, ok := s.crawler.(crawler.ProductCrawler); ok {
+		for i := 0; i < productCrawlerType.NumMethod(); i++ {
+			method := productCrawlerType.Method(i)
+			cm := pbCrawl.CrawlerMethod{
+				Name: method.Name,
+			}
+			if inArgs := method.Type.NumIn(); inArgs > 0 {
+				firstInType := method.Type.In(0)
+				if !firstInType.Implements(reflect.TypeOf((*context.Context)(nil))) || inArgs > 1 {
+					cm.RequireInput = true
+				}
+			}
+		}
+	}
 	return &pbCrawl.CrawlerOptionsResponse{
-		Data: &opts,
+		Data:        &opts,
+		RemoteCalls: methods,
 	}, nil
 }
 

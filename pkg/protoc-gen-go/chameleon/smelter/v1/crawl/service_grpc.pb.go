@@ -741,6 +741,8 @@ type GatewayClient interface {
 	GetCrawler(ctx context.Context, in *GetCrawlerRequest, opts ...grpc.CallOption) (*GetCrawlerResponse, error)
 	// GetCanonicalUrl
 	GetCanonicalUrl(ctx context.Context, in *GetCanonicalUrlRequest, opts ...grpc.CallOption) (*GetCanonicalUrlResponse, error)
+	// RemoteCall
+	RemoteCall(ctx context.Context, in *RemoteCallRequest, opts ...grpc.CallOption) (*RemoteCallResponse, error)
 	// 抓取 @desc 提交URL地址
 	// 对于不同情况下，抓取的数据响应处理方式不同;
 	// 对于定时抓取任务，或者全库抓取任务，抓取数据通过MQ提交给处理逻辑
@@ -790,6 +792,15 @@ func (c *gatewayClient) GetCanonicalUrl(ctx context.Context, in *GetCanonicalUrl
 	return out, nil
 }
 
+func (c *gatewayClient) RemoteCall(ctx context.Context, in *RemoteCallRequest, opts ...grpc.CallOption) (*RemoteCallResponse, error) {
+	out := new(RemoteCallResponse)
+	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.Gateway/RemoteCall", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *gatewayClient) Fetch(ctx context.Context, in *FetchRequest, opts ...grpc.CallOption) (*FetchResponse, error) {
 	out := new(FetchResponse)
 	err := c.cc.Invoke(ctx, "/chameleon.smelter.v1.crawl.Gateway/Fetch", in, out, opts...)
@@ -827,6 +838,8 @@ type GatewayServer interface {
 	GetCrawler(context.Context, *GetCrawlerRequest) (*GetCrawlerResponse, error)
 	// GetCanonicalUrl
 	GetCanonicalUrl(context.Context, *GetCanonicalUrlRequest) (*GetCanonicalUrlResponse, error)
+	// RemoteCall
+	RemoteCall(context.Context, *RemoteCallRequest) (*RemoteCallResponse, error)
 	// 抓取 @desc 提交URL地址
 	// 对于不同情况下，抓取的数据响应处理方式不同;
 	// 对于定时抓取任务，或者全库抓取任务，抓取数据通过MQ提交给处理逻辑
@@ -854,6 +867,9 @@ func (UnimplementedGatewayServer) GetCrawler(context.Context, *GetCrawlerRequest
 }
 func (UnimplementedGatewayServer) GetCanonicalUrl(context.Context, *GetCanonicalUrlRequest) (*GetCanonicalUrlResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetCanonicalUrl not implemented")
+}
+func (UnimplementedGatewayServer) RemoteCall(context.Context, *RemoteCallRequest) (*RemoteCallResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoteCall not implemented")
 }
 func (UnimplementedGatewayServer) Fetch(context.Context, *FetchRequest) (*FetchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Fetch not implemented")
@@ -931,6 +947,24 @@ func _Gateway_GetCanonicalUrl_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Gateway_RemoteCall_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoteCallRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(GatewayServer).RemoteCall(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/chameleon.smelter.v1.crawl.Gateway/RemoteCall",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(GatewayServer).RemoteCall(ctx, req.(*RemoteCallRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Gateway_Fetch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(FetchRequest)
 	if err := dec(in); err != nil {
@@ -1003,6 +1037,10 @@ var Gateway_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetCanonicalUrl",
 			Handler:    _Gateway_GetCanonicalUrl_Handler,
+		},
+		{
+			MethodName: "RemoteCall",
+			Handler:    _Gateway_RemoteCall_Handler,
 		},
 		{
 			MethodName: "Fetch",

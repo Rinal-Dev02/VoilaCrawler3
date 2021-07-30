@@ -575,6 +575,11 @@ class GatewayStub(object):
                 request_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.GetCanonicalUrlRequest.SerializeToString,
                 response_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.GetCanonicalUrlResponse.FromString,
                 )
+        self.RemoteCall = channel.unary_unary(
+                '/chameleon.smelter.v1.crawl.Gateway/RemoteCall',
+                request_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallRequest.SerializeToString,
+                response_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallResponse.FromString,
+                )
         self.Fetch = channel.unary_unary(
                 '/chameleon.smelter.v1.crawl.Gateway/Fetch',
                 request_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.FetchRequest.SerializeToString,
@@ -612,6 +617,13 @@ class GatewayServicer(object):
 
     def GetCanonicalUrl(self, request, context):
         """GetCanonicalUrl
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RemoteCall(self, request, context):
+        """RemoteCall
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -661,6 +673,11 @@ def add_GatewayServicer_to_server(servicer, server):
                     servicer.GetCanonicalUrl,
                     request_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.GetCanonicalUrlRequest.FromString,
                     response_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.GetCanonicalUrlResponse.SerializeToString,
+            ),
+            'RemoteCall': grpc.unary_unary_rpc_method_handler(
+                    servicer.RemoteCall,
+                    request_deserializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallRequest.FromString,
+                    response_serializer=chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallResponse.SerializeToString,
             ),
             'Fetch': grpc.unary_unary_rpc_method_handler(
                     servicer.Fetch,
@@ -736,6 +753,23 @@ class Gateway(object):
         return grpc.experimental.unary_unary(request, target, '/chameleon.smelter.v1.crawl.Gateway/GetCanonicalUrl',
             chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.GetCanonicalUrlRequest.SerializeToString,
             chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.GetCanonicalUrlResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def RemoteCall(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.smelter.v1.crawl.Gateway/RemoteCall',
+            chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallRequest.SerializeToString,
+            chameleon_dot_smelter_dot_v1_dot_crawl_dot_service__message__pb2.RemoteCallResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

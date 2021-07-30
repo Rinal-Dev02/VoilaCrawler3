@@ -366,6 +366,14 @@ class GatewayServicer(_GatewayServicer):
                 return self.interceptor(request, context, methodDesc, self.servicer.GetCanonicalUrl)
             return self.servicer.GetCanonicalUrl(request, context)
 	
+        def RemoteCall(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("RemoteCall")
+                if not methodDesc:
+                    raise RuntimeError("Method [RemoteCall] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.RemoteCall)
+            return self.servicer.RemoteCall(request, context)
+	
         def Fetch(self, request, context):
             if self.interceptor:
                 methodDesc = self.desc.methods.get("Fetch")
@@ -432,6 +440,14 @@ class GatewayStub(object):
                 raise RuntimeError("Method [GetCanonicalUrl] description not found")
             return self.____interceptor(self.____stub.GetCanonicalUrl, methodDesc, request, timeout, metadata, credentials)
         return self.____stub.GetCanonicalUrl(request, timeout, metadata, credentials)
+	
+    def RemoteCall(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("RemoteCall")
+            if not methodDesc:
+                raise RuntimeError("Method [RemoteCall] description not found")
+            return self.____interceptor(self.____stub.RemoteCall, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.RemoteCall(request, timeout, metadata, credentials)
 	
     def Fetch(self, request, timeout=None, metadata=None, credentials=None):
         if self.____interceptor:
