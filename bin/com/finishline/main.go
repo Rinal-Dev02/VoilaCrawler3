@@ -89,14 +89,100 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+// GetCategories
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.finishline.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+
+	sel := dom.Find(`#desktop-mainmenu>li`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.AttrOr("data-mainitem", ""))
+		if cateName == "" || strings.ToLower(cateName) == "brands" || strings.ToLower(cateName) == "releases" {
+			continue
+		}
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		subSel := node.Find(`.menu-dropdown-row>div>ul`)
+		for k := range subSel.Nodes {
+			subNode := subSel.Eq(k)
+			subcateName := strings.TrimSpace(subNode.Find(`li`).First().Text())
+			href, _ := c.CanonicalUrl(subNode.Find("li>a").First().AttrOr("href", ""))
+
+			subCate := pbItem.Category{Name: subcateName, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+
+			subNode2 := subNode.Find(`li`)
+			for j := range subNode2.Nodes {
+				if j == 0 {
+					continue
+				}
+				subNode := subNode2.Eq(j)
+				subCate2Name := subNode.Text()
+
+				href, _ := c.CanonicalUrl(subNode.Find(`a`).AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+
+		subSel = node.Find(`.navigation-promo-cta`)
+		if len(subSel.Nodes) == 0 {
+			subSel = node.Find(`.menu-dropdown-row`).Find(`a`)
+		}
+		for j := range subSel.Nodes {
+			subNode := subSel.Eq(j)
+
+			href := subNode.Find(`a`).AttrOr("href", "")
+			if href == "" {
+				href = subNode.AttrOr("href", "")
+			}
+			href, _ = c.CanonicalUrl(href)
+			if href == "" {
+				continue
+			}
+
+			subCateName := strings.TrimSpace(subNode.Find(`a`).Text())
+			if subCateName == "" {
+				subCateName = subNode.AttrOr("title", "")
+			}
+			subCate := pbItem.Category{Name: subCateName, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+		}
+	}
+	return cates, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-
 	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -104,103 +190,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`#desktop-mainmenu>li`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.AttrOr("data-mainitem", ""))
-		if cateName == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subSel := node.Find(`.menu-dropdown-row>div>ul`)
-		for k := range subSel.Nodes {
-			subNode := subSel.Eq(k)
-			subcat2 := strings.TrimSpace(subNode.Find(`strong`).First().Text())
-
-			subNode2 := subNode.Find(`li`)
-			for j := range subNode2.Nodes {
-				subNode := subNode2.Eq(j)
-
-				href := subNode.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subcat2 + " > " + strings.TrimSpace(subNode.Text())
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-
-		if len(subSel.Nodes) == 0 { // new arrival
-			subSel = node.Find(`.navigation-promo-slide`)
-			if len(subSel.Nodes) == 0 {
-				subSel = node.Find(`.menu-dropdown-row`).Find(`a`)
-			}
-			for j := range subSel.Nodes {
-				subNode := subSel.Eq(j)
-
-				href := subNode.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					href = subNode.AttrOr("href", "")
-					if href == "" {
-						continue
-					}
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := strings.TrimSpace(subNode.Find(`a`).Text())
-				if subCateName == "" {
-					subCateName = subNode.AttrOr("title", "")
-				}
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
 }
 
 func isRobotCheckPage(respBody []byte) bool {
