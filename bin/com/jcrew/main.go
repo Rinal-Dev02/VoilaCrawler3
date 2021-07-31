@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"math"
 	"net/url"
@@ -14,7 +13,6 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/mitchellh/mapstructure"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
@@ -116,6 +114,85 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+var productsExtractReg = regexp.MustCompile(`(?U)id="__NEXT_DATA__"\s*type="application/json">\s*({.*})\s*</script>`)
+
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.jcrew.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	sel := dom.Find("nav.jcrew ul.desktop-only--nav>li")
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := node.Find(`span[itemprop="name"]`).First().Find("h2").Text()
+
+		cate := pbItem.Category{Name: cateName}
+
+		subSel := node.Find(`.nav-secondary-menu .nc-nav__flyout__column>.navigation__sub-list`)
+		var lastSubCate *pbItem.Category
+		for j := range subSel.Nodes {
+			subNode := subSel.Eq(j)
+			subCateName := subNode.Find(`h3`).First().Text()
+			if subCateName != "" {
+				subCate := pbItem.Category{Name: subCateName}
+				cate.Children = append(cate.Children, &subCate)
+				lastSubCate = &subCate
+			}
+
+			subSel2 := subNode.Find(`ul li.navigation__list-link>a`)
+			for k := range subSel2.Nodes {
+				subNode2 := subSel2.Eq(k)
+
+				href, _ := c.CanonicalUrl(subNode2.AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+				subCate2Name := subNode2.Text()
+				subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+				lastSubCate.Children = append(lastSubCate.Children, &subCate2)
+			}
+		}
+		if len(cate.Children) > 0 {
+			cates = append(cates, &cate)
+		}
+	}
+	return cates, nil
+}
+
+type categoryStructure struct {
+	Props struct {
+		InitialState struct {
+			Navigation struct {
+				Data struct {
+					CmsNav map[string][]struct {
+						Header string `json:"header"`
+						Links  []struct {
+							URL   string `json:"url"`
+							Label string `json:"label"`
+						} `json:"links"`
+					} `json:"cmsNav"`
+				} `json:"data"`
+			} `json:"navigation"`
+		} `json:"initialState"`
+	} `json:"props"`
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -135,7 +212,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
 	if p == "/en_us" || p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -143,87 +220,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-var productsExtractReg = regexp.MustCompile(`(?U)id="__NEXT_DATA__"\s*type="application/json">\s*({.*})\s*</script>`)
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	matched := productsExtractReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
-	}
-
-	var viewData categoryStructure
-	if err := json.Unmarshal(matched[1], &viewData); err != nil {
-		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
-		return err
-	}
-
-	ud := UniversalDTO{}
-	mapstructure.Decode(viewData.Props.InitialState.Navigation.Data.CmsNav, &ud)
-
-	for key, rawcat := range ud {
-
-		nnctx := context.WithValue(ctx, "Category", key)
-
-		for _, rawsubcat := range rawcat {
-
-			for _, rawsubcat2 := range rawsubcat.Links {
-
-				subCategory := rawsubcat.Header + " > " + rawsubcat2.Label
-
-				href := rawsubcat2.URL
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Errorf("parse url %s failed", href)
-					continue
-				}
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nctx := context.WithValue(nnctx, "SubCategory", subCategory)
-					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-					if err := yield(nctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
-type UniversalDTO map[string][]struct {
-	Header string `json:"header"`
-	Links  []struct {
-		URL   string `json:"url"`
-		Label string `json:"label"`
-	} `json:"links"`
-}
-
-type categoryStructure struct {
-	Props struct {
-		InitialState struct {
-			Navigation struct {
-				Data struct {
-					CmsNav interface{} `json:"cmsNav"`
-				} `json:"data"`
-			} `json:"navigation"`
-		} `json:"initialState"`
-	} `json:"props"`
 }
 
 // nextIndex used to get the index from the shared data.
@@ -1410,8 +1406,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err != nil {
 		return err
 	}
-
-	ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\Output.html", respBody, 0644)
 
 	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
