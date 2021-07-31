@@ -89,85 +89,6 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
-func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-
-	if p == "/en_us" || p == "" {
-		return c.parseCategories(ctx, resp, yield)
-	}
-
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseProduct(ctx, resp, yield)
-		// } else if c.imagePathMatcher.MatchString(resp.Request.URL.Path) {
-		// 	return c.parseProduct(ctx, resp, yield)
-	}
-	return crawler.ErrUnsupportedPath
-}
-
-// --------------------------------------------------
-
-var categoriesExtractReg = regexp.MustCompile(`(?Us)window\.footlocker\.STATE_FROM_SERVER\s*=\s*({.*});`)
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	matched := categoriesExtractReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
-	}
-
-	var viewData categoryStructure
-	if err := json.Unmarshal(matched[1], &viewData); err != nil {
-		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
-		return err
-	}
-
-	for _, rawcat := range viewData.Header.Model.Categories {
-
-		nnctx := context.WithValue(ctx, "Category", rawcat.Name)
-
-		for _, rawsubcat := range rawcat.Categories {
-
-			for _, rawsubcatlvl2 := range rawsubcat.Links {
-
-				href := rawsubcatlvl2.URL
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Errorf("parse url %s failed", href)
-					continue
-				}
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Name+" > "+rawsubcatlvl2.Text)
-					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-					if err := yield(nctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
 type categoryStructure struct {
 	Header struct {
 		Model struct {
@@ -185,7 +106,80 @@ type categoryStructure struct {
 	} `json:"header"`
 }
 
-// --------------------------------------------------
+var categoriesExtractReg = regexp.MustCompile(`(?Us)window\.footlocker\.STATE_FROM_SERVER\s*=\s*({.*});`)
+
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.footlocker.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	matched := categoriesExtractReg.FindSubmatch(respBody)
+	if len(matched) <= 1 {
+		return nil, fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	for _, rawcat := range viewData.Header.Model.Categories {
+		if strings.ToLower(rawcat.Name) == "releases" || strings.ToLower(rawcat.Name) == "flx rewards" {
+			continue
+		}
+		cate := pbItem.Category{Name: rawcat.Name}
+		cates = append(cates, &cate)
+
+		for _, rawsubcat := range rawcat.Categories {
+			subCate := pbItem.Category{Name: rawsubcat.Name}
+			cate.Children = append(cate.Children, &subCate)
+
+			for _, rawsubcatlvl2 := range rawsubcat.Links {
+				href, _ := c.CanonicalUrl(rawsubcatlvl2.URL)
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{Name: rawsubcatlvl2.Text, Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
+func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+
+	if p == "/en_us" || p == "" {
+		return crawler.ErrUnsupportedPath
+	}
+
+	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
+	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseProduct(ctx, resp, yield)
+		// } else if c.imagePathMatcher.MatchString(resp.Request.URL.Path) {
+		// 	return c.parseProduct(ctx, resp, yield)
+	}
+	return crawler.ErrUnsupportedPath
+}
 
 // nextIndex used to get sharingData from context
 func nextIndex(ctx context.Context) int {
