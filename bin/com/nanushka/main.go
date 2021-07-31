@@ -603,7 +603,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
