@@ -9,7 +9,6 @@ import (
 	"math"
 	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -23,7 +22,6 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
-	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 )
 
@@ -96,6 +94,76 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+// GetCategories
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://jingus.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	sel := dom.Find(`.Header__MainNav>ul>li`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		hrefNode := node.Find(`a.Heading`).First()
+		cateName := strings.TrimSpace(hrefNode.Find("span").First().Text())
+		if strings.HasPrefix(cateName, "#") {
+			continue
+		}
+
+		href, _ := c.CanonicalUrl(hrefNode.AttrOr("href", ""))
+		cate := pbItem.Category{Name: cateName, Url: href}
+		cates = append(cates, &cate)
+
+		subSel := node.Find(`.MegaMenu .MegaMenu__Inner .MegaMenu__Item`)
+		for k := range subSel.Nodes {
+			subNode := subSel.Eq(k)
+			hrefNode := subNode.Find("a.MegaMenu__Title").First()
+			subCateName := strings.TrimSpace(hrefNode.Text())
+			href, _ := c.CanonicalUrl(hrefNode.AttrOr("href", ""))
+			if subCateName == "" {
+				continue
+			}
+
+			subCate := pbItem.Category{Name: subCateName, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+
+			subSel2 := subNode.Find(`.Linklist>.Linklist__Item a.Link`)
+			for l := range subSel2.Nodes {
+				subNode2 := subSel2.Eq(l)
+				href, _ = c.CanonicalUrl(subNode2.AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+				subCate2Name := strings.TrimSpace(subNode2.Text())
+				if subCate2Name == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -106,7 +174,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	if resp.Request.URL.Path == "" || resp.Request.URL.Path == "/" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -115,54 +183,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-// parseCategories
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	dom, err := goquery.NewDocumentFromReader(resp.Body)
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	urlFilters := map[string]struct{}{}
-	sel := dom.Find(`.Header__MainNav a[href]`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-
-		href := node.AttrOr("href", "")
-		if href == "" {
-			continue
-		}
-		u, err := url.Parse(href)
-		if err != nil {
-			c.logger.Error("got invalid url %s", href)
-			continue
-		}
-
-		if matched, _ := filepath.Match("/pages/*", u.Path); matched || u.Path == "" || u.Path == "/" {
-			continue
-		}
-		if _, ok := urlFilters[u.Path]; ok {
-			continue
-		}
-		urlFilters[u.Path] = struct{}{}
-
-		nctx := ctx
-		if !c.productPathMatcher.MatchString(u.Path) && c.categoryPathMatcher.MatchString(u.Path) {
-			nctx = context.WithValue(ctx, crawler.TracingIdKey, randutil.MustNewRandomID())
-		}
-		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-		if err = yield(nctx, req); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // nextIndex used to get sharingData from context
