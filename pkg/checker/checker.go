@@ -102,9 +102,6 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log) er
 			return errors.New("Checker.Product: category is empty but subCategory is not")
 		}
 	}
-	if len(item.SkuItems) == 0 {
-		return errors.New("Checker.Product: no valid item found")
-	}
 
 	mediaChecker := func(m *media.Media) error {
 		if m == nil {
@@ -155,6 +152,10 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log) er
 		if i == 0 && !m.IsDefault {
 			return fmt.Errorf("Checker.Product: the first media for item should be the default media")
 		}
+	}
+
+	if item.GetStock().GetStockStatus() == pbItem.Stock_InStock && len(item.SkuItems) == 0 {
+		return errors.New("Checker.Product: no valid item found")
 	}
 
 	var (
