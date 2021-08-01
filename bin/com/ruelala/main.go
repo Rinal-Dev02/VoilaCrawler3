@@ -7,7 +7,6 @@ package main
 // NOTE: the mock cookie may not stable for all the time.
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,8 +17,6 @@ import (
 	"regexp"
 	"strings"
 
-	// "github.com/PuerkitoBio/goquery"
-	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
@@ -76,11 +73,11 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 
 	// options.MustHeader.Set("X-Requested-With", "XMLHttpRequest")
 	options.MustCookies = append(options.MustCookies,
-		&http.Cookie{
-			Name:  "geolocation_data",
-			Value: `{"continent":"NA","timezone":"PST","country":"US","city":"CA","lat":"37.5741","long":"-122.3193"}`,
-			Path:  "/",
-		},
+		// &http.Cookie{
+		// 	Name:  "geolocation_data",
+		// 	Value: `{"continent":"NA","timezone":"PST","country":"US","city":"CA","lat":"37.5741","long":"-122.3193"}`,
+		// 	Path:  "/",
+		// },
 		&http.Cookie{Name: "bfx.country", Value: "US", Path: "/"},
 		&http.Cookie{Name: "bfx.currency", Value: "USD", Path: "/"},
 		// &http.Cookie{
@@ -118,6 +115,78 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.ruelala.com/boutique/", nil)
+	opts := c.CrawlOptions(req.URL)
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+
+	sel := dom.Find(`.menuitem`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" || strings.ToLower(cateName) == "brands" ||
+			strings.ToLower(cateName) == "clearance" || strings.ToLower(cateName) == "experiences" ||
+			strings.ToLower(cateName) == "today's fix" || strings.ToLower(cateName) == "rue now" {
+			continue
+		}
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		subSel1 := node.Find(`.categories-info>ul>li`)
+		for k := range subSel1.Nodes {
+			subNode := subSel1.Eq(k)
+			if strings.Contains(subNode.AttrOr("class", ""), "all") {
+				continue
+			}
+			subCateName := strings.TrimSpace(subNode.Find(`header.name`).Text())
+			href := ""
+			if subCateName == "" {
+				subCateName = subNode.Find(`a.name`).First().Text()
+				href, _ = c.CanonicalUrl(subNode.Find(`a`).First().AttrOr("href", ""))
+			}
+			subCate := pbItem.Category{Name: subCateName, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+
+			subSel2 := subNode.Find(`ul>li`)
+			for l := range subSel2.Nodes {
+				subNode2 := subSel2.Eq(l)
+				if strings.Contains(subNode2.AttrOr("class", ""), "all") {
+					continue
+				}
+				href, _ := c.CanonicalUrl(subNode2.Find("a").First().AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+				subCate2Name := strings.TrimSpace(subNode2.Find("a").First().Text())
+				subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -126,7 +195,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" || p == "/boutique" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -139,90 +208,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseProductJson(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.menuitem`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
-		if cateName == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-		//fmt.Println(`cateName `, cateName)
-
-		subSel1 := node.Find(`.categories-info>ul>li`)
-		subSel1.Nodes = append(subSel1.Nodes, node.Find(`.boutiques-info>ul>li`).Nodes...)
-
-		for k := range subSel1.Nodes {
-			subNodeN := subSel1.Eq(k)
-			subCat1 := strings.TrimSpace(subNodeN.Find(`header`).First().Text())
-
-			subSel := subNodeN.Find(`li`)
-			for j := range subSel.Nodes {
-
-				subNode := subSel.Eq(j)
-				href := subNode.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				_, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subCat1 + " > " + strings.TrimSpace(subNode.Text())
-				//fmt.Println(subCateName)
-				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-				req, _ := http.NewRequest(http.MethodGet, href, nil)
-				if err := yield(nnnctx, req); err != nil {
-					return err
-				}
-			}
-
-			if (subSel.Nodes) == nil {
-				href := subNodeN.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := strings.TrimSpace(subNodeN.Text())
-				//fmt.Println(subCateName)
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
 }
 
 const defaultCategoryProductsPageSize = "54"
