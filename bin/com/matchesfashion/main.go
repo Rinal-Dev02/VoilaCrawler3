@@ -111,6 +111,67 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	var cates []*pbItem.Category
+	for key, rawurl := range map[string]string{
+		"Men":   "https://www.matchesfashion.com/us/mens",
+		"Women": "https://www.matchesfashion.com/us/womens",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
+		opts := c.CrawlOptions(req.URL)
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableHeadless,
+			Reliability:       opts.Reliability,
+			DisableCookieJar:  opts.DisableCookieJar,
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		cate := pbItem.Category{Name: key}
+		cates = append(cates, &cate)
+
+		dom, err := resp.Selector()
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		sel := dom.Find(`.yCmsContentSlot.main-menu__wrapper`).Find(`li`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			href, _ := c.CanonicalUrl(node.Find(`span>a`).First().AttrOr("href", ""))
+			cateName := strings.TrimSpace(node.Find(`span>a`).First().Text())
+			if cateName == "" || strings.ToLower(cateName) == "stories" {
+				continue
+			}
+
+			subCate := pbItem.Category{Name: cateName, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+
+			subSel := node.Find(`.sub_menu__wrapper`).Find(`a`)
+			for k := range subSel.Nodes {
+				subNode2 := subSel.Eq(k)
+				subcatName2 := subNode2.Find(`button`).Text()
+				if subcatName2 == "" {
+					subcatName2 = subNode2.First().Text()
+				}
+
+				href, _ := c.CanonicalUrl(subNode2.AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{Name: strings.TrimSpace(subcatName2), Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -130,7 +191,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
 	if p == "/us/mens" || p == "/us/womens" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
@@ -138,62 +199,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.yCmsContentSlot.main-menu__wrapper`).Find(`li`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`span>a`).First().Text())
-		if cateName == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subSel := node.Find(`.sub_menu__wrapper`).Find(`a`)
-		for k := range subSel.Nodes {
-			subNode2 := subSel.Eq(k)
-			subcat2 := subNode2.Find(`button`).Text()
-			if subcat2 == "" {
-				subcat2 = subNode2.First().Text()
-			}
-			subCateName := strings.TrimSpace(subcat2)
-
-			href := subNode2.AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-
-			_, err := url.Parse(href)
-			if err != nil {
-				c.logger.Error("parse url %s failed", href)
-				continue
-			}
-
-			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-			req, _ := http.NewRequest(http.MethodGet, href, nil)
-			if err := yield(nnnctx, req); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // nextIndex used to get the index from the shared data.
