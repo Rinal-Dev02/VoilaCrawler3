@@ -94,6 +94,69 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	var cates []*pbItem.Category
+	for key, rawurl := range map[string]string{
+		"Women": "https://www.revolve.com",
+		"Men":   "https://www.revolve.com/mens/?revcp_header",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
+		opts := c.CrawlOptions(req.URL)
+		for k := range opts.MustHeader {
+			req.Header.Add(k, opts.MustHeader.Get(k))
+		}
+		for _, c := range opts.MustCookies {
+			req.AddCookie(c)
+		}
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableSessionInit,
+			DisableCookieJar:  opts.DisableCookieJar,
+			Reliability:       opts.Reliability,
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		dom, err := resp.Selector()
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		mainCate := pbItem.Category{Name: key}
+		cates = append(cates, &mainCate)
+
+		sel := dom.Find(`.nav__wrapper.nav__wrapper--margin-b-none .js-dropdown.dropdown.dropdown--full`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+
+			cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+			cate := pbItem.Category{Name: cateName}
+			mainCate.Children = append(mainCate.Children, &cate)
+
+			subSel := node.Find(`.ui-list__item.u-margin-b--md>a`)
+			if len(subSel.Nodes) == 0 {
+				subSel = node.Find(`.u-margin-b--md>a`)
+			}
+			for j := range subSel.Nodes {
+				subNode := subSel.Eq(j)
+				href, _ := c.CanonicalUrl(subNode.AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+				subCateName := strings.TrimSpace(subNode.Text())
+
+				subCate := pbItem.Category{Name: subCateName, Url: href}
+				cate.Children = append(cate.Children, &subCate)
+			}
+		}
+	}
+	return cates, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -105,7 +168,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	if p == "/women" || p == "/mens" || p == "/" || p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -113,63 +176,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	mainCate := "male"
-	if strings.Contains(resp.RawUrl().Path, "women") {
-		mainCate = "female"
-	}
-	nctx := context.WithValue(ctx, "MainCategory", mainCate)
-	fmt.Println(`cateName `, mainCate)
-	sel := dom.Find(`.nav__wrapper.nav__wrapper--margin-b-none`).Find(`.js-dropdown.dropdown.dropdown--full`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
-		nnctx := context.WithValue(nctx, "Category", cateName)
-		//fmt.Println(`cateName `, cateName)
-		subSel := node.Find(`.ui-list__item.u-margin-b--md>a`)
-		if len(subSel.Nodes) == 0 {
-			subSel = node.Find(`.u-margin-b--md>a`)
-		}
-		//fmt.Println(`subSel `, len(subSel.Nodes))
-		for j := range subSel.Nodes {
-			subNode := subSel.Eq(j)
-			href := subNode.AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-
-			_, err := url.Parse(href)
-			if err != nil {
-				c.logger.Error("parse url %s failed", href)
-				continue
-			}
-
-			subCateName := strings.TrimSpace(subNode.Text())
-			//fmt.Println(`subCateName `, subCateName, `  --> `, href)
-			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-			req, _ := http.NewRequest(http.MethodGet, href, nil)
-			if err := yield(nnnctx, req); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // parseCategoryProducts parse api url from web page url
