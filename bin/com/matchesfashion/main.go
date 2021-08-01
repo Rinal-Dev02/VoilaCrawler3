@@ -111,6 +111,67 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	var cates []*pbItem.Category
+	for key, rawurl := range map[string]string{
+		"Men":   "https://www.matchesfashion.com/us/mens",
+		"Women": "https://www.matchesfashion.com/us/womens",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
+		opts := c.CrawlOptions(req.URL)
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableHeadless,
+			Reliability:       opts.Reliability,
+			DisableCookieJar:  opts.DisableCookieJar,
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		cate := pbItem.Category{Name: key}
+		cates = append(cates, &cate)
+
+		dom, err := resp.Selector()
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		sel := dom.Find(`.yCmsContentSlot.main-menu__wrapper`).Find(`li`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			href, _ := c.CanonicalUrl(node.Find(`span>a`).First().AttrOr("href", ""))
+			cateName := strings.TrimSpace(node.Find(`span>a`).First().Text())
+			if cateName == "" || strings.ToLower(cateName) == "stories" {
+				continue
+			}
+
+			subCate := pbItem.Category{Name: cateName, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+
+			subSel := node.Find(`.sub_menu__wrapper`).Find(`a`)
+			for k := range subSel.Nodes {
+				subNode2 := subSel.Eq(k)
+				subcatName2 := subNode2.Find(`button`).Text()
+				if subcatName2 == "" {
+					subcatName2 = subNode2.First().Text()
+				}
+
+				href, _ := c.CanonicalUrl(subNode2.AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{Name: strings.TrimSpace(subcatName2), Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -127,7 +188,11 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
+	if p == "/us/mens" || p == "/us/womens" {
+		return crawler.ErrUnsupportedPath
+	}
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -491,7 +556,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			medias = append(medias, pbMedia.NewVideoMedia("", "", video.URL, 0, 0, 0, "", video.Alt, false))
 		}
 
-		for _, size := range prod.Sizes {
+		for s, size := range prod.Sizes {
 			sku := pbItem.Sku{
 				SourceId: size.Code,
 				Medias:   medias,
@@ -503,7 +568,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			sku.Specs = append(sku.Specs, &colorSpec, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    size.Code,
+				Id:    fmt.Sprintf("%s-%v", size.Code, s),
 				Name:  size.DisplayName,
 				Value: size.DisplayName,
 			})
@@ -594,7 +659,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					))
 				}
 
-				for _, size := range prod.VariantOptions {
+				for s, size := range prod.VariantOptions {
 					sku := pbItem.Sku{
 						SourceId: size.Code,
 						Medias:   medias,
@@ -606,7 +671,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					}
 					sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 						Type:  pbItem.SkuSpecType_SkuSpecSize,
-						Id:    size.Code,
+						Id:    fmt.Sprintf("%s-%v", size.Code, s),
 						Name:  size.SizeData,
 						Value: size.SizeData,
 					})
@@ -629,7 +694,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		// "https://www.matchesfashion.com/us/mens/shop/shoes",
 		// "https://www.matchesfashion.com/us/products/Raey-Chest-pocket-cotton-blend-jacket--1317200",
-		"https://www.matchesfashion.com/us/womens/shop/clothing/lingerie/briefs",
+		//"https://www.matchesfashion.com/us/womens/shop/clothing/lingerie/briefs",
+		"https://www.matchesfashion.com/us/mens",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
