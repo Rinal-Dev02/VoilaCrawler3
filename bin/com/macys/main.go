@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"net/url"
@@ -97,95 +98,71 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	return u.String(), nil
 }
-
-func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.macys.com", nil)
+	opts := c.CrawlOptions(req.URL)
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
 	}
-
-	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
-	}
-	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
-		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	}
-	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
 	if err != nil {
-		return err
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
 	}
 
 	matched := categoryExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+		return nil, fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
 	}
 
 	var viewData categoryStructure
 	if err := json.Unmarshal(matched[1], &viewData); err != nil {
 		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
-		return err
+		return nil, err
 	}
 
+	var cates []*pbItem.Category
 	for _, rawCat := range viewData {
-
 		cateName := rawCat.Text
 		if cateName == "" {
 			continue
 		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
 
 		for _, rawsubCat := range rawCat.Children {
-
 			for _, rawsubCatGrp := range rawsubCat.Group {
-
-				subcat := rawsubCatGrp.Text
+				subCatName := rawsubCatGrp.Text
+				subCate := pbItem.Category{Name: subCatName}
+				cate.Children = append(cate.Children, &subCate)
 
 				for _, rawsubcatlvl2 := range rawsubCatGrp.Children {
-
 					for _, rawsubcatlvl2Grp := range rawsubcatlvl2.Group {
-
-						currentsublvl2 := rawsubcatlvl2Grp.Text
-
-						href := rawsubcatlvl2Grp.URL
+						subCate2Name := rawsubcatlvl2Grp.Text
+						href, _ := c.CanonicalUrl(rawsubcatlvl2Grp.URL)
 						if href == "" {
 							continue
 						}
-
-						u, err := url.Parse(href)
-						if err != nil {
-							c.logger.Error("parse url %s failed", href)
-							continue
-						}
-
-						subCateName := currentsublvl2
-						if subcat != "" {
-							subCateName = subcat + " > " + subCateName
-						}
-
-						if c.categoryPathMatcher.MatchString(u.Path) {
-							nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-							req, _ := http.NewRequest(http.MethodGet, href, nil)
-							if err := yield(nnnctx, req); err != nil {
-								return err
-							}
-						}
+						subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+						subCate.Children = append(subCate.Children, &subCate2)
 					}
 				}
 			}
 		}
 	}
-	return nil
+	return cates, nil
 }
 
 type categoryStructure []struct {
@@ -204,6 +181,19 @@ type categoryStructure []struct {
 			} `json:"children"`
 		} `json:"group"`
 	} `json:"children"`
+}
+
+func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
+		return c.parseProduct(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
+	}
+	return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get sharingData from context
