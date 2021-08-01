@@ -109,6 +109,73 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.makeupforever.com/us/en", nil)
+	opts := c.CrawlOptions(req.URL)
+	// for _, c := range opts.MustCookies {
+	//     req.AddCookie(c)
+	// }
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+
+	sel := dom.Find(`#categories-menu-items>ul>li`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" || node.AttrOr("id", "") == "menu-more" {
+			cateName = node.Find(`button`).First().Text()
+		}
+		if strings.ToLower(cateName) == "brand" || strings.ToLower(cateName) == "for pro" || strings.ToLower(cateName) == "offers" {
+			continue
+		}
+
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		subSel := node.Find(`.dropdown-menu>div>div>ul>li`)
+		for k := range subSel.Nodes {
+			subNode2 := subSel.Eq(k)
+
+			href, _ := c.CanonicalUrl(subNode2.Find(`a`).AttrOr("href", ""))
+			if href == "" {
+				continue
+			}
+
+			subCateName := subNode2.Find(`a`).Text()
+			subCate := pbItem.Category{Name: subCateName, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+		}
+
+		// If no sub category found
+		if len(node.Find(`.dropdown-menu>div>div>ul>li`).Nodes) == 0 {
+			href, _ := c.CanonicalUrl(node.Find(`a`).AttrOr("href", ""))
+			if href == "" {
+				continue
+			}
+			cate.Url = href
+		}
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -127,7 +194,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 	if p == "/us/en/tools" || p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.productPathMatcher.MatchString(resp.RawUrl().Path) || c.productPathMatcher1.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -144,82 +211,6 @@ func nextIndex(ctx context.Context) int {
 }
 
 var nextPageReg = regexp.MustCompile(`\[<a\s+href="(https://www.makeupforever.com/[^"]+)"\s*>\s*Next\s*</a>\]`)
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`#categories-menu-items>ul>li`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
-		if cateName == "" || node.AttrOr("id", "") == "menu-more" {
-			cateName = node.Find(`button`).First().Text()
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subSel := node.Find(`.dropdown-menu>div>div>ul>li`)
-
-		for k := range subSel.Nodes {
-			subNode2 := subSel.Eq(k)
-
-			href := subNode2.Find(`a`).AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-
-			u, err := url.Parse(href)
-			if err != nil {
-				c.logger.Error("parse url %s failed", href)
-				continue
-			}
-
-			subCateName := subNode2.Find(`a`).Text()
-
-			if c.categoryPathMatcher.MatchString(u.Path) {
-				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-				req, _ := http.NewRequest(http.MethodGet, href, nil)
-				if err := yield(nnnctx, req); err != nil {
-					return err
-				}
-			}
-		}
-
-		// If no sub category found
-		if len(node.Find(`.dropdown-menu>div>div>ul>li`).Nodes) == 0 {
-			href := node.Find(`a`).AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-
-			u, err := url.Parse(href)
-			if err != nil {
-				c.logger.Error("parse url %s failed", href)
-				continue
-			}
-
-			if c.categoryPathMatcher.MatchString(u.Path) {
-				req, _ := http.NewRequest(http.MethodGet, href, nil)
-				if err := yield(nnctx, req); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
-}
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
