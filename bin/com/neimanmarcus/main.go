@@ -71,6 +71,10 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		Name:  "profile_data",
 		Value: "%7B%22firstName%22%3A%22%22%2C%22currencyPreference%22%3A%22USD%22%2C%22countryPreference%22%3A%22US%22%2C%22securityStatus%22%3A%22Anonymous%22%2C%22cartItemCount%22%3A0%7D",
 		Path:  "/",
+	}, &http.Cookie{
+		Name:  "dt_gender_placement",
+		Value: "Header",
+		Path:  "/",
 	})
 	return options
 }
@@ -80,6 +84,9 @@ func (c *_Crawler) AllowedDomains() []string {
 }
 
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	if rawurl == "" || rawurl == "#" {
+		return "", nil
+	}
 	u, err := url.Parse(rawurl)
 	if err != nil {
 		return "", err
@@ -97,6 +104,109 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	var cates []*pbItem.Category
+
+	for key, rawurl := range map[string]string{
+		"Women": "https://www.neimanmarcus.com/",
+		"Men":   "https://www.neimanmarcus.com/mens",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
+		opts := c.CrawlOptions(req.URL)
+		if key == "Men" {
+			req.Header.Set("Referer", "https://www.neimanmarcus.com/")
+			req.AddCookie(&http.Cookie{Name: "dt_gender", Value: "M"})
+		} else {
+			req.AddCookie(&http.Cookie{Name: "dt_gender", Value: "W"})
+		}
+		for _, c := range opts.MustCookies {
+			req.AddCookie(c)
+		}
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableSessionInit,
+			Reliability:       opts.Reliability,
+			DisableCookieJar:  opts.DisableCookieJar,
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		dom, err := resp.Selector()
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		mainCate := pbItem.Category{Name: key}
+		cates = append(cates, &mainCate)
+
+		sel := dom.Find(`#silo-navigation>ul>li`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+			if cateName == "" || strings.ToLower(cateName) == "designers" {
+				continue
+			}
+
+			cate := &pbItem.Category{Name: cateName}
+			switch strings.ToLower(cateName) {
+			case "kids", "home", "gifts", "magazine", "sale":
+				for _, cc := range cates {
+					if strings.ToLower(cateName) == strings.ToLower(cc.Name) {
+						cate = nil
+						continue
+					}
+				}
+				if cate != nil {
+					cates = append(cates, cate)
+				}
+			default:
+				mainCate.Children = append(mainCate.Children, cate)
+			}
+			if cate == nil {
+				continue
+			}
+
+			subSel := node.Find(`.silo-column>div>div`)
+			// For designers
+			if len(subSel.Nodes) == 0 {
+				subSel = node.Find(`.silo-group>div>div`)
+			}
+
+			for k := range subSel.Nodes {
+				subNode2 := subSel.Eq(k)
+				subCateName := subNode2.Find(`h6`).First().Text()
+				href, _ := c.CanonicalUrl(subNode2.Find(`a`).AttrOr("href", ""))
+				if href == "" || subCateName == "" {
+					continue
+				}
+				subCate := &pbItem.Category{Name: subCateName, Url: href}
+				cate.Children = append(cate.Children, subCate)
+
+				subNode2list := subNode2.Find(`li`)
+				for j := range subNode2list.Nodes {
+					subNode := subNode2list.Eq(j)
+					href, _ := c.CanonicalUrl(subNode.Find(`a`).First().AttrOr("href", ""))
+					if href == "" {
+						continue
+					}
+					subCate2Name := strings.TrimSpace(subNode.Text())
+					if subCate2Name == "" {
+						continue
+					}
+
+					subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+					subCate.Children = append(subCate.Children, &subCate2)
+				}
+			}
+		}
+	}
+	return cates, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -104,7 +214,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" || p == "/index.jsp" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
@@ -112,99 +222,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`#silo-navigation>ul>li`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
-		if cateName == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subSel := node.Find(`.silo-column>div>div`)
-		// For designers
-		if len(subSel.Nodes) == 0 {
-			subSel = node.Find(`.silo-group>div>div`)
-		}
-
-		for k := range subSel.Nodes {
-			subNode2 := subSel.Eq(k)
-			subcat2 := subNode2.Find(`h6`).First().Text()
-
-			subNode2list := subNode2.Find(`li`)
-
-			for j := range subNode2list.Nodes {
-				subNode := subNode2list.Eq(j)
-				href := subNode.Find(`a`).First().AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				_, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-				subCateName := ""
-				subCate2Name := ""
-				if subcat2 == "" {
-					subCateName = strings.TrimSpace(subNode.Text())
-				} else {
-					subCateName = subcat2
-					subCate2Name = strings.TrimSpace(subNode.Text())
-				}
-
-				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-				nnnctx = context.WithValue(nnctx, "SubCategory2", subCate2Name)
-				req, _ := http.NewRequest(http.MethodGet, href, nil)
-				if err := yield(nnnctx, req); err != nil {
-					return err
-				}
-			}
-
-			// if subcategory level 3 not found
-			if len(subNode2.Find(`li`).Nodes) == 0 {
-
-				href := subNode2.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				_, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subcat2
-
-				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-				req, _ := http.NewRequest(http.MethodGet, href, nil)
-				if err := yield(nnnctx, req); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
 }
 
 func isRobotCheckPage(respBody []byte) bool {
