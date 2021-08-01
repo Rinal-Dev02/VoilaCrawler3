@@ -96,13 +96,75 @@ func getPathFirstSection(p string) string {
 	return "/" + strings.SplitN(strings.TrimPrefix(p, "/"), "/", 2)[0]
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://us.princesspolly.com", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	sel := dom.Find(`nav.nav .nav__list`).First().Find(`.nav__item`)
+	if len(sel.Nodes) == 0 {
+		return nil, fmt.Errorf("got no categories")
+	}
+	var cates []*pbItem.Category
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		cateName := strings.TrimSpace(node.Find(`a.nav__link--parent`).Text())
+		if cateName == "" || strings.ToLower(cateName) == "shop by" {
+			continue
+		}
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		subSel := node.Find(`.nav__list>.nav__list-wrap>.nav__list-items>.nav__item--child`)
+
+		for j := range subSel.Nodes {
+			subNode := subSel.Eq(j)
+
+			subHeadNode := subNode.Find(`a.nav__link--child`).First()
+			subCateName := strings.TrimSpace(subHeadNode.Text())
+			subCate := pbItem.Category{Name: subCateName}
+			cate.Children = append(cate.Children, &subCate)
+
+			subSel2 := subNode.Find(`.nav__list--grandchild .nav__item--grandchild>a`)
+			for k := range subSel2.Nodes {
+				subNode2 := subSel2.Eq(k)
+				subCate2Name := strings.TrimSpace(subNode2.Text())
+				href, _ := c.CanonicalUrl(subNode2.AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
 
 	if resp.RawUrl().Path == "" || resp.RawUrl().Path == "/" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -110,63 +172,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	dom, err := resp.Selector()
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.header__nav .nav .nav__list>.nav__item`)
-	if len(sel.Nodes) == 0 {
-		return fmt.Errorf("got no categories")
-	}
-
-	urlFilter := map[string]struct{}{}
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cate := strings.TrimSpace(node.Find(`a.nav__link`).First().Text())
-		subSel := node.Find(`.nav__list .nav__list-items .nav__item .nav__list>.nav__item>a.nav__link`)
-
-		pctx := context.WithValue(ctx, "item.index", 0)
-		pctx = context.WithValue(pctx, "Category", cate)
-		for j := range subSel.Nodes {
-			subNode := subSel.Eq(j)
-			href := subNode.AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-			// ignore pages
-			u, err := url.Parse(href)
-			if err != nil {
-				c.logger.Errorf("invalid url %s", href)
-				continue
-			}
-			if strings.HasPrefix(u.Path, "/pages/") {
-				continue
-			}
-
-			if _, ok := urlFilter[href]; ok {
-				continue
-			}
-
-			urlFilter[href] = struct{}{}
-			subCate := strings.TrimSpace(subNode.Text())
-
-			req, err := http.NewRequest(http.MethodGet, href, nil)
-			if err != nil {
-				c.logger.Errorf("load request for %s failed, error=%s", href, err)
-				continue
-			}
-			sctx := context.WithValue(pctx, "SubCategory", subCate)
-			if err := yield(sctx, req); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // nextIndex used to get sharingData from context
