@@ -21,7 +21,6 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
-	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 )
 
@@ -97,6 +96,85 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	return u.String(), nil
 }
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	var cates []*pbItem.Category
+	for key, rawurl := range map[string]string{
+		"Women": "https://us.romwe.com/?&ici=us_tab01",
+		"Men":   "https://us.romwe.com/guys?icn=GuysHomePage&ici=us_tab02",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
+		opts := c.CrawlOptions(req.URL)
+		for k := range opts.MustHeader {
+			req.Header.Add(k, opts.MustHeader.Get(k))
+		}
+		for _, c := range opts.MustCookies {
+			req.AddCookie(c)
+		}
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableSessionInit,
+			DisableCookieJar:  opts.DisableCookieJar,
+			Reliability:       opts.Reliability,
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		dom, err := resp.Selector()
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+
+		mainCate := pbItem.Category{Name: key}
+		cates = append(cates, &mainCate)
+
+		sel := dom.Find(`.c-nav2 nav.header-v2__nav2>div.header-v2__nav2-wrapper`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			cateName := strings.TrimSpace(node.Find(`a`).First().AttrOr("aria-label", node.Find(`a`).First().Text()))
+
+			cate := pbItem.Category{Name: cateName}
+			mainCate.Children = append(mainCate.Children, &cate)
+
+			subSel := node.Find(`nav.header-float>.header-float__cell-txt .header-float__txt`)
+
+			var subCate *pbItem.Category
+			for j := range subSel.Nodes {
+				subSel2 := subSel.Eq(j).Children()
+				for k := range subSel2.Nodes {
+					subNode := subSel2.Eq(k)
+
+					headNode := subNode.Find(`.header-float__txt-title>a.header-float__txt-link`)
+					if len(headNode.Nodes) > 0 {
+						headHref, _ := c.CanonicalUrl(headNode.AttrOr("href", ""))
+						if headHref == "" {
+							continue
+						}
+						subCateName := strings.TrimSpace(headNode.Text())
+						subCate = &pbItem.Category{Name: subCateName, Url: headHref}
+						cate.Children = append(cate.Children, subCate)
+					} else if subNode2 := subNode.Find(`div>p>a.header-float__txt-link`); len(subNode2.Nodes) > 0 {
+						for k := range subNode2.Nodes {
+							node := subNode2.Eq(k)
+							subCate2Name := strings.TrimSpace(node.Text())
+							href, _ := c.CanonicalUrl(node.AttrOr("href", ""))
+							if subCate2Name == "" || href == "" {
+								continue
+							}
+
+							subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+							subCate.Children = append(subCate.Children, &subCate2)
+						}
+					}
+				}
+			}
+		}
+	}
+	return cates, nil
+}
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -105,77 +183,13 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	path := strings.TrimSuffix(resp.RawUrl().Path, "/")
 	if path == "" || path == "/guys" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	mainCate := "male"
-	if resp.RawUrl().Path == " " || resp.RawUrl().Path == "/" {
-		mainCate = "female"
-	}
-	nctx := context.WithValue(ctx, "MainCategory", mainCate)
-
-	dom, err := resp.Selector()
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.c-nav2 nav.header-v2__nav2>div.header-v2__nav2-wrapper`)
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a`).First().AttrOr("aria-label", node.Find(`a`).First().Text()))
-		nnctx := context.WithValue(nctx, "Category", cateName)
-
-		subSel := node.Find(`nav.header-float>div a`)
-		for j := range subSel.Nodes {
-			subNode := subSel.Eq(j)
-			href := subNode.AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-
-			_, err := url.Parse(href)
-			if err != nil {
-				c.logger.Error("parse url %s failed", href)
-				continue
-			}
-
-			subCateName := strings.TrimSpace(subSel.Nodes[j].Data)
-			if subCateName == "" {
-				subCateName = strings.TrimSpace(subNode.AttrOr("title", ""))
-			}
-			if subCateName == "" {
-				subCateName = strings.TrimSpace(subNode.Children().First().Text())
-			}
-			if subCateName == "" {
-				subCateName = strings.TrimSpace(subNode.Children().First().AttrOr("alt", ""))
-			}
-			if subCateName == "" {
-				subCateName = strings.TrimSpace(subNode.AttrOr("data-href-target", ""))
-			}
-			nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-			req, _ := http.NewRequest(http.MethodGet, href, nil)
-			if err := yield(nnnctx, req); err != nil {
-				return err
-			}
-		}
-	}
-
-	if mainCate == "female" {
-		// guys page
-		req, _ := http.NewRequest(http.MethodGet, "https://us.romwe.com/guys?icn=GuysHomePage&ici=us_tab02", nil)
-		nctx = context.WithValue(ctx, "MainCategory", "male")
-		nctx = context.WithValue(nctx, crawler.TracingIdKey, randutil.MustNewRandomID())
-		return yield(nctx, req)
-	}
-	return nil
 }
 
 // nextIndex used to get sharingData from context
