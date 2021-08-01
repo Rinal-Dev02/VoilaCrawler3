@@ -109,6 +109,73 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.makeupforever.com/us/en", nil)
+	opts := c.CrawlOptions(req.URL)
+	// for _, c := range opts.MustCookies {
+	//     req.AddCookie(c)
+	// }
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+
+	sel := dom.Find(`#categories-menu-items>ul>li`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" || node.AttrOr("id", "") == "menu-more" {
+			cateName = node.Find(`button`).First().Text()
+		}
+		if strings.ToLower(cateName) == "brand" || strings.ToLower(cateName) == "for pro" || strings.ToLower(cateName) == "offers" {
+			continue
+		}
+
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		subSel := node.Find(`.dropdown-menu>div>div>ul>li`)
+		for k := range subSel.Nodes {
+			subNode2 := subSel.Eq(k)
+
+			href, _ := c.CanonicalUrl(subNode2.Find(`a`).AttrOr("href", ""))
+			if href == "" {
+				continue
+			}
+
+			subCateName := subNode2.Find(`a`).Text()
+			subCate := pbItem.Category{Name: subCateName, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+		}
+
+		// If no sub category found
+		if len(node.Find(`.dropdown-menu>div>div>ul>li`).Nodes) == 0 {
+			href, _ := c.CanonicalUrl(node.Find(`a`).AttrOr("href", ""))
+			if href == "" {
+				continue
+			}
+			cate.Url = href
+		}
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -125,10 +192,13 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) || c.productPathMatcher1.MatchString(resp.Request.URL.Path) {
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
+	if p == "/us/en/tools" || p == "" {
+		return crawler.ErrUnsupportedPath
+	}
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) || c.productPathMatcher1.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.categoryPathMatcher1.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || c.categoryPathMatcher1.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
@@ -386,7 +456,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Source: &pbItem.Source{
 			Id: viewData.Product.MasterID,
 			//CrawlUrl: resp.Request.URL.String(),  // not found
-			//https://www.makeupforever.com/us/en/a-MI000044405.html?dwvar_MI000044405_color=368&pid=MI000044405&quantity=1
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 		},
@@ -396,6 +465,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		Stats: &pbItem.Stats{
 			ReviewCount: int32(review),
 			Rating:      float32(viewData.Product.Rating),
@@ -441,8 +511,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	originalPrice := viewData.Product.Price.Sales.Value
 	msrp := viewData.Product.Price.List.Value
+	if msrp == 0.0 {
+		msrp = originalPrice
+	}
 	discount := 0.0
-	if msrp > 0 {
+	if msrp > originalPrice {
 		discount = math.Ceil((msrp - originalPrice) / msrp * 100)
 	}
 	var (
@@ -524,6 +597,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Value: size.Value,
 			})
 			item.SkuItems = append(item.SkuItems, &sku)
+			item.Medias = append(item.Medias, sku.Medias...)
+
+		}
+		if viewData.Product.InStock {
+			item.Stock.StockStatus = pbItem.Stock_InStock
 		}
 	}
 
@@ -536,7 +614,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.makeupforever.com/us/en/tools",
+		//"https://www.makeupforever.com/us/en/tools",
+		"https://www.makeupforever.com/us/en/eyes/eyeshadow/star-lit-diamond-powder-MI000090111.html",
 		// "https://www.makeupforever.com/us/en/face/bronzer/pro-sculpting-palette-MI000014320.html",
 		// "https://www.makeupforever.com/us/en/eyes/eyeshadow/artist-color-shadow-refill-MI000079830.html",
 		// "https://www.makeupforever.com/us/en/face/foundation/make-up-for-ever-%E2%80%93-reboot-MI000028230.html",
