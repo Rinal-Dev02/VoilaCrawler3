@@ -108,6 +108,64 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.stories.com/en_usd/index.html", nil)
+	opts := c.CrawlOptions(req.URL)
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	primarySel := dom.Find(`nav.o-main-menu .menu-content .primary .categories>li`)
+	secondSel := dom.Find(`nav.o-main-menu .menu-content .secondary`)
+
+	var cates []*pbItem.Category
+	for i := range primarySel.Nodes {
+		node := primarySel.Eq(i)
+		idVal := node.AttrOr("data-category-id", "")
+		if idVal == "" {
+			continue
+		}
+		href, _ := c.CanonicalUrl(node.Find(`a`).AttrOr("href", ""))
+		cateName := strings.TrimSpace(node.Find(`a`).Text())
+		if cateName == "" || strings.ToLower("") == "as seen on instagram" {
+			continue
+		}
+		cate := pbItem.Category{Name: cateName, Url: href}
+		cates = append(cates, &cate)
+
+		subCateSel := secondSel.Find(fmt.Sprintf(`div[data-category-id="%s"] ul.subcategories>li>a`, idVal))
+		for j := range subCateSel.Nodes {
+			subNode := subCateSel.Eq(j)
+			subCateName := strings.TrimSpace(subNode.Text())
+			href, _ := c.CanonicalUrl(subNode.AttrOr("href", ""))
+			if href == "" || subCateName == "" {
+				continue
+			}
+
+			subCate := pbItem.Category{Name: subCateName, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+		}
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -127,7 +185,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 	if p == "/en_usd/index.html" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
 	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
@@ -136,93 +194,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.subcategory-section`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-
-		cateName := (node.Find(`.selected-category`).Text())
-		if cateName == "" {
-			continue
-		}
-
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		//fmt.Println(`cateName `, cateName)
-
-		subSel1 := node.Find(`li`)
-		for k := range subSel1.Nodes {
-			subNodeN := subSel1.Eq(k)
-			subCat1 := strings.TrimSpace(subNodeN.Find(`.accordion-header`).First().Text())
-
-			subSel := subNodeN.Find(`.accordion-inner-content>div`)
-			for j := range subSel.Nodes {
-
-				subNode := subSel.Eq(j)
-				href := subNode.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subCat1 + " > " + strings.TrimSpace(subNode.Text())
-				//fmt.Println(subCateName)
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-
-			if (subSel.Nodes) == nil {
-				href := subNodeN.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := strings.TrimSpace(subNodeN.Text())
-				//fmt.Println(subCateName)
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
 }
 
 // nextIndex used to get the index from the shared data.
