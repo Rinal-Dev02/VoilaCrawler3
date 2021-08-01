@@ -87,6 +87,9 @@ func (c *_Crawler) AllowedDomains() []string {
 }
 
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	if rawurl == "" || rawurl == "#" {
+		return "", nil
+	}
 	u, err := url.Parse(rawurl)
 	if err != nil {
 		return "", err
@@ -102,6 +105,72 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		return u.String(), nil
 	}
 	return u.String(), nil
+}
+
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.modcloth.com", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	matched := dom.Find(`.component-mobile-menu-basic`).AttrOr(`data-props`, "")
+	var viewData categoryStructure
+	if err := json.Unmarshal([]byte(matched), &viewData); err != nil {
+		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	for _, rawcat := range viewData.Links {
+		cate := pbItem.Category{Name: rawcat.Title}
+		cates = append(cates, &cate)
+		for _, rawsubcat := range rawcat.Links {
+			href, _ := c.CanonicalUrl(rawsubcat.URL)
+			subCate := pbItem.Category{Name: rawsubcat.Title, Url: href}
+			cate.Children = append(cate.Children, &subCate)
+
+			for _, rawsubcatlvl2 := range rawsubcat.Links {
+				href, _ := c.CanonicalUrl(rawsubcatlvl2.URL)
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{Name: rawsubcatlvl2.Title, Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
+type categoryStructure struct {
+	Title string `json:"title"`
+	Links []struct {
+		URL   string `json:"url"`
+		Title string `json:"title"`
+		Links []struct {
+			URL   string `json:"url"`
+			Title string `json:"title"`
+			Links []struct {
+				URL   string `json:"url"`
+				Title string `json:"title"`
+			} `json:"links,omitempty"`
+		} `json:"links"`
+	} `json:"links"`
 }
 
 // Parse is the entry to run the spider.
@@ -123,7 +192,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "/en_us" || p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.productPathMatcherNew.MatchString(resp.RawUrl().Path) {
 		return c.parseProductNew(ctx, resp, yield)
@@ -133,97 +202,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	matched := dom.Find(`.component-mobile-menu-basic`).AttrOr(`data-props`, "")
-
-	var viewData categoryStructure
-	if err := json.Unmarshal([]byte(matched), &viewData); err != nil {
-		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
-		return err
-	}
-
-	for _, rawcat := range viewData.Links {
-		nnctx := context.WithValue(ctx, "Category", rawcat.Title)
-
-		for _, rawsubcat := range rawcat.Links {
-
-			for _, rawsubcatlvl2 := range rawsubcat.Links {
-				href := rawsubcatlvl2.URL
-				if href == "" {
-					continue
-				}
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Errorf("parse url %s failed", href)
-					continue
-				}
-				subCatName := rawsubcat.Title + " > " + rawsubcatlvl2.Title
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nctx := context.WithValue(nnctx, "SubCategory", subCatName)
-					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-					if err := yield(nctx, req); err != nil {
-						return err
-					}
-				}
-			}
-
-			if len(rawsubcat.Links) == 0 { // No sub categories
-				href := rawsubcat.URL
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Errorf("parse url %s failed", href)
-					continue
-				}
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Title)
-					req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-					if err := yield(nctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
-}
-
-type categoryStructure struct {
-	Title string `json:"title"`
-	Links []struct {
-		URL   string `json:"url"`
-		Title string `json:"title"`
-		Links []struct {
-			URL   string `json:"url"`
-			Title string `json:"title"`
-			Links []struct {
-				URL   string `json:"url"`
-				Title string `json:"title"`
-			} `json:"links,omitempty"`
-		} `json:"links"`
-	} `json:"links"`
 }
 
 // nextIndex used to get the index from the shared data.
