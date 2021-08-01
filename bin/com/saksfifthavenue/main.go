@@ -115,6 +115,97 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.saksfifthavenue.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	for _, class := range []string{".show-in-womens", ".show-in-mens"} {
+		name := "Women"
+		if class == ".show-in-mens" {
+			name = "Men"
+		}
+		mainCate := pbItem.Category{Name: name}
+		cates = append(cates, &mainCate)
+
+		sel := dom.Find(`.nav.navbar-nav`).Find(fmt.Sprintf(`li[data-adobelaunchtopnavigation]%s`, class))
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			if strings.Contains(node.AttrOr("class", ""), "d-lg-none") {
+				continue
+			}
+
+			cateName := TrimSpaceNewlineInString(node.Find(`a`).First().Text())
+			if cateName == "" || strings.ToLower(cateName) == "for me" {
+				continue
+			}
+			cate := &pbItem.Category{Name: cateName}
+
+			switch strings.ToLower(cateName) {
+			case "designers", "kids", "home", "sale":
+				for _, c := range cates {
+					if strings.ToLower(c.Name) == strings.ToLower(cateName) {
+						cate = nil
+						break
+					}
+				}
+				if cate != nil {
+					cates = append(cates, cate)
+				}
+			default:
+				mainCate.Children = append(mainCate.Children, cate)
+			}
+			if cate == nil {
+				continue
+			}
+
+			subSel1 := node.Find(`ul`).Find(`.dropdown-item.dropdown`)
+			for k := range subSel1.Nodes {
+				subNodeN := subSel1.Eq(k)
+				subCat1 := TrimSpaceNewlineInString(subNodeN.AttrOr("data-adobelaunchsubcategory", ""))
+				if subCat1 == "" {
+					continue
+				}
+
+				subCate := pbItem.Category{Name: subCat1}
+				cate.Children = append(cate.Children, &subCate)
+
+				subSel := subNodeN.Find(`a`)
+				for j := range subSel.Nodes {
+					subNode := subSel.Eq(j)
+					href, _ := c.CanonicalUrl(subNode.AttrOr("href", ""))
+					if href == "" {
+						continue
+					}
+					subCate2 := pbItem.Category{Name: strings.TrimSpace(subNode.Text()), Url: href}
+					subCate.Children = append(subCate.Children, &subCate2)
+				}
+			}
+		}
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -135,7 +226,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" || p == "/mens" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
 	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || c.categoryDynamicLoadMatcher.MatchString(resp.RawUrl().Path) {
@@ -154,78 +245,7 @@ func TrimSpaceNewlineInString(s string) string {
 	resp = strings.ReplaceAll(resp, "\r", " ")
 	resp = strings.ReplaceAll(resp, "\t", " ")
 	resp = strings.ReplaceAll(resp, "  ", "")
-	return resp
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.nav.navbar-nav`).Find(`li[data-adobelaunchtopnavigation]`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-
-		mainCategory := "Men"
-		if strings.Contains(node.AttrOr("class", ""), "womens") {
-			mainCategory = "Women"
-		}
-		nctx := context.WithValue(ctx, "MainCategory", mainCategory)
-
-		cateName := TrimSpaceNewlineInString(node.Find(`a`).First().Text())
-		if cateName == "" {
-			continue
-		}
-
-		nnctx := context.WithValue(nctx, "Category", cateName)
-		//fmt.Println(`cateName `, mainCategory, "  --  ", cateName)
-
-		subSel1 := node.Find(`ul`).Find(`.dropdown-item.dropdown`)
-		for k := range subSel1.Nodes {
-			subNodeN := subSel1.Eq(k)
-
-			subCat1 := TrimSpaceNewlineInString(subNodeN.AttrOr("data-adobelaunchsubcategory", ""))
-			if subCat1 == "" {
-				continue
-			}
-
-			subSel := subNodeN.Find(`a`)
-			for j := range subSel.Nodes {
-
-				subNode := subSel.Eq(j)
-				href := subNode.AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				_, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subCat1 + " > " + TrimSpaceNewlineInString(subNode.Text())
-				//fmt.Println(subCateName)
-				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-				req, _ := http.NewRequest(http.MethodGet, href, nil)
-				if err := yield(nnnctx, req); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
+	return strings.TrimSpace(resp)
 }
 
 // nextIndex used to get the index from the shared data.
