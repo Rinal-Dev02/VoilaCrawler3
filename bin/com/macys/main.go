@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"net/url"
@@ -97,15 +98,99 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	return u.String(), nil
 }
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.macys.com", nil)
+	opts := c.CrawlOptions(req.URL)
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+		DisableCookieJar:  opts.DisableCookieJar,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	matched := categoryExtractReg.FindSubmatch(respBody)
+	if len(matched) <= 1 {
+		return nil, fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+	}
+
+	var viewData categoryStructure
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	for _, rawCat := range viewData {
+		cateName := rawCat.Text
+		if cateName == "" {
+			continue
+		}
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		for _, rawsubCat := range rawCat.Children {
+			for _, rawsubCatGrp := range rawsubCat.Group {
+				subCatName := rawsubCatGrp.Text
+				subCate := pbItem.Category{Name: subCatName}
+				cate.Children = append(cate.Children, &subCate)
+
+				for _, rawsubcatlvl2 := range rawsubCatGrp.Children {
+					for _, rawsubcatlvl2Grp := range rawsubcatlvl2.Group {
+						subCate2Name := rawsubcatlvl2Grp.Text
+						href, _ := c.CanonicalUrl(rawsubcatlvl2Grp.URL)
+						if href == "" {
+							continue
+						}
+						subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+						subCate.Children = append(subCate.Children, &subCate2)
+					}
+				}
+			}
+		}
+	}
+	return cates, nil
+}
+
+type categoryStructure []struct {
+	ID       string `json:"id"`
+	Text     string `json:"text"`
+	URL      string `json:"url"`
+	Children []struct {
+		Group []struct {
+			ID       string `json:"id"`
+			Text     string `json:"text"`
+			Children []struct {
+				Group []struct {
+					Text string `json:"text"`
+					URL  string `json:"url"`
+				} `json:"group"`
+			} `json:"children"`
+		} `json:"group"`
+	} `json:"children"`
+}
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
@@ -204,183 +289,27 @@ type parseProductData struct {
 		ProductReviews []string `json:"product_reviews"`
 	} `json:"utagData"`
 	Product struct {
-		ID         int `json:"id"`
-		Identifier struct {
-			ProductURL           string `json:"productUrl"`
-			ProductID            int    `json:"productId"`
-			TopLevelCategoryID   string `json:"topLevelCategoryID"`
-			TopLevelCategoryName string `json:"topLevelCategoryName"`
-		} `json:"identifier"`
+		ID     int `json:"id"`
 		Detail struct {
-			Name                 string `json:"name"`
-			Description          string `json:"description"`
-			SecondaryDescription string `json:"secondaryDescription"`
-			SeoKeywords          string `json:"seoKeywords"`
-			Flags                struct {
-				Chanel                                     bool `json:"chanel"`
-				Hermes                                     bool `json:"hermes"`
-				Coach                                      bool `json:"coach"`
-				HasWarranty                                bool `json:"hasWarranty"`
-				BigTicketItem                              bool `json:"bigTicketItem"`
-				PhoneOnly                                  bool `json:"phoneOnly"`
-				Registrable                                bool `json:"registrable"`
-				MasterProduct                              bool `json:"masterProduct"`
-				MemberProduct                              bool `json:"memberProduct"`
-				GwpIndicator                               bool `json:"gwpIndicator"`
-				TruefitEligible                            bool `json:"truefitEligible"`
-				FitPredictorEligible                       bool `json:"fitPredictorEligible"`
-				IsStoreOnlyProductOnline                   bool `json:"isStoreOnlyProductOnline"`
-				EligibleForPreOrder                        bool `json:"eligibleForPreOrder"`
-				CountryEligible                            bool `json:"countryEligible"`
-				HasColors                                  bool `json:"hasColors"`
-				Rebates                                    bool `json:"rebates"`
-				GiftCard                                   bool `json:"giftCard"`
-				SuppressColorSwatches                      bool `json:"suppressColorSwatches"`
-				HasColorSwatches                           bool `json:"hasColorSwatches"`
-				Beauty                                     bool `json:"beauty"`
-				EligibleForShopRunner                      bool `json:"eligibleForShopRunner"`
-				HasAdditionalImages                        bool `json:"hasAdditionalImages"`
-				BigTicketV2CItem                           bool `json:"bigTicketV2CItem"`
-				OnlineExclusive                            bool `json:"onlineExclusive"`
-				StoreOnlySpecial                           bool `json:"storeOnlySpecial"`
-				FinishLine                                 bool `json:"finishLine"`
-				Sitewidesale                               bool `json:"sitewidesale"`
-				ProtectionPlanEligible                     bool `json:"protectionPlanEligible"`
-				BannerForKidsChokeHazard                   bool `json:"bannerForKidsChokeHazard"`
-				SizePersistForMen                          bool `json:"sizePersistForMen"`
-				SizesDropdownForShoesEnabled               bool `json:"sizesDropdownForShoesEnabled"`
-				BigTicketDeliveryFeeRestructureEligible    bool `json:"bigTicketDeliveryFeeRestructureEligible"`
-				DimensionsCopyGroupEnabled                 bool `json:"dimensionsCopyGroupEnabled"`
-				MaterialCareSectionEnabled                 bool `json:"materialCareSectionEnabled"`
-				SizeAndFitEnabled                          bool `json:"sizeAndFitEnabled"`
-				ArBeauty                                   bool `json:"arBeauty"`
-				ArFurniture                                bool `json:"arFurniture"`
-				VirtualTryOn                               bool `json:"virtualTryOn"`
-				Experience3D                               bool `json:"experience3D"`
-				Experience360                              bool `json:"experience360"`
-				BackInStockOptOut                          bool `json:"backInStockOptOut"`
-				ConsolidatedProductComplex                 bool `json:"consolidatedProductComplex"`
-				WriteAReviewRedesignExpEnabled             bool `json:"writeAReviewRedesignExpEnabled"`
-				SiteMonetizationProduct                    bool `json:"siteMonetizationProduct"`
-				ConsolidatedMaster                         bool `json:"consolidatedMaster"`
-				ProcessedProdDesc                          bool `json:"processedProdDesc"`
-				EsecRemoveSecureUserTokenQueryParamEnabled bool `json:"esecRemoveSecureUserTokenQueryParamEnabled"`
-				SeeMoreExperienceEnabled                   bool `json:"seeMoreExperienceEnabled"`
-				StyleMeEnabled                             bool `json:"styleMeEnabled"`
-				ZeekitEnabled                              bool `json:"zeekitEnabled"`
-				AltModelSizesExperimentEnabled             bool `json:"altModelSizesExperimentEnabled"`
-				SeeMoreAndSizeChartExperienceEnabled       bool `json:"seeMoreAndSizeChartExperienceEnabled"`
-				SizeChartExperienceEnabled                 bool `json:"sizeChartExperienceEnabled"`
-				GwpExperienceEnabled                       bool `json:"gwpExperienceEnabled"`
-				BcomsyndigoEnabled                         bool `json:"bcomsyndigoEnabled"`
-				PDPColorized                               bool `json:"PDPColorized"`
-				IsShoeSizeSelectorsEnabled                 bool `json:"isShoeSizeSelectorsEnabled"`
-				IsEligibleForColorwayPromoBadging          bool `json:"isEligibleForColorwayPromoBadging"`
-				IsFewLeftMessageRedesignEnabled            bool `json:"isFewLeftMessageRedesignEnabled"`
-				IsTrueFitSizeAutoSelectEnabled             bool `json:"isTrueFitSizeAutoSelectEnabled"`
-				PdpProductEngagementPromptTrtTwoEnabled    bool `json:"pdpProductEngagementPromptTrtTwoEnabled"`
-				KlarnaEligible                             bool `json:"klarnaEligible"`
-				IsPdpBVReviewFormUpdatesEnabled            bool `json:"isPdpBVReviewFormUpdatesEnabled"`
-				Phase2DesktopBVAPITrt1Enabled              bool `json:"phase2DesktopBVApiTrt1Enabled"`
-				Phase2DesktopBVAPITrt2Enabled              bool `json:"phase2DesktopBVApiTrt2Enabled"`
-				Phase2MobileBVAPITrt1Enabled               bool `json:"phase2MobileBVApiTrt1Enabled"`
-				IsBVAPIExpArmOneEnabled                    bool `json:"isBVApiExpArmOneEnabled"`
-				PdpExpansionEnabled                        bool `json:"pdpExpansionEnabled"`
-				IsWebCollageOutFromTabs                    bool `json:"isWebCollageOutFromTabs"`
-				IsDressSizeSelectorsEnabled                bool `json:"isDressSizeSelectorsEnabled"`
-				IsTrueCollectionsEnabled                   bool `json:"isTrueCollectionsEnabled"`
-				IsReviewPhotosUploadEnabled                bool `json:"isReviewPhotosUploadEnabled"`
-				IsVideoImageRailEnabled                    bool `json:"isVideoImageRailEnabled"`
-				IsReviewsPage                              bool `json:"isReviewsPage"`
-				IsBVAPIExpArmTwoEnabled                    bool `json:"isBVApiExpArmTwoEnabled"`
-				IsNew                                      bool `json:"isNew"`
-				IsFindationEnabled                         bool `json:"isFindationEnabled"`
-			} `json:"flags"`
-			ReviewStatistics struct {
-				Aggregate struct {
-					Rating           float64 `json:"rating"`
-					RatingPercentage int     `json:"ratingPercentage"`
-					Count            int     `json:"count"`
-				} `json:"aggregate"`
-			} `json:"reviewStatistics"`
-			QuestionAnswer struct {
-				QuestionCount int `json:"questionCount"`
-				AnswerCount   int `json:"answerCount"`
-			} `json:"questionAnswer"`
-			OrderedMasterGroupList []interface{} `json:"orderedMasterGroupList"`
-			MemberDisplayGroupsMap struct {
-			} `json:"memberDisplayGroupsMap"`
-			BulletText            []string `json:"bulletText"`
-			MaxQuantity           int      `json:"maxQuantity"`
-			TypeName              string   `json:"typeName"`
-			AdditionalImagesCount int      `json:"additionalImagesCount"`
-			NumberOfColors        int      `json:"numberOfColors"`
-			Brand                 struct {
-				Name          string `json:"name"`
-				ID            int    `json:"id"`
-				URL           string `json:"url"`
-				SubBrand      string `json:"subBrand"`
-				BrandBreakout bool   `json:"brandBreakout"`
+			Name                 string   `json:"name"`
+			Description          string   `json:"description"`
+			SecondaryDescription string   `json:"secondaryDescription"`
+			BulletText           []string `json:"bulletText"`
+			Brand                struct {
+				Name string `json:"name"`
 			} `json:"brand"`
-			BulletLinks         []interface{} `json:"bulletLinks"`
-			PdfEmailDescription string        `json:"pdfEmailDescription"`
-			MemberProductCount  int           `json:"memberProductCount"`
-			CompleteName        string        `json:"completeName"`
-			ProcessedProdDesc   struct {
-				ProductDetails []string `json:"productDetails"`
-				SizeAndFit     []string `json:"sizeAndFit"`
-				FabricAndCare  []string `json:"fabricAndCare"`
-			} `json:"processedProdDesc"`
-			Metric struct {
-				ProductUnitSalesCount        string `json:"productUnitSalesCount"`
-				ProductUnitSalesCountMessage string `json:"productUnitSalesCountMessage"`
-			} `json:"metric"`
-			Klarna struct {
-				KlarnaDataClientID    string `json:"klarnaDataClientId"`
-				KlarnaOnsiteJsSdkPath string `json:"klarnaOnsiteJsSdkPath"`
-			} `json:"klarna"`
 		} `json:"detail"`
-		Shipping struct {
-			ReturnConstraintMessage string   `json:"returnConstraintMessage"`
-			Notes                   []string `json:"notes"`
-			FreeShippingMessages    []string `json:"freeShippingMessages"`
-		} `json:"shipping"`
 		Relationships struct {
 			Taxonomy struct {
 				Categories []struct {
 					Name string `json:"name"`
-					URL  string `json:"url"`
-					Type string `json:"type"`
-					ID   int    `json:"id"`
 				} `json:"categories"`
-				DefaultCategoryID int `json:"defaultCategoryId"`
 			} `json:"taxonomy"`
 			Upcs map[string]struct {
 				//Num44742859 struct {
-				ID         int `json:"id"`
-				Identifier struct {
-					UpcNumber string `json:"upcNumber"`
-				} `json:"identifier"`
-				Department struct {
-					DepartmentID   int    `json:"departmentId"`
-					DepartmentName string `json:"departmentName"`
-				} `json:"department"`
-				ClassCode     int    `json:"classCode"`
-				SubClassCode  int    `json:"subClassCode"`
-				VendorCode    int    `json:"vendorCode"`
-				MarkStyleCode string `json:"markStyleCode"`
-				Relationships struct {
-				} `json:"relationships"`
+				ID           int `json:"id"`
 				Availability struct {
-					CheckInStoreEligibility bool   `json:"checkInStoreEligibility"`
-					Available               bool   `json:"available"`
-					ShipDays                int    `json:"shipDays"`
-					Message                 string `json:"message"`
-					AvailabilityMessage     string `json:"availabilityMessage"`
-					OrderType               string `json:"orderType"`
-					BopsAvailability        bool   `json:"bopsAvailability"`
-					BossAvailability        bool   `json:"bossAvailability"`
-					StoreAvailability       bool   `json:"storeAvailability"`
+					Available bool `json:"available"`
 				} `json:"availability"`
 				Traits struct {
 					Colors struct {
@@ -390,8 +319,6 @@ type parseProductData struct {
 						SelectedSize int `json:"selectedSize"`
 					} `json:"sizes"`
 				} `json:"traits"`
-				ProtectionPlans        []interface{} `json:"protectionPlans"`
-				HolidayMessageEligible bool          `json:"holidayMessageEligible"`
 			} `json:"upcs"`
 		} `json:"relationships"`
 		Imagery struct {
@@ -402,77 +329,23 @@ type parseProductData struct {
 				SwatchSpriteOffset   int    `json:"swatchSpriteOffset"`
 				SwatchSpriteURLIndex int    `json:"swatchSpriteUrlIndex"`
 			} `json:"images"`
-			SmallImagesSprites struct {
-				SpriteUrls      []string `json:"spriteUrls"`
-				ImagesWidth     int      `json:"imagesWidth"`
-				ImagesHeight    int      `json:"imagesHeight"`
-				ImagesPerSprite int      `json:"imagesPerSprite"`
-			} `json:"smallImagesSprites"`
-			ItemQty                        int  `json:"itemQty"`
-			HasImagesRail                  bool `json:"hasImagesRail"`
-			ApplyFixForManyAltImagesMobile bool `json:"applyFixForManyAltImagesMobile"`
 		} `json:"imagery"`
-		Availability struct {
-			CheckInStoreEligibility bool `json:"checkInStoreEligibility"`
-			Available               bool `json:"available"`
-			BopsAvailability        bool `json:"bopsAvailability"`
-			BossAvailability        bool `json:"bossAvailability"`
-			StoreAvailability       bool `json:"storeAvailability"`
-		} `json:"availability"`
 		Traits struct {
 			Colors struct {
 				SelectedColor int `json:"selectedColor"`
 				ColorMap      map[string]struct {
-					ID          int    `json:"id"`
-					Name        string `json:"name"`
-					NormalName  string `json:"normalName"`
-					SwatchImage struct {
-						FilePath             string `json:"filePath"`
-						Name                 string `json:"name"`
-						ShowJumboSwatch      bool   `json:"showJumboSwatch"`
-						SwatchSpriteOffset   int    `json:"swatchSpriteOffset"`
-						SwatchSpriteURLIndex int    `json:"swatchSpriteUrlIndex"`
-					} `json:"swatchImage"`
-					Imagery struct {
+					ID         int    `json:"id"`
+					Name       string `json:"name"`
+					NormalName string `json:"normalName"`
+					Imagery    struct {
 						Images []struct {
-							FilePath             string `json:"filePath"`
-							Name                 string `json:"name"`
-							ShowJumboSwatch      bool   `json:"showJumboSwatch"`
-							SwatchSpriteOffset   int    `json:"swatchSpriteOffset"`
-							SwatchSpriteURLIndex int    `json:"swatchSpriteUrlIndex"`
+							FilePath string `json:"filePath"`
+							Name     string `json:"name"`
 						} `json:"images"`
-						SmallImagesSprites struct {
-							SpriteUrls      []string `json:"spriteUrls"`
-							ImagesWidth     int      `json:"imagesWidth"`
-							ImagesHeight    int      `json:"imagesHeight"`
-							ImagesPerSprite int      `json:"imagesPerSprite"`
-						} `json:"smallImagesSprites"`
-						PrimaryImage struct {
-							FilePath             string `json:"filePath"`
-							Name                 string `json:"name"`
-							ShowJumboSwatch      bool   `json:"showJumboSwatch"`
-							SwatchSpriteOffset   int    `json:"swatchSpriteOffset"`
-							SwatchSpriteURLIndex int    `json:"swatchSpriteUrlIndex"`
-						} `json:"primaryImage"`
 					} `json:"imagery"`
 					Sizes   []int `json:"sizes"`
 					Pricing struct {
 						Price struct {
-							PriceType struct {
-								OnEdv               bool `json:"onEdv"`
-								OnSale              bool `json:"onSale"`
-								UpcOnSale           bool `json:"upcOnSale"`
-								UpcOnEdv            bool `json:"upcOnEdv"`
-								MemberProductOnSale bool `json:"memberProductOnSale"`
-								WillBe              bool `json:"willBe"`
-								ApplicableToAllUpcs bool `json:"applicableToAllUpcs"`
-								SelectItemsOnSale   bool `json:"selectItemsOnSale"`
-								IsMasterNonRanged   bool `json:"isMasterNonRanged"`
-							} `json:"priceType"`
-							Policy struct {
-								Text string `json:"text"`
-								URL  string `json:"url"`
-							} `json:"policy"`
 							TieredPrice []struct {
 								Label  string `json:"label"`
 								Values []struct {
@@ -482,129 +355,25 @@ type parseProductData struct {
 								} `json:"values"`
 							} `json:"tieredPrice"`
 							PriceTypeID int `json:"priceTypeId"`
-							FinalPrice  struct {
-								Label  string `json:"label"`
-								Values []struct {
-									Value          float64 `json:"value"`
-									FormattedValue string  `json:"formattedValue"`
-									Type           string  `json:"type"`
-								} `json:"values"`
-								MaskPromotion        bool     `json:"maskPromotion"`
-								ApplicablePromotions []string `json:"applicablePromotions"`
-								PromoCode            string   `json:"promoCode"`
-							} `json:"finalPrice"`
 						} `json:"price"`
-						BadgeIds []string `json:"badgeIds"`
 					} `json:"pricing"`
 				} `json:"colorMap"`
-				SwatchSprite struct {
-					SwatchSpriteUrls  []string `json:"swatchSpriteUrls"`
-					SpriteSwatchSize  int      `json:"spriteSwatchSize"`
-					SwatchesPerSprite int      `json:"swatchesPerSprite"`
-				} `json:"swatchSprite"`
-				OrderedColorsByID   []int `json:"orderedColorsById"`
-				OrderedColorsByName []int `json:"orderedColorsByName"`
 			} `json:"colors"`
 			Sizes struct {
-				OrderedSizesBySeqNumber []int  `json:"orderedSizesBySeqNumber"`
-				SizeChartID             string `json:"sizeChartId"`
-				SizeMap                 map[string]struct {
+				SizeMap map[string]struct {
 					ID          int    `json:"id"`
 					Name        string `json:"name"`
 					DisplayName string `json:"displayName"`
 					Colors      []int  `json:"colors"`
 				} `json:"sizeMap"`
 			} `json:"sizes"`
-			TraitsMaps struct {
-				UpcMap        map[string]int `json:"upcMap"`
-				PriceToColors []struct {
-					Price    string `json:"price"`
-					ColorIds []int  `json:"colorIds"`
-					OnSale   bool   `json:"onSale"`
-				} `json:"priceToColors"`
-			} `json:"traitsMaps"`
 		} `json:"traits"`
-		Pricing struct {
-			Price struct {
-				PriceType struct {
-					OnEdv               bool `json:"onEdv"`
-					OnSale              bool `json:"onSale"`
-					UpcOnSale           bool `json:"upcOnSale"`
-					UpcOnEdv            bool `json:"upcOnEdv"`
-					MemberProductOnSale bool `json:"memberProductOnSale"`
-					WillBe              bool `json:"willBe"`
-					ApplicableToAllUpcs bool `json:"applicableToAllUpcs"`
-					SelectItemsOnSale   bool `json:"selectItemsOnSale"`
-					IsMasterNonRanged   bool `json:"isMasterNonRanged"`
-				} `json:"priceType"`
-				Policy struct {
-					Text string `json:"text"`
-					URL  string `json:"url"`
-				} `json:"policy"`
-				TieredPrice []struct {
-					Label  string `json:"label"`
-					Values []struct {
-						Value          float64 `json:"value"`
-						FormattedValue string  `json:"formattedValue"`
-						Type           string  `json:"type"`
-					} `json:"values"`
-				} `json:"tieredPrice"`
-				PriceTypeID int `json:"priceTypeId"`
-				FinalPrice  struct {
-					Label  string `json:"label"`
-					Values []struct {
-						Value          float64 `json:"value"`
-						FormattedValue string  `json:"formattedValue"`
-						Type           string  `json:"type"`
-					} `json:"values"`
-					MaskPromotion        bool     `json:"maskPromotion"`
-					ApplicablePromotions []string `json:"applicablePromotions"`
-					PromoCode            string   `json:"promoCode"`
-				} `json:"finalPrice"`
-			} `json:"price"`
-			BadgesMap map[string]struct {
-				//Num19909501 struct {
-				WalletEligible          bool   `json:"walletEligible"`
-				CheckoutDescription     string `json:"checkoutDescription"`
-				Description             string `json:"description"`
-				PromoID                 string `json:"promoId"`
-				Header                  string `json:"header"`
-				ApplicableToAllUpcs     bool   `json:"applicableToAllUpcs"`
-				Offer                   string `json:"offer"`
-				PromotionType           string `json:"promotionType"`
-				HasMorePromotionDetails bool   `json:"hasMorePromotionDetails"`
-				//} `json:"19909501"`
-			} `json:"badgesMap"`
-			BadgeIds []string `json:"badgeIds"`
-		} `json:"pricing"`
-		Review struct {
-			HasErrors bool `json:"hasErrors"`
-			Reviews   []struct {
-				ReviewID           int     `json:"reviewId"`
-				Rating             float32 `json:"rating"`
-				Title              string  `json:"title"`
-				ReviewText         string  `json:"reviewText"`
-				TopContributor     bool    `json:"topContributor"`
-				Anonymous          bool    `json:"anonymous"`
-				DisplayName        string  `json:"displayName"`
-				IncentivizedReview bool    `json:"incentivizedReview"`
-			} `json:"reviews"`
-		} `json:"review"`
-		ProtectionPlans []interface{} `json:"protectionPlans"`
-		URLTemplate     struct {
-			Swatch       string `json:"swatch"`
-			SwatchSprite string `json:"swatchSprite"`
-			Product      string `json:"product"`
-		} `json:"urlTemplate"`
-		HolidayMessageEligible bool `json:"holidayMessageEligible"`
-		Seotags                struct {
-			Seotags string `json:"seotags"`
-		} `json:"seotags"`
 	} `json:"product"`
 }
 
 var (
-	detailReg = regexp.MustCompile(`(?U)<script[^>]*>\s*window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
+	detailReg          = regexp.MustCompile(`(?U)<script[^>]*>\s*window.__INITIAL_STATE__\s*=\s*({.*});?\s*</script>`)
+	categoryExtractReg = regexp.MustCompile(`(?U)<script\s*type='application/json'\s*data-mcom-header-menu-desktop='context\.header\.menu'>(\[.*\])\s*</script>`)
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -678,6 +447,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			ReviewCount: int32(reviewCount),
 			Rating:      float32(rating),
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 	for i, cate := range pd.Product.Relationships.Taxonomy.Categories {
 		switch i {
@@ -696,6 +466,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	colors := pd.Product.Traits.Colors
 	sizes := pd.Product.Traits.Sizes
+
+	for _, color := range pd.Product.Traits.Colors.ColorMap {
+		for i, img := range color.Imagery.Images {
+			itemImg, _ := anypb.New(&media.Media_Image{
+				OriginalUrl: "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath,
+				LargeUrl:    "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=1230&hei=1500&op_sharpen=1", // $S$, $XXL$
+				MediumUrl:   "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=640&hei=780&op_sharpen=1",
+				SmallUrl:    "https://slimages.macysassets.com/is/image/MCY/products/" + img.FilePath + "?wid=500&hei=609&op_sharpen=1",
+			})
+			item.Medias = append(item.Medias, &media.Media{
+				Detail:    itemImg,
+				IsDefault: i == 0,
+			})
+		}
+	}
+
 	for id, p := range pd.Product.Relationships.Upcs {
 
 		sku := pbItem.Sku{
@@ -705,6 +491,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 		if p.Availability.Available {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
+			item.Stock.StockStatus = pbItem.Stock_InStock
 		}
 
 		if color, ok := colors.ColorMap[strconv.Format(p.Traits.Colors.SelectedColor)]; ok {
@@ -740,6 +527,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				})
 			}
 		}
+
 		if size, ok := sizes.SizeMap[strconv.Format(p.Traits.Sizes.SelectedSize)]; ok {
 			spec := pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
@@ -763,8 +551,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.macys.com/shop/womens-clothing/womens-sale-clearance?id=10066",
-		// "https://www.macys.com/shop/product/style-co-ribbed-hoodie-sweater-created-for-macys?ID=11393511&CategoryID=10066",
+		//"https://www.macys.com/?lid=glbtopnav_macys_icon-us",
+		//"https://www.macys.com/shop/womens-clothing/womens-sale-clearance?id=10066",
+		//"https://www.macys.com/shop/product/style-co-ribbed-hoodie-sweater-created-for-macys?ID=11393511&CategoryID=10066",
+		//"https://www.macys.com/shop/product/levis-womens-501-cotton-high-rise-denim-shorts?ID=11473203&tdp=cm_app~zMCOM-NAVAPP~xcm_zone~zHP_ZONE_D~xcm_choiceId~zcidM66MOD-42138865-b423-4b86-a737-f411c4941424%40H75%40get%2Binspired%24168342%2411473203~xcm_pos~zPos1~xcm_srcCatID~z28589~xcm_contentId~zContent_12931~xcm_prosSource~zcol~",
+		//"https://www.macys.com/shop/product/style-co-mixed-stitch-pointelle-sweater-created-for-macys?ID=11484711&tdp=cm_app~zMCOM-NAVAPP~xcm_zone~zPDP_ZONE_A~xcm_choiceId~zcidM05MSN-59ff27b5-314e-43a3-bf9b-56669b72d87e%40HB2%40Customers%2Balso%2Bshopped%24260%2411484711~xcm_pos~zPos2~xcm_srcCatID~z260",
+		"https://www.macys.com/shop/product/levis-high-rise-distressed-denim-shorts?ID=10438767&tdp=cm_app~zMCOM-NAVAPP~xcm_zone~zPDP_ZONE_B~xcm_choiceId~zcidM06MNK-3aa02007-8001-4092-aaf8-0dbd86768014%40HB1%40Customers%2Balso%2Bloved%2428589%2410438767~xcm_pos~zPos1~xcm_srcCatID~z28589",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
