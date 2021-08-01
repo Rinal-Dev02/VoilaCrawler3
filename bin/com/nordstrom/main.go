@@ -70,7 +70,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: true,
 		// Reliability high match to crawl api, and log match to backconnect
-		Reliability: pbProxy.ProxyReliability_ReliabilityMedium,
+		Reliability: pbProxy.ProxyReliability_ReliabilityHigh,
 	}
 }
 
@@ -83,6 +83,9 @@ func (c *_Crawler) AllowedDomains() []string {
 }
 
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	if rawurl == "" || rawurl == "#" {
+		return "", nil
+	}
 	u, err := url.Parse(rawurl)
 	if err != nil {
 		return "", err
@@ -100,132 +103,68 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
-// Parse is the entry to run the spider.
-// ctx is the context of this run. if may contains the shared values in it.
-//   you can alse set some value by context.WithValue().
-//   but, to be sure that, the key must be string type, and the value must stringable,
-//   as string,int,int32 and so on.
-// resp is the http response, with contains the response data from target url.
-// yield is a callback to emit sub request, or the crawled target object.
-//   if you got an sub url, then you can use http.NewRequest to build a new request
-//   and emit it to spider controller for schedule. the ctx can be used to share the
-//   values between current response and next response.
-//   if you got an product item, then you can just emit it.
-// returns error when there are any errors happened.
-func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.nordstrom.com", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    true,
+		EnableSessionInit: opts.EnableHeadless,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+		JsWaitDuration:    8,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
 	}
 
-	if resp.Request.URL.Path == "/invitation.html" {
-		return fmt.Errorf("robot forbidden")
-	}
-
-	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-
-	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
-	}
-	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
-		return c.parseProduct(ctx, resp, yield)
-	}
-
-	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
 	respBody, err := resp.RawBody()
 	if err != nil {
-		return err
+		return nil, err
 	}
-
 	matched := categoryExtractReg.FindSubmatch(respBody)
 	if len(matched) <= 1 {
-		return fmt.Errorf("extract category info from %s failed, error=%s", resp.Request.URL, err)
+		return nil, fmt.Errorf("extract category info from %s failed, error=%s", resp.Request.URL, err)
 	}
 
 	var viewData categoryStructure
-
 	if err := json.Unmarshal(matched[1], &viewData); err != nil {
 		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
-		return err
+		return nil, err
 	}
 
+	var cates []*pbItem.Category
 	for _, rawcat := range viewData.Headerdesktop.Navigation {
-
 		cateName := rawcat.Name
 		if cateName == "" {
 			continue
 		}
-
-		nnctx := context.WithValue(ctx, "Category", cateName)
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
 
 		for _, rawsubcat := range rawcat.Columns {
-
 			for _, rawGroup := range rawsubcat.Groups {
-
 				for _, rawsub2Node := range rawGroup.Nodes {
+					href, _ := c.CanonicalUrl(rawsub2Node.URI)
+					subCate := pbItem.Category{Name: rawsub2Node.Name, Url: href}
+					cate.Children = append(cate.Children, &subCate)
 
 					for _, rawGroup2 := range rawsub2Node.Groups {
-
 						for _, rawsubNode2 := range rawGroup2.Nodes {
-
-							href := rawsub2Node.URI
+							href, _ := c.CanonicalUrl(rawsubNode2.URI)
 							if href == "" {
 								continue
 							}
-
-							u, err := url.Parse(href)
-							if err != nil {
-								c.logger.Error("parse url %s failed", href)
-								continue
-							}
-
-							subCateName := rawsub2Node.Name + " > " + rawsubNode2.Name
-
-							if c.categoryPathMatcher.MatchString(u.Path) {
-								nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-								req, _ := http.NewRequest(http.MethodGet, href, nil)
-								if err := yield(nnnctx, req); err != nil {
-									return err
-								}
-							}
-						}
-					}
-
-					if len(rawsub2Node.Groups) == 0 {
-
-						href := rawsub2Node.URI
-						if href == "" {
-							continue
-						}
-
-						u, err := url.Parse(href)
-						if err != nil {
-							c.logger.Error("parse url %s failed", href)
-							continue
-						}
-
-						subCateName := rawsub2Node.Name
-
-						if c.categoryPathMatcher.MatchString(u.Path) {
-							nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-							req, _ := http.NewRequest(http.MethodGet, href, nil)
-							if err := yield(nnnctx, req); err != nil {
-								return err
-							}
+							subCate2 := pbItem.Category{Name: rawsubNode2.Name, Url: href}
+							subCate.Children = append(subCate.Children, &subCate2)
 						}
 					}
 				}
 			}
 		}
 	}
-	return nil
+	return cates, nil
 }
 
 type categoryStructure struct {
@@ -260,6 +199,41 @@ type categoryStructure struct {
 			} `json:"columns"`
 		} `json:"navigation"`
 	} `json:"headerDesktop"`
+}
+
+// Parse is the entry to run the spider.
+// ctx is the context of this run. if may contains the shared values in it.
+//   you can alse set some value by context.WithValue().
+//   but, to be sure that, the key must be string type, and the value must stringable,
+//   as string,int,int32 and so on.
+// resp is the http response, with contains the response data from target url.
+// yield is a callback to emit sub request, or the crawled target object.
+//   if you got an sub url, then you can use http.NewRequest to build a new request
+//   and emit it to spider controller for schedule. the ctx can be used to share the
+//   values between current response and next response.
+//   if you got an product item, then you can just emit it.
+// returns error when there are any errors happened.
+func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	if resp.Request.URL.Path == "/invitation.html" {
+		return fmt.Errorf("robot forbidden")
+	}
+
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
+
+	if p == "" {
+		return crawler.ErrUnsupportedPath
+	}
+	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
+	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
+		return c.parseProduct(ctx, resp, yield)
+	}
+
+	return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get the index from the shared data.
@@ -474,7 +448,7 @@ type CategoryView struct {
 // used to extract embaded json data in website page.
 // more about golang regulation see here https://golang.org/pkg/regexp/syntax/
 var productsExtractReg = regexp.MustCompile(`(?U)<script\s*>window.__INITIAL_CONFIG__\s*=\s*({.*});?\s*</script>`)
-var categoryExtractReg = regexp.MustCompile(`(?U)<script\s*>window.__INITIAL_CONFIG__\s*=\s*(.*)</script>`)
+var categoryExtractReg = regexp.MustCompile(`(?U)<script\s*>window.__INITIAL_CONFIG__\s*=\s*({.*});?\s*</script>`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
