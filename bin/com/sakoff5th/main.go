@@ -114,6 +114,68 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.saksoff5th.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	sel := dom.Find(`.nav.navbar-nav`).Find(`li[data-adobelaunchtopnavigation]`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		cateName := TrimSpaceNewlineInString(node.Find(`a`).First().Text())
+		if cateName == "" {
+			continue
+		}
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		subSel1 := node.Find(`ul`).Find(`.dropdown-item.dropdown`)
+		for k := range subSel1.Nodes {
+			subNodeN := subSel1.Eq(k)
+			subCat1 := TrimSpaceNewlineInString(subNodeN.AttrOr("data-adobelaunchsubcategory", ""))
+			if subCat1 == "" {
+				continue
+			}
+
+			subCate := pbItem.Category{Name: subCat1}
+			cate.Children = append(cate.Children, &subCate)
+
+			subSel := subNodeN.Find(`a`)
+			for j := range subSel.Nodes {
+				subNode := subSel.Eq(j)
+				href, _ := c.CanonicalUrl(subNode.AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{Name: strings.TrimSpace(subNode.Text()), Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -134,9 +196,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" || p == "/mens" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
-
 	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) || c.categoryDynamicLoadMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
@@ -153,67 +214,6 @@ func TrimSpaceNewlineInString(s string) string {
 	resp = strings.ReplaceAll(resp, "\t", " ")
 	resp = strings.ReplaceAll(resp, "  ", "")
 	return resp
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	dom, err := resp.Selector()
-
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.nav.navbar-nav`).Find(`li[data-adobelaunchtopnavigation]`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-
-		cateName := TrimSpaceNewlineInString(node.Find(`a`).First().Text())
-		if cateName == "" {
-			continue
-		}
-
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subSel1 := node.Find(`ul`).Find(`.dropdown-item.dropdown`)
-		for k := range subSel1.Nodes {
-			subNodeN := subSel1.Eq(k)
-
-			subCat1 := TrimSpaceNewlineInString(subNodeN.AttrOr("data-adobelaunchsubcategory", ""))
-			if subCat1 == "" {
-				continue
-			}
-
-			subSel := subNodeN.Find(`a`)
-			for j := range subSel.Nodes {
-
-				subNode := subSel.Eq(j)
-				href := subNode.AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				_, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subCat1 + " > " + TrimSpaceNewlineInString(subNode.Text())
-
-				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-				req, _ := http.NewRequest(http.MethodGet, href, nil)
-				if err := yield(nnnctx, req); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
 }
 
 // nextIndex used to get the index from the shared data.
