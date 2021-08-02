@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,13 +11,13 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	pbMedia "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
+	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
 )
@@ -81,6 +80,9 @@ func (c *_Crawler) AllowedDomains() []string {
 }
 
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	if rawurl == "" || rawurl == "#" || strings.HasPrefix(rawurl, "javascript") {
+		return "", nil
+	}
 	u, err := url.Parse(rawurl)
 	if err != nil {
 		return "", err
@@ -96,6 +98,162 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		return u.String(), nil
 	}
 	return u.String(), nil
+}
+
+type Category struct {
+	ChannelName string `json:"channelName"`
+	ChannelType int    `json:"channelType"`
+	Name        string `json:"name"`
+	RelativeURL string `json:"relativeUrl"`
+	AbtBranch   string `json:"abtBranch"`
+	Child       []struct {
+		CategoryList []struct {
+			Val        bool   `json:"val"`
+			SheinCatID string `json:"shein_cat_id"`
+			Name       string `json:"name"`
+			RomweCatID string `json:"romwe_cat_id"`
+			ID         int    `json:"id"`
+		} `json:"categoryList"`
+		GameType       string `json:"gameType,omitempty"`
+		HrefType2      string `json:"hrefType2"`
+		CategorySelect string `json:"categorySelect,omitempty"`
+		Color          string `json:"color"`
+		Level          int    `json:"level"`
+		CatURL         string `json:"catUrl,omitempty"`
+		CornerMark     string `json:"cornerMark"`
+		Adp            string `json:"adp,omitempty"`
+		Type           string `json:"type"`
+		RelativeURL    string `json:"relativeUrl"`
+		SelectTypeID   string `json:"selectTypeId"`
+		CategoryType   string `json:"categoryType,omitempty"`
+		AdpImgSrc      string `json:"adpImgSrc,omitempty"`
+		Name           string `json:"name"`
+		HrefTarget     string `json:"hrefTarget"`
+		FailCheck      bool   `json:"failCheck,omitempty"`
+		HrefType       string `json:"hrefType"`
+		ID             string `json:"id"`
+		NavNodeID      string `json:"navNodeId"`
+		SkuTopping     string `json:"skuTopping,omitempty"`
+		Child          []struct {
+			CategoryList []struct {
+				Val        bool   `json:"val"`
+				SheinCatID string `json:"shein_cat_id"`
+				Name       string `json:"name"`
+				RomweCatID string `json:"romwe_cat_id"`
+				ID         int    `json:"id"`
+			} `json:"categoryList"`
+			BlockID              int           `json:"blockId,omitempty"`
+			SecondAreaIndex      string        `json:"secondAreaIndex,omitempty"`
+			Level                int           `json:"level"`
+			ID                   string        `json:"id"`
+			Type                 string        `json:"type"`
+			NavNodeID            string        `json:"navNodeId"`
+			GameType             string        `json:"gameType,omitempty"`
+			HrefType2            string        `json:"hrefType2,omitempty"`
+			CategorySelect       string        `json:"categorySelect,omitempty"`
+			Color                string        `json:"color,omitempty"`
+			CatURL               string        `json:"catUrl,omitempty"`
+			CornerMark           string        `json:"cornerMark,omitempty"`
+			SelectTypeID         string        `json:"selectTypeId,omitempty"`
+			HrefTarget           string        `json:"hrefTarget,omitempty"`
+			HrefType             string        `json:"hrefType,omitempty"`
+			AutoCarry            string        `json:"autoCarry,omitempty"`
+			RecommandSelectedIds []interface{} `json:"recommandSelectedIds,omitempty"`
+			Adp                  string        `json:"adp,omitempty"`
+			RelativeURL          string        `json:"relativeUrl,omitempty"`
+			CategoryType         string        `json:"categoryType,omitempty"`
+			AdpImgSrc            string        `json:"adpImgSrc,omitempty"`
+			Name                 string        `json:"name,omitempty"`
+			FailCheck            bool          `json:"failCheck,omitempty"`
+			RecommandNum         string        `json:"recommandNum,omitempty"`
+			SkuTopping           string        `json:"skuTopping,omitempty"`
+			Child                []struct {
+				SecondAreaIndex string `json:"secondAreaIndex"`
+				Level           int    `json:"level"`
+				ID              string `json:"id"`
+				Type            string `json:"type"`
+				NavNodeID       string `json:"navNodeId"`
+				RelativeUrl     string `json:"relativeUrl"`
+				Name            string `json:"name"`
+			} `json:"child,omitempty"`
+			SelectTypeName string `json:"selectTypeName,omitempty"`
+			SelectedValue  string `json:"selectedValue,omitempty"`
+			IsAutoRec      bool   `json:"isAutoRec,omitempty"`
+		} `json:"child"`
+		SelectTypeName string `json:"selectTypeName,omitempty"`
+		SubName        string `json:"subName,omitempty"`
+		SelectedValue  string `json:"selectedValue,omitempty"`
+		SubColor       string `json:"subColor,omitempty"`
+	} `json:"child"`
+}
+
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	var cates []*pbItem.Category
+	req, _ := http.NewRequest(http.MethodGet, "https://us.shein.com/get_categories?_lang=en", nil)
+	req.Header.Set("referer", "https://us.shein.com/")
+	req.Header.Set("x-requested-with", "XMLHttpRequest")
+	req.Header.Set("accept", "*/*")
+	req.Header.Set("accept-language", "zh-CN,zh;q=0.9,en;q=0.8,pl;q=0.7,zh-TW;q=0.6,ca;q=0.5,mt;q=0.4")
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    false,
+		EnableSessionInit: false,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       proxy.ProxyReliability_ReliabilityMedium,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var (
+		rawCates        []*Category
+		mainCateNameMap = map[string]string{}
+	)
+	if err := json.NewDecoder(resp.Body).Decode(&rawCates); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	for _, rawMainCate := range rawCates {
+		mainCate := pbItem.Category{Name: rawMainCate.ChannelName}
+		cates = append(cates, &mainCate)
+
+		for _, rawCate := range rawMainCate.Child {
+			cate := pbItem.Category{Name: rawCate.Name}
+			mainCate.Children = append(mainCate.Children, &cate)
+
+			for _, cl := range rawCate.CategoryList {
+				mainCateNameMap[strings.ToLower(cl.Name)] = cl.SheinCatID
+			}
+			for _, rawSubCate := range rawCate.Child {
+				href, _ := c.CanonicalUrl(rawSubCate.RelativeURL)
+				if strings.TrimSpace(rawSubCate.Name) == "" {
+					continue
+				}
+				if strings.ToLower(rawSubCate.Name) == "new in today" {
+					if id, _ := mainCateNameMap[strings.ToLower(mainCate.Name)]; id != "" {
+						href = fmt.Sprintf("https://us.shein.com/daily-new.html?cat_ids=%s&srctype=category", id)
+					} else {
+						continue
+					}
+				}
+
+				subCate := pbItem.Category{Name: strings.TrimSpace(rawSubCate.Name), Url: href}
+				cate.Children = append(cate.Children, &subCate)
+
+				for _, rawSubCate2 := range rawSubCate.Child {
+					href, _ := c.CanonicalUrl(rawSubCate2.RelativeUrl)
+					if href == "" {
+						continue
+					}
+					subCate2 := pbItem.Category{Name: strings.TrimSpace(rawSubCate2.Name), Url: href}
+					subCate.Children = append(subCate.Children, &subCate2)
+				}
+			}
+		}
+	}
+	return cates, nil
 }
 
 // Parse is the entry to run the spider.
@@ -117,7 +275,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
 	if p == "" || p == "/plussize" || p == "/beauty" || p == "/kids" || p == "/men" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
@@ -125,68 +283,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.header-v2__nav2-wrapper.j-header-nav-wrapper`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
-		if cateName == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-		//fmt.Println(`cateName `, cateName)
-
-		subSel1 := node.Find(`.header-float__txt`)
-		for k := range subSel1.Nodes {
-			subNodeN := subSel1.Eq(k)
-			subCat1 := strings.TrimSpace(subNodeN.Find(`.header-float__txt-link.no-margin.j-header-float-title`).First().Text())
-
-			subSel := subNodeN.Find(`.header-float__txt-link`)
-			for j := range subSel.Nodes {
-				if j == 0 {
-					continue
-				}
-				subNode := subSel.Eq(j)
-				href := subNode.AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				_, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subCat1 + " > " + strings.TrimSpace(subNode.Text())
-				//fmt.Println(subCateName)
-				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-				req, _ := http.NewRequest(http.MethodGet, href, nil)
-				if err := yield(nnnctx, req); err != nil {
-					return err
-				}
-			}
-		}
-
-	}
-	return nil
 }
 
 // nextIndex used to get the index from the shared data.
