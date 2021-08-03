@@ -528,9 +528,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 
-		jsonData, err := json.Marshal(item)
-		fmt.Println(string(jsonData))
-
 		// yield item result
 		if err = yield(ctx, &item); err != nil {
 			return err
