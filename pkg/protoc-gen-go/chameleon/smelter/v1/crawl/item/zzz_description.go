@@ -14,6 +14,8 @@ var (
 func init() {
 	fileDescs, _ := pb.LoadFileDescriptors(
 		
+		File_chameleon_smelter_v1_crawl_item_linktree_proto,
+		
 		File_chameleon_smelter_v1_crawl_item_product_proto,
 		
 		File_chameleon_smelter_v1_crawl_item_tiktok_proto,

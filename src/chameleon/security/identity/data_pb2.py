@@ -23,7 +23,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'\n\037com.chameleon.security.identityB\tDataProtoP\001Z$chameleon/security/identity;identity',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n&chameleon/security/identity/data.proto\x12\x1b\x63hameleon.security.identity\x1a\x1bprotobuf/options/auth.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"g\n\x04Rule\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06scopes\x18\x02 \x03(\t\x12*\n\x05verbs\x18\x03 \x03(\x0e\x32\x1b.protobuf.options.ScopeVerb\x12\x17\n\x0f\x65nableAnonymous\x18\x06 \x01(\x08\"\xfd\x01\n\x04Role\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05title\x18\x02 \x01(\t\x12\x30\n\x05rules\x18\x04 \x03(\x0b\x32!.chameleon.security.identity.Rule\x12<\n\x08metadata\x18\x0f \x01(\x0b\x32*.chameleon.security.identity.Role.Metadata\x1aj\n\x08Metadata\x12.\n\ncreateTime\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdateTime\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\xe1\x03\n\x04User\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\r\n\x05\x65mail\x18\x03 \x01(\t\x12\x39\n\x04info\x18\x10 \x03(\x0b\x32+.chameleon.security.identity.User.InfoEntry\x12\r\n\x05roles\x18\x14 \x03(\t\x12\x0c\n\x04tags\x18\x15 \x03(\t\x12\x0e\n\x06locale\x18\x18 \x01(\t\x12\x0f\n\x07\x63hannel\x18\x19 \x01(\t\x12\x17\n\x0fprotocolVersion\x18\x1d \x01(\t\x12.\n\nexpireTime\x18\x1e \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x45\n\rmanageOptions\x18\x1f \x01(\x0b\x32..chameleon.security.identity.UserManageOptions\x12=\n\tlastLogin\x18\x32 \x01(\x0b\x32*.chameleon.security.identity.UserLastLogin\x12;\n\x08metadata\x18\x33 \x01(\x0b\x32).chameleon.security.identity.UserMetadata\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xd2\x01\n\x0cUserMetadata\x12.\n\ncreateTime\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0e\n\x06\x66rozen\x18\x02 \x01(\x08\x12.\n\nfrozenTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07removed\x18\x04 \x01(\x08\x12/\n\x0bremovedTime\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x10\n\x08\x65xternal\x18\x06 \x01(\x08\"\xab\x01\n\x11UserManageOptions\x12\x11\n\tcanDelete\x18\x01 \x01(\x08\x12\x12\n\ncanRestore\x18\x02 \x01(\x08\x12\x11\n\tcanFreeze\x18\x03 \x01(\x08\x12\x13\n\x0b\x63\x61nUnfreeze\x18\x04 \x01(\x08\x12\x19\n\x11\x63\x61nUpdatePassword\x18\x05 \x01(\x08\x12\x15\n\rcanUpdateRole\x18\x06 \x01(\x08\x12\x15\n\rcanUpdateInfo\x18\x07 \x01(\x08\"a\n\rUserLastLogin\x12(\n\x04time\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x13\n\x0b\x61\x63\x63ountType\x18\x02 \x01(\t\x12\x11\n\taccountID\x18\x03 \x01(\t\"\xe6\x03\n\x0b\x41pplication\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06secret\x18\x04 \x01(\t\x12\x45\n\nsecretKeys\x18\x05 \x03(\x0b\x32\x31.chameleon.security.identity.ApplicationSecretKey\x12\x0c\n\x04tags\x18\x06 \x03(\t\x12@\n\x07options\x18\x07 \x01(\x0b\x32/.chameleon.security.identity.ApplicationOptions\x12S\n\x11whiteRedirectURIs\x18\x08 \x03(\x0b\x32\x38.chameleon.security.identity.ApplicationWhiteRedirectURI\x12@\n\x04info\x18\n \x03(\x0b\x32\x32.chameleon.security.identity.Application.InfoEntry\x12\x0e\n\x06remark\x18\x0e \x01(\t\x12\x42\n\x08metadata\x18\x33 \x01(\x0b\x32\x30.chameleon.security.identity.ApplicationMetadata\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"Z\n\x14\x41pplicationSecretKey\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tpublicKey\x18\x02 \x01(\x0c\x12\x12\n\nprivateKey\x18\x03 \x01(\x0c\x12\x0f\n\x07\x64\x65\x66\x61ult\x18\x04 \x01(\x08\"\xc7\x01\n\x13\x41pplicationMetadata\x12.\n\ncreateTime\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0e\n\x06\x66rozen\x18\x02 \x01(\x08\x12.\n\nfrozenTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07removed\x18\x04 \x01(\x08\x12/\n\x0bremovedTime\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x82\x01\n\x12\x41pplicationOptions\x12\x12\n\nisInternal\x18\x01 \x01(\x08\x12\x11\n\tisTrusted\x18\x02 \x01(\x08\x12\x1a\n\x12isSecurityCritical\x18\x03 \x01(\x08\x12\r\n\x05roles\x18\x04 \x03(\t\x12\x1a\n\x12\x64\x65\x66\x61ultRedirectURI\x18\x05 \x01(\t\"E\n\x1b\x41pplicationWhiteRedirectURI\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04host\x18\x02 \x01(\t\x12\x0c\n\x04http\x18\x03 \x01(\x08*S\n\x13UserUniqueFieldType\x12\x11\n\rUniqueFieldID\x10\x00\x12\x13\n\x0fUniqueFieldName\x10\x01\x12\x14\n\x10UniqueFieldEmail\x10\x02\x42T\n\x1f\x63om.chameleon.security.identityB\tDataProtoP\x01Z$chameleon/security/identity;identityb\x06proto3'
+  serialized_pb=b'\n&chameleon/security/identity/data.proto\x12\x1b\x63hameleon.security.identity\x1a\x1bprotobuf/options/auth.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"g\n\x04Rule\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06scopes\x18\x02 \x03(\t\x12*\n\x05verbs\x18\x03 \x03(\x0e\x32\x1b.protobuf.options.ScopeVerb\x12\x17\n\x0f\x65nableAnonymous\x18\x06 \x01(\x08\"\xfd\x01\n\x04Role\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05title\x18\x02 \x01(\t\x12\x30\n\x05rules\x18\x04 \x03(\x0b\x32!.chameleon.security.identity.Rule\x12<\n\x08metadata\x18\x0f \x01(\x0b\x32*.chameleon.security.identity.Role.Metadata\x1aj\n\x08Metadata\x12.\n\ncreateTime\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdateTime\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\xf3\x03\n\x04User\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\r\n\x05\x65mail\x18\x03 \x01(\t\x12\x10\n\x08nickname\x18\x06 \x01(\t\x12\x39\n\x04info\x18\x10 \x03(\x0b\x32+.chameleon.security.identity.User.InfoEntry\x12\r\n\x05roles\x18\x14 \x03(\t\x12\x0c\n\x04tags\x18\x15 \x03(\t\x12\x0e\n\x06locale\x18\x18 \x01(\t\x12\x0f\n\x07\x63hannel\x18\x19 \x01(\t\x12\x17\n\x0fprotocolVersion\x18\x1d \x01(\t\x12.\n\nexpireTime\x18\x1e \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x45\n\rmanageOptions\x18\x1f \x01(\x0b\x32..chameleon.security.identity.UserManageOptions\x12=\n\tlastLogin\x18\x32 \x01(\x0b\x32*.chameleon.security.identity.UserLastLogin\x12;\n\x08metadata\x18\x33 \x01(\x0b\x32).chameleon.security.identity.UserMetadata\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xeb\x01\n\x0cUserMetadata\x12.\n\ncreateTime\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0e\n\x06\x66rozen\x18\x02 \x01(\x08\x12.\n\nfrozenTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07removed\x18\x04 \x01(\x08\x12/\n\x0bremovedTime\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x10\n\x08\x65xternal\x18\x06 \x01(\x08\x12\x17\n\x0fisEmailVerified\x18\x0f \x01(\x08\"\xab\x01\n\x11UserManageOptions\x12\x11\n\tcanDelete\x18\x01 \x01(\x08\x12\x12\n\ncanRestore\x18\x02 \x01(\x08\x12\x11\n\tcanFreeze\x18\x03 \x01(\x08\x12\x13\n\x0b\x63\x61nUnfreeze\x18\x04 \x01(\x08\x12\x19\n\x11\x63\x61nUpdatePassword\x18\x05 \x01(\x08\x12\x15\n\rcanUpdateRole\x18\x06 \x01(\x08\x12\x15\n\rcanUpdateInfo\x18\x07 \x01(\x08\"a\n\rUserLastLogin\x12(\n\x04time\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x13\n\x0b\x61\x63\x63ountType\x18\x02 \x01(\t\x12\x11\n\taccountID\x18\x03 \x01(\t\"\xe6\x03\n\x0b\x41pplication\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06secret\x18\x04 \x01(\t\x12\x45\n\nsecretKeys\x18\x05 \x03(\x0b\x32\x31.chameleon.security.identity.ApplicationSecretKey\x12\x0c\n\x04tags\x18\x06 \x03(\t\x12@\n\x07options\x18\x07 \x01(\x0b\x32/.chameleon.security.identity.ApplicationOptions\x12S\n\x11whiteRedirectURIs\x18\x08 \x03(\x0b\x32\x38.chameleon.security.identity.ApplicationWhiteRedirectURI\x12@\n\x04info\x18\n \x03(\x0b\x32\x32.chameleon.security.identity.Application.InfoEntry\x12\x0e\n\x06remark\x18\x0e \x01(\t\x12\x42\n\x08metadata\x18\x33 \x01(\x0b\x32\x30.chameleon.security.identity.ApplicationMetadata\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"Z\n\x14\x41pplicationSecretKey\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tpublicKey\x18\x02 \x01(\x0c\x12\x12\n\nprivateKey\x18\x03 \x01(\x0c\x12\x0f\n\x07\x64\x65\x66\x61ult\x18\x04 \x01(\x08\"\xc7\x01\n\x13\x41pplicationMetadata\x12.\n\ncreateTime\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0e\n\x06\x66rozen\x18\x02 \x01(\x08\x12.\n\nfrozenTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07removed\x18\x04 \x01(\x08\x12/\n\x0bremovedTime\x18\x05 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"\x82\x01\n\x12\x41pplicationOptions\x12\x12\n\nisInternal\x18\x01 \x01(\x08\x12\x11\n\tisTrusted\x18\x02 \x01(\x08\x12\x1a\n\x12isSecurityCritical\x18\x03 \x01(\x08\x12\r\n\x05roles\x18\x04 \x03(\t\x12\x1a\n\x12\x64\x65\x66\x61ultRedirectURI\x18\x05 \x01(\t\"E\n\x1b\x41pplicationWhiteRedirectURI\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04host\x18\x02 \x01(\t\x12\x0c\n\x04http\x18\x03 \x01(\x08*S\n\x13UserUniqueFieldType\x12\x11\n\rUniqueFieldID\x10\x00\x12\x13\n\x0fUniqueFieldName\x10\x01\x12\x14\n\x10UniqueFieldEmail\x10\x02\x42T\n\x1f\x63om.chameleon.security.identityB\tDataProtoP\x01Z$chameleon/security/identity;identityb\x06proto3'
   ,
   dependencies=[protobuf_dot_options_dot_auth__pb2.DESCRIPTOR,google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,])
 
@@ -52,8 +52,8 @@ _USERUNIQUEFIELDTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=2451,
-  serialized_end=2534,
+  serialized_start=2494,
+  serialized_end=2577,
 )
 _sym_db.RegisterEnumDescriptor(_USERUNIQUEFIELDTYPE)
 
@@ -242,8 +242,8 @@ _USER_INFOENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=933,
-  serialized_end=976,
+  serialized_start=951,
+  serialized_end=994,
 )
 
 _USER = _descriptor.Descriptor(
@@ -276,70 +276,77 @@ _USER = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='info', full_name='chameleon.security.identity.User.info', index=3,
+      name='nickname', full_name='chameleon.security.identity.User.nickname', index=3,
+      number=6, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='info', full_name='chameleon.security.identity.User.info', index=4,
       number=16, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='roles', full_name='chameleon.security.identity.User.roles', index=4,
+      name='roles', full_name='chameleon.security.identity.User.roles', index=5,
       number=20, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='tags', full_name='chameleon.security.identity.User.tags', index=5,
+      name='tags', full_name='chameleon.security.identity.User.tags', index=6,
       number=21, type=9, cpp_type=9, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='locale', full_name='chameleon.security.identity.User.locale', index=6,
+      name='locale', full_name='chameleon.security.identity.User.locale', index=7,
       number=24, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='channel', full_name='chameleon.security.identity.User.channel', index=7,
+      name='channel', full_name='chameleon.security.identity.User.channel', index=8,
       number=25, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='protocolVersion', full_name='chameleon.security.identity.User.protocolVersion', index=8,
+      name='protocolVersion', full_name='chameleon.security.identity.User.protocolVersion', index=9,
       number=29, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='expireTime', full_name='chameleon.security.identity.User.expireTime', index=9,
+      name='expireTime', full_name='chameleon.security.identity.User.expireTime', index=10,
       number=30, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='manageOptions', full_name='chameleon.security.identity.User.manageOptions', index=10,
+      name='manageOptions', full_name='chameleon.security.identity.User.manageOptions', index=11,
       number=31, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='lastLogin', full_name='chameleon.security.identity.User.lastLogin', index=11,
+      name='lastLogin', full_name='chameleon.security.identity.User.lastLogin', index=12,
       number=50, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='metadata', full_name='chameleon.security.identity.User.metadata', index=12,
+      name='metadata', full_name='chameleon.security.identity.User.metadata', index=13,
       number=51, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -358,7 +365,7 @@ _USER = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=495,
-  serialized_end=976,
+  serialized_end=994,
 )
 
 
@@ -412,6 +419,13 @@ _USERMETADATA = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='isEmailVerified', full_name='chameleon.security.identity.UserMetadata.isEmailVerified', index=6,
+      number=15, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -424,8 +438,8 @@ _USERMETADATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=979,
-  serialized_end=1189,
+  serialized_start=997,
+  serialized_end=1232,
 )
 
 
@@ -498,8 +512,8 @@ _USERMANAGEOPTIONS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1192,
-  serialized_end=1363,
+  serialized_start=1235,
+  serialized_end=1406,
 )
 
 
@@ -544,8 +558,8 @@ _USERLASTLOGIN = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1365,
-  serialized_end=1462,
+  serialized_start=1408,
+  serialized_end=1505,
 )
 
 
@@ -583,8 +597,8 @@ _APPLICATION_INFOENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=933,
-  serialized_end=976,
+  serialized_start=951,
+  serialized_end=994,
 )
 
 _APPLICATION = _descriptor.Descriptor(
@@ -677,8 +691,8 @@ _APPLICATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1465,
-  serialized_end=1951,
+  serialized_start=1508,
+  serialized_end=1994,
 )
 
 
@@ -730,8 +744,8 @@ _APPLICATIONSECRETKEY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1953,
-  serialized_end=2043,
+  serialized_start=1996,
+  serialized_end=2086,
 )
 
 
@@ -790,8 +804,8 @@ _APPLICATIONMETADATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2046,
-  serialized_end=2245,
+  serialized_start=2089,
+  serialized_end=2288,
 )
 
 
@@ -850,8 +864,8 @@ _APPLICATIONOPTIONS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2248,
-  serialized_end=2378,
+  serialized_start=2291,
+  serialized_end=2421,
 )
 
 
@@ -896,8 +910,8 @@ _APPLICATIONWHITEREDIRECTURI = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2380,
-  serialized_end=2449,
+  serialized_start=2423,
+  serialized_end=2492,
 )
 
 _RULE.fields_by_name['verbs'].enum_type = protobuf_dot_options_dot_auth__pb2._SCOPEVERB

@@ -51,7 +51,7 @@ func Check(ctx context.Context, i interface{}, logger glog.Log) error {
 	case *pbItem.Youtube_Video:
 		return nil
 	default:
-		return errors.New("Checker: unsupported yield type")
+		return nil
 	}
 }
 

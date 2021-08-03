@@ -286,6 +286,14 @@ class UserManagerServicer(_UserManagerServicer):
                 return self.interceptor(request, context, methodDesc, self.servicer.Restore)
             return self.servicer.Restore(request, context)
 	
+        def Verify(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("Verify")
+                if not methodDesc:
+                    raise RuntimeError("Method [Verify] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.Verify)
+            return self.servicer.Verify(request, context)
+	
 
     @classmethod
     def addToServer(cls, servicer, server, *args, **kwargs):
@@ -416,6 +424,14 @@ class UserManagerStub(object):
                 raise RuntimeError("Method [Restore] description not found")
             return self.____interceptor(self.____stub.Restore, methodDesc, request, timeout, metadata, credentials)
         return self.____stub.Restore(request, timeout, metadata, credentials)
+	
+    def Verify(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("Verify")
+            if not methodDesc:
+                raise RuntimeError("Method [Verify] description not found")
+            return self.____interceptor(self.____stub.Verify, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.Verify(request, timeout, metadata, credentials)
 	
 
 

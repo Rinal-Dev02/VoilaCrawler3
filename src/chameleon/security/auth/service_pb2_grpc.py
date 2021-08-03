@@ -4,7 +4,6 @@
 import grpc
 
 from chameleon.security.auth import service_message_pb2 as chameleon_dot_security_dot_auth_dot_service__message__pb2
-from google.protobuf import any_pb2 as google_dot_protobuf_dot_any__pb2
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 
 
@@ -32,11 +31,6 @@ class AuthorizerStub(object):
                 '/chameleon.security.auth.Authorizer/Register',
                 request_serializer=chameleon_dot_security_dot_auth_dot_service__message__pb2.RegisterRequest.SerializeToString,
                 response_deserializer=chameleon_dot_security_dot_auth_dot_service__message__pb2.RegisterResponse.FromString,
-                )
-        self.ResetPassword = channel.unary_unary(
-                '/chameleon.security.auth.Authorizer/ResetPassword',
-                request_serializer=google_dot_protobuf_dot_any__pb2.Any.SerializeToString,
-                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
         self.Authorize = channel.unary_unary(
                 '/chameleon.security.auth.Authorizer/Authorize',
@@ -92,13 +86,6 @@ class AuthorizerServicer(object):
 
     def Register(self, request, context):
         """Register
-        """
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ResetPassword(self, request, context):
-        """ResetPassword
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -168,11 +155,6 @@ def add_AuthorizerServicer_to_server(servicer, server):
                     servicer.Register,
                     request_deserializer=chameleon_dot_security_dot_auth_dot_service__message__pb2.RegisterRequest.FromString,
                     response_serializer=chameleon_dot_security_dot_auth_dot_service__message__pb2.RegisterResponse.SerializeToString,
-            ),
-            'ResetPassword': grpc.unary_unary_rpc_method_handler(
-                    servicer.ResetPassword,
-                    request_deserializer=google_dot_protobuf_dot_any__pb2.Any.FromString,
-                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
             'Authorize': grpc.unary_unary_rpc_method_handler(
                     servicer.Authorize,
@@ -263,23 +245,6 @@ class Authorizer(object):
         return grpc.experimental.unary_unary(request, target, '/chameleon.security.auth.Authorizer/Register',
             chameleon_dot_security_dot_auth_dot_service__message__pb2.RegisterRequest.SerializeToString,
             chameleon_dot_security_dot_auth_dot_service__message__pb2.RegisterResponse.FromString,
-            options, channel_credentials,
-            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
-
-    @staticmethod
-    def ResetPassword(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/chameleon.security.auth.Authorizer/ResetPassword',
-            google_dot_protobuf_dot_any__pb2.Any.SerializeToString,
-            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

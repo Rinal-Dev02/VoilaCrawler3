@@ -22,7 +22,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'\n\037com.chameleon.security.identityB\023ServiceMessageProtoP\001Z$chameleon/security/identity;identity',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n1chameleon/security/identity/service_message.proto\x12\x1b\x63hameleon.security.identity\x1a\"chameleon/api/rest/querysort.proto\x1a&chameleon/security/identity/data.proto\"\x8d\x01\n\x0fListRoleRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\x12\x0b\n\x03ids\x18\x10 \x03(\t\"p\n\x10ListRoleResponse\x12\x30\n\x05roles\x18\x02 \x03(\x0b\x32!.chameleon.security.identity.Role\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\"\x1c\n\x0eGetRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\x1e\n\x0fGetsRoleRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"D\n\x10GetsRoleResponse\x12\x30\n\x05roles\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.Role\"D\n\x11UpdateRoleRequest\x12/\n\x04role\x18\x01 \x01(\x0b\x32!.chameleon.security.identity.Role\"Q\n\x12\x41\x64\x64RoleRuleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12/\n\x04rule\x18\x02 \x01(\x0b\x32!.chameleon.security.identity.Rule\"S\n\x14ResetRoleRuleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12/\n\x04rule\x18\x02 \x01(\x0b\x32!.chameleon.security.identity.Rule\"3\n\x15\x44\x65leteRoleRuleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06ruleId\x18\x02 \x01(\t\"4\n\x11\x44\x65leteRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\"<\n\x10\x43ountUserRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\"\"\n\x11\x43ountUserResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x05\"\x80\x01\n\x0fListUserRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\"p\n\x10ListUserResponse\x12\x30\n\x05users\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.User\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\"}\n\x0bWhoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06\x61vatar\x18\x05 \x01(\t\x12\x11\n\tfirstName\x18\x06 \x01(\t\x12\x10\n\x08lastName\x18\x07 \x01(\t\x12\x0e\n\x06locale\x18\t \x01(\t\x12\x0f\n\x07\x63hannel\x18\n \x01(\t\"d\n\x12IsUserExistRequest\x12?\n\x05\x66ield\x18\x01 \x01(\x0e\x32\x30.chameleon.security.identity.UserUniqueFieldType\x12\r\n\x05value\x18\x02 \x01(\t\"\"\n\x13IsUserExistsRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"#\n\x14IsUserExistsResponse\x12\x0b\n\x03ids\x18\x01 \x03(\t\"`\n\x0eGetUserRequest\x12?\n\x05\x66ield\x18\x01 \x01(\x0e\x32\x30.chameleon.security.identity.UserUniqueFieldType\x12\r\n\x05value\x18\x02 \x01(\t\"\x1e\n\x0fGetsUserRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"D\n\x10GetsUserResponse\x12\x30\n\x05users\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.User\"\x85\x01\n\x11UpdateUserRequest\x12/\n\x04user\x18\x01 \x01(\x0b\x32!.chameleon.security.identity.User\x12?\n\x07options\x18\x02 \x01(\x0b\x32..chameleon.security.identity.UpdateUserOptions\":\n\x11UpdateUserOptions\x12\x11\n\tresetInfo\x18\x01 \x01(\x08\x12\x12\n\nresetRoles\x18\x02 \x01(\x08\"!\n\x13GetUserRolesRequest\x12\n\n\x02id\x18\x01 \x01(\t\"%\n\x14GetUserRolesResponse\x12\r\n\x05roles\x18\x01 \x03(\t\"/\n\x12\x41\x64\x64UserRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"2\n\x15\x44\x65leteUserRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"4\n\x11\x44\x65leteUserRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\" \n\x12RestoreUserRequest\x12\n\n\x02id\x18\x01 \x01(\t\"C\n\x17\x43ountApplicationRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\")\n\x18\x43ountApplicationResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x05\"\x87\x01\n\x16ListApplicationRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\"\x85\x01\n\x17ListApplicationResponse\x12>\n\x0c\x61pplications\x18\x01 \x03(\x0b\x32(.chameleon.security.identity.Application\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\"\'\n\x19IsApplicationExistRequest\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x1aIsApplicationExistsRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"*\n\x1bIsApplicationExistsResponse\x12\x0b\n\x03ids\x18\x01 \x03(\t\"#\n\x15GetApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\"%\n\x16GetsApplicationRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"Y\n\x17GetsApplicationResponse\x12>\n\x0c\x61pplications\x18\x01 \x03(\x0b\x32(.chameleon.security.identity.Application\"\xa1\x01\n\x18UpdateApplicationRequest\x12=\n\x0b\x61pplication\x18\x01 \x01(\x0b\x32(.chameleon.security.identity.Application\x12\x46\n\x07options\x18\x02 \x01(\x0b\x32\x35.chameleon.security.identity.UpdateApplicationOptions\"@\n\x18UpdateApplicationOptions\x12\x11\n\tresetInfo\x18\x01 \x01(\x08\x12\x11\n\tresetTags\x18\x02 \x01(\x08\";\n\x18\x44\x65leteApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\"\'\n\x19RestoreApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\"l\n\x1cSetApplicationOptionsRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12@\n\x07options\x18\x02 \x01(\x0b\x32/.chameleon.security.identity.ApplicationOptions\"5\n\x19SetApplicationTagsRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04tags\x18\x02 \x03(\t\"+\n\x1dResetApplicationSecretRequest\x12\n\n\x02id\x18\x01 \x01(\t\"0\n\x1eResetApplicationSecretResponse\x12\x0e\n\x06secret\x18\x01 \x01(\t\";\n\x1eGetApplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"A\n$GetApplicationSecretPublicKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"O\n\x1e\x41\x64\x64\x41pplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\x12\x12\n\nsetDefault\x18\x03 \x01(\x08\"B\n%SetApplicationDefaultSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\">\n!DeleteApplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"5\n\'GetApplicationDefaultRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\"?\n(GetApplicationDefaultRedirectURIResponse\x12\x13\n\x0bredirectURI\x18\x01 \x01(\t\"J\n\'SetApplicationDefaultRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bredirectURI\x18\x02 \x01(\t\"4\n&GetApplicationWhiteRedirectURIsRequest\x12\n\n\x02id\x18\x01 \x01(\t\"q\n\'GetApplicationWhiteRedirectURIsResponse\x12\x46\n\x04uris\x18\x01 \x03(\x0b\x32\x38.chameleon.security.identity.ApplicationWhiteRedirectURI\"z\n%AddApplicationWhiteRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x45\n\x03uri\x18\x02 \x01(\x0b\x32\x38.chameleon.security.identity.ApplicationWhiteRedirectURI\"E\n(DeleteApplicationWhiteRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05uriID\x18\x02 \x01(\t\"6\n(ClearApplicationWhiteRedirectURIsRequest\x12\n\n\x02id\x18\x01 \x01(\t\"6\n\x19\x41\x64\x64\x41pplicationRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"9\n\x1cRemoveApplicationRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\tB^\n\x1f\x63om.chameleon.security.identityB\x13ServiceMessageProtoP\x01Z$chameleon/security/identity;identityb\x06proto3'
+  serialized_pb=b'\n1chameleon/security/identity/service_message.proto\x12\x1b\x63hameleon.security.identity\x1a\"chameleon/api/rest/querysort.proto\x1a&chameleon/security/identity/data.proto\"\x8d\x01\n\x0fListRoleRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\x12\x0b\n\x03ids\x18\x10 \x03(\t\"p\n\x10ListRoleResponse\x12\x30\n\x05roles\x18\x02 \x03(\x0b\x32!.chameleon.security.identity.Role\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\"\x1c\n\x0eGetRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\x1e\n\x0fGetsRoleRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"D\n\x10GetsRoleResponse\x12\x30\n\x05roles\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.Role\"D\n\x11UpdateRoleRequest\x12/\n\x04role\x18\x01 \x01(\x0b\x32!.chameleon.security.identity.Role\"Q\n\x12\x41\x64\x64RoleRuleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12/\n\x04rule\x18\x02 \x01(\x0b\x32!.chameleon.security.identity.Rule\"S\n\x14ResetRoleRuleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12/\n\x04rule\x18\x02 \x01(\x0b\x32!.chameleon.security.identity.Rule\"3\n\x15\x44\x65leteRoleRuleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06ruleId\x18\x02 \x01(\t\"4\n\x11\x44\x65leteRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\"<\n\x10\x43ountUserRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\"\"\n\x11\x43ountUserResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x05\"\x80\x01\n\x0fListUserRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\"p\n\x10ListUserResponse\x12\x30\n\x05users\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.User\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\"}\n\x0bWhoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06\x61vatar\x18\x05 \x01(\t\x12\x11\n\tfirstName\x18\x06 \x01(\t\x12\x10\n\x08lastName\x18\x07 \x01(\t\x12\x0e\n\x06locale\x18\t \x01(\t\x12\x0f\n\x07\x63hannel\x18\n \x01(\t\"d\n\x12IsUserExistRequest\x12?\n\x05\x66ield\x18\x01 \x01(\x0e\x32\x30.chameleon.security.identity.UserUniqueFieldType\x12\r\n\x05value\x18\x02 \x01(\t\"\"\n\x13IsUserExistsRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"#\n\x14IsUserExistsResponse\x12\x0b\n\x03ids\x18\x01 \x03(\t\"`\n\x0eGetUserRequest\x12?\n\x05\x66ield\x18\x01 \x01(\x0e\x32\x30.chameleon.security.identity.UserUniqueFieldType\x12\r\n\x05value\x18\x02 \x01(\t\"\x1e\n\x0fGetsUserRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"D\n\x10GetsUserResponse\x12\x30\n\x05users\x18\x01 \x03(\x0b\x32!.chameleon.security.identity.User\"\x85\x01\n\x11UpdateUserRequest\x12/\n\x04user\x18\x01 \x01(\x0b\x32!.chameleon.security.identity.User\x12?\n\x07options\x18\x02 \x01(\x0b\x32..chameleon.security.identity.UpdateUserOptions\":\n\x11UpdateUserOptions\x12\x11\n\tresetInfo\x18\x01 \x01(\x08\x12\x12\n\nresetRoles\x18\x02 \x01(\x08\"!\n\x13GetUserRolesRequest\x12\n\n\x02id\x18\x01 \x01(\t\"%\n\x14GetUserRolesResponse\x12\r\n\x05roles\x18\x01 \x03(\t\"/\n\x12\x41\x64\x64UserRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"2\n\x15\x44\x65leteUserRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"4\n\x11\x44\x65leteUserRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\" \n\x12RestoreUserRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\x1e\n\rVerifyRequest\x12\r\n\x05token\x18\x01 \x01(\t\"C\n\x17\x43ountApplicationRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\")\n\x18\x43ountApplicationResponse\x12\r\n\x05\x63ount\x18\x01 \x01(\x05\"\x87\x01\n\x16ListApplicationRequest\x12(\n\x05query\x18\x01 \x01(\x0b\x32\x19.chameleon.api.rest.Query\x12&\n\x04sort\x18\x02 \x01(\x0b\x32\x18.chameleon.api.rest.Sort\x12\r\n\x05start\x18\x0e \x01(\x05\x12\x0c\n\x04size\x18\x0f \x01(\x05\"\x85\x01\n\x17ListApplicationResponse\x12>\n\x0c\x61pplications\x18\x01 \x03(\x0b\x32(.chameleon.security.identity.Application\x12\r\n\x05start\x18\r \x01(\x05\x12\x0c\n\x04size\x18\x0e \x01(\x05\x12\r\n\x05\x63ount\x18\x0f \x01(\x05\"\'\n\x19IsApplicationExistRequest\x12\n\n\x02id\x18\x01 \x01(\t\")\n\x1aIsApplicationExistsRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"*\n\x1bIsApplicationExistsResponse\x12\x0b\n\x03ids\x18\x01 \x03(\t\"#\n\x15GetApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\"%\n\x16GetsApplicationRequest\x12\x0b\n\x03ids\x18\x01 \x03(\t\"Y\n\x17GetsApplicationResponse\x12>\n\x0c\x61pplications\x18\x01 \x03(\x0b\x32(.chameleon.security.identity.Application\"\xa1\x01\n\x18UpdateApplicationRequest\x12=\n\x0b\x61pplication\x18\x01 \x01(\x0b\x32(.chameleon.security.identity.Application\x12\x46\n\x07options\x18\x02 \x01(\x0b\x32\x35.chameleon.security.identity.UpdateApplicationOptions\"@\n\x18UpdateApplicationOptions\x12\x11\n\tresetInfo\x18\x01 \x01(\x08\x12\x11\n\tresetTags\x18\x02 \x01(\x08\";\n\x18\x44\x65leteApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bpermanently\x18\x02 \x01(\x08\"\'\n\x19RestoreApplicationRequest\x12\n\n\x02id\x18\x01 \x01(\t\"l\n\x1cSetApplicationOptionsRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12@\n\x07options\x18\x02 \x01(\x0b\x32/.chameleon.security.identity.ApplicationOptions\"5\n\x19SetApplicationTagsRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04tags\x18\x02 \x03(\t\"+\n\x1dResetApplicationSecretRequest\x12\n\n\x02id\x18\x01 \x01(\t\"0\n\x1eResetApplicationSecretResponse\x12\x0e\n\x06secret\x18\x01 \x01(\t\";\n\x1eGetApplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"A\n$GetApplicationSecretPublicKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"O\n\x1e\x41\x64\x64\x41pplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\x12\x12\n\nsetDefault\x18\x03 \x01(\x08\"B\n%SetApplicationDefaultSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\">\n!DeleteApplicationSecretKeyRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05keyID\x18\x02 \x01(\t\"5\n\'GetApplicationDefaultRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\"?\n(GetApplicationDefaultRedirectURIResponse\x12\x13\n\x0bredirectURI\x18\x01 \x01(\t\"J\n\'SetApplicationDefaultRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x13\n\x0bredirectURI\x18\x02 \x01(\t\"4\n&GetApplicationWhiteRedirectURIsRequest\x12\n\n\x02id\x18\x01 \x01(\t\"q\n\'GetApplicationWhiteRedirectURIsResponse\x12\x46\n\x04uris\x18\x01 \x03(\x0b\x32\x38.chameleon.security.identity.ApplicationWhiteRedirectURI\"z\n%AddApplicationWhiteRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\x45\n\x03uri\x18\x02 \x01(\x0b\x32\x38.chameleon.security.identity.ApplicationWhiteRedirectURI\"E\n(DeleteApplicationWhiteRedirectURIRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05uriID\x18\x02 \x01(\t\"6\n(ClearApplicationWhiteRedirectURIsRequest\x12\n\n\x02id\x18\x01 \x01(\t\"6\n\x19\x41\x64\x64\x41pplicationRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\t\"9\n\x1cRemoveApplicationRoleRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05roles\x18\x02 \x03(\tB^\n\x1f\x63om.chameleon.security.identityB\x13ServiceMessageProtoP\x01Z$chameleon/security/identity;identityb\x06proto3'
   ,
   dependencies=[chameleon_dot_api_dot_rest_dot_querysort__pb2.DESCRIPTOR,chameleon_dot_security_dot_identity_dot_data__pb2.DESCRIPTOR,])
 
@@ -1167,6 +1167,38 @@ _RESTOREUSERREQUEST = _descriptor.Descriptor(
 )
 
 
+_VERIFYREQUEST = _descriptor.Descriptor(
+  name='VerifyRequest',
+  full_name='chameleon.security.identity.VerifyRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='token', full_name='chameleon.security.identity.VerifyRequest.token', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=2197,
+  serialized_end=2227,
+)
+
+
 _COUNTAPPLICATIONREQUEST = _descriptor.Descriptor(
   name='CountApplicationRequest',
   full_name='chameleon.security.identity.CountApplicationRequest',
@@ -1194,8 +1226,8 @@ _COUNTAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2197,
-  serialized_end=2264,
+  serialized_start=2229,
+  serialized_end=2296,
 )
 
 
@@ -1226,8 +1258,8 @@ _COUNTAPPLICATIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2266,
-  serialized_end=2307,
+  serialized_start=2298,
+  serialized_end=2339,
 )
 
 
@@ -1279,8 +1311,8 @@ _LISTAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2310,
-  serialized_end=2445,
+  serialized_start=2342,
+  serialized_end=2477,
 )
 
 
@@ -1332,8 +1364,8 @@ _LISTAPPLICATIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2448,
-  serialized_end=2581,
+  serialized_start=2480,
+  serialized_end=2613,
 )
 
 
@@ -1364,8 +1396,8 @@ _ISAPPLICATIONEXISTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2583,
-  serialized_end=2622,
+  serialized_start=2615,
+  serialized_end=2654,
 )
 
 
@@ -1396,8 +1428,8 @@ _ISAPPLICATIONEXISTSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2624,
-  serialized_end=2665,
+  serialized_start=2656,
+  serialized_end=2697,
 )
 
 
@@ -1428,8 +1460,8 @@ _ISAPPLICATIONEXISTSRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2667,
-  serialized_end=2709,
+  serialized_start=2699,
+  serialized_end=2741,
 )
 
 
@@ -1460,8 +1492,8 @@ _GETAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2711,
-  serialized_end=2746,
+  serialized_start=2743,
+  serialized_end=2778,
 )
 
 
@@ -1492,8 +1524,8 @@ _GETSAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2748,
-  serialized_end=2785,
+  serialized_start=2780,
+  serialized_end=2817,
 )
 
 
@@ -1524,8 +1556,8 @@ _GETSAPPLICATIONRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2787,
-  serialized_end=2876,
+  serialized_start=2819,
+  serialized_end=2908,
 )
 
 
@@ -1563,8 +1595,8 @@ _UPDATEAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2879,
-  serialized_end=3040,
+  serialized_start=2911,
+  serialized_end=3072,
 )
 
 
@@ -1602,8 +1634,8 @@ _UPDATEAPPLICATIONOPTIONS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3042,
-  serialized_end=3106,
+  serialized_start=3074,
+  serialized_end=3138,
 )
 
 
@@ -1641,8 +1673,8 @@ _DELETEAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3108,
-  serialized_end=3167,
+  serialized_start=3140,
+  serialized_end=3199,
 )
 
 
@@ -1673,8 +1705,8 @@ _RESTOREAPPLICATIONREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3169,
-  serialized_end=3208,
+  serialized_start=3201,
+  serialized_end=3240,
 )
 
 
@@ -1712,8 +1744,8 @@ _SETAPPLICATIONOPTIONSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3210,
-  serialized_end=3318,
+  serialized_start=3242,
+  serialized_end=3350,
 )
 
 
@@ -1751,8 +1783,8 @@ _SETAPPLICATIONTAGSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3320,
-  serialized_end=3373,
+  serialized_start=3352,
+  serialized_end=3405,
 )
 
 
@@ -1783,8 +1815,8 @@ _RESETAPPLICATIONSECRETREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3375,
-  serialized_end=3418,
+  serialized_start=3407,
+  serialized_end=3450,
 )
 
 
@@ -1815,8 +1847,8 @@ _RESETAPPLICATIONSECRETRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3420,
-  serialized_end=3468,
+  serialized_start=3452,
+  serialized_end=3500,
 )
 
 
@@ -1854,8 +1886,8 @@ _GETAPPLICATIONSECRETKEYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3470,
-  serialized_end=3529,
+  serialized_start=3502,
+  serialized_end=3561,
 )
 
 
@@ -1893,8 +1925,8 @@ _GETAPPLICATIONSECRETPUBLICKEYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3531,
-  serialized_end=3596,
+  serialized_start=3563,
+  serialized_end=3628,
 )
 
 
@@ -1939,8 +1971,8 @@ _ADDAPPLICATIONSECRETKEYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3598,
-  serialized_end=3677,
+  serialized_start=3630,
+  serialized_end=3709,
 )
 
 
@@ -1978,8 +2010,8 @@ _SETAPPLICATIONDEFAULTSECRETKEYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3679,
-  serialized_end=3745,
+  serialized_start=3711,
+  serialized_end=3777,
 )
 
 
@@ -2017,8 +2049,8 @@ _DELETEAPPLICATIONSECRETKEYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3747,
-  serialized_end=3809,
+  serialized_start=3779,
+  serialized_end=3841,
 )
 
 
@@ -2049,8 +2081,8 @@ _GETAPPLICATIONDEFAULTREDIRECTURIREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3811,
-  serialized_end=3864,
+  serialized_start=3843,
+  serialized_end=3896,
 )
 
 
@@ -2081,8 +2113,8 @@ _GETAPPLICATIONDEFAULTREDIRECTURIRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3866,
-  serialized_end=3929,
+  serialized_start=3898,
+  serialized_end=3961,
 )
 
 
@@ -2120,8 +2152,8 @@ _SETAPPLICATIONDEFAULTREDIRECTURIREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3931,
-  serialized_end=4005,
+  serialized_start=3963,
+  serialized_end=4037,
 )
 
 
@@ -2152,8 +2184,8 @@ _GETAPPLICATIONWHITEREDIRECTURISREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4007,
-  serialized_end=4059,
+  serialized_start=4039,
+  serialized_end=4091,
 )
 
 
@@ -2184,8 +2216,8 @@ _GETAPPLICATIONWHITEREDIRECTURISRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4061,
-  serialized_end=4174,
+  serialized_start=4093,
+  serialized_end=4206,
 )
 
 
@@ -2223,8 +2255,8 @@ _ADDAPPLICATIONWHITEREDIRECTURIREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4176,
-  serialized_end=4298,
+  serialized_start=4208,
+  serialized_end=4330,
 )
 
 
@@ -2262,8 +2294,8 @@ _DELETEAPPLICATIONWHITEREDIRECTURIREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4300,
-  serialized_end=4369,
+  serialized_start=4332,
+  serialized_end=4401,
 )
 
 
@@ -2294,8 +2326,8 @@ _CLEARAPPLICATIONWHITEREDIRECTURISREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4371,
-  serialized_end=4425,
+  serialized_start=4403,
+  serialized_end=4457,
 )
 
 
@@ -2333,8 +2365,8 @@ _ADDAPPLICATIONROLEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4427,
-  serialized_end=4481,
+  serialized_start=4459,
+  serialized_end=4513,
 )
 
 
@@ -2372,8 +2404,8 @@ _REMOVEAPPLICATIONROLEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=4483,
-  serialized_end=4540,
+  serialized_start=4515,
+  serialized_end=4572,
 )
 
 _LISTROLEREQUEST.fields_by_name['query'].message_type = chameleon_dot_api_dot_rest_dot_querysort__pb2._QUERY
@@ -2431,6 +2463,7 @@ DESCRIPTOR.message_types_by_name['AddUserRoleRequest'] = _ADDUSERROLEREQUEST
 DESCRIPTOR.message_types_by_name['DeleteUserRoleRequest'] = _DELETEUSERROLEREQUEST
 DESCRIPTOR.message_types_by_name['DeleteUserRequest'] = _DELETEUSERREQUEST
 DESCRIPTOR.message_types_by_name['RestoreUserRequest'] = _RESTOREUSERREQUEST
+DESCRIPTOR.message_types_by_name['VerifyRequest'] = _VERIFYREQUEST
 DESCRIPTOR.message_types_by_name['CountApplicationRequest'] = _COUNTAPPLICATIONREQUEST
 DESCRIPTOR.message_types_by_name['CountApplicationResponse'] = _COUNTAPPLICATIONRESPONSE
 DESCRIPTOR.message_types_by_name['ListApplicationRequest'] = _LISTAPPLICATIONREQUEST
@@ -2668,6 +2701,13 @@ RestoreUserRequest = _reflection.GeneratedProtocolMessageType('RestoreUserReques
   # @@protoc_insertion_point(class_scope:chameleon.security.identity.RestoreUserRequest)
   })
 _sym_db.RegisterMessage(RestoreUserRequest)
+
+VerifyRequest = _reflection.GeneratedProtocolMessageType('VerifyRequest', (_message.Message,), {
+  'DESCRIPTOR' : _VERIFYREQUEST,
+  '__module__' : 'chameleon.security.identity.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.identity.VerifyRequest)
+  })
+_sym_db.RegisterMessage(VerifyRequest)
 
 CountApplicationRequest = _reflection.GeneratedProtocolMessageType('CountApplicationRequest', (_message.Message,), {
   'DESCRIPTOR' : _COUNTAPPLICATIONREQUEST,

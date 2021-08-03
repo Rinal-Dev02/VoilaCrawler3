@@ -12,7 +12,6 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-from google.protobuf import any_pb2 as google_dot_protobuf_dot_any__pb2
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 from protobuf import annotations_pb2 as protobuf_dot_annotations__pb2
 from protobuf.google.api import annotations_pb2 as protobuf_dot_google_dot_api_dot_annotations__pb2
@@ -25,9 +24,9 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'\n\033com.chameleon.security.authB\014ServiceProtoP\001Z\034chameleon/security/auth;auth\210\001\001',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n%chameleon/security/auth/service.proto\x12\x17\x63hameleon.security.auth\x1a\x19google/protobuf/any.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1aprotobuf/annotations.proto\x1a%protobuf/google/api/annotations.proto\x1a-chameleon/security/auth/service_message.proto2\xb1\x0b\n\nAuthorizer\x12\x95\x01\n\nGetAppInfo\x12\x32.chameleon.security.auth.GetApplicationInfoRequest\x1a\x33.chameleon.security.auth.GetApplicationInfoResponse\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/security/auth/appinfo\x12\x89\x01\n\x0bGetUserInfo\x12+.chameleon.security.auth.GetUserInfoRequest\x1a,.chameleon.security.auth.GetUserInfoResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/security/auth/userinfo\x12\x83\x01\n\x08Register\x12(.chameleon.security.auth.RegisterRequest\x1a).chameleon.security.auth.RegisterResponse\"\"\x82\xd3\xe4\x93\x02\x1c\"\x17/security/auth/register:\x01*\x12g\n\rResetPassword\x12\x14.google.protobuf.Any\x1a\x16.google.protobuf.Empty\"(\x82\xd3\xe4\x93\x02\"\"\x1d/security/auth/reset-password:\x01*\x12\x87\x01\n\tAuthorize\x12).chameleon.security.auth.AuthorizeRequest\x1a*.chameleon.security.auth.AuthorizeResponse\"#\x82\xd3\xe4\x93\x02\x1d\"\x18/security/auth/authorize:\x01*\x12\xaf\x01\n\x13ValidateAccessToken\x12\x33.chameleon.security.auth.ValidateAccessTokenRequest\x1a\x34.chameleon.security.auth.ValidateAccessTokenResposne\"-\x82\xd3\xe4\x93\x02\'\"\"/security/auth/validateaccesstoken:\x01*\x12\xa0\x01\n\x0f\x41uthorizeAccess\x12/.chameleon.security.auth.AuthorizeAccessRequest\x1a\x30.chameleon.security.auth.AuthorizeAccessResponse\"*\x82\xd3\xe4\x93\x02$\"\x1f/security/auth/authorize/access:\x01*\x12\x90\x01\n\x11PermitApplication\x12\x31.chameleon.security.auth.PermitApplicationRequest\x1a\x16.google.protobuf.Empty\"0\x82\xd3\xe4\x93\x02\x1d\"\x18/security/auth/permitapp:\x01*\x82\x82\x87\x03\x08\x08\x02\x12\x04\x61uth\x12\x90\x01\n\x11RevokeApplication\x12\x31.chameleon.security.auth.RevokeApplicationRequest\x1a\x16.google.protobuf.Empty\"0\x82\xd3\xe4\x93\x02\x1d\"\x18/security/auth/revokeapp:\x01*\x82\x82\x87\x03\x08\x08\x02\x12\x04\x61uth\x12\x8a\x01\n\x0f\x44\x65nyApplication\x12/.chameleon.security.auth.DenyApplicationRequest\x1a\x16.google.protobuf.Empty\".\x82\xd3\xe4\x93\x02\x1b\"\x16/security/auth/denyapp:\x01*\x82\x82\x87\x03\x08\x08\x02\x12\x04\x61uthBN\n\x1b\x63om.chameleon.security.authB\x0cServiceProtoP\x01Z\x1c\x63hameleon/security/auth;auth\x88\x01\x01\x62\x06proto3'
+  serialized_pb=b'\n%chameleon/security/auth/service.proto\x12\x17\x63hameleon.security.auth\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1aprotobuf/annotations.proto\x1a%protobuf/google/api/annotations.proto\x1a-chameleon/security/auth/service_message.proto2\xc8\n\n\nAuthorizer\x12\x95\x01\n\nGetAppInfo\x12\x32.chameleon.security.auth.GetApplicationInfoRequest\x1a\x33.chameleon.security.auth.GetApplicationInfoResponse\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/security/auth/appinfo\x12\x89\x01\n\x0bGetUserInfo\x12+.chameleon.security.auth.GetUserInfoRequest\x1a,.chameleon.security.auth.GetUserInfoResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/security/auth/userinfo\x12\x83\x01\n\x08Register\x12(.chameleon.security.auth.RegisterRequest\x1a).chameleon.security.auth.RegisterResponse\"\"\x82\xd3\xe4\x93\x02\x1c\"\x17/security/auth/register:\x01*\x12\x87\x01\n\tAuthorize\x12).chameleon.security.auth.AuthorizeRequest\x1a*.chameleon.security.auth.AuthorizeResponse\"#\x82\xd3\xe4\x93\x02\x1d\"\x18/security/auth/authorize:\x01*\x12\xaf\x01\n\x13ValidateAccessToken\x12\x33.chameleon.security.auth.ValidateAccessTokenRequest\x1a\x34.chameleon.security.auth.ValidateAccessTokenResposne\"-\x82\xd3\xe4\x93\x02\'\"\"/security/auth/validateaccesstoken:\x01*\x12\xa0\x01\n\x0f\x41uthorizeAccess\x12/.chameleon.security.auth.AuthorizeAccessRequest\x1a\x30.chameleon.security.auth.AuthorizeAccessResponse\"*\x82\xd3\xe4\x93\x02$\"\x1f/security/auth/authorize/access:\x01*\x12\x90\x01\n\x11PermitApplication\x12\x31.chameleon.security.auth.PermitApplicationRequest\x1a\x16.google.protobuf.Empty\"0\x82\xd3\xe4\x93\x02\x1d\"\x18/security/auth/permitapp:\x01*\x82\x82\x87\x03\x08\x08\x02\x12\x04\x61uth\x12\x90\x01\n\x11RevokeApplication\x12\x31.chameleon.security.auth.RevokeApplicationRequest\x1a\x16.google.protobuf.Empty\"0\x82\xd3\xe4\x93\x02\x1d\"\x18/security/auth/revokeapp:\x01*\x82\x82\x87\x03\x08\x08\x02\x12\x04\x61uth\x12\x8a\x01\n\x0f\x44\x65nyApplication\x12/.chameleon.security.auth.DenyApplicationRequest\x1a\x16.google.protobuf.Empty\".\x82\xd3\xe4\x93\x02\x1b\"\x16/security/auth/denyapp:\x01*\x82\x82\x87\x03\x08\x08\x02\x12\x04\x61uthBN\n\x1b\x63om.chameleon.security.authB\x0cServiceProtoP\x01Z\x1c\x63hameleon/security/auth;auth\x88\x01\x01\x62\x06proto3'
   ,
-  dependencies=[google_dot_protobuf_dot_any__pb2.DESCRIPTOR,google_dot_protobuf_dot_empty__pb2.DESCRIPTOR,protobuf_dot_annotations__pb2.DESCRIPTOR,protobuf_dot_google_dot_api_dot_annotations__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_service__message__pb2.DESCRIPTOR,])
+  dependencies=[google_dot_protobuf_dot_empty__pb2.DESCRIPTOR,protobuf_dot_annotations__pb2.DESCRIPTOR,protobuf_dot_google_dot_api_dot_annotations__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_service__message__pb2.DESCRIPTOR,])
 
 
 
@@ -43,8 +42,8 @@ _AUTHORIZER = _descriptor.ServiceDescriptor(
   index=0,
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_start=237,
-  serialized_end=1694,
+  serialized_start=210,
+  serialized_end=1562,
   methods=[
   _descriptor.MethodDescriptor(
     name='GetAppInfo',
@@ -77,19 +76,9 @@ _AUTHORIZER = _descriptor.ServiceDescriptor(
     create_key=_descriptor._internal_create_key,
   ),
   _descriptor.MethodDescriptor(
-    name='ResetPassword',
-    full_name='chameleon.security.auth.Authorizer.ResetPassword',
-    index=3,
-    containing_service=None,
-    input_type=google_dot_protobuf_dot_any__pb2._ANY,
-    output_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
-    serialized_options=b'\202\323\344\223\002\"\"\035/security/auth/reset-password:\001*',
-    create_key=_descriptor._internal_create_key,
-  ),
-  _descriptor.MethodDescriptor(
     name='Authorize',
     full_name='chameleon.security.auth.Authorizer.Authorize',
-    index=4,
+    index=3,
     containing_service=None,
     input_type=chameleon_dot_security_dot_auth_dot_service__message__pb2._AUTHORIZEREQUEST,
     output_type=chameleon_dot_security_dot_auth_dot_service__message__pb2._AUTHORIZERESPONSE,
@@ -99,7 +88,7 @@ _AUTHORIZER = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='ValidateAccessToken',
     full_name='chameleon.security.auth.Authorizer.ValidateAccessToken',
-    index=5,
+    index=4,
     containing_service=None,
     input_type=chameleon_dot_security_dot_auth_dot_service__message__pb2._VALIDATEACCESSTOKENREQUEST,
     output_type=chameleon_dot_security_dot_auth_dot_service__message__pb2._VALIDATEACCESSTOKENRESPOSNE,
@@ -109,7 +98,7 @@ _AUTHORIZER = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='AuthorizeAccess',
     full_name='chameleon.security.auth.Authorizer.AuthorizeAccess',
-    index=6,
+    index=5,
     containing_service=None,
     input_type=chameleon_dot_security_dot_auth_dot_service__message__pb2._AUTHORIZEACCESSREQUEST,
     output_type=chameleon_dot_security_dot_auth_dot_service__message__pb2._AUTHORIZEACCESSRESPONSE,
@@ -119,7 +108,7 @@ _AUTHORIZER = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='PermitApplication',
     full_name='chameleon.security.auth.Authorizer.PermitApplication',
-    index=7,
+    index=6,
     containing_service=None,
     input_type=chameleon_dot_security_dot_auth_dot_service__message__pb2._PERMITAPPLICATIONREQUEST,
     output_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
@@ -129,7 +118,7 @@ _AUTHORIZER = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='RevokeApplication',
     full_name='chameleon.security.auth.Authorizer.RevokeApplication',
-    index=8,
+    index=7,
     containing_service=None,
     input_type=chameleon_dot_security_dot_auth_dot_service__message__pb2._REVOKEAPPLICATIONREQUEST,
     output_type=google_dot_protobuf_dot_empty__pb2._EMPTY,
@@ -139,7 +128,7 @@ _AUTHORIZER = _descriptor.ServiceDescriptor(
   _descriptor.MethodDescriptor(
     name='DenyApplication',
     full_name='chameleon.security.auth.Authorizer.DenyApplication',
-    index=9,
+    index=8,
     containing_service=None,
     input_type=chameleon_dot_security_dot_auth_dot_service__message__pb2._DENYAPPLICATIONREQUEST,
     output_type=google_dot_protobuf_dot_empty__pb2._EMPTY,

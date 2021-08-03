@@ -24,7 +24,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z chameleon/smelter/v1/crawl;crawl',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n%chameleon/smelter/v1/crawl/data.proto\x12\x1a\x63hameleon.smelter.v1.crawl\x1a\x19google/protobuf/any.proto\x1a\x1d\x63hameleon/api/http/data.proto\x1a+chameleon/smelter/v1/crawl/proxy/data.proto\"\\\n\x08Metadata\x12\x13\n\x0b\x63reatedTime\x18\x01 \x01(\t\x12\x13\n\x0bupdatedTime\x18\x02 \x01(\t\x12\x11\n\tisDeleted\x18\x03 \x01(\x08\x12\x13\n\x0b\x64\x65letedTime\x18\x04 \x01(\t\"3\n\rCrawlerMethod\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x14\n\x0crequireInput\x18\x02 \x01(\x08\"\x9e\x04\n\x0e\x43rawlerOptions\x12\x16\n\x0e\x65nableHeadless\x18\x02 \x01(\x08\x12\x16\n\x0ejsWaitDuration\x18\x34 \x01(\x03\x12\x19\n\x11\x65nableSessionInit\x18\x03 \x01(\x08\x12\x13\n\x0bkeepSession\x18\x04 \x01(\x08\x12\x18\n\x10\x64isableCookieJar\x18\x33 \x01(\x08\x12\x12\n\nsessoinTtl\x18\x05 \x01(\x03\x12\x17\n\x0f\x64isableRedirect\x18\x06 \x01(\x08\x12\x15\n\rloginRequired\x18\x07 \x01(\x08\x12H\n\x07headers\x18\x0b \x03(\x0b\x32\x37.chameleon.smelter.v1.crawl.CrawlerOptions.HeadersEntry\x12+\n\x07\x63ookies\x18\x0c \x03(\x0b\x32\x1a.chameleon.api.http.Cookie\x12G\n\x0breliability\x18\x0f \x01(\x0e\x32\x32.chameleon.smelter.v1.crawl.proxy.ProxyReliability\x12\x19\n\x11requestFilterKeys\x18= \x03(\t\x1a\x43\n\x06\x43ookie\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t\x12\x0e\n\x06\x64omain\x18\x03 \x01(\t\x12\x0c\n\x04path\x18\x04 \x01(\t\x1a.\n\x0cHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x84\x02\n\x07\x43rawler\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06siteId\x18\x02 \x01(\t\x12\x0f\n\x07version\x18\x03 \x01(\x05\x12\x16\n\x0e\x61llowedDomains\x18\x06 \x03(\t\x12;\n\x07options\x18\n \x01(\x0b\x32*.chameleon.smelter.v1.crawl.CrawlerOptions\x12>\n\x08metadata\x18\x0f \x01(\x0b\x32,.chameleon.smelter.v1.crawl.Crawler.Metadata\x1a\x37\n\x08Metadata\x12\x11\n\tonlineUtc\x18\x01 \x01(\x03\x12\x18\n\x10lastHeartbeatUtc\x18\x02 \x01(\x03\"\x89\x01\n\nNodeStatus\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x19\n\x11maxAPIConcurrency\x18\x03 \x01(\x05\x12\x18\n\x10maxMQConcurrency\x18\x04 \x01(\x05\x12\x1a\n\x12\x63urrentConcurrency\x18\x05 \x01(\x05\x12\x1c\n\x14\x63urrentMQConcurrency\x18\x06 \x01(\x05\"\x87\x06\n\x07Request\x12\x11\n\ttracingId\x18\x01 \x01(\t\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\r\n\x05reqId\x18\x03 \x01(\t\x12\x0e\n\x06siteId\x18\x04 \x01(\t\x12\x0e\n\x06method\x18\x0c \x01(\t\x12\x0b\n\x03url\x18\r \x01(\t\x12M\n\rcustomHeaders\x18\x0e \x03(\x0b\x32\x36.chameleon.smelter.v1.crawl.Request.CustomHeadersEntry\x12\x31\n\rcustomCookies\x18\x0f \x03(\x0b\x32\x1a.chameleon.api.http.Cookie\x12\x0c\n\x04\x62ody\x18\x14 \x01(\t\x12\x33\n\x06parent\x18) \x01(\x0b\x32#.chameleon.smelter.v1.crawl.Request\x12<\n\x07options\x18\x33 \x01(\x0b\x32+.chameleon.smelter.v1.crawl.Request.Options\x12I\n\x0bsharingData\x18\x65 \x03(\x0b\x32\x34.chameleon.smelter.v1.crawl.Request.SharingDataEntry\x1a\xb1\x01\n\x07Options\x12\x14\n\x0c\x64isableProxy\x18\x01 \x01(\x08\x12\x1b\n\x13\x65nableBlockForItems\x18\x02 \x01(\x08\x12\x18\n\x10maxTtlPerRequest\x18\x06 \x01(\x05\x12\x15\n\rmaxRetryCount\x18\x0c \x01(\x05\x12\x17\n\x0fmaxRequestDepth\x18\x0e \x01(\x05\x12\x13\n\x0btargetTypes\x18\x0f \x03(\t\x12\x14\n\x0cmaxItemCount\x18\x10 \x01(\x05\x1a\x32\n\x06Status\x12\x12\n\nretryCount\x18\x01 \x01(\x05\x12\x14\n\x0crequestDepth\x18\x02 \x01(\x05\x1a\x34\n\x12\x43ustomHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x1a\x32\n\x10SharingDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x9e\x01\n\rRequestStatus\x12\x11\n\ttracingId\x18\x01 \x01(\t\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\r\n\x05reqId\x18\x03 \x01(\t\x12\x0e\n\x06siteId\x18\x04 \x01(\t\x12\x11\n\ttimestamp\x18\x06 \x01(\x03\x12\x11\n\tisSucceed\x18\x07 \x01(\x08\x12\x13\n\x0bsubReqCount\x18\x0b \x01(\x05\x12\x11\n\titemCount\x18\x0c \x01(\x05\"\x8d\x01\n\x04Item\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\x12\x11\n\ttracingId\x18\x06 \x01(\t\x12\x0e\n\x06siteId\x18\x07 \x01(\t\x12\r\n\x05jobId\x18\x08 \x01(\t\x12\r\n\x05reqId\x18\t \x01(\t\x12\r\n\x05index\x18\n \x01(\x05\x12\"\n\x04\x64\x61ta\x18\x0f \x01(\x0b\x32\x14.google.protobuf.Any\"\x8b\x01\n\x05\x45rror\x12\x11\n\ttracingId\x18\x01 \x01(\t\x12\x0e\n\x06siteId\x18\x02 \x01(\t\x12\r\n\x05jobId\x18\x03 \x01(\t\x12\r\n\x05reqId\x18\x04 \x01(\t\x12\x11\n\ttimestamp\x18\x05 \x01(\x03\x12\x0c\n\x04\x63ode\x18\t \x01(\x05\x12\x0e\n\x06\x65rrMsg\x18\n \x01(\t\x12\x10\n\x08\x64uration\x18\x15 \x01(\x03*;\n\rCrawlerStatus\x12\x11\n\rStatusUnknown\x10\x00\x12\n\n\x06Online\x10\x01\x12\x0b\n\x07Offline\x10\x02\x42\"Z chameleon/smelter/v1/crawl;crawlb\x06proto3'
+  serialized_pb=b'\n%chameleon/smelter/v1/crawl/data.proto\x12\x1a\x63hameleon.smelter.v1.crawl\x1a\x19google/protobuf/any.proto\x1a\x1d\x63hameleon/api/http/data.proto\x1a+chameleon/smelter/v1/crawl/proxy/data.proto\"\\\n\x08Metadata\x12\x13\n\x0b\x63reatedTime\x18\x01 \x01(\t\x12\x13\n\x0bupdatedTime\x18\x02 \x01(\t\x12\x11\n\tisDeleted\x18\x03 \x01(\x08\x12\x13\n\x0b\x64\x65letedTime\x18\x04 \x01(\t\"3\n\rCrawlerMethod\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x14\n\x0crequireInput\x18\x02 \x01(\x08\"\x9e\x04\n\x0e\x43rawlerOptions\x12\x16\n\x0e\x65nableHeadless\x18\x02 \x01(\x08\x12\x16\n\x0ejsWaitDuration\x18\x34 \x01(\x03\x12\x19\n\x11\x65nableSessionInit\x18\x03 \x01(\x08\x12\x13\n\x0bkeepSession\x18\x04 \x01(\x08\x12\x18\n\x10\x64isableCookieJar\x18\x33 \x01(\x08\x12\x12\n\nsessoinTtl\x18\x05 \x01(\x03\x12\x17\n\x0f\x64isableRedirect\x18\x06 \x01(\x08\x12\x15\n\rloginRequired\x18\x07 \x01(\x08\x12H\n\x07headers\x18\x0b \x03(\x0b\x32\x37.chameleon.smelter.v1.crawl.CrawlerOptions.HeadersEntry\x12+\n\x07\x63ookies\x18\x0c \x03(\x0b\x32\x1a.chameleon.api.http.Cookie\x12G\n\x0breliability\x18\x0f \x01(\x0e\x32\x32.chameleon.smelter.v1.crawl.proxy.ProxyReliability\x12\x19\n\x11requestFilterKeys\x18= \x03(\t\x1a\x43\n\x06\x43ookie\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t\x12\x0e\n\x06\x64omain\x18\x03 \x01(\t\x12\x0c\n\x04path\x18\x04 \x01(\t\x1a.\n\x0cHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x84\x02\n\x07\x43rawler\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06siteId\x18\x02 \x01(\t\x12\x0f\n\x07version\x18\x03 \x01(\x05\x12\x16\n\x0e\x61llowedDomains\x18\x06 \x03(\t\x12;\n\x07options\x18\n \x01(\x0b\x32*.chameleon.smelter.v1.crawl.CrawlerOptions\x12>\n\x08metadata\x18\x0f \x01(\x0b\x32,.chameleon.smelter.v1.crawl.Crawler.Metadata\x1a\x37\n\x08Metadata\x12\x11\n\tonlineUtc\x18\x01 \x01(\x03\x12\x18\n\x10lastHeartbeatUtc\x18\x02 \x01(\x03\"\x89\x01\n\nNodeStatus\x12\x0c\n\x04host\x18\x01 \x01(\t\x12\x19\n\x11maxAPIConcurrency\x18\x03 \x01(\x05\x12\x18\n\x10maxMQConcurrency\x18\x04 \x01(\x05\x12\x1a\n\x12\x63urrentConcurrency\x18\x05 \x01(\x05\x12\x1c\n\x14\x63urrentMQConcurrency\x18\x06 \x01(\x05\"\x98\x06\n\x07Request\x12\x11\n\ttracingId\x18\x01 \x01(\t\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\r\n\x05reqId\x18\x03 \x01(\t\x12\x0e\n\x06siteId\x18\x04 \x01(\t\x12\x0f\n\x07storeId\x18\x05 \x01(\t\x12\x0e\n\x06method\x18\x0c \x01(\t\x12\x0b\n\x03url\x18\r \x01(\t\x12M\n\rcustomHeaders\x18\x0e \x03(\x0b\x32\x36.chameleon.smelter.v1.crawl.Request.CustomHeadersEntry\x12\x31\n\rcustomCookies\x18\x0f \x03(\x0b\x32\x1a.chameleon.api.http.Cookie\x12\x0c\n\x04\x62ody\x18\x14 \x01(\t\x12\x33\n\x06parent\x18) \x01(\x0b\x32#.chameleon.smelter.v1.crawl.Request\x12<\n\x07options\x18\x33 \x01(\x0b\x32+.chameleon.smelter.v1.crawl.Request.Options\x12I\n\x0bsharingData\x18\x65 \x03(\x0b\x32\x34.chameleon.smelter.v1.crawl.Request.SharingDataEntry\x1a\xb1\x01\n\x07Options\x12\x14\n\x0c\x64isableProxy\x18\x01 \x01(\x08\x12\x1b\n\x13\x65nableBlockForItems\x18\x02 \x01(\x08\x12\x18\n\x10maxTtlPerRequest\x18\x06 \x01(\x05\x12\x15\n\rmaxRetryCount\x18\x0c \x01(\x05\x12\x17\n\x0fmaxRequestDepth\x18\x0e \x01(\x05\x12\x13\n\x0btargetTypes\x18\x0f \x03(\t\x12\x14\n\x0cmaxItemCount\x18\x10 \x01(\x05\x1a\x32\n\x06Status\x12\x12\n\nretryCount\x18\x01 \x01(\x05\x12\x14\n\x0crequestDepth\x18\x02 \x01(\x05\x1a\x34\n\x12\x43ustomHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x1a\x32\n\x10SharingDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x9e\x01\n\rRequestStatus\x12\x11\n\ttracingId\x18\x01 \x01(\t\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\r\n\x05reqId\x18\x03 \x01(\t\x12\x0e\n\x06siteId\x18\x04 \x01(\t\x12\x11\n\ttimestamp\x18\x06 \x01(\x03\x12\x11\n\tisSucceed\x18\x07 \x01(\x08\x12\x13\n\x0bsubReqCount\x18\x0b \x01(\x05\x12\x11\n\titemCount\x18\x0c \x01(\x05\"\x8d\x01\n\x04Item\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\x12\x11\n\ttracingId\x18\x06 \x01(\t\x12\x0e\n\x06siteId\x18\x07 \x01(\t\x12\r\n\x05jobId\x18\x08 \x01(\t\x12\r\n\x05reqId\x18\t \x01(\t\x12\r\n\x05index\x18\n \x01(\x05\x12\"\n\x04\x64\x61ta\x18\x0f \x01(\x0b\x32\x14.google.protobuf.Any\"\x8b\x01\n\x05\x45rror\x12\x11\n\ttracingId\x18\x01 \x01(\t\x12\x0e\n\x06siteId\x18\x02 \x01(\t\x12\r\n\x05jobId\x18\x03 \x01(\t\x12\r\n\x05reqId\x18\x04 \x01(\t\x12\x11\n\ttimestamp\x18\x05 \x01(\x03\x12\x0c\n\x04\x63ode\x18\t \x01(\x05\x12\x0e\n\x06\x65rrMsg\x18\n \x01(\t\x12\x10\n\x08\x64uration\x18\x15 \x01(\x03*;\n\rCrawlerStatus\x12\x11\n\rStatusUnknown\x10\x00\x12\n\n\x06Online\x10\x01\x12\x0b\n\x07Offline\x10\x02\x42\"Z chameleon/smelter/v1/crawl;crawlb\x06proto3'
   ,
   dependencies=[google_dot_protobuf_dot_any__pb2.DESCRIPTOR,chameleon_dot_api_dot_http_dot_data__pb2.DESCRIPTOR,chameleon_dot_smelter_dot_v1_dot_crawl_dot_proxy_dot_data__pb2.DESCRIPTOR,])
 
@@ -53,8 +53,8 @@ _CRAWLERSTATUS = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=2492,
-  serialized_end=2551,
+  serialized_start=2509,
+  serialized_end=2568,
 )
 _sym_db.RegisterEnumDescriptor(_CRAWLERSTATUS)
 
@@ -590,8 +590,8 @@ _REQUEST_OPTIONS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1708,
-  serialized_end=1885,
+  serialized_start=1725,
+  serialized_end=1902,
 )
 
 _REQUEST_STATUS = _descriptor.Descriptor(
@@ -628,8 +628,8 @@ _REQUEST_STATUS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1887,
-  serialized_end=1937,
+  serialized_start=1904,
+  serialized_end=1954,
 )
 
 _REQUEST_CUSTOMHEADERSENTRY = _descriptor.Descriptor(
@@ -666,8 +666,8 @@ _REQUEST_CUSTOMHEADERSENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1939,
-  serialized_end=1991,
+  serialized_start=1956,
+  serialized_end=2008,
 )
 
 _REQUEST_SHARINGDATAENTRY = _descriptor.Descriptor(
@@ -704,8 +704,8 @@ _REQUEST_SHARINGDATAENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1993,
-  serialized_end=2043,
+  serialized_start=2010,
+  serialized_end=2060,
 )
 
 _REQUEST = _descriptor.Descriptor(
@@ -745,56 +745,63 @@ _REQUEST = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='method', full_name='chameleon.smelter.v1.crawl.Request.method', index=4,
+      name='storeId', full_name='chameleon.smelter.v1.crawl.Request.storeId', index=4,
+      number=5, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='method', full_name='chameleon.smelter.v1.crawl.Request.method', index=5,
       number=12, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='url', full_name='chameleon.smelter.v1.crawl.Request.url', index=5,
+      name='url', full_name='chameleon.smelter.v1.crawl.Request.url', index=6,
       number=13, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='customHeaders', full_name='chameleon.smelter.v1.crawl.Request.customHeaders', index=6,
+      name='customHeaders', full_name='chameleon.smelter.v1.crawl.Request.customHeaders', index=7,
       number=14, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='customCookies', full_name='chameleon.smelter.v1.crawl.Request.customCookies', index=7,
+      name='customCookies', full_name='chameleon.smelter.v1.crawl.Request.customCookies', index=8,
       number=15, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='body', full_name='chameleon.smelter.v1.crawl.Request.body', index=8,
+      name='body', full_name='chameleon.smelter.v1.crawl.Request.body', index=9,
       number=20, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='parent', full_name='chameleon.smelter.v1.crawl.Request.parent', index=9,
+      name='parent', full_name='chameleon.smelter.v1.crawl.Request.parent', index=10,
       number=41, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='options', full_name='chameleon.smelter.v1.crawl.Request.options', index=10,
+      name='options', full_name='chameleon.smelter.v1.crawl.Request.options', index=11,
       number=51, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='sharingData', full_name='chameleon.smelter.v1.crawl.Request.sharingData', index=11,
+      name='sharingData', full_name='chameleon.smelter.v1.crawl.Request.sharingData', index=12,
       number=101, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -813,7 +820,7 @@ _REQUEST = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=1268,
-  serialized_end=2043,
+  serialized_end=2060,
 )
 
 
@@ -893,8 +900,8 @@ _REQUESTSTATUS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2046,
-  serialized_end=2204,
+  serialized_start=2063,
+  serialized_end=2221,
 )
 
 
@@ -967,8 +974,8 @@ _ITEM = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2207,
-  serialized_end=2348,
+  serialized_start=2224,
+  serialized_end=2365,
 )
 
 
@@ -1048,8 +1055,8 @@ _ERROR = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2351,
-  serialized_end=2490,
+  serialized_start=2368,
+  serialized_end=2507,
 )
 
 _CRAWLEROPTIONS_COOKIE.containing_type = _CRAWLEROPTIONS
