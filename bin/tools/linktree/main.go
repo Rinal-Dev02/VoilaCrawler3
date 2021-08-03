@@ -62,7 +62,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"*"}
+	return []string{"linktr.ee"}
 }
 
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
