@@ -106,6 +106,62 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.shopbop.com", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	sel := dom.Find(`.top-nav-list-item`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+
+		cateName := TrimSpaceNewlineInString(node.Find(`.top-nav-list-item-link span`).Text())
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		subSel := node.Find(`.nested-nav-container .nested-navigation-section`)
+		for j := range subSel.Nodes {
+			subNode := subSel.Eq(j)
+			cateName := strings.TrimSpace(subNode.Find(`sub-navigation-header`).Text())
+
+			subCate := pbItem.Category{Name: cateName}
+			cate.Children = append(cate.Children, &subCate)
+
+			subSel2 := node.Find(`.sub-navigation-list>.sub-navigation-list-item`)
+			for k := range subSel2.Nodes {
+				sub2node := subSel2.Eq(k)
+				subnodes2 := sub2node.Find(`.sub-navigation-list-item-link`)
+				subCateName := TrimSpaceNewlineInString(subnodes2.Text())
+				href, _ := c.CanonicalUrl(subnodes2.AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+
+				subCate2 := pbItem.Category{Name: subCateName, Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
 // Parse is the entry to run the spider.
 // ctx is the context of this run. if may contains the shared values in it.
 //   you can alse set some value by context.WithValue().
@@ -124,10 +180,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	if resp.RawUrl().Path == "" || resp.RawUrl().Path == "/" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
-
 		return c.parseCategoryProducts(ctx, resp, yield)
 	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
@@ -142,57 +197,7 @@ func TrimSpaceNewlineInString(s string) string {
 	resp = strings.ReplaceAll(resp, "\r", " ")
 	resp = strings.ReplaceAll(resp, "\t", " ")
 	resp = strings.ReplaceAll(resp, "  ", "")
-	return resp
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	dom, err := resp.Selector()
-
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.top-nav-list-item`)
-	for j := range sel.Nodes {
-		subnode := sel.Eq(j)
-
-		nnctx := context.WithValue(ctx, "Category", TrimSpaceNewlineInString(subnode.Find(`.top-nav-list-item-link span`).Text()))
-
-		subnodes1 := subnode.Find(`.sub-navigation-list>.sub-navigation-list-item`)
-		for k := range subnodes1.Nodes {
-			sub2node := subnodes1.Eq(k)
-
-			subnodes2 := sub2node.Find(`.sub-navigation-list-item-link`)
-			SubCategory := TrimSpaceNewlineInString(subnodes2.Text())
-			//fmt.Println(SubCategory)
-			href := subnodes2.AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-			u, err := url.Parse(href)
-			if err != nil {
-				c.logger.Errorf("parse url %s failed", href)
-				continue
-			}
-
-			if c.categoryPathMatcher.MatchString(u.Path) {
-				// here reset tracing id to distiguish different category crawl
-				// This may exists duplicate requests
-				nctx := context.WithValue(nnctx, "SubCategory", SubCategory)
-				req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-				if err := yield(nctx, req); err != nil {
-					return err
-
-				}
-			}
-		}
-	}
-	return nil
+	return strings.TrimSpace(resp)
 }
 
 // nextIndex used to get the index from the shared data.
