@@ -100,7 +100,7 @@ func serveCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 					}
 					return proxy.NewProxyClient(proxyAddr, jar, logger)
 				}),
-				fx.Provide(newer),
+				fx.Provide(newer.New),
 
 				// Register services
 				fx.Provide(NewCrawlerServer),
