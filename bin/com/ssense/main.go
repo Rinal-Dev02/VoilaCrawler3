@@ -69,7 +69,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	opts := &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
-		EnableSessionInit: true,
+		EnableSessionInit: false,
 		Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
 	}
 	opts.MustCookies = append(opts.MustCookies,
@@ -107,88 +107,61 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
-// Parse is the entry to run the spider.
-// ctx is the context of this run. if may contains the shared values in it.
-//   you can alse set some value by context.WithValue().
-//   but, to be sure that, the key must be string type, and the value must stringable,
-//   as string,int,int32 and so on.
-// resp is the http response, with contains the response data from target url.
-// yield is a callback to emit sub request, or the crawled target object.
-//   if you got an sub url, then you can use http.NewRequest to build a new request
-//   and emit it to spider controller for schedule. the ctx can be used to share the
-//   values between current response and next response.
-//   if you got an product item, then you can just emit it.
-// returns error when there are any errors happened.
-func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	var cates []*pbItem.Category
+	for key, rawurl := range map[string]string{
+		"Men":       "https://www.ssense.com/en-us/men",
+		"Women":     "https://www.ssense.com/en-us/women",
+		"EverThing": "https://www.ssense.com/en-us/everything-else",
+		"Sale":      "https://www.ssense.com/en-us/women/sale",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
+		opts := c.CrawlOptions(req.URL)
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:       true,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableSessionInit,
+			DisableCookieJar:  opts.DisableCookieJar,
+			Reliability:       opts.Reliability,
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
 
-	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-	if p == "/en-us/women" || p == "/en-us/men" || p == "/en-us/everything-else" || p == "/en-us/men/sale" || p == "/everything-else/women/sale" {
-		return c.parseCategories(ctx, resp, yield)
-	}
-	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
+		respBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			c.logger.Error(err)
+			return nil, err
+		}
+		matched := productsExtractReg.FindSubmatch(respBody)
+		if len(matched) <= 1 {
+			return nil, fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
+		}
+		var viewData categoryStructure
+		if err := json.Unmarshal(matched[1], &viewData); err != nil {
+			c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
+			return nil, err
+		}
 
-		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	}
-	return crawler.ErrUnsupportedPath
-}
+		mainCate := pbItem.Category{Name: key}
+		cates = append(cates, &mainCate)
 
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
+		for _, rawcat := range viewData.Products.Facets.Categories {
+			cate := pbItem.Category{Name: rawcat.Name}
+			mainCate.Children = append(mainCate.Children, &cate)
 
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	matched := productsExtractReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		c.logger.Debugf("%s", respBody)
-		return fmt.Errorf("extract products info from %s failed, error=%s", resp.Request.URL, err)
-	}
-
-	var viewData categoryStructure
-	if err := json.Unmarshal(matched[1], &viewData); err != nil {
-		c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
-		return err
-	}
-
-	for _, rawcat := range viewData.Products.Facets.Categories {
-		//fmt.Println(`category `, rawcat.Name)
-		nnctx := context.WithValue(ctx, "Category", rawcat.Name)
-
-		for _, rawsubcat := range rawcat.Children {
-
-			href := resp.Request.URL.String() + "/" + rawsubcat.SeoKeyword
-			if href == "" {
-				continue
-			}
-
-			//fmt.Println(rawsubcat.Name + "  --> " + href)
-			u, err := url.Parse(href)
-			if err != nil {
-				c.logger.Errorf("parse url %s failed", href)
-				continue
-			}
-
-			if c.categoryPathMatcher.MatchString(u.Path) {
-				//here reset tracing id to distiguish different category crawl
-				//This may exists duplicate requests
-				nctx := context.WithValue(nnctx, "SubCategory", rawsubcat.Name)
-				req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-				if err := yield(nctx, req); err != nil {
-					return err
+			for _, rawsubcat := range rawcat.Children {
+				href := resp.Request.URL.String() + "/" + rawsubcat.SeoKeyword
+				if href == "" {
+					continue
 				}
+				subCate := pbItem.Category{Name: rawsubcat.Name, Url: href}
+				cate.Children = append(cate.Children, &subCate)
 			}
 		}
 	}
-	return nil
+	return cates, nil
 }
 
 type categoryStructure struct {
@@ -213,6 +186,36 @@ type categoryStructure struct {
 			} `json:"categories"`
 		} `json:"facets"`
 	} `json:"products"`
+}
+
+// Parse is the entry to run the spider.
+// ctx is the context of this run. if may contains the shared values in it.
+//   you can alse set some value by context.WithValue().
+//   but, to be sure that, the key must be string type, and the value must stringable,
+//   as string,int,int32 and so on.
+// resp is the http response, with contains the response data from target url.
+// yield is a callback to emit sub request, or the crawled target object.
+//   if you got an sub url, then you can use http.NewRequest to build a new request
+//   and emit it to spider controller for schedule. the ctx can be used to share the
+//   values between current response and next response.
+//   if you got an product item, then you can just emit it.
+// returns error when there are any errors happened.
+func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
+	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
+	if p == "/en-us/women" || p == "/en-us/men" || p == "/en-us/everything-else" || p == "/en-us/men/sale" || p == "/everything-else/women/sale" {
+		return crawler.ErrUnsupportedPath
+	}
+	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
+
+		return c.parseProduct(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
+	}
+	return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get the index from the shared data.
