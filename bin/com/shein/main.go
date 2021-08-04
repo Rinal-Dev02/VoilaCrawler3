@@ -629,15 +629,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
-	colorName := ""
-	colorId := ""
+	var (
+		colorId   = ""
+		colorName = ""
+		descs     []string
+	)
 	for _, rowdes := range viewData.Detail.ProductDetails {
 		if rowdes.AttrName == "Color" {
-			colorName = rowdes.AttrValue
 			colorId = rowdes.AttrValueID
-			break
+			colorName = rowdes.AttrValue
 		}
+		descs = append(descs, fmt.Sprintf("%s=%s", rowdes.AttrName, rowdes.AttrValue))
 	}
+	item.Description = item.Description + " " + strings.Join(descs, "; ")
 
 	colorSpec := pbItem.SkuSpecOption{
 		Type:  pbItem.SkuSpecType_SkuSpecColor,
