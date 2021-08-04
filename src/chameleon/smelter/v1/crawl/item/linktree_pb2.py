@@ -22,7 +22,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z$chameleon/smelter/v1/crawl/item;item',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n.chameleon/smelter/v1/crawl/item/linktree.proto\x12\x1f\x63hameleon.smelter.v1.crawl.item\x1a\x1e\x63hameleon/api/media/data.proto\x1a\x1d\x63hameleon/api/http/data.proto\"\xab\x02\n\x08Linktree\x1a\x9e\x02\n\x04Item\x12G\n\x07profile\x18\x05 \x01(\x0b\x32\x36.chameleon.smelter.v1.crawl.item.Linktree.Item.Profile\x12\x42\n\x05links\x18\x06 \x03(\x0b\x32\x33.chameleon.smelter.v1.crawl.item.Linktree.Item.Link\x1a<\n\x07Profile\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06\x61vatar\x18\x03 \x01(\t\x12\x13\n\x0blinktreeUrl\x18\x0b \x01(\t\x1aK\n\x04Link\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05title\x18\x02 \x01(\t\x12\x0b\n\x03url\x18\x03 \x01(\t\x12\x0c\n\x04icon\x18\x06 \x01(\t\x12\r\n\x05style\x18\x07 \x01(\tB&Z$chameleon/smelter/v1/crawl/item;itemb\x06proto3'
+  serialized_pb=b'\n.chameleon/smelter/v1/crawl/item/linktree.proto\x12\x1f\x63hameleon.smelter.v1.crawl.item\x1a\x1e\x63hameleon/api/media/data.proto\x1a\x1d\x63hameleon/api/http/data.proto\"\xdc\x03\n\x08Linktree\x1a\xcf\x03\n\x04Item\x12G\n\x07profile\x18\x05 \x01(\x0b\x32\x36.chameleon.smelter.v1.crawl.item.Linktree.Item.Profile\x12\x42\n\x05links\x18\x06 \x03(\x0b\x32\x33.chameleon.smelter.v1.crawl.item.Linktree.Item.Link\x12N\n\x0bsocialLinks\x18\x07 \x03(\x0b\x32\x39.chameleon.smelter.v1.crawl.item.Linktree.Item.SocialLink\x1aW\n\x07Profile\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06\x61vatar\x18\x03 \x01(\t\x12\r\n\x05\x65mail\x18\x08 \x01(\t\x12\x13\n\x0blinktreeUrl\x18\x0b \x01(\t\x1aY\n\x04Link\x12\n\n\x02id\x18\x01 \x01(\t\x12\r\n\x05title\x18\x02 \x01(\t\x12\x0b\n\x03url\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\x0c\n\x04icon\x18\x06 \x01(\t\x12\r\n\x05style\x18\x07 \x01(\t\x1a\x36\n\nSocialLink\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\r\n\x05title\x18\x03 \x01(\t\x12\x0b\n\x03url\x18\x04 \x01(\tB&Z$chameleon/smelter/v1/crawl/item;itemb\x06proto3'
   ,
   dependencies=[chameleon_dot_api_dot_media_dot_data__pb2.DESCRIPTOR,chameleon_dot_api_dot_http_dot_data__pb2.DESCRIPTOR,])
 
@@ -38,21 +38,35 @@ _LINKTREE_ITEM_PROFILE = _descriptor.Descriptor(
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='name', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Profile.name', index=0,
+      name='id', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Profile.id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='name', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Profile.name', index=1,
       number=2, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='avatar', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Profile.avatar', index=1,
+      name='avatar', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Profile.avatar', index=2,
       number=3, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='linktreeUrl', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Profile.linktreeUrl', index=2,
+      name='email', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Profile.email', index=3,
+      number=8, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='linktreeUrl', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Profile.linktreeUrl', index=4,
       number=11, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -70,8 +84,8 @@ _LINKTREE_ITEM_PROFILE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=309,
-  serialized_end=369,
+  serialized_start=389,
+  serialized_end=476,
 )
 
 _LINKTREE_ITEM_LINK = _descriptor.Descriptor(
@@ -104,14 +118,21 @@ _LINKTREE_ITEM_LINK = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='icon', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Link.icon', index=3,
+      name='type', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Link.type', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='icon', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Link.icon', index=4,
       number=6, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='style', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Link.style', index=4,
+      name='style', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.Link.style', index=5,
       number=7, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -129,8 +150,53 @@ _LINKTREE_ITEM_LINK = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=371,
-  serialized_end=446,
+  serialized_start=478,
+  serialized_end=567,
+)
+
+_LINKTREE_ITEM_SOCIALLINK = _descriptor.Descriptor(
+  name='SocialLink',
+  full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.SocialLink',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='type', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.SocialLink.type', index=0,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='title', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.SocialLink.title', index=1,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='url', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.SocialLink.url', index=2,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=569,
+  serialized_end=623,
 )
 
 _LINKTREE_ITEM = _descriptor.Descriptor(
@@ -155,10 +221,17 @@ _LINKTREE_ITEM = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='socialLinks', full_name='chameleon.smelter.v1.crawl.item.Linktree.Item.socialLinks', index=2,
+      number=7, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
-  nested_types=[_LINKTREE_ITEM_PROFILE, _LINKTREE_ITEM_LINK, ],
+  nested_types=[_LINKTREE_ITEM_PROFILE, _LINKTREE_ITEM_LINK, _LINKTREE_ITEM_SOCIALLINK, ],
   enum_types=[
   ],
   serialized_options=None,
@@ -168,7 +241,7 @@ _LINKTREE_ITEM = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=160,
-  serialized_end=446,
+  serialized_end=623,
 )
 
 _LINKTREE = _descriptor.Descriptor(
@@ -192,13 +265,15 @@ _LINKTREE = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=147,
-  serialized_end=446,
+  serialized_end=623,
 )
 
 _LINKTREE_ITEM_PROFILE.containing_type = _LINKTREE_ITEM
 _LINKTREE_ITEM_LINK.containing_type = _LINKTREE_ITEM
+_LINKTREE_ITEM_SOCIALLINK.containing_type = _LINKTREE_ITEM
 _LINKTREE_ITEM.fields_by_name['profile'].message_type = _LINKTREE_ITEM_PROFILE
 _LINKTREE_ITEM.fields_by_name['links'].message_type = _LINKTREE_ITEM_LINK
+_LINKTREE_ITEM.fields_by_name['socialLinks'].message_type = _LINKTREE_ITEM_SOCIALLINK
 _LINKTREE_ITEM.containing_type = _LINKTREE
 DESCRIPTOR.message_types_by_name['Linktree'] = _LINKTREE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
@@ -220,6 +295,13 @@ Linktree = _reflection.GeneratedProtocolMessageType('Linktree', (_message.Messag
       # @@protoc_insertion_point(class_scope:chameleon.smelter.v1.crawl.item.Linktree.Item.Link)
       })
     ,
+
+    'SocialLink' : _reflection.GeneratedProtocolMessageType('SocialLink', (_message.Message,), {
+      'DESCRIPTOR' : _LINKTREE_ITEM_SOCIALLINK,
+      '__module__' : 'chameleon.smelter.v1.crawl.item.linktree_pb2'
+      # @@protoc_insertion_point(class_scope:chameleon.smelter.v1.crawl.item.Linktree.Item.SocialLink)
+      })
+    ,
     'DESCRIPTOR' : _LINKTREE_ITEM,
     '__module__' : 'chameleon.smelter.v1.crawl.item.linktree_pb2'
     # @@protoc_insertion_point(class_scope:chameleon.smelter.v1.crawl.item.Linktree.Item)
@@ -233,6 +315,7 @@ _sym_db.RegisterMessage(Linktree)
 _sym_db.RegisterMessage(Linktree.Item)
 _sym_db.RegisterMessage(Linktree.Item.Profile)
 _sym_db.RegisterMessage(Linktree.Item.Link)
+_sym_db.RegisterMessage(Linktree.Item.SocialLink)
 
 
 DESCRIPTOR._options = None
