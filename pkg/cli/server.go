@@ -215,7 +215,13 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 			if v, err := marshalAny(val.Index(i)); err != nil {
 				return nil, pbError.ErrInvalidArgument.New(err)
 			} else {
-				ret.Data = append(ret.Data, v)
+				ret.Data = append(ret.Data, &pbCrawl.Item{
+					Timestamp: time.Now().UnixNano() / 1000000,
+					SiteId:    req.GetSiteId(),
+					JobId:     req.GetJobId(),
+					Index:     int32(i),
+					Data:      v,
+				})
 			}
 		}
 		return &ret, nil
@@ -223,7 +229,14 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 		if v, err := marshalAny(val); err != nil {
 			return nil, pbError.ErrInvalidArgument.New(err)
 		} else {
-			return &pbCrawl.CallResponse{Data: []*anypb.Any{v}}, nil
+			item := &pbCrawl.Item{
+				Timestamp: time.Now().UnixNano() / 1000000,
+				SiteId:    req.GetSiteId(),
+				JobId:     req.GetJobId(),
+				Index:     1,
+				Data:      v,
+			}
+			return &pbCrawl.CallResponse{Data: []*pbCrawl.Item{item}}, nil
 		}
 	default:
 		return nil, pbError.ErrInternal.New("unsuported returned value")
