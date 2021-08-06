@@ -17,6 +17,7 @@ import (
 	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
 	"github.com/voiladev/go-framework/text"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
@@ -160,6 +161,11 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 		return nil, pbError.ErrPermissionDenied.New(fmt.Sprintf(`private method "%s" is not callable`, req.GetMethod()))
 	}
 
+	shareCtx := context.WithValue(ctx, crawler.TracingIdKey, req.GetTracingId())
+	shareCtx = context.WithValue(shareCtx, crawler.JobIdKey, req.GetJobId())
+	shareCtx = context.WithValue(shareCtx, crawler.ReqIdKey, randutil.MustNewRandomID())
+	shareCtx = context.WithValue(shareCtx, crawler.SiteIdKey, s.crawler.ID())
+
 	cw := reflect.ValueOf(s.crawler)
 	if !cw.Type().Implements(productCrawlerType) {
 		return nil, pbError.ErrUnimplemented.New(fmt.Sprintf(`method "%s" unimplemented or is not callable`, req.GetMethod()))
@@ -188,9 +194,9 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 	switch inArgCount {
 	case 0:
 	case 1:
-		inputs = append(inputs, reflect.ValueOf(ctx))
+		inputs = append(inputs, reflect.ValueOf(shareCtx))
 	case 2:
-		inputs = append(inputs, reflect.ValueOf(ctx), reflect.ValueOf(req.GetInput()))
+		inputs = append(inputs, reflect.ValueOf(shareCtx), reflect.ValueOf(req.GetInput()))
 	}
 
 	vals := caller.Call(inputs)
@@ -206,7 +212,7 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 
 	val := vals[0]
 	switch val.Kind() {
-	case reflect.Array:
+	case reflect.Slice, reflect.Array:
 		var (
 			size = val.Len()
 			ret  pbCrawl.CallResponse
@@ -239,6 +245,7 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 			return &pbCrawl.CallResponse{Data: []*pbCrawl.Item{item}}, nil
 		}
 	default:
+		s.logger.Debugf("%v %v", val.Interface(), val.Kind())
 		return nil, pbError.ErrInternal.New("unsuported returned value")
 	}
 }
