@@ -59,7 +59,7 @@ func (c *_Crawler) Version() int32 {
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
-	options.Reliability = pbProxy.ProxyReliability_ReliabilityLow
+	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
 	options.MustHeader.Add("User-Agent", "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")
 	options.MustCookies = append(options.MustCookies,
 		&http.Cookie{Name: "currencyOverride", Value: "USD"},
@@ -396,6 +396,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 	if item.Description == "" {
 		item.Description = strings.TrimSpace(doc.Find(`.product-details__description`).Text())
@@ -499,8 +500,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			if quantity > 0 {
-				sku.Stock.StockStatus = pbItem.Stock_InStock
 				sku.Stock.StockCount = int32(quantity)
+				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
 			}
 
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
