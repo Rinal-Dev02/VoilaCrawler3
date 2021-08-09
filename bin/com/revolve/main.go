@@ -161,18 +161,15 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
 	if resp.CurrentUrl().Path == "/VerifyHuman.jsp" {
 		return errors.New("access denied, google reCaptcha found")
 	}
 
-	if p == "/women" || p == "/mens" || p == "/" || p == "" {
-		return crawler.ErrUnsupportedPath
-	}
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	p := resp.RawUrl().Path
+	if c.productPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(p) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
