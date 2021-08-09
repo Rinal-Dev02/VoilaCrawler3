@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -273,6 +274,18 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 	if err != nil {
 		logger.Error(err)
 		return err
+	}
+
+	if !func() bool {
+		for _, domain := range s.crawler.AllowedDomains() {
+			if matched, _ := filepath.Match(domain, req.URL.Hostname()); matched {
+				return true
+			}
+		}
+		return false
+	}() {
+		logger.Infof("Access %s aborted", rawreq.GetUrl())
+		return crawler.ErrAbort
 	}
 
 	opts := s.crawler.CrawlOptions(req.URL)
