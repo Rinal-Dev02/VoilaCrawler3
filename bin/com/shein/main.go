@@ -614,6 +614,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Rating:      float32(rating),
 		},
 	}
+	if item.BrandName == "" {
+		item.BrandName = "SHEIN"
+	}
 	item.CrowdType = viewData.ParentCats.CatName
 	item.Category = viewData.ParentCats.CatName
 	if len(viewData.ParentCats.Children) > 0 {
