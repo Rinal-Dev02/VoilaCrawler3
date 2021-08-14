@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io/ioutil"
@@ -103,20 +104,152 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+type NavigationItem struct {
+	ItemId          string            `json:"itemId"`
+	Displayname     string            `json:"displayName"`
+	TypeCode        string            `json:"typeCode"`
+	NestLevel       int32             `json:"nestLevel"`
+	Slug            string            `json:"slug"`
+	NavigationItems []*NavigationItem `json:"navigationItems"`
+}
+
+type categoryStructure struct {
+	NavigationItems []*NavigationItem `json:"navigationItems"`
+}
+
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.urbanoutfitters.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    false,
+		EnableSessionInit: true,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var token string
+	for _, cookie := range resp.Cookies() {
+		if cookie.Name == "urbn_auth_payload" {
+			cookie.Value, err = url.QueryUnescape(cookie.Value)
+			if err != nil {
+				c.logger.Errorf("decode auth token failed, error=%s", err)
+				continue
+			}
+			var payload struct {
+				AuthToken string `json:"authToken"`
+			}
+			if err := json.Unmarshal([]byte(cookie.Value), &payload); err != nil {
+				c.logger.Errorf("extract auth token from cookie %s failed", payload.AuthToken)
+				continue
+			}
+			token = payload.AuthToken
+			break
+		}
+	}
+	if token == "" {
+		return nil, errors.New("no auth token found")
+	}
+
+	rootUrl := "https://www.urbanoutfitters.com/api/catalog/v0/uo-us/navigation?slug=shopping-root&projection-slug=navdepth3"
+	req, _ = http.NewRequest(http.MethodGet, rootUrl, nil)
+	req.Header.Set("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+	req.Header.Set("accept", "application/json, text/plain, */*")
+	req.Header.Set("referer", "https://www.urbanoutfitters.com/")
+	req.Header.Set("authorization", "Bearer "+token)
+	req.Header.Set("x-urbn-channel", "web")
+	req.Header.Set("x-urbn-country", "US")
+	req.Header.Set("x-urbn-currency", "USD")
+	req.Header.Set("x-urbn-experience", "ss")
+	req.Header.Set("x-urbn-geo-region", "US-NV")
+	req.Header.Set("x-urbn-language", "en-US")
+	req.Header.Set("x-urbn-primary-data-center-id", "US-NV")
+	req.Header.Set("x-urbn-site-id", "uo-us")
+	opts = c.CrawlOptions(req.URL)
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	resp, err = c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    false,
+		EnableSessionInit: false,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var viewData categoryStructure
+	if err := json.NewDecoder(resp.Body).Decode(&viewData); err != nil {
+		c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	for _, rawCate := range viewData.NavigationItems {
+		for _, rawCate1 := range rawCate.NavigationItems {
+			subCate := pbItem.Category{
+				Name: rawCate1.Displayname,
+			}
+			cates = append(cates, &subCate)
+			if rawCate1.Slug != "" {
+				subCate.Url = "https://www.urbanoutfitters.com/" + rawCate1.Slug
+			}
+
+			for _, rawCate2 := range rawCate1.NavigationItems {
+				if len(rawCate2.NavigationItems) == 0 && rawCate2.Slug == "" {
+					continue
+				}
+				subCate2 := pbItem.Category{
+					Name: rawCate2.Displayname,
+				}
+				subCate.Children = append(subCate.Children, &subCate2)
+				if rawCate2.Slug != "" {
+					subCate2.Url = "https://www.urbanoutfitters.com/" + rawCate2.Slug
+				}
+
+				for _, rawCate3 := range rawCate2.NavigationItems {
+					if len(rawCate2.NavigationItems) == 0 && rawCate2.Slug == "" {
+						continue
+					}
+					subCate3 := pbItem.Category{
+						Name: rawCate3.Displayname,
+					}
+					subCate2.Children = append(subCate2.Children, &subCate3)
+					if rawCate3.Slug != "" {
+						subCate3.Url = "https://www.urbanoutfitters.com/" + rawCate3.Slug
+					}
+				}
+			}
+		}
+	}
+	return cates, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
 	}
 
 	if resp.Request.URL.Path == "/unsupported" {
-		return fmt.Errorf("invalud request url")
+		return crawler.ErrUnsupportedPath
 	}
-
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
-
 	if p == "" || p == "/womens-clothing" || p == "/mens-clothing" || p == "/home" ||
 		p == "/lifestyle" || p == "/beauty-products" || p == "/sale" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
 	if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
@@ -127,117 +260,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategoryJsonProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-type categoryStructure struct {
-	Navigationitems []struct {
-		Displayname     string `json:"displayName"`
-		Navigationitems []struct {
-			Displayname string `json:"displayName"`
-			Slug        string `json:"slug"`
-		} `json:"navigationItems"`
-	} `json:"navigationItems"`
-}
-
-var authExtractReg = regexp.MustCompile(`(?U)authToken%22%3A%22(.*)%22`)
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-	s := []string{}
-
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-	if p == "" {
-		sel := dom.Find(`.c-pwa-header-navigation__item`)
-		for i := range sel.Nodes {
-			node := sel.Eq(i)
-			href := "https://www.urbanoutfitters.com/api/catalog/v0/uo-us/navigation?slug=" + node.AttrOr("data-nav-slug", "") + "&projection-slug=navdepth2"
-			s = append(s, href)
-		}
-	}
-
-	if p == "/womens-clothing" || p == "/mens-clothing" || p == "/home" || p == "/lifestyle" || p == "/beauty-products" || p == "/sale" {
-		href := "https://www.urbanoutfitters.com/api/catalog/v0/uo-us/navigation?slug=" + strings.TrimPrefix(p, "/") + "&projection-slug=navdepth2"
-		s = append(s, href)
-	}
-
-	cookie := resp.Response.Header
-
-	urbn_auth_payload := authExtractReg.FindSubmatch([]byte(strings.Join(cookie.Values(`Set-Cookie`), ";")))
-
-	for _, catUrl := range s {
-
-		req, err := http.NewRequest(http.MethodGet, catUrl, nil)
-		req.Header.Add("accept", "application/json, text/plain, */*")
-
-		req.Header.Add("authorization", "Bearer "+string(urbn_auth_payload[1]))
-		req.Header.Add("referer", "https://www.urbanoutfitters.com/")
-		req.Header.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
-		req.Header.Add("x-urbn-channel", "web")
-		req.Header.Add("x-urbn-language", "en-US")
-
-		catreq, err := c.httpClient.Do(ctx, req)
-		if err != nil {
-			panic(err)
-		}
-		defer catreq.Body.Close()
-
-		catBody, err := ioutil.ReadAll(catreq.Body)
-		if err != nil {
-			c.logger.Error(err)
-			return err
-		}
-
-		var viewData categoryStructure
-		if err := json.Unmarshal(catBody, &viewData); err != nil {
-			c.logger.Errorf("unmarshal cat detail data fialed, error=%s", err)
-			return err
-		}
-
-		for _, rawCat := range viewData.Navigationitems {
-
-			cateName := rawCat.Displayname
-			if cateName == "" {
-				continue
-			}
-			nnctx := context.WithValue(ctx, "Category", cateName)
-			fmt.Println(`cateName `, cateName)
-			for _, rawsubCat := range rawCat.Navigationitems {
-
-				href := "https://www.urbanoutfitters.com/" + rawsubCat.Slug
-				if rawsubCat.Slug == "" {
-					continue
-				}
-
-				_, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := rawsubCat.Displayname
-				fmt.Println(subCateName)
-				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-				req, _ := http.NewRequest(http.MethodGet, href, nil)
-				if err := yield(nnnctx, req); err != nil {
-					return err
-				}
-			}
-		}
-	}
-	return nil
 }
 
 // nextIndex used to get sharingData from context
