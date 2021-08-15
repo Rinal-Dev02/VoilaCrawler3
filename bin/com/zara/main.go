@@ -87,6 +87,9 @@ func (c *_Crawler) AllowedDomains() []string {
 }
 
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	if rawurl == "" || rawurl == "#" {
+		return "", nil
+	}
 	u, err := url.Parse(rawurl)
 	if err != nil {
 		return "", err
@@ -104,6 +107,92 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		return u.String(), nil
 	}
 	return u.String(), nil
+}
+
+// GetCategories
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.zara.com/us/", nil)
+	opts := c.CrawlOptions(req.URL)
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+
+	sel := dom.Find(`.layout-categories__container>li.layout-categories-category--level-1`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" || strings.ToLower(cateName) == "join life" || strings.ToLower(cateName) == "+ info" {
+			continue
+		}
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		subSel1 := node.Find(`.layout-categories-category--level-2`)
+		for k := range subSel1.Nodes {
+			subNode1 := subSel1.Eq(k)
+			href, _ := c.CanonicalUrl(subNode1.Find(`a`).AttrOr("href", ""))
+			subCateName := strings.TrimSpace(subNode1.Find(`a`).First().First().Text())
+			if strings.ToLower(subCateName) == "about" || strings.ToLower(subCateName) == "stories" ||
+				strings.ToLower(subCateName) == "vr store" || strings.ToLower(subCateName) == "stores" {
+				continue
+			}
+			subCate := pbItem.Category{Name: subCateName, Url: href}
+
+			var lastSubCate2 *pbItem.Category
+			subSel2 := subNode1.Find(`ul.layout-categories-category__subcategory`).Children()
+			for l := range subSel2.Nodes {
+				subNode2 := subSel2.Eq(l)
+
+				subSel3 := subNode2.Find("li")
+				if len(subSel3.Nodes) > 0 {
+					for m := range subSel3.Nodes {
+						subNode3 := subSel3.Eq(m)
+						subCate3Name := strings.TrimSpace(subNode3.Find(`a`).First().Text())
+						href, _ := c.CanonicalUrl(subNode3.Find(`a`).AttrOr("href", ""))
+						if href == "" {
+							continue
+						}
+						u, _ := url.Parse(href)
+						if c.categoryPathMatcher.MatchString(u.Path) {
+							subCate3 := pbItem.Category{Name: subCate3Name, Url: href}
+							lastSubCate2.Children = append(lastSubCate2.Children, &subCate3)
+						}
+					}
+				} else {
+					if lastSubCate2 != nil && len(lastSubCate2.Children) > 0 {
+						subCate.Children = append(subCate.Children, lastSubCate2)
+					}
+					subCate2Name := strings.TrimSpace(subNode2.Find("a").First().Text())
+					href, _ := c.CanonicalUrl(subNode2.Find("a").First().AttrOr("href", ""))
+					lastSubCate2 = &pbItem.Category{Name: subCate2Name, Url: href}
+				}
+			}
+
+			if len(subCate.Children) > 0 {
+				cate.Children = append(cate.Children, &subCate)
+			}
+		}
+	}
+	return cates, nil
 }
 
 // Parse is the entry to run the spider.
@@ -124,102 +213,15 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
-	if p == "/us" {
-		return c.parseCategories(ctx, resp, yield)
+	if p == "" || p == "/us" {
+		return crawler.ErrUnsupportedPath
 	}
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.productPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.layout-categories__container>li`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
-		if cateName == "" {
-			continue
-		}
-
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subSel1 := node.Find(`.layout-categories-category--level-2`)
-
-		for k := range subSel1.Nodes {
-			subNode1 := subSel1.Eq(k)
-			subCat1 := strings.TrimSpace(subNode1.Find(`a`).First().Text())
-
-			subSel2 := subNode1.Find(`li`)
-			for l := range subSel2.Nodes {
-				subNode2 := subSel2.Eq(l)
-				subCat2 := strings.TrimSpace(subNode2.Find(`a`).First().Text())
-
-				href := subNode2.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subCat1 + " > " + subCat2
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-
-			if len(subSel2.Nodes) == 0 {
-
-				subCat1 := strings.TrimSpace(subNode1.Find(`a`).First().Text())
-
-				href := subNode1.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory", subCat1)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
-				}
-			}
-		}
-	}
-	return nil
 }
 
 // nextIndex used to get the index from the shared data.
