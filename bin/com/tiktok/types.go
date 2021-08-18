@@ -281,7 +281,7 @@ type PropDataV1 struct {
 					Type       string `json:"type"`
 				} `json:"header"`
 			} `json:"pageOptions"`
-			Items               []TiktokItem `json:"items"`
+			Items               []TiktokItem `json:"videoData"`
 			VideoListHasMore    bool         `json:"videoListHasMore"`
 			VideoListMaxCursor  int64        `json:"videoListMaxCursor"`
 			VideoListMinCursor  int64        `json:"videoListMinCursor"`
