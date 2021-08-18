@@ -303,8 +303,11 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 		return err
 	}
 	if resp.Body == nil {
-		logger.Error("no response got %d", resp.StatusCode)
-		return errors.New("no response got")
+		if resp.StatusCode != http.StatusOK {
+			logger.Errorf("no response got status: %d", resp.StatusCode)
+			return errors.New("no response got")
+		}
+		return crawler.ErrAbort
 	}
 
 	err = s.crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
