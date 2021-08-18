@@ -35,7 +35,10 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
+
 type _Crawler struct {
+	tiktokApiAddr string
 	crawler.MustImplementCrawler
 	httpClient  http.Client
 	rhttpClient *rhttp.Client
@@ -62,8 +65,9 @@ func (_ *_Crawler) New(c *cli.Context, httpClient http.Client, logger glog.Log) 
 	}
 
 	cw := _Crawler{
-		s3Client:   s3Client,
-		httpClient: httpClient,
+		tiktokApiAddr: c.String("tiktok-api-addr"),
+		s3Client:      s3Client,
+		httpClient:    httpClient,
 		rhttpClient: &rhttp.Client{
 			Transport: &rhttp.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
 		},
@@ -93,9 +97,15 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
-	options.MustHeader.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	if strings.TrimSuffix(u.Path, "/") == "/api/post/item_list" {
+		options.MustHeader.Set("Accept", "application/json, text/plain, */*")
+	} else {
+		options.MustHeader.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	}
 	options.MustHeader.Set("Accept-Charset", "UTF-8,*;q=0.5")
 	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
+	options.MustHeader.Set("User-Agent", userAgent)
+
 	// options.MustCookies = append(options.MustCookies)
 	return options
 }
@@ -432,42 +442,78 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 
 	if interData.Props.PageProps.VideoListHasMore {
 		u, _ := url.Parse("https://m.tiktok.com/api/post/item_list/")
-		userAgent := "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.74 Safari/537.36 Edg/79.0.309.43"
 		vals := u.Query()
 		vals.Set("aid", "1988")
 		vals.Set("app_name", "tiktok_web")
 		vals.Set("device_platform", "web")
 		refererUrl := resp.Request.URL
-		vals.Set("referer", refererUrl.String())
+		vals.Set("referer", "")
 		refererUrl.RawQuery = ""
-		vals.Set("root_referer", refererUrl.String()+"?")
-		vals.Set("user_agent", userAgent)
+		vals.Set("root_referer", "")
+		// vals.Set("user_agent", userAgent)
 		vals.Set("cookie_enabled", "true")
 		vals.Set("screen_width", "1920")
 		vals.Set("screen_height", "1080")
 		vals.Set("browser_language", "en-US")
 		vals.Set("browser_platform", "WindowsIntel")
 		vals.Set("browser_name", "Mozilla")
-		vals.Set("browser_version", "5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.74 Safari/537.36 Edg/79.0.309.43")
+		vals.Set("browser_version", "5.0 (iPhone; CPU iPhone OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1")
 		vals.Set("browser_online", "true")
-		vals.Set("ac", "4g")
+		// vals.Set("ac", "4g")
 		vals.Set("timezone_name", "America/Chicago")
-		vals.Set("page_referer", refererUrl.String()+"?")
+		// vals.Set("page_referer", refererUrl.String()+"?")
 		vals.Set("priority_region", "")
-		vals.Set("appId", "1233")
 		vals.Set("region", "US")
-		vals.Set("appType", "m")
-		vals.Set("isAndroid", "false")
-		vals.Set("isMobile", "false")
-		vals.Set("isIOS", "false")
-		vals.Set("OS", "windows")
-		vals.Set("did", interData.Props.InitialProps.Wid)
+		// vals.Set("appType", "m")
+		// vals.Set("isAndroid", "false")
+		// vals.Set("isMobile", "false")
+		// vals.Set("isIOS", "false")
+		// vals.Set("OS", "windows")
+		vals.Set("device_id", interData.Props.InitialProps.Wid)
 		vals.Set("count", "30")
 		vals.Set("cursor", strconv.Format(interData.Props.PageProps.VideoListMaxCursor))
 		vals.Set("secUid", interData.Props.PageProps.UserInfo.User.SecUID)
 		vals.Set("language", "en")
-
 		u.RawQuery = vals.Encode()
+
+		{
+			// connect to tiktok server
+			signReq, _ := rhttp.NewRequestWithContext(ctx, http.MethodGet, c.tiktokApiAddr, nil)
+			signVals := signReq.URL.Query()
+			signVals.Set("url", u.String())
+			signVals.Set("custom_device_id", interData.Props.InitialProps.Wid)
+			signReq.URL.RawQuery = signVals.Encode()
+
+			signresp, err := rhttp.DefaultClient.Do(signReq)
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			defer signresp.Body.Close()
+
+			data, err := io.ReadAll(signresp.Body)
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			c.logger.Debugf("%s", data)
+
+			var ret struct {
+				Signature string `json:"_signature"`
+				DeviceId  string `json:"device_id"`
+				Referrer  string `json:"referrer"`
+				UserAgent string `json:"userAgent"`
+				VerifyFp  string `json:"verifyFp"`
+			}
+			if err := json.Unmarshal(data, &ret); err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			vals.Set("verifyFp", ret.VerifyFp)
+			vals.Set("_signature", ret.Signature)
+			u.RawQuery = vals.Encode()
+		}
+
 		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 		req.Header.Set("Referer", resp.Request.URL.String())
 
@@ -594,8 +640,48 @@ func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Re
 	if respData.HasMore {
 		u := *resp.Request.URL
 		vals := u.Query()
+		vals.Del("verifyFp")
+		vals.Del("_signature")
 		vals.Set("cursor", strconv.Format(respData.Cursor))
 		u.RawQuery = vals.Encode()
+
+		{
+			// connect to tiktok server
+			signReq, _ := rhttp.NewRequestWithContext(ctx, http.MethodGet, c.tiktokApiAddr, nil)
+			signVals := signReq.URL.Query()
+			signVals.Set("url", u.String())
+			signVals.Set("custom_device_id", vals.Get("device_id"))
+			signReq.URL.RawQuery = signVals.Encode()
+
+			signresp, err := rhttp.DefaultClient.Do(signReq)
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			defer signresp.Body.Close()
+
+			data, err := io.ReadAll(signresp.Body)
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			c.logger.Debugf("%s", data)
+
+			var ret struct {
+				Signature string `json:"_signature"`
+				DeviceId  string `json:"device_id"`
+				Referrer  string `json:"referrer"`
+				UserAgent string `json:"userAgent"`
+				VerifyFp  string `json:"verifyFp"`
+			}
+			if err := json.Unmarshal(data, &ret); err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			vals.Set("verifyFp", ret.VerifyFp)
+			vals.Set("_signature", ret.Signature)
+			u.RawQuery = vals.Encode()
+		}
 
 		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
 		if resp.Request.Header.Get("Referer") != "" {
@@ -844,5 +930,6 @@ func main() {
 	app.NewApp(&_Crawler{},
 		&cli.StringFlag{Name: "s3-addr", Usage: "s3 sever address", Value: "172.31.141.244:30931"},
 		&cli.StringFlag{Name: "s3-bucket", Usage: "s3 bucket name", Value: "voila-downloads"},
+		&cli.StringFlag{Name: "tiktok-api-addr", Usage: "Tiktok api server", Value: "http://127.0.0.1:5000"},
 	).Run(os.Args)
 }
