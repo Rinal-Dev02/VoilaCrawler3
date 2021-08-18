@@ -303,7 +303,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 		return err
 	}
 	if resp.Body == nil {
-		logger.Error("no response got")
+		logger.Error("no response got %d", resp.StatusCode)
 		return errors.New("no response got")
 	}
 

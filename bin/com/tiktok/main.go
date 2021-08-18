@@ -207,6 +207,7 @@ func (c *_Crawler) persistentResource(ctx context.Context, name string, rawurl s
 	if rawurl == "" {
 		return "", errors.New("invalid rawurl")
 	}
+
 	req, err := rhttp.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
 	if err != nil {
 		c.logger.Errorf("create request from url %s failed, error=%s", rawurl, err)
@@ -380,6 +381,7 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 	authData, _ := protojson.Marshal(&auth)
 	ctx = context.WithValue(ctx, "author", fmt.Sprintf("%s", authData))
 	lastIndex := nextIndex(ctx)
+
 	for _, prop := range interData.Props.PageProps.Items {
 		item := pbItem.Tiktok_Item{
 			Source: &pbItem.Tiktok_Source{},
@@ -490,6 +492,8 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 				return err
 			}
 			defer signresp.Body.Close()
+			if signresp.StatusCode != http.StatusOK {
+			}
 
 			data, err := io.ReadAll(signresp.Body)
 			if err != nil {
@@ -904,8 +908,9 @@ func (c *_Crawler) download(ctx context.Context, resp *http.Response, yield inte
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range [][2]string{
 		// "https://www.tiktok.com/@yessicarodriguez1023?lang=en",
-		{"https://www.tiktok.com/@willsmith?lang=en", protoutil.GetTypeUrl(&pbItem.Tiktok_Author{})},
-		{"https://www.tiktok.com/@willsmith?lang=en", protoutil.GetTypeUrl(&pbItem.Tiktok_Item{})},
+		// {"https://www.tiktok.com/@willsmith?lang=en", protoutil.GetTypeUrl(&pbItem.Tiktok_Author{})},
+		// {"https://www.tiktok.com/@willsmith?lang=en", protoutil.GetTypeUrl(&pbItem.Tiktok_Item{})},
+		{"https://www.tiktok.com/@billieeilish?lang=en", protoutil.GetTypeUrl(&pbItem.Tiktok_Item{})},
 		// "https://vm.tiktok.com/ZScNvr6C/",
 		// "https://www.tiktok.com/@kasey.jo.gerst/video/6923743895247506693?sender_device=mobile&sender_web_id=6926525695457117698&is_from_webapp=v2&is_copy_url=0",
 	} {
