@@ -933,7 +933,7 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
 	app.NewApp(&_Crawler{},
-		&cli.StringFlag{Name: "s3-addr", Usage: "s3 sever address", Value: "172.31.141.244:30931"},
+		&cli.StringFlag{Name: "s3-addr", Usage: "s3 sever address", Value: "10.170.0.4:32164"},
 		&cli.StringFlag{Name: "s3-bucket", Usage: "s3 bucket name", Value: "voila-downloads"},
 		&cli.StringFlag{Name: "tiktok-api-addr", Usage: "Tiktok api server", Value: "http://127.0.0.1:5000"},
 	).Run(os.Args)
