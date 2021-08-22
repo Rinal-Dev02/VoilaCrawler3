@@ -322,6 +322,15 @@ func (c *_Crawler) parseOpenGraph(ctx context.Context, req *http.Request) (*pbIt
 			}
 		}
 	}
+
+	// feat: added support of brand fetch
+	if item.Title != "" {
+		fields := strings.Split(item.Title, " | ")
+		lastField := fields[len(fields)-1]
+		if len(fields) > 1 && len(lastField) < 20 {
+			item.BrandName = lastField
+		}
+	}
 	return &item, nil
 }
 
