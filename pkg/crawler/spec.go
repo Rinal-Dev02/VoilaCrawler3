@@ -52,6 +52,9 @@ type CrawlOptions struct {
 
 	// ProxyReliability
 	Reliability proxy.ProxyReliability
+
+	// SkipDoRequest if this option is enabled, the dispatcher will directly call Parse without do http request
+	SkipDoRequest bool
 }
 
 func (opts *CrawlOptions) Unmarshal(ret interface{}) error {

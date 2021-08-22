@@ -332,6 +332,11 @@ class UserManagerStub(object):
                 request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.UpdateUserRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
+        self.UpdateField = channel.unary_unary(
+                '/chameleon.security.identity.UserManager/UpdateField',
+                request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.UpdateUserFieldRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                )
         self.GetRoles = channel.unary_unary(
                 '/chameleon.security.identity.UserManager/GetRoles',
                 request_serializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.GetUserRolesRequest.SerializeToString,
@@ -434,6 +439,13 @@ class UserManagerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def UpdateField(self, request, context):
+        """更新用户指定字段信息
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def GetRoles(self, request, context):
         """获得用户角色列表
         """
@@ -522,6 +534,11 @@ def add_UserManagerServicer_to_server(servicer, server):
             'Update': grpc.unary_unary_rpc_method_handler(
                     servicer.Update,
                     request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.UpdateUserRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'UpdateField': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateField,
+                    request_deserializer=chameleon_dot_security_dot_identity_dot_service__message__pb2.UpdateUserFieldRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
             'GetRoles': grpc.unary_unary_rpc_method_handler(
@@ -714,6 +731,23 @@ class UserManager(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.UserManager/Update',
             chameleon_dot_security_dot_identity_dot_service__message__pb2.UpdateUserRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def UpdateField(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.identity.UserManager/UpdateField',
+            chameleon_dot_security_dot_identity_dot_service__message__pb2.UpdateUserFieldRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

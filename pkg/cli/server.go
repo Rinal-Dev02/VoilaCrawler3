@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	rhttp "net/http"
 	"net/url"
 	"path/filepath"
 	"reflect"
@@ -156,7 +157,7 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 	if req.GetMethod() == "" {
 		return nil, pbError.ErrInvalidArgument.New(`method required`).GRPC()
 	}
-	if !(req.GetMethod()[0] > 'A' && req.GetMethod()[0] < 'Z') {
+	if !(req.GetMethod()[0] >= 'A' && req.GetMethod()[0] <= 'Z') {
 		return nil, pbError.ErrPermissionDenied.New(fmt.Sprintf(`private method "%s" is not callable`, req.GetMethod())).GRPC()
 	}
 
@@ -302,25 +303,31 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 			}
 		}
 	}
-	resp, err := s.httpClient.DoWithOptions(shareCtx, req, http.Options{
-		EnableProxy:       !rawreq.Options.DisableProxy,
-		EnableHeadless:    opts.EnableHeadless,
-		EnableSessionInit: opts.EnableSessionInit,
-		KeepSession:       opts.KeepSession,
-		DisableCookieJar:  opts.DisableCookieJar,
-		DisableRedirect:   opts.DisableRedirect,
-		Reliability:       opts.Reliability,
-	})
-	if err != nil {
-		logger.Error(err)
-		return err
-	}
-	if resp.Body == nil {
-		if resp.StatusCode != http.StatusOK {
-			logger.Errorf("no response got status: %d", resp.StatusCode)
-			return pbError.ErrInternal.New("no response got").GRPC()
+	var resp *http.Response
+	if opts.SkipDoRequest {
+		logger.Debugf("skip do request")
+		resp = &http.Response{Response: &rhttp.Response{Request: req}}
+	} else {
+		resp, err = s.httpClient.DoWithOptions(shareCtx, req, http.Options{
+			EnableProxy:       !rawreq.Options.DisableProxy,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableSessionInit,
+			KeepSession:       opts.KeepSession,
+			DisableCookieJar:  opts.DisableCookieJar,
+			DisableRedirect:   opts.DisableRedirect,
+			Reliability:       opts.Reliability,
+		})
+		if err != nil {
+			logger.Error(err)
+			return err
 		}
-		return pbError.ErrAborted.GRPC()
+		if resp.Body == nil {
+			if resp.StatusCode != http.StatusOK {
+				logger.Errorf("no response got status: %d", resp.StatusCode)
+				return pbError.ErrInternal.New("no response got").GRPC()
+			}
+			return pbError.ErrAborted.GRPC()
+		}
 	}
 
 	err = s.crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
