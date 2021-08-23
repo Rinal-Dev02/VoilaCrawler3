@@ -424,11 +424,14 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 							}
 						}
 
-						var resp *http.Response
+						var (
+							resp *http.Response
+							err  error
+						)
 						if opts.SkipDoRequest {
 							resp = &http.Response{Response: &rhttp.Response{Request: req}}
 						} else {
-							resp, err := client.DoWithOptions(nctx, req, httpOpts)
+							resp, err = client.DoWithOptions(nctx, req, httpOpts)
 							if err != nil {
 								logger.Error(err)
 								return err
