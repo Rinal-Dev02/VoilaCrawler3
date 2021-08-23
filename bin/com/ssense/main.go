@@ -70,7 +70,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
-		Reliability:       pbProxy.ProxyReliability_ReliabilityMedium,
+		Reliability:       pbProxy.ProxyReliability_ReliabilityHigh,
 	}
 	opts.MustCookies = append(opts.MustCookies,
 		&http.Cookie{Name: "country", Value: "US", Path: "/"},
@@ -117,12 +117,15 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 	} {
 		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
 		opts := c.CrawlOptions(req.URL)
+		for _, cookie := range opts.MustCookies {
+			req.AddCookie(cookie)
+		}
 		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 			EnableProxy:       true,
 			EnableHeadless:    opts.EnableHeadless,
 			EnableSessionInit: opts.EnableSessionInit,
-			DisableCookieJar:  opts.DisableCookieJar,
-			Reliability:       opts.Reliability,
+			DisableCookieJar:  true,
+			Reliability:       pbProxy.ProxyReliability_ReliabilityRealtime,
 		})
 		if err != nil {
 			c.logger.Error(err)
