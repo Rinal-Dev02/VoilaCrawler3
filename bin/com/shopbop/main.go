@@ -88,6 +88,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 func (c *_Crawler) AllowedDomains() []string {
 	return []string{"*.shopbop.com"}
 }
+
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	u, err := url.Parse(rawurl)
 	if err != nil {
@@ -142,12 +143,15 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 		subSel := node.Find(`.nested-nav-container .nested-navigation-section`)
 		for j := range subSel.Nodes {
 			subNode := subSel.Eq(j)
-			cateName := strings.TrimSpace(subNode.Find(`sub-navigation-header`).Text())
+			cateName := strings.TrimSpace(subNode.Find(`.sub-navigation-header`).Text())
+			if cateName == "" {
+				continue
+			}
 
 			subCate := pbItem.Category{Name: cateName}
 			cate.Children = append(cate.Children, &subCate)
 
-			subSel2 := node.Find(`.sub-navigation-list>.sub-navigation-list-item`)
+			subSel2 := subNode.Find(`.sub-navigation-list>.sub-navigation-list-item`)
 			for k := range subSel2.Nodes {
 				sub2node := subSel2.Eq(k)
 				subnodes2 := sub2node.Find(`.sub-navigation-list-item-link`)
