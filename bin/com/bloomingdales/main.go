@@ -133,15 +133,20 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 	catUrl := "https://www.bloomingdales.com/xapi/navigate/v1/header?bypass_redirect=yes&viewType=Responsive&currencyCode=USD&_regionCode=US&_navigationType=BROWSE&_shoppingMode=SITE"
 	req, err := http.NewRequest(http.MethodGet, catUrl, nil)
 	req.Header.Add("accept", "application/json, text/javascript, */*; q=0.01")
-	req.Header.Add("referer", "https://www.bloomingdales.com/")
-	req.Header.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+	req.Header.Add("referer", "https://www.bloomingdales.com/?cm_sp=NAVIGATION-_-TOP_NAV-_-TOP_BLOOMIES_ICON")
 	req.Header.Add("x-requested-with", "XMLHttpRequest")
 	opts := c.CrawlOptions(req.URL)
+	for key := range opts.MustHeader {
+		req.Header.Set(key, opts.MustHeader.Get(key))
+	}
+	for _, cookie := range opts.MustCookies {
+		req.AddCookie(cookie)
+	}
 
 	catreq, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 		EnableProxy:       true,
 		EnableHeadless:    opts.EnableHeadless,
-		EnableSessionInit: opts.EnableSessionInit,
+		EnableSessionInit: false,
 		KeepSession:       opts.KeepSession,
 		Reliability:       opts.Reliability,
 	})
