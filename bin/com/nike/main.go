@@ -95,6 +95,67 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.nike.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+	for _, cookie := range opts.MustCookies {
+		req.AddCookie(cookie)
+	}
+
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  opts.DisableCookieJar,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var cates []*pbItem.Category
+	sel := dom.Find(`.pre-desktop-menu>li`)
+	for i := range sel.Nodes {
+		node := sel.Eq(i)
+		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+		if cateName == "" {
+			continue
+		}
+		cate := pbItem.Category{Name: cateName}
+		cates = append(cates, &cate)
+
+		subSel := node.Find(`.pre-menu-column`)
+		for k := range subSel.Nodes {
+			subNode2 := subSel.Eq(k)
+			subCateName := subNode2.Find(`button`).Text()
+			if subCateName == "" {
+				subCateName = subNode2.Find(`a`).First().Text()
+			}
+			subCate := pbItem.Category{Name: subCateName}
+			cate.Children = append(cate.Children, &subCate)
+
+			subNode2list := subNode2.Find(`a`)
+			for j := range subNode2list.Nodes {
+				subNode := subNode2list.Eq(j)
+				href, _ := c.CanonicalUrl(subNode.AttrOr("href", ""))
+				if href == "" {
+					continue
+				}
+				subCate2Name := subNode.Text()
+				subCate2 := pbItem.Category{Name: subCate2Name, Url: href}
+				subCate.Children = append(subCate.Children, &subCate2)
+			}
+		}
+	}
+	return cates, nil
+}
+
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -102,7 +163,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
 
 	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.categoryPathMatcher.MatchString(resp.RawUrl().Path) {
 		return c.parseCategoryProducts(ctx, resp, yield)
@@ -112,63 +173,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseProduct(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	dom, err := resp.Selector()
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.pre-desktop-menu>li`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
-		if cateName == "" {
-			continue
-		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
-
-		subSel := node.Find(`.pre-menu-column`)
-		for k := range subSel.Nodes {
-			subNode2 := subSel.Eq(k)
-			subcat2 := subNode2.Find(`button`).Text()
-			if subcat2 == "" {
-				subcat2 = subNode2.Find(`a`).First().Text()
-			}
-			subNode2list := subNode2.Find(`a`)
-
-			for j := range subNode2list.Nodes {
-				subNode := subNode2list.Eq(j)
-				href := subNode.AttrOr("href", "")
-				if href == "" {
-					continue
-				}
-
-				_, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := subcat2 + " > " + strings.TrimSpace(subNode.Text())
-
-				nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-				req, _ := http.NewRequest(http.MethodGet, href, nil)
-				if err := yield(nnnctx, req); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	return nil
 }
 
 func isRobotCheckPage(respBody []byte) bool {
