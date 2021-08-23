@@ -132,6 +132,10 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			subNodeN := subSel1.Eq(k)
 			subCateName := strings.TrimSpace(subNodeN.Find(`a[data-hfsubnav]`).Text())
 
+			if subCateName == "" {
+				continue
+			}
+
 			subCate := pbItem.Category{Name: subCateName}
 			cate.Children = append(cate.Children, &subCate)
 
