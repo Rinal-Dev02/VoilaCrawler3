@@ -102,6 +102,10 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
 	req, _ := http.NewRequest(http.MethodGet, "https://www.express.com", nil)
 	opts := c.CrawlOptions(req.URL)
+	for _, cookie := range opts.MustCookies {
+		req.AddCookie(cookie)
+	}
+
 	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 		EnableProxy:       true,
 		EnableHeadless:    opts.EnableHeadless,
