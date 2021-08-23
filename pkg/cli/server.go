@@ -284,7 +284,7 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 		return false
 	}() {
 		logger.Infof("Access %s aborted", rawreq.GetUrl())
-		return pbError.ErrAborted.New(err.Error()).GRPC()
+		return pbError.ErrAborted.New("domain do match").GRPC()
 	}
 
 	opts := s.crawler.CrawlOptions(req.URL)
