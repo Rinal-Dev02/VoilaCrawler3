@@ -131,7 +131,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	// 	return c.parseCategoryProducts(ctx, resp, yield)
 	// }
 
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	//return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get the index from the shared data.
@@ -295,23 +295,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	// nextpage not found
 	return nil
-
-	// get current page number
-	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("page"))
-	if page == 0 {
-		page = 1
-	}
-
-	// set pagination
-	u := *resp.Request.URL
-	vals := u.Query()
-	vals.Set("page", strconv.Format(page+1))
-	u.RawQuery = vals.Encode()
-
-	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-	// update the index of last page
-	nctx := context.WithValue(ctx, "item.index", lastIndex)
-	return yield(nctx, req)
 }
 
 func TrimSpaceNewlineInString(s []byte) []byte {
