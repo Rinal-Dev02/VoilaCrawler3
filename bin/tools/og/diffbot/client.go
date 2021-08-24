@@ -107,6 +107,8 @@ func (c *DiffbotCient) Fetch(ctx context.Context, rawurl string) ([]*Product, er
 	vals.Set("token", c.token)
 	vals.Set("url", rawurl)
 	vals.Set("timeout", "30000")
+	vals.Set("discussion", "false")
+	vals.Set("paging", "false")
 	u.RawQuery = vals.Encode()
 
 	var ret _RawResponse
