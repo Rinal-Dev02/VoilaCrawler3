@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -70,6 +72,11 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
 		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
+		MustCookies: []*http.Cookie{
+			{Name: "bfx.country", Value: "US", Path: "/"},
+			{Name: "bfx.currency", Value: "USD", Path: "/"},
+			{Name: "bfx.env", Value: "PROD", Path: "/"},
+		},
 	}
 
 	return opts
@@ -89,8 +96,20 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.aliceandolivia.com"
+	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
+		return u.String(), nil
+	} else if c.categoryPathMatcher.MatchString(u.Path) {
+		// 这里没找到方法直接获取c=US的链接，手动修改
+		vals := u.Query()
+		vals.Set("c", "US")
+		u.RawQuery = vals.Encode()
 		return u.String(), nil
 	}
 	return rawurl, nil
@@ -115,16 +134,17 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		//return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(p) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get the index from the shared data.
@@ -133,6 +153,141 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")))
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.aliceandolivia.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
+		sel := dom.Find(`.menu-group>ul>li`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			cateName := strings.TrimSpace(node.Find(`a>h2`).First().Text())
+
+			if cateName == "" {
+				continue
+			}
+
+			//nctx := context.WithValue(ctx, "Category", cateName)
+
+			subSel := node.Find(`.dropdown-item.dropdown`)
+
+			for k := range subSel.Nodes {
+				subNode2 := subSel.Eq(k)
+
+				subcat2 := strings.TrimSpace(subNode2.Find(`.nav-item-l2.gtm-nav-title`).First().Text())
+
+				//nnctx := context.WithValue(nctx, "SubCategory", subcat2)
+
+				subNode2list := subNode2.Find(`.dropdown-item`)
+				for j := range subNode2list.Nodes {
+					subNode3 := subNode2list.Eq(j)
+					subcat3 := strings.TrimSpace(subNode3.Find(`.nav-item-l3.gtm-nav-title`).First().Text())
+					if subcat3 == "" {
+						continue
+					}
+
+					href := subNode3.Find(`a`).AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+					href, err := c.CanonicalUrl(href)
+					if err != nil {
+						c.logger.Errorf("got invalid url %s", href)
+						continue
+					}
+					u, _ := url.Parse(href)
+
+					subCateName := strings.TrimSpace(subNode3.Text())
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{cateName, subcat2, subCateName}, href); err != nil {
+							return err
+						}
+					}
+				}
+
+				if len(subNode2list.Nodes) == 0 {
+					href := subNode2.Find(`a`).AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+					href, err := c.CanonicalUrl(href)
+					if err != nil {
+						c.logger.Errorf("got invalid url %s", href)
+						continue
+					}
+					u, _ := url.Parse(href)
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{cateName, subcat2}, href); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
+
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
+
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
+				}
+				cateMap[path] = cate
+				if lastCate != nil {
+					lastCate.Children = append(lastCate.Children, cate)
+				}
+				lastCate = cate
+
+				if i == 0 {
+					cates = append(cates, cate)
+				}
+			}
+		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	return cates, nil
+}
+
+// @deprecated
 func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -306,6 +461,154 @@ type parseProductResponse struct {
 	} `json:"offers"`
 }
 
+// 发送接口请求商品信息返回数据
+type productVariationResp struct {
+	Action      string `json:"action"`
+	QueryString string `json:"queryString"`
+	Locale      string `json:"locale"`
+	Product     struct {
+		UUID        string      `json:"uuid"`
+		ID          string      `json:"id"`
+		ProductName string      `json:"productName"`
+		ProductType string      `json:"productType"`
+		Brand       interface{} `json:"brand"`
+		Price       struct {
+			Sales struct {
+				Value        int    `json:"value"`
+				Currency     string `json:"currency"`
+				Formatted    string `json:"formatted"`
+				DecimalPrice string `json:"decimalPrice"`
+			} `json:"sales"`
+			List struct {
+				Value        int    `json:"value"`
+				Currency     string `json:"currency"`
+				Formatted    string `json:"formatted"`
+				DecimalPrice string `json:"decimalPrice"`
+			} `json:"list"`
+			PercentageOff string `json:"percentageOff"`
+			HTML          string `json:"html"`
+		} `json:"price"`
+		Images struct {
+			HiRes []struct {
+				Alt   string `json:"alt"`
+				URL   string `json:"url"`
+				Title string `json:"title"`
+			} `json:"hi-res"`
+			Large []struct {
+				Alt   string `json:"alt"`
+				URL   string `json:"url"`
+				Title string `json:"title"`
+			} `json:"large"`
+			Medium []struct {
+				Alt   string `json:"alt"`
+				URL   string `json:"url"`
+				Title string `json:"title"`
+			} `json:"medium"`
+			Small []struct {
+				Alt   string `json:"alt"`
+				URL   string `json:"url"`
+				Title string `json:"title"`
+			} `json:"small"`
+			Shopthelook []struct {
+				Alt   string `json:"alt"`
+				URL   string `json:"url"`
+				Title string `json:"title"`
+			} `json:"shopthelook"`
+		} `json:"images"`
+		SelectedQuantity    int `json:"selectedQuantity"`
+		MinOrderQuantity    int `json:"minOrderQuantity"`
+		MaxOrderQuantity    int `json:"maxOrderQuantity"`
+		VariationAttributes []struct {
+			AttributeID string `json:"attributeId"`
+			DisplayName string `json:"displayName"`
+			ID          string `json:"id"`
+			Swatchable  bool   `json:"swatchable"`
+			Values      []struct {
+				ID               string `json:"id"`
+				Description      string `json:"description"`
+				DisplayValue     string `json:"displayValue"`
+				Value            string `json:"value"`
+				Selected         bool   `json:"selected"`
+				Selectable       bool   `json:"selectable"`
+				VariationGroupID string `json:"variationGroupID"`
+				URL              string `json:"url"`
+				Images           struct {
+					Swatch []struct {
+						Alt   string `json:"alt"`
+						URL   string `json:"url"`
+						Title string `json:"title"`
+					} `json:"swatch"`
+				} `json:"images"`
+			} `json:"values"`
+			ResetURL string `json:"resetUrl,omitempty"`
+		} `json:"variationAttributes"`
+		LongDescription  string      `json:"longDescription"`
+		ShortDescription string      `json:"shortDescription"`
+		Rating           float64     `json:"rating"`
+		Promotions       interface{} `json:"promotions"`
+		Attributes       interface{} `json:"attributes"`
+		Availability     struct {
+			Messages    []string    `json:"messages"`
+			InStockDate interface{} `json:"inStockDate"`
+			ClassType   string      `json:"classType"`
+		} `json:"availability"`
+		Available  bool          `json:"available"`
+		Options    []interface{} `json:"options"`
+		Quantities []struct {
+			Value    string `json:"value"`
+			Selected bool   `json:"selected"`
+			URL      string `json:"url"`
+		} `json:"quantities"`
+		SelectedProductURL string      `json:"selectedProductUrl"`
+		ReadyToOrder       bool        `json:"readyToOrder"`
+		Online             bool        `json:"online"`
+		PageTitle          interface{} `json:"pageTitle"`
+		PageDescription    interface{} `json:"pageDescription"`
+		PageKeywords       interface{} `json:"pageKeywords"`
+		PageMetaTags       []struct {
+		} `json:"pageMetaTags"`
+		Template            interface{} `json:"template"`
+		RecommendationItems []struct {
+			ProductID string `json:"productID"`
+		} `json:"recommendationItems"`
+		PrimaryVendor  string      `json:"primaryVendor"`
+		IsFinalSale    interface{} `json:"isFinalSale"`
+		ThresholdStock interface{} `json:"thresholdStock"`
+		IsNew          bool        `json:"isNew"`
+		IsBestSeller   interface{} `json:"isBestSeller"`
+		ExclusiveBadge struct {
+		} `json:"exclusiveBadge"`
+		WearWithItAssetID    interface{} `json:"wearWithItAssetId"`
+		SizeGuideContent     interface{} `json:"sizeGuideContent"`
+		PrintsContentAssetID interface{} `json:"printsContentAssetID"`
+		Sreligible           struct {
+		} `json:"sreligible"`
+		SalesBadge                interface{} `json:"salesBadge"`
+		IsGiftCertificate         interface{} `json:"isGiftCertificate"`
+		DefaultVariantID          string      `json:"defaultVariantId"`
+		HasSalePricebook          bool        `json:"hasSalePricebook"`
+		PdpVideoID                interface{} `json:"pdpVideoID"`
+		NarvarCategory            interface{} `json:"narvarCategory"`
+		HasPromotions             bool        `json:"hasPromotions"`
+		VariationsInclude         string      `json:"variationsInclude"`
+		AttributesHTML            string      `json:"attributesHtml"`
+		PromotionsHTML            string      `json:"promotionsHtml"`
+		OptionsHTML               string      `json:"optionsHtml"`
+		RecommendationsHTML       string      `json:"recommendationsHtml"`
+		SaleBadgingHTML           string      `json:"saleBadgingHtml"`
+		ExclusiveBadgingHTML      string      `json:"exclusiveBadgingHtml"`
+		DescriptionAndDetailsHTML string      `json:"descriptionAndDetailsHtml"`
+	} `json:"product"`
+	Resources struct {
+		InfoSelectforstock    string `json:"info_selectforstock"`
+		AssistiveSelectedText string `json:"assistiveSelectedText"`
+	} `json:"resources"`
+	AjaxRequest      bool   `json:"ajaxRequest"`
+	HasSalePricebook bool   `json:"hasSalePricebook"`
+	PageVisited      string `json:"pageVisited"`
+	PageType         string `json:"pageType"`
+}
+
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil {
@@ -358,19 +661,81 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	description := viewData.Description + htmlTrimRegp.ReplaceAllString(doc.Find(`#collapsible-details-1`).Text(), " ")
 	item.Description = string(TrimSpaceNewlineInString([]byte(description)))
 
-	if strings.Contains(doc.Find(`.availability product-availability`).AttrOr(`data-available`, ``), "true") {
-		item.Stock.StockStatus = pbItem.Stock_InStock
-	}
+	// 最后计算库存状态
+	//if strings.Contains(doc.Find(`.availability product-availability`).AttrOr(`data-available`, ``), "true") {
+	//	item.Stock.StockStatus = pbItem.Stock_InStock
+	//}
 
 	currentPrice, _ := strconv.ParsePrice(viewData.Offers.Price)
-	msrp, _ := strconv.ParsePrice(doc.Find(`.value bfx-price bfx-list-price`).Find(`.price-sales`).AttrOr("content", ""))
+	currentPrice *= 100
+	msrp := float64(0)
+	// 这里直接获取msrp无法获取，动态Json
+	//msrp, _ := strconv.ParsePrice(doc.Find(`.value bfx-price bfx-list-price`).Find(`.price-sales`).AttrOr("content", ""))
+	productVariantSel := doc.Find(`.color-attribute`)
+	for i := range productVariantSel.Nodes {
+		node := productVariantSel.Eq(i)
+		productId := node.AttrOr("data-variationgroupid", "")
+		if productId != item.GetSource().GetId() {
+			continue
+		}
+		// 发送请求获取商品msrp信息
+		productVariantUrl := node.AttrOr("data-url", "")
+		if productVariantUrl == "" {
+			return fmt.Errorf("get productVariantUrl error, pid=%s", item.GetSource().GetId())
+		}
+		productVariantUrl = strings.ReplaceAll(productVariantUrl, "&amp;", "&")
+		req, err := http.NewRequest(http.MethodGet, productVariantUrl, nil)
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+
+		opts := c.CrawlOptions(resp.Request.URL)
+		for k := range opts.MustHeader {
+			req.Header.Set(k, opts.MustHeader.Get(k))
+		}
+		req.Header.Set("accept-encoding", "gzip, deflate, br")
+		req.Header.Set("accept", "*/*")
+		req.Header.Set("Referer", resp.Request.URL.String())
+		req.Header.Set("User-Agent", resp.Request.Header.Get("User-Agent"))
+
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy:    true,
+			EnableHeadless: c.CrawlOptions(resp.Request.URL).EnableHeadless,
+			Reliability:    c.CrawlOptions(resp.Request.URL).Reliability,
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			c.logger.Errorf("status is %v", resp.StatusCode)
+			return fmt.Errorf(resp.Status)
+		}
+
+		data, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		resp.Body.Close()
+
+		var productVariation productVariationResp
+		if err := json.Unmarshal(data, &productVariation); err != nil {
+			c.logger.Errorf("%s, error=%s", data, err)
+			return err
+		}
+		msrp = float64(productVariation.Product.Price.List.Value * 100)
+		break
+	}
 
 	if msrp == 0 {
 		msrp = currentPrice
 	}
-	discount := 0
+	discount := int32(0)
 	if msrp > currentPrice {
-		discount = (int)(((msrp - currentPrice) / msrp) * 100)
+		discount = int32(((msrp - currentPrice) / msrp) * 100)
 	}
 
 	//images
@@ -422,7 +787,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			colorName = node.Find(`.swatch-value`).AttrOr(`data-attr-displayvalue`, "")
 			colorSelected = &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    cid,
+				Id:    colorName,
 				Name:  colorName,
 				Value: colorName,
 				Icon:  icon,
@@ -434,7 +799,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 
-		sid := (node.AttrOr("data-attr-value", ""))
+		sid := node.AttrOr("data-attr-value", "")
 		if sid == "" {
 			continue
 		}
@@ -445,13 +810,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Currency: regulation.Currency_USD,
 				Current:  int32(currentPrice),
 				Msrp:     int32(msrp),
-				Discount: int32(discount),
+				Discount: discount,
 			},
 			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
 		}
 
-		if strings.Contains(node.AttrOr("class", ""), "unselectable") {
+		if spanClass := node.Find(`span`).AttrOr("class", ""); strings.Contains(spanClass, "unselectable") {
 			sku.Stock.StockStatus = pbItem.Stock_OutOfStock
+		} else if strings.Contains(spanClass, "selectable") {
+			sku.Stock.StockStatus = pbItem.Stock_InStock
+			if item.Stock.StockStatus == pbItem.Stock_OutOfStock {
+				item.Stock.StockStatus = pbItem.Stock_InStock
+			}
 		}
 
 		if colorSelected != nil {
@@ -468,14 +838,27 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
+	// 计算商品库存状态
 
-	// yield item result
-	if err = yield(ctx, &item); err != nil {
-		c.logger.Errorf("yield sub request failed, error=%s", err)
-		return err
+	// 不同的颜色属于不同的商品，发送新的请求
+	productSel := doc.Find(`.color-attribute`)
+	for i, _ := range productSel.Nodes {
+		productNode := productSel.Eq(i)
+		productId := productNode.AttrOr(`data-variationgroupid`, "")
+		if productId == item.GetSource().GetId() {
+			continue
+		}
+		otherProductUrl := strings.ReplaceAll(item.GetSource().GetCanonicalUrl(), item.GetSource().GetId(), productId)
+
+		req, _ := http.NewRequest(http.MethodGet, otherProductUrl, nil)
+		if err := yield(ctx, req); err != nil {
+			c.logger.Errorf("yield sub request failed, error=%s", err)
+			return err
+		}
 	}
 
-	return nil
+	// yield item result
+	return yield(ctx, &item)
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
