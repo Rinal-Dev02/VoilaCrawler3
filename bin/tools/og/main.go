@@ -8,13 +8,18 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
+	"time"
 
-	"github.com/voiladev/VoilaCrawler/pkg/cli"
+	"github.com/urfave/cli/v2"
+	"github.com/voiladev/VoilaCrawler/bin/tools/og/diffbot"
+	cmd "github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/regulation"
+	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
@@ -22,7 +27,8 @@ import (
 )
 
 type _Crawler struct {
-	httpClient http.Client
+	httpClient    http.Client
+	diffbotClient *diffbot.DiffbotCient
 
 	categoryPathMatcher     *regexp.Regexp
 	categoryJsonPathMatcher *regexp.Regexp
@@ -31,7 +37,7 @@ type _Crawler struct {
 	logger                  glog.Log
 }
 
-func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
+func (_ *_Crawler) New(cli *cmd.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:              client,
 		categoryPathMatcher:     regexp.MustCompile(`^(/[a-z0-9_-]+)?/(women|men)(/[a-z0-9_-]+){1,6}/cat/?$`),
@@ -39,6 +45,9 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 		productGroupPathMatcher: regexp.MustCompile(`^(/[a-z0-9_-]+)?(/[a-z0-9_-]+){2}/grp/[0-9]+/?$`),
 		productPathMatcher:      regexp.MustCompile(`^(/[a-z0-9_-]+)?(/[a-z0-9_-]+){2}/prd/[0-9]+/?$`),
 		logger:                  logger.New("_Crawler"),
+	}
+	if cli.String("diffbot-token") != "" {
+		c.diffbotClient, _ = diffbot.New(cli.String("diffbot-token"), logger)
 	}
 	return &c, nil
 }
@@ -60,6 +69,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options.EnableSessionInit = false
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityRealtime
 	options.MustCookies = append(options.MustCookies)
+	options.SkipDoRequest = true
 
 	return options
 }
@@ -77,14 +87,129 @@ func textClean(s string) string {
 }
 
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
+	if c == nil || yield == nil || resp == nil || resp.Request == nil {
 		return nil
+	}
+	rawurl := resp.Request.URL.String()
+
+	var (
+		diffbotProd  *pbItem.OpenGraph_Product
+		diffbotErr   error
+		diffDuration time.Duration
+		opProd       *pbItem.OpenGraph_Product
+		opErr        error
+		opDuration   time.Duration
+	)
+
+	wg := sync.WaitGroup{}
+	if c.diffbotClient != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			startTime := time.Now()
+			prods, err := c.diffbotClient.Fetch(ctx, rawurl)
+			diffDuration = time.Now().Sub(startTime)
+			if err != nil {
+				c.logger.Error(err)
+				diffbotErr = err
+				return
+			}
+			if len(prods) == 0 {
+				return
+			}
+			prod := prods[0]
+
+			diffbotProd = &pbItem.OpenGraph_Product{
+				Id:          strings.Trim(prod.ProductID, " ;,"),
+				Title:       strings.TrimSpace(prod.Title),
+				Description: strings.TrimSpace(prod.Text),
+				BrandName:   strings.TrimSpace(prod.Brand),
+				Url:         rawurl,
+				Price: &pbItem.OpenGraph_Price{
+					Currency: regulation.Currency_USD,
+				},
+			}
+			if prod.OfferPriceDetails.Amount != 0 {
+				diffbotProd.Price.Value = int32(prod.OfferPriceDetails.Amount * 100)
+			} else if prod.RegularPriceDetails.Amount != 0 {
+				diffbotProd.Price.Value = int32(prod.RegularPriceDetails.Amount * 100)
+			}
+			for _, img := range prod.Images {
+				if img.URL != "" {
+					diffbotProd.Medias = append(diffbotProd.Medias, media.NewImageMedia("", img.URL, "", "", "", "", false))
+				}
+			}
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		startTime := time.Now()
+		if opProd, opErr = c.parseOpenGraph(ctx, resp.Request); opErr != nil {
+			c.logger.Error(opErr)
+		}
+		opDuration = time.Now().Sub(startTime)
+	}()
+	wg.Wait()
+
+	c.logger.Debugf("duration diffbot:%s, op: %s", diffDuration, opDuration)
+	if diffbotProd != nil {
+		if opProd != nil {
+			c.logger.Debug("merge diffbot and opengraph")
+			diffbotProd.Site = opProd.Site
+			if diffbotProd.Title == "" {
+				diffbotProd.Title = opProd.Title
+			}
+			if diffbotProd.Description == "" {
+				diffbotProd.Description = opProd.Description
+			}
+			if diffbotProd.Price.Value == 0 {
+				diffbotProd.Price = opProd.Price
+			}
+			if len(diffbotProd.Medias) == 0 || len(diffbotProd.Medias) < len(opProd.Medias) {
+				diffbotProd.Medias = opProd.Medias
+			}
+			if diffbotProd.BrandName == "" {
+				diffbotProd.BrandName = opProd.BrandName
+			}
+		}
+		return yield(ctx, diffbotProd)
+	} else if opProd != nil {
+		c.logger.Debug("opengraph")
+		return yield(ctx, opProd)
+	} else {
+		err := diffbotErr
+		if err == nil {
+			err = opErr
+		}
+		return yield(ctx, &pbCrawl.Error{ErrMsg: err.Error()})
+	}
+}
+
+func (c *_Crawler) parseOpenGraph(ctx context.Context, req *http.Request) (*pbItem.OpenGraph_Product, error) {
+	if c == nil || req == nil {
+		return nil, nil
+	}
+
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		DisableCookieJar:  true,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
 	}
 
 	dom, err := resp.Selector()
 	if err != nil {
 		c.logger.Error(err)
-		return err
+		return nil, err
 	}
 
 	// ogType := textClean(dom.Find(`meta[property="og:type"]`).AttrOr("content", ""))
@@ -197,12 +322,22 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 			}
 		}
 	}
-	return yield(ctx, &item)
+
+	// feat: added support of brand fetch
+	if item.Title != "" {
+		fields := strings.Split(item.Title, " | ")
+		lastField := fields[len(fields)-1]
+		if len(fields) > 1 && len(lastField) < 20 {
+			item.BrandName = lastField
+		}
+	}
+	return &item, nil
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://us.princesspolly.com/collections/basics/products/madelyn-top-green",
+		// "https://us.princesspolly.com/collections/basics/products/madelyn-top-green",
+		"https://www.revolve.com/house-of-harlow-1960-x-sofia-richie-portofino-dress/dp/HOOF-WD751/?d=Womens&page=1&lc=2&itrownum=1&itcurrpage=1&itview=05",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -221,5 +356,8 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	cli.NewApp(&_Crawler{}).Run(os.Args)
+	cmd.NewApp(
+		&_Crawler{},
+		&cli.StringFlag{Name: "diffbot-token", Usage: "diffbot api token"},
+	).Run(os.Args)
 }

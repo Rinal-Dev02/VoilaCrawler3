@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	rhttp "net/http"
 	"os"
 	"reflect"
 	"strings"
@@ -423,19 +424,27 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 							}
 						}
 
-						resp, err := client.DoWithOptions(nctx, req, httpOpts)
-						if err != nil {
-							logger.Error(err)
-							return err
-						}
-						if resp.Body == nil {
-							return errors.New("not response found")
-						}
-						defer resp.Body.Close()
+						var (
+							resp *http.Response
+							err  error
+						)
+						if opts.SkipDoRequest {
+							resp = &http.Response{Response: &rhttp.Response{Request: req}}
+						} else {
+							resp, err = client.DoWithOptions(nctx, req, httpOpts)
+							if err != nil {
+								logger.Error(err)
+								return err
+							}
+							if resp.Body == nil {
+								return errors.New("not response found")
+							}
+							defer resp.Body.Close()
 
-						if c.Bool("vv") {
-							data, _ := resp.RawBody()
-							logger.Debugf("%s", data)
+							if c.Bool("vv") {
+								data, _ := resp.RawBody()
+								logger.Debugf("%s", data)
+							}
 						}
 						return node.Parse(nctx, resp, callback)
 					}(req); err != nil {

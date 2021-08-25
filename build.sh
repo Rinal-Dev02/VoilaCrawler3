@@ -16,8 +16,14 @@ build_time=`date +%Y%m%d.%H:%M:%S`
 build_commit=`git rev-parse --short=12 HEAD`
 build_branch=`git branch --show-current`
 
-go_arch="amd64"
-go_os="linux"
+if [ "$(uname -s|grep Darwin)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+    # mac m1
+    go_os="darwin"
+    go_arch="arm64"
+else
+    go_os="linux"
+    go_arch="amd64"
+fi
 go_clipkg="github.com/voiladev/VoilaCrawler/pkg/cli"
 go_ldflags="-X $go_clipkg.buildTime=$build_time -X $go_clipkg.buildCommit=$build_commit -X $go_clipkg.buildBranch=$build_branch"
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	rhttp "net/http"
 	"net/url"
 	"path/filepath"
 	"reflect"
@@ -16,11 +17,9 @@ import (
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
-	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
-	"github.com/voiladev/go-framework/text"
 	pbError "github.com/voiladev/protobuf/protoc-gen-go/errors"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -71,13 +70,13 @@ func (s *CrawlerServer) CrawlerOptions(ctx context.Context, req *pbCrawl.Crawler
 	}
 	u, err := url.Parse(req.GetUrl())
 	if err != nil {
-		return nil, pbError.ErrInvalidArgument.New(err)
+		return nil, pbError.ErrInvalidArgument.New(err).GRPC()
 	}
 
 	rawOpts := s.crawler.CrawlOptions(u)
 	var opts pbCrawl.CrawlerOptions
 	if err := rawOpts.Unmarshal(&opts); err != nil {
-		return nil, pbError.ErrInternal.New(err)
+		return nil, pbError.ErrInternal.New(err).GRPC()
 	}
 
 	var methods []*pbCrawl.CrawlerMethod
@@ -121,7 +120,7 @@ func (s *CrawlerServer) CanonicalUrl(ctx context.Context, req *pbCrawl.Canonical
 
 	curl, err := s.crawler.CanonicalUrl(req.GetUrl())
 	if err != nil {
-		return nil, pbError.ErrInvalidArgument.New(err)
+		return nil, pbError.ErrInvalidArgument.New(err).GRPC()
 	}
 	return &pbCrawl.CanonicalUrlResponse{
 		Data: &pbCrawl.CanonicalUrlResponse_Data{Url: curl},
@@ -156,10 +155,10 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 		return nil, nil
 	}
 	if req.GetMethod() == "" {
-		return nil, pbError.ErrInvalidArgument.New(`method required`)
+		return nil, pbError.ErrInvalidArgument.New(`method required`).GRPC()
 	}
-	if !(req.GetMethod()[0] > 'A' && req.GetMethod()[0] < 'Z') {
-		return nil, pbError.ErrPermissionDenied.New(fmt.Sprintf(`private method "%s" is not callable`, req.GetMethod()))
+	if !(req.GetMethod()[0] >= 'A' && req.GetMethod()[0] <= 'Z') {
+		return nil, pbError.ErrPermissionDenied.New(fmt.Sprintf(`private method "%s" is not callable`, req.GetMethod())).GRPC()
 	}
 
 	shareCtx := context.WithValue(ctx, crawler.TracingIdKey, req.GetTracingId())
@@ -169,19 +168,19 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 
 	cw := reflect.ValueOf(s.crawler)
 	if !cw.Type().Implements(productCrawlerType) {
-		return nil, pbError.ErrUnimplemented.New(fmt.Sprintf(`method "%s" unimplemented or is not callable`, req.GetMethod()))
+		return nil, pbError.ErrUnimplemented.New(fmt.Sprintf(`method "%s" unimplemented or is not callable`, req.GetMethod())).GRPC()
 	}
 
 	if _, exists := productCrawlerType.MethodByName(req.GetMethod()); !exists {
-		return nil, pbError.ErrNotFound.New(fmt.Sprintf(`method "%s" not found`, req.GetMethod()))
+		return nil, pbError.ErrNotFound.New(fmt.Sprintf(`method "%s" not found`, req.GetMethod())).GRPC()
 	}
 
 	caller := cw.MethodByName(req.GetMethod())
 	if caller.IsZero() {
-		return nil, pbError.ErrNotFound.New(fmt.Sprintf(`method "%s" not found`, req.GetMethod()))
+		return nil, pbError.ErrNotFound.New(fmt.Sprintf(`method "%s" not found`, req.GetMethod())).GRPC()
 	}
 	if caller.Kind() != reflect.Func {
-		return nil, pbError.ErrInvalidArgument.New(fmt.Sprintf("%s is not callable", req.GetMethod()))
+		return nil, pbError.ErrInvalidArgument.New(fmt.Sprintf("%s is not callable", req.GetMethod())).GRPC()
 	}
 
 	var (
@@ -189,7 +188,7 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 		outArgCount = caller.Type().NumOut()
 	)
 	if inArgCount > 2 || outArgCount != 2 {
-		return nil, pbError.ErrInvalidArgument.New(fmt.Sprintf(`method "%s" want more in arguments`, req.GetMethod()))
+		return nil, pbError.ErrInvalidArgument.New(fmt.Sprintf(`method "%s" want more in arguments`, req.GetMethod())).GRPC()
 	}
 	inputs := []reflect.Value{}
 	switch inArgCount {
@@ -202,13 +201,13 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 
 	vals := caller.Call(inputs)
 	if len(vals) != 2 {
-		return nil, pbError.ErrInternal.New("caller response count not correct")
+		return nil, pbError.ErrInternal.New("caller response count not correct").GRPC()
 	}
 	if !vals[1].IsNil() {
 		val := vals[1].Interface()
 		err := val.(error)
 		s.logger.Error(err)
-		return nil, pbError.ErrInternal.New(err)
+		return nil, pbError.ErrInternal.New(err).GRPC()
 	}
 
 	val := vals[0]
@@ -220,7 +219,7 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 		)
 		for i := 0; i < size; i++ {
 			if v, err := marshalAny(val.Index(i)); err != nil {
-				return nil, pbError.ErrInvalidArgument.New(err)
+				return nil, pbError.ErrInvalidArgument.New(err).GRPC()
 			} else {
 				ret.Data = append(ret.Data, &pbCrawl.Item{
 					Timestamp: time.Now().UnixNano() / 1000000,
@@ -234,7 +233,7 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 		return &ret, nil
 	case reflect.Ptr:
 		if v, err := marshalAny(val); err != nil {
-			return nil, pbError.ErrInvalidArgument.New(err)
+			return nil, pbError.ErrInvalidArgument.New(err).GRPC()
 		} else {
 			item := &pbCrawl.Item{
 				Timestamp: time.Now().UnixNano() / 1000000,
@@ -247,7 +246,7 @@ func (s *CrawlerServer) Call(ctx context.Context, req *pbCrawl.CallRequest) (*pb
 		}
 	default:
 		s.logger.Debugf("%v %v", val.Interface(), val.Kind())
-		return nil, pbError.ErrInternal.New("unsuported returned value")
+		return nil, pbError.ErrInternal.New("unsuported returned value").GRPC()
 	}
 }
 
@@ -285,26 +284,50 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 		return false
 	}() {
 		logger.Infof("Access %s aborted", rawreq.GetUrl())
-		return crawler.ErrAbort
+		return pbError.ErrAborted.New("domain do match").GRPC()
 	}
 
 	opts := s.crawler.CrawlOptions(req.URL)
-	resp, err := s.httpClient.DoWithOptions(shareCtx, req, http.Options{
-		EnableProxy:       !rawreq.Options.DisableProxy,
-		EnableHeadless:    opts.EnableHeadless,
-		EnableSessionInit: opts.EnableSessionInit,
-		KeepSession:       opts.KeepSession,
-		DisableCookieJar:  opts.DisableCookieJar,
-		DisableRedirect:   opts.DisableRedirect,
-		Reliability:       opts.Reliability,
-	})
-	if err != nil {
-		logger.Error(err)
-		return err
+	// init custom headers
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
 	}
-	if resp.Body == nil {
-		logger.Error("no response got")
-		return errors.New("no response got")
+	// init custom cookies
+	for _, c := range opts.MustCookies {
+		if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
+			val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+			if c := req.Header.Get("Cookie"); c != "" {
+				req.Header.Set("Cookie", c+"; "+val)
+			} else {
+				req.Header.Set("Cookie", val)
+			}
+		}
+	}
+	var resp *http.Response
+	if opts.SkipDoRequest {
+		logger.Debugf("skip do request")
+		resp = &http.Response{Response: &rhttp.Response{Request: req}}
+	} else {
+		resp, err = s.httpClient.DoWithOptions(shareCtx, req, http.Options{
+			EnableProxy:       !rawreq.Options.DisableProxy,
+			EnableHeadless:    opts.EnableHeadless,
+			EnableSessionInit: opts.EnableSessionInit,
+			KeepSession:       opts.KeepSession,
+			DisableCookieJar:  opts.DisableCookieJar,
+			DisableRedirect:   opts.DisableRedirect,
+			Reliability:       opts.Reliability,
+		})
+		if err != nil {
+			logger.Error(err)
+			return err
+		}
+		if resp.Body == nil {
+			if resp.StatusCode != http.StatusOK {
+				logger.Errorf("no response got status: %d", resp.StatusCode)
+				return pbError.ErrInternal.New("no response got").GRPC()
+			}
+			return pbError.ErrAborted.GRPC()
+		}
 	}
 
 	err = s.crawler.Parse(shareCtx, resp, func(c context.Context, i interface{}) error {
@@ -315,52 +338,6 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 				tid = "sub_" + tid
 			}
 			tracingId = tid
-		}
-
-		if ctxutil.GetString(shareCtx, crawler.MainCategoryKey) != "" ||
-			ctxutil.GetString(shareCtx, crawler.CategoryKey) != "" {
-			switch val := i.(type) {
-			case *http.Request:
-				var (
-					cateNames      = []string{}
-					cateNameFilter = map[string]struct{}{}
-				)
-				for _, key := range crawler.CategoryKeys {
-					vals := strings.Split(text.Clean(ctxutil.GetString(shareCtx, key)), ">")
-					for _, val := range vals {
-						val = strings.Title(strings.ToLower(val))
-						if _, ok := cateNameFilter[val]; ok || val == "" {
-							continue
-						}
-						// Ignore too long names, in most cases the long name is not the cate name
-						if len([]rune(val)) > 48 {
-							continue
-						}
-						cateNames = append(cateNames, val)
-						cateNameFilter[val] = struct{}{}
-
-						// keep length to 6
-						if len(cateNames) == 6 {
-							break
-						}
-					}
-				}
-				var cate *pbItem.Category
-				for i := len(cateNames) - 1; i >= 0; i-- {
-					name := cateNames[i]
-
-					c := pbItem.Category{Name: name}
-					if i == len(cateNames)-1 {
-						c.Url = val.URL.String()
-						c.Depth = int32(i + 1)
-					}
-					if cate != nil {
-						c.Children = append(c.Children, cate)
-					}
-					cate = &c
-				}
-				i = cate
-			}
 		}
 
 		switch val := i.(type) {
@@ -458,13 +435,16 @@ func (s *CrawlerServer) Parse(rawreq *pbCrawl.Request, ps pbCrawl.CrawlerNode_Pa
 	}
 
 	if errors.Is(crawler.ErrAbort, err) {
-		return pbError.ErrAborted.New(err.Error())
+		return pbError.ErrAborted.New(err.Error()).GRPC()
 	} else if errors.Is(crawler.ErrUnsupportedPath, err) {
-		return pbError.ErrUnimplemented.New(err.Error())
+		return pbError.ErrUnimplemented.New(err.Error()).GRPC()
 	} else if errors.Is(crawler.ErrUnsupportedTarget, err) {
-		return pbError.ErrUnimplemented.New(err.Error())
+		return pbError.ErrUnimplemented.New(err.Error()).GRPC()
 	}
-	return err
+	if err != nil {
+		return pbError.NewFromError(err).GRPC()
+	}
+	return nil
 }
 
 func buildRequest(r *pbCrawl.Request) (*http.Request, error) {
@@ -477,7 +457,7 @@ func buildRequest(r *pbCrawl.Request) (*http.Request, error) {
 	}
 	req, err := http.NewRequest(r.Method, r.Url, reader)
 	if err != nil {
-		return nil, pbError.ErrInvalidArgument.New(err)
+		return nil, pbError.ErrInvalidArgument.New(err).GRPC()
 	}
 	for k, v := range r.CustomHeaders {
 		// ignore cookies in header

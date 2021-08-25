@@ -246,6 +246,14 @@ class UserManagerServicer(_UserManagerServicer):
                 return self.interceptor(request, context, methodDesc, self.servicer.Update)
             return self.servicer.Update(request, context)
 	
+        def UpdateField(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("UpdateField")
+                if not methodDesc:
+                    raise RuntimeError("Method [UpdateField] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.UpdateField)
+            return self.servicer.UpdateField(request, context)
+	
         def GetRoles(self, request, context):
             if self.interceptor:
                 methodDesc = self.desc.methods.get("GetRoles")
@@ -384,6 +392,14 @@ class UserManagerStub(object):
                 raise RuntimeError("Method [Update] description not found")
             return self.____interceptor(self.____stub.Update, methodDesc, request, timeout, metadata, credentials)
         return self.____stub.Update(request, timeout, metadata, credentials)
+	
+    def UpdateField(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("UpdateField")
+            if not methodDesc:
+                raise RuntimeError("Method [UpdateField] description not found")
+            return self.____interceptor(self.____stub.UpdateField, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.UpdateField(request, timeout, metadata, credentials)
 	
     def GetRoles(self, request, timeout=None, metadata=None, credentials=None):
         if self.____interceptor:
