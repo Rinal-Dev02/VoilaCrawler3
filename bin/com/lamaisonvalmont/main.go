@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -42,8 +43,8 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(/us/en[/A-Za-z0-9_-]+.html)$`),
-		productPathMatcher:  regexp.MustCompile(`^(/[/A-Za-z0-9_-]+.html)$`),
+		categoryPathMatcher: regexp.MustCompile(`^/us/en/[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+){1,3}.html$`),
+		productPathMatcher:  regexp.MustCompile(`^/us/en/[A-Za-z0-9_-]+.html$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -51,7 +52,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 
 // ID
 func (c *_Crawler) ID() string {
-	return "4e72208a14814615a202a5fb6a9cffae"
+	return "74fd61ff6a46b8e7b4b39797d671e72e"
 }
 
 // Version
@@ -89,6 +90,12 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.lamaisonvalmont.com"
+	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
 		return u.String(), nil
@@ -114,14 +121,14 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-	if p == "/us/en" {
-		return c.parseCategories(ctx, resp, yield)
+	if p == "" || p == "/us/en" {
+		return crawler.ErrUnsupportedPath
 	}
 
 	respBody, _ := resp.RawBody()
 	if bytes.Contains(respBody, []byte(`content="product"`)) {
 		return c.parseProduct(ctx, resp, yield)
-	} else {
+	} else if c.categoryPathMatcher.MatchString(p) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 
@@ -131,7 +138,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	// 	return c.parseCategoryProducts(ctx, resp, yield)
 	// }
 
-	//return crawler.ErrUnsupportedPath
+	return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get the index from the shared data.
@@ -140,6 +147,143 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")))
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.lamaisonvalmont.com/us/en/", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
+		sel := dom.Find(`.pagebuilder-column.valmont-navigation__column`)
+
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			cateName := strings.TrimSpace(node.Find(`.valmont-category-cms__menu-link`).First().Text())
+
+			if cateName == "" {
+				continue
+			}
+
+			//nctx := context.WithValue(ctx, "Category", cateName)
+
+			subSel := node.Find(`.pagebuilder-column-group`).Find(`p`)
+			subcat2 := ""
+
+			for k := range subSel.Nodes {
+				subNode2 := subSel.Eq(k)
+
+				if strings.Contains(subNode2.AttrOr("class", ""), "valmont-category-cms__main-link") {
+					subcat2 = strings.TrimSpace(subNode2.Find(`a`).First().Text())
+					if subcat2 == "" {
+						subcat2 = strings.TrimSpace(subNode2.Find(`span`).First().Text())
+					}
+				} else if strings.Contains(subNode2.AttrOr("class", ""), "valmont-category-cms__secondary-link") {
+					subcat2 = strings.TrimSpace(subNode2.Find(`span`).First().Text())
+				}
+
+				subcat3 := strings.TrimSpace(subNode2.Find(`a`).First().Text())
+
+				href := strings.TrimSpace(subNode2.Find(`a`).AttrOr("href", ""))
+				if href == "" || subcat3 == "" {
+					continue
+				}
+				href, err := c.CanonicalUrl(href)
+				if err != nil {
+					c.logger.Errorf("got invalid url %s", href)
+					continue
+				}
+
+				u, err := url.Parse(href)
+				if err != nil {
+					c.logger.Error("parse url %s failed", href)
+					continue
+				}
+				//if u.Host != "www.lamaisonvalmont.com" {
+				//	c.logger.Warnf("get other website url %s in homepage", href)
+				//	continue
+				//}
+
+				if p := strings.TrimSuffix(u.Path, "/"); c.categoryPathMatcher.MatchString(p) {
+					//nnctx := context.WithValue(nctx, "SubCategory", subcat2)
+					//nnnctx := context.WithValue(nnctx, "SubCategory2", subcat3)
+					if err := yield([]string{cateName, subcat2, subcat3}, href); err != nil {
+						return err
+					}
+				}
+				// 从主页直接找到点进去 https://www.lamaisonvalmont.com/us/en/private-mind.html
+				// 从列表中找到点进去 https://www.lamaisonvalmont.com/us/en/private-mind.html
+				// 是同一个商品，可忽略主页中的商品链接
+				//else if c.productPathMatcher.MatchString(p) {
+				//	//c.logger.Warnf("get product url %s in homepage", href)
+				//	if err := yield([]string{cateName, subcat2, subcat3}, href); err != nil {
+				//		return err
+				//	}
+				//}
+				//else {
+				//	c.logger.Warnf("unsupport path (%s)", href)
+				//	continue
+				//}
+			}
+		}
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
+
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
+				}
+				cateMap[path] = cate
+				if lastCate != nil {
+					lastCate.Children = append(lastCate.Children, cate)
+				}
+				lastCate = cate
+
+				if i == 0 {
+					cates = append(cates, cate)
+				}
+			}
+		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	return cates, nil
+}
+
+// @deprecated
 func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -214,36 +358,36 @@ var productListExtractReg = regexp.MustCompile(`(?Ums)var\s*tc_vars\s*=\s*({.*})
 
 type CategoryData struct {
 	ProductArray []struct {
-		ProductBrand              string `json:"product_brand"`
-		ProductID                 string `json:"product_id"`
-		ProductSKU                string `json:"product_SKU"`
-		ProductName               string `json:"product_name"`
-		ProductUnitprice          int    `json:"product_unitprice"`
-		ProductUnitpriceTf        int    `json:"product_unitprice_tf"`
-		ProductDiscount           int    `json:"product_discount"`
-		ProductDiscountTf         int    `json:"product_discount_tf"`
-		ProductURL                string `json:"product_url"`
-		ProductURLImg             string `json:"product_url_img"`
-		ProductCategoryExternalID string `json:"product_category_external_id"`
-		ProductCategory           string `json:"product_category"`
-		ProductVolume             string `json:"product_volume"`
-		ProductQty                string `json:"product_qty"`
+		ProductBrand              string      `json:"product_brand"`
+		ProductID                 string      `json:"product_id"`
+		ProductSKU                string      `json:"product_SKU"`
+		ProductName               string      `json:"product_name"`
+		ProductUnitprice          int         `json:"product_unitprice"`
+		ProductUnitpriceTf        int         `json:"product_unitprice_tf"`
+		ProductDiscount           int         `json:"product_discount"`
+		ProductDiscountTf         int         `json:"product_discount_tf"`
+		ProductURL                string      `json:"product_url"`
+		ProductURLImg             string      `json:"product_url_img"`
+		ProductCategoryExternalID string      `json:"product_category_external_id"`
+		ProductCategory           string      `json:"product_category"`
+		ProductVolume             interface{} `json:"product_volume"`
+		ProductQty                string      `json:"product_qty"`
 	} `json:"product_array"`
 	ProductOptions []struct {
-		ProductBrand              string `json:"product_brand"`
-		ProductID                 string `json:"product_id"`
-		ProductSKU                string `json:"product_SKU"`
-		ProductName               string `json:"product_name"`
-		ProductUnitprice          int    `json:"product_unitprice"`
-		ProductUnitpriceTf        int    `json:"product_unitprice_tf"`
-		ProductDiscount           int    `json:"product_discount"`
-		ProductDiscountTf         int    `json:"product_discount_tf"`
-		ProductURL                string `json:"product_url"`
-		ProductURLImg             string `json:"product_url_img"`
-		ProductCategoryExternalID string `json:"product_category_external_id"`
-		ProductCategory           string `json:"product_category"`
-		ProductVolume             string `json:"product_volume"`
-		ProductQty                string `json:"product_qty"`
+		ProductBrand              string      `json:"product_brand"`
+		ProductID                 string      `json:"product_id"`
+		ProductSKU                string      `json:"product_SKU"`
+		ProductName               string      `json:"product_name"`
+		ProductUnitprice          int         `json:"product_unitprice"`
+		ProductUnitpriceTf        int         `json:"product_unitprice_tf"`
+		ProductDiscount           int         `json:"product_discount"`
+		ProductDiscountTf         int         `json:"product_discount_tf"`
+		ProductURL                string      `json:"product_url"`
+		ProductURLImg             string      `json:"product_url_img"`
+		ProductCategoryExternalID string      `json:"product_category_external_id"`
+		ProductCategory           string      `json:"product_category"`
+		ProductVolume             interface{} `json:"product_volume"`
+		ProductQty                string      `json:"product_qty"`
 	} `json:"product_options"`
 }
 
@@ -394,8 +538,15 @@ type parseProductBreadCrumbData struct {
 	} `json:"itemListElement"`
 }
 
-var productsPageExtractReg = regexp.MustCompile(`(?Ums)"jsonConfig":\s*({.*})\s*,\s*"jsonSwatch`)
-var productsDataExtractReg = regexp.MustCompile(`(?U)<script type="application/ld\+json">\s*({.*})\s*</script>`)
+var (
+	productsPageExtractReg = regexp.MustCompile(`(?Ums)"jsonConfig":\s*({.*})\s*,\s*"jsonSwatch`)
+	productsDataExtractReg = regexp.MustCompile(`(?U)<script type="application/ld\+json">\s*({.*})\s*</script>`)
+	// 获取真正的商品ID and name
+	productIdReg   = regexp.MustCompile(`(?U)\('product.id',\s*'(.*)'\s*\)`)
+	productNameReg = regexp.MustCompile(`(?U)\('product.label',\s*'(.*)'\s*\)`)
+	// category
+	categoryNameReg = regexp.MustCompile(`(?U)\('category.label',\s*'(.*)'\s*\)`)
+)
 
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -451,24 +602,36 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
 	}
 
+	// get product id and name
+	productIdMatcher := productIdReg.FindSubmatch(respBody)
+	if len(productIdMatcher) <= 1 {
+		return fmt.Errorf("product not found id in url=%s", resp.Request.URL.String())
+	}
+	productNameMatcher := productNameReg.FindSubmatch(respBody)
+	if len(productNameMatcher) <= 1 {
+		return fmt.Errorf("product not found name in url=%s", resp.Request.URL.String())
+	}
+
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:           viewData.ProductArray[0].ProductID,
+			Id:           string(productIdMatcher[1]),
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 		},
 		BrandName: viewData.ProductArray[0].ProductBrand,
-		Title:     viewData.ProductArray[0].ProductName,
+		Title:     string(productNameMatcher[1]),
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
-		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
 	}
 
 	// desc
-	description := strings.TrimSpace(doc.Find(`.product-benefits_info`).Text())
-	item.Description = string(TrimSpaceNewlineInString([]byte(description)))
+	item.Description = string(TrimSpaceNewlineInString([]byte(strings.TrimSpace(doc.Find(`.product-benefits_info`).Text()))))
+	if item.Description == "" {
+		item.Description = string(TrimSpaceNewlineInString([]byte(strings.TrimSpace(doc.Find(`.product.attribute.description`).Find(`.value`).Text()))))
+	}
 
 	for i, prodBreadcrumb := range productBreadCrumb.ItemListElement {
 		switch i {
@@ -484,17 +647,23 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.SubCategory4 = prodBreadcrumb.Item.Name
 		}
 	}
+	if len(productBreadCrumb.ItemListElement) == 0 {
+		categoryNameMatcher := categoryNameReg.FindSubmatch(respBody)
+		if len(categoryNameMatcher) > 1 {
+			item.Category = string(categoryNameMatcher[1])
+		}
+	}
 
 	//images
-	for _, iItem := range viewVariationData.Images {
+	for i, iItem := range viewVariationData.Images {
 		for j, imgItem := range iItem {
 			item.Medias = append(item.Medias, pbMedia.NewImageMedia(
-				strconv.Format(j),
+				fmt.Sprintf("%d-%d", i, j),
 				imgItem.Img,
-				imgItem.Full+"?sw=750&sfrm=jpg&q=70",
-				imgItem.Full+"?sw=563&sfrm=jpg&q=70",
-				imgItem.Thumb+"&",
-				"", j == 0))
+				imgItem.Full+"?sw=800&sfrm=jpg&q=70&width=800",
+				imgItem.Full+"?sw=600&sfrm=jpg&q=70&width=600",
+				imgItem.Thumb+"?sw=500&sfrm=jpg&q=70&width=500",
+				"", i == 0))
 		}
 	}
 
@@ -508,77 +677,128 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.Medias = append(item.Medias, pbMedia.NewImageMedia(
 				strconv.Format(j),
 				imgurl,
-				imgurl+"?sw=800",
-				imgurl+"?sw=500",
-				imgurl+"?sw=300",
+				imgurl+"?width=800",
+				imgurl+"?width=600",
+				imgurl+"?width=500",
 				"", j == 0))
 		}
 
 	}
 
-	originalPrice, _ := strconv.ParsePrice(viewVariationData.Prices.FinalPrice.Amount)
-	msrp, _ := strconv.ParsePrice(viewVariationData.Prices.OldPrice.Amount)
-	discount := 0.0
-	if msrp == 0 {
-		msrp = originalPrice
-	}
-	if msrp == 0 && originalPrice == 0 {
-		msrp, _ = strconv.ParsePrice(viewData.ProductArray[0].ProductUnitprice)
-		originalPrice, _ = strconv.ParsePrice(viewData.ProductArray[0].ProductUnitpriceTf)
-	}
-	if msrp > originalPrice {
-		discount = math.Ceil((msrp - originalPrice) / msrp * 100)
-	}
-
 	for _, itema := range viewVariationData.Attributes {
 
-		for i, rawSku := range itema.Options {
-
+		for _, rawSku := range itema.Options {
+			// Out of stock products and SKUs are not shown on this site
+			if len(rawSku.Products) == 0 {
+				continue
+			}
 			sku := pbItem.Sku{
-				SourceId: fmt.Sprintf("%s-%d", rawSku.ID, i),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
-					Current:  int32(originalPrice),
-					Msrp:     int32(msrp),
-					Discount: int32(discount),
 				},
 				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
 			}
-
-			if len(rawSku.Products) == 0 {
-				sku.Stock.StockStatus = pbItem.Stock_OutOfStock
+			// 这个网站的SKU还有个ProductId，用这个值去找别的信息
+			skuProductId := 0
+			// get sku id
+		findSkuInfoLoop:
+			for _, productOption := range viewData.ProductOptions {
+				for _, product := range rawSku.Products {
+					if product == productOption.ProductID {
+						sku.SourceId = productOption.ProductSKU
+						skuPId, err := strconv.ParseInt(productOption.ProductID)
+						if err != nil {
+							return fmt.Errorf("sku.ProductId ParseInt errorin url=%s, err=%s", resp.Request.URL.String(), err)
+						}
+						skuProductId = int(skuPId)
+						msrp, _ := strconv.ParsePrice(productOption.ProductUnitprice)
+						currentPrice, _ := strconv.ParsePrice(productOption.ProductUnitpriceTf)
+						sku.Price.Current = int32(currentPrice * 100)
+						sku.Price.Msrp = int32(msrp * 100)
+						if msrp > currentPrice {
+							sku.Price.Discount = int32(math.Ceil((msrp - currentPrice) / msrp * 100))
+						}
+						break findSkuInfoLoop
+					}
+				}
+			}
+			// not found
+			if sku.SourceId == "" {
+				return fmt.Errorf("sku.SourceId not found in url=%s", resp.Request.URL.String())
+			}
+			// get sku price
+			optionPrice, ok := viewVariationData.OptionPrices[skuProductId]
+			if !ok {
+				return fmt.Errorf("sku.optionPrice not found in url=%s", resp.Request.URL.String())
+			}
+			currentPrice, _ := strconv.ParsePrice(optionPrice.FinalPrice.Amount)
+			msrp, _ := strconv.ParsePrice(optionPrice.OldPrice.Amount)
+			if msrp == 0 {
+				msrp = currentPrice
+			}
+			// 这里暂时覆盖数据，没有找到折扣商品，不太确定是用哪个字段
+			if msrp != 0 && currentPrice != 0 {
+				sku.Price.Current = int32(currentPrice * 100)
+				sku.Price.Msrp = int32(msrp * 100)
+				if msrp > currentPrice {
+					sku.Price.Discount = int32(math.Ceil((msrp - currentPrice) / msrp * 100))
+				}
+			}
+			// get sku image
+			skuImage, ok := viewVariationData.Images[skuProductId]
+			if ok {
+				for i, img := range skuImage {
+					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
+						strconv.Format(i),
+						img.Img,
+						img.Img+"&width=800",
+						img.Img+"&width=600",
+						img.Img+"&width=500",
+						"",
+						i == 0,
+					))
+				}
 			}
 
+			//if len(rawSku.Products) == 0 {
+			//	sku.Stock.StockStatus = pbItem.Stock_OutOfStock
+			//}
+
+			// 这里统一SkuSpecOption.Id都用Name，因为原网站不统一，多选时才能获取到，单选时没有
 			if strings.ToLower(itema.Code) == "color" || strings.ToLower(itema.Label) == "color" {
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecColor,
-					Id:    rawSku.ID,
+					Type: pbItem.SkuSpecType_SkuSpecColor,
+					//Id:    rawSku.ID,
+					Id:    rawSku.Label,
 					Name:  rawSku.Label,
 					Value: rawSku.Label,
 				})
 			} else if strings.ToLower(itema.Code) == "size" || strings.ToLower(itema.Label) == "size" {
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 					Type:  pbItem.SkuSpecType_SkuSpecSize,
-					Id:    rawSku.ID,
+					Id:    rawSku.Label,
 					Name:  rawSku.Label,
 					Value: rawSku.Label,
 				})
 			} else {
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 					Type:  pbItem.SkuSpecType_SkuSpecUnknown,
-					Id:    rawSku.ID,
+					Id:    rawSku.Label,
 					Name:  rawSku.Label,
 					Value: rawSku.Label,
 				})
 			}
 
-			if viewData.ProductArray[0].ProductVolume != "" && itema.Code == "color" {
-				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecSize,
-					Id:    viewData.ProductArray[0].ProductSKU,
-					Name:  viewData.ProductArray[0].ProductVolume,
-					Value: viewData.ProductArray[0].ProductVolume,
-				})
+			// 发现有一个商品有颜色和型号两个属性，但是这个型号没有对应的skuSpecOptionId
+			if productVolume, ok := viewData.ProductArray[0].ProductVolume.(string); ok {
+				if productVolume != "" && (itema.Code == "color" || strings.ToLower(itema.Label) == "color") {
+					sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+						Type:  pbItem.SkuSpecType_SkuSpecSize,
+						Id:    productVolume,
+						Name:  productVolume,
+						Value: productVolume,
+					})
+				}
 			}
 
 			item.SkuItems = append(item.SkuItems, &sku)
@@ -587,15 +807,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	if len(viewVariationData.Attributes) == 0 {
 
-		for i, rawSku := range viewData.ProductOptions {
+		for _, rawSku := range viewData.ProductOptions {
 
 			sku := pbItem.Sku{
-				SourceId: fmt.Sprintf("%s-%d", rawSku.ProductID, i),
+				SourceId: rawSku.ProductSKU,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
-					Current:  int32(originalPrice),
-					Msrp:     int32(msrp),
-					Discount: int32(discount),
 				},
 				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
 			}
@@ -604,14 +821,57 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				sku.Stock.StockStatus = pbItem.Stock_OutOfStock
 			}
 
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    rawSku.ProductSKU,
-				Name:  rawSku.ProductVolume,
-				Value: rawSku.ProductVolume,
-			})
+			// price
+			msrp, _ := strconv.ParsePrice(rawSku.ProductUnitprice)
+			currentPrice, _ := strconv.ParsePrice(rawSku.ProductUnitpriceTf)
+			sku.Price.Current = int32(currentPrice * 100)
+			sku.Price.Msrp = int32(msrp * 100)
+			if msrp > currentPrice {
+				sku.Price.Discount = int32(math.Ceil((msrp - currentPrice) / msrp * 100))
+			}
+			// media
+			skuPId, err := strconv.ParseInt(rawSku.ProductID)
+			if err != nil {
+				return fmt.Errorf("sku.ProductId ParseInt errorin url=%s, err=%s", resp.Request.URL.String(), err)
+			}
+			skuImage, ok := viewVariationData.Images[int(skuPId)]
+			if ok {
+				for i, img := range skuImage {
+					sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
+						strconv.Format(i),
+						img.Img,
+						img.Img+"&width=800",
+						img.Img+"&width=600",
+						img.Img+"&width=500",
+						"",
+						i == 0,
+					))
+				}
+			}
+			if productVolume, ok := rawSku.ProductVolume.(string); ok {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					Id:    productVolume,
+					Name:  productVolume,
+					Value: productVolume,
+				})
+			} else {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					Id:    "-",
+					Name:  "-",
+					Value: "-",
+				})
+			}
 
 			item.SkuItems = append(item.SkuItems, &sku)
+		}
+	}
+
+	// calc product stock status
+	for _, skuItem := range item.SkuItems {
+		if skuItem.Stock.StockStatus == pbItem.Stock_InStock {
+			item.Stock.StockStatus = pbItem.Stock_InStock
 		}
 	}
 
