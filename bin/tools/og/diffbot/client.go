@@ -149,5 +149,20 @@ func (c *DiffbotCient) Fetch(ctx context.Context, rawurl string) ([]*Product, er
 		}
 		break
 	}
+
+	for _, prod := range ret.Objects {
+		imgs := prod.Images[0:0]
+		for _, img := range prod.Images {
+			if _, ok := imgBlackList[img.URL]; ok {
+				continue
+			}
+			imgs = append(imgs, img)
+		}
+		prod.Images = imgs
+	}
 	return ret.Objects, nil
+}
+
+var imgBlackList = map[string]struct{}{
+	"https://is4.revolveassets.com/images/wwu/2017/january/womens/011017_f_popup.jpg": {},
 }

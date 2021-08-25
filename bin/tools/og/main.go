@@ -336,7 +336,8 @@ func (c *_Crawler) parseOpenGraph(ctx context.Context, req *http.Request) (*pbIt
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://us.princesspolly.com/collections/basics/products/madelyn-top-green",
+		// "https://us.princesspolly.com/collections/basics/products/madelyn-top-green",
+		"https://www.revolve.com/house-of-harlow-1960-x-sofia-richie-portofino-dress/dp/HOOF-WD751/?d=Womens&page=1&lc=2&itrownum=1&itcurrpage=1&itview=05",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
