@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -21,7 +22,6 @@ import (
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/strconv"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // _Crawler defined the crawler struct/class for which is not necessory to be exportable
@@ -43,11 +43,9 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(/[/A-Za-z0-9_-]+)$`),
-		//productPathMatcher:  regexp.MustCompile(`^(/[/A-Za-z0-9_-]+.html)$`),
-		productPathMatcher: regexp.MustCompile(`(?Ums)<div\s*id="product-detail-data"\s*data-product-json='({.*})'></div>`),
-
-		logger: logger.New("_Crawler"),
+		categoryPathMatcher: regexp.MustCompile(`^/us/en/([/A-Za-z0-9_-]+)/c/\d+$`),
+		productPathMatcher:  regexp.MustCompile(`/([/A-Za-z0-9_-]+)/p/\d+`),
+		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
 }
@@ -72,7 +70,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
-		Reliability:       proxy.ProxyReliability_ReliabilityIntelligent,
+		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
 	}
 
 	return opts
@@ -91,6 +89,12 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	u, err := url.Parse(rawurl)
 	if err != nil {
 		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.drmartens.com"
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
@@ -117,7 +121,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-	if p == "" || p == "us/en" || p == "/en_us" {
+	if p == "" || p == "/us/en" {
 		return c.parseCategories(ctx, resp, yield)
 	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -126,7 +130,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategoryProducts(ctx, resp, yield) // category >> productlist page
 	}
 
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get the index from the shared data.
@@ -135,6 +139,138 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")))
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.drmartens.com/us/en/", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
+		sel := dom.Find(`.dm-primary-nav>li`)
+
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+			if cateName == "" {
+				continue
+			}
+
+			subSel := node.Find(`.sub-navigation-section`)
+
+			for k := range subSel.Nodes {
+				subNode2 := subSel.Eq(k)
+				subcat := strings.TrimSpace(subNode2.Find(`a`).First().Text())
+
+				subNode2list := subNode2.Find(`.yCmsComponent`)
+				for j := range subNode2list.Nodes {
+					subNode := subNode2list.Eq(j)
+
+					subcatname := strings.TrimSpace(subNode.Find(`a`).First().Text())
+
+					if subcatname == "" {
+						continue
+					}
+
+					href := subNode.Find(`a`).First().AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{cateName, subcat, subcatname}, href); err != nil {
+							return err
+						}
+					}
+
+				}
+
+				if len(subNode2list.Nodes) == 0 {
+
+					href := subNode2.Find(`a`).First().AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{cateName, subcat}, href); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
+
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
+
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
+				}
+				cateMap[path] = cate
+				if lastCate != nil {
+					lastCate.Children = append(lastCate.Children, cate)
+				}
+				lastCate = cate
+
+				if i == 0 {
+					cates = append(cates, cate)
+				}
+			}
+		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	return cates, nil
+}
+
+// @deprecated
 func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -151,8 +287,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		return err
 	}
 
-	sel := dom.Find(`.navigation>.navigation__overflow>.dm-primary-nav>li`)
-	//fmt.Println(len(sel.Nodes))
+	sel := dom.Find(`.dm-primary-nav>li`)
 
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
@@ -162,15 +297,14 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		}
 
 		//nctx := context.WithValue(ctx, "Category", cateName)
-		fmt.Println(`Cat Name:`, cateName)
 
-		subSel := node.Find(`.sub__navigation>.container>.nav-column>.sub-navigation-section`)
+		subSel := node.Find(`.sub-navigation-section`)
 
 		for k := range subSel.Nodes {
 			subNode2 := subSel.Eq(k)
-			subcat := strings.TrimSpace(subNode2.Find(`.title`).Find(`a`).First().Text())
+			subcat := strings.TrimSpace(subNode2.Find(`a`).First().Text())
 
-			subNode2list := subNode2.Find(`.sub-navigation-list>li`)
+			subNode2list := subNode2.Find(`.yCmsComponent`)
 			for j := range subNode2list.Nodes {
 				subNode := subNode2list.Eq(j)
 
@@ -192,8 +326,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 					finalsubCatName = subcatname
 				}
 
-				fmt.Println(`SubCategory:`, finalsubCatName)
-				fmt.Println(`href:`, href)
+				fmt.Println(finalsubCatName)
 
 				// u, err := url.Parse(href)
 				// if err != nil {
@@ -209,6 +342,10 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 				// 	}
 				// }
 
+			}
+
+			if len(subNode2list.Nodes) == 0 {
+				fmt.Println(subcat)
 			}
 		}
 	}
@@ -293,18 +430,23 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	ioutil.WriteFile("D:\\STS5\\New_VoilaCrawl\\VoilaCrawler\\Output.html", respBody, 0644)
-
 	var viewData CategoryData
-	// if err := json.Unmarshal(matched[1], &viewData); err != nil {
-	// 	c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
-	// 	return err
-	// }
+	matched := productsListExtractReg.FindSubmatch([]byte(respBody))
+	if len(matched) > 1 {
+
+		if err := json.Unmarshal(matched[1], &viewData); err != nil {
+			c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+			return err
+		}
+	}
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+		return err
+	}
 
 	lastIndex := nextIndex(ctx)
 	for _, idv := range viewData.Results {
 
-		fmt.Println(idv.Current.URL)
 		req, err := http.NewRequest(http.MethodGet, idv.Current.URL, nil)
 		if err != nil {
 			c.logger.Errorf("load http request of url %s failed, error=%s", idv.Current.URL, err)
@@ -327,7 +469,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	// check if this is the last page
-	if lastIndex > viewData.Pagination.TotalNumberOfResults || page >= int64(viewData.Pagination.NumberOfPages) {
+	if lastIndex >= viewData.Pagination.TotalNumberOfResults || page >= int64(viewData.Pagination.NumberOfPages) {
 		return nil
 	}
 
@@ -355,7 +497,24 @@ func TrimSpaceNewlineInString(s []byte) []byte {
 	return resp
 }
 
-var productsReviewExtractReg = regexp.MustCompile(`(?Ums)<script type="application/ld\+json"\s*id="bv-jsonld-bvloader-summary">({.*})</script>`)
+func TrimSpaceNewlineInByte(s []byte) []byte {
+	re := regexp.MustCompile(`\n`)
+	resp := re.ReplaceAll(s, []byte(" "))
+	resp = bytes.ReplaceAll(resp, []byte("\\n"), []byte(""))
+	resp = bytes.ReplaceAll(resp, []byte("\r"), []byte(""))
+	resp = bytes.ReplaceAll(resp, []byte("\t"), []byte(""))
+	resp = bytes.ReplaceAll(resp, []byte("&lt;"), []byte("<"))
+	resp = bytes.ReplaceAll(resp, []byte("&gt;"), []byte(">"))
+	resp = bytes.ReplaceAll(resp, []byte("  "), []byte(" "))
+
+	resp = bytes.ReplaceAll(resp, []byte("} , }"), []byte("} }"))
+
+	return resp
+}
+
+var productDetailExtractReg = regexp.MustCompile(`(?Ums)ACC.productTabs.tabsData\s*=\s*({.*});`)
+var productsExtractReg = regexp.MustCompile(`(?Ums)<script type="application/ld\+json">\s*({.*})\s*</script>`)
+var productsListExtractReg = regexp.MustCompile(`(?Ums)ACC.productList.initPageLoad\(({.*})\);`)
 
 type ProductPageData struct {
 	Context     string `json:"@context"`
@@ -382,6 +541,19 @@ type ProductPageData struct {
 	} `json:"offers"`
 }
 
+type ProductDetailData struct {
+	ProdDetail struct {
+		CloseTitle string `json:"closeTitle"`
+		ViewTitle  string `json:"viewTitle"`
+		Title      string `json:"title"`
+		Content    string `json:"content"`
+	} `json:"prodDetail"`
+	HowMade struct {
+		Title   string `json:"title"`
+		Content string `json:"content"`
+	} `json:"howMade"`
+}
+
 // used to trim html labels in description
 var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
 
@@ -401,11 +573,20 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	var viewData ProductPageData
-	matched := productsReviewExtractReg.FindSubmatch([]byte(respBody))
+	var viewDetail ProductDetailData
+	matched := productsExtractReg.FindSubmatch([]byte(respBody))
 	if len(matched) > 1 {
 		if err := json.Unmarshal(matched[1], &viewData); err != nil {
 			c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
 			return err
+		}
+	}
+
+	matched = productDetailExtractReg.FindSubmatch([]byte(respBody))
+	if len(matched) > 1 {
+		if err := json.Unmarshal(TrimSpaceNewlineInByte(matched[1]), &viewDetail); err != nil {
+			c.logger.Errorf("unmarshal Detail data fetched from %s failed, error=%s", resp.Request.URL, err)
+			//return err
 		}
 	}
 
@@ -435,15 +616,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	// desc
-	description := viewData.Description + htmlTrimRegp.ReplaceAllString(doc.Find(`.item-prodDetail`).Find(`.product-information`).Text(), " ")
+	description := htmlTrimRegp.ReplaceAllString(viewDetail.ProdDetail.Content+viewDetail.HowMade.Content, " ")
 	item.Description = string(TrimSpaceNewlineInString([]byte(description)))
 
-	if strings.Contains(doc.Find(`.availability .product-availability .my-3`).AttrOr(`data-available`, ``), "true") {
-		item.Stock.StockStatus = pbItem.Stock_InStock
-	}
-
-	currentPrice, _ := strconv.ParsePrice(viewData.Offers.Price)
-	msrp, _ := strconv.ParsePrice(viewData.Offers.Price)
+	currentPrice, _ := strconv.ParsePrice(doc.Find(`span[class="current-price special-price"]`).Text())
+	msrp, _ := strconv.ParsePrice(doc.Find(`span[class="current-price"]`).Text())
 
 	if msrp == 0 {
 		msrp = currentPrice
@@ -462,9 +639,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.Medias = append(item.Medias, pbMedia.NewImageMedia(
 			strconv.Format(j),
 			imgurl,
-			imgurl+"?sw=800&sh=800&q=80",
+			imgurl+"?sw=1000&sh=1000&q=80",
+			imgurl+"?sw=600&sh=600&q=80",
 			imgurl+"?sw=500&sh=500&q=80",
-			imgurl+"?sw=300&sh=300&q=80",
 			"", j == 0))
 	}
 
@@ -472,18 +649,21 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	sel = doc.Find(`.breadcrumb>li`)
 	c.logger.Debugf("nodes %d", len(sel.Nodes))
 	for i := range sel.Nodes {
+		if i == len(sel.Nodes)-1 {
+			continue
+		}
 		node := sel.Eq(i)
 		breadcrumb := strings.TrimSpace(node.Text())
 
-		if i == 0 {
+		if i == 1 {
 			item.Category = breadcrumb
-		} else if i == 1 {
-			item.SubCategory = breadcrumb
 		} else if i == 2 {
-			item.SubCategory2 = breadcrumb
+			item.SubCategory = breadcrumb
 		} else if i == 3 {
-			item.SubCategory3 = breadcrumb
+			item.SubCategory2 = breadcrumb
 		} else if i == 4 {
+			item.SubCategory3 = breadcrumb
+		} else if i == 5 {
 			item.SubCategory4 = breadcrumb
 		}
 	}
@@ -498,20 +678,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 
-		if strings.Contains(node.AttrOr(`class`, ``), `active`) {
-
+		if spanClass := node.AttrOr(`class`, ``); strings.Contains(spanClass, `active`) {
 			if err := json.Unmarshal([]byte(node.Find(`a`).AttrOr("data-json", "")), &details); err != nil {
 				fmt.Println(err)
 				continue
 			}
-			cid = string(details["code"])
-			colorName = string(details["name"])
+			cid = strings.Trim(string(details["code"]), `"`)
+			colorName = strings.Trim(string(details["name"]), `"`)
 			colorSelected = &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    string(details["code"]),
+				Id:    cid,
 				Name:  colorName,
 				Value: colorName,
-				Icon:  string(details["img"]),
+				Icon:  strings.Trim(string(details["img"]), `"`),
 			}
 		}
 	}
@@ -520,19 +699,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 
-		sid := node.Find(`a`).AttrOr(`data-sku-code`, ``)
+		sid := node.Find(`a`).AttrOr(`data-sku-code`, ``) + "_" + node.Find(`a`).AttrOr(`data-sku-size`, ``)
 		sku := pbItem.Sku{
 			SourceId: fmt.Sprintf("%s-%s", cid, sid),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(currentPrice),
-				Msrp:     int32(msrp),
+				Current:  int32(currentPrice * 100),
+				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
 			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
-		if strings.Contains(node.Find(`a`).AttrOr("class", ""), "stock-inStock") {
+		if spanClass := node.Find(`a`).AttrOr("class", ""); strings.Contains(spanClass, "stock-inStock") {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
 			item.Stock.StockStatus = pbItem.Stock_InStock
 		}
@@ -552,9 +731,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
-	jsonData, err := protojson.Marshal(&item)
-	fmt.Println(string(jsonData))
-
 	// yield item result
 	if err = yield(ctx, &item); err != nil {
 		c.logger.Errorf("yield sub request failed, error=%s", err)
@@ -567,7 +743,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.drmartens.com/us/en/",
+		//"https://www.drmartens.com/us/en/",
+		//"https://www.drmartens.com/us/en/womens/boots/c/01010000",
+		"https://www.drmartens.com/us/en/p/26228100",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -592,7 +770,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
-
 	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
