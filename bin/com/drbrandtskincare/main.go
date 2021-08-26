@@ -41,9 +41,9 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(/[/a-zA-Z0-9\-]+){1,6}$`),
+		categoryPathMatcher: regexp.MustCompile(`^/collections(/[a-zA-Z0-9_-]+){1,6}$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^(/[/a-zA-Z0-9\-]+)/products(/[/a-zA-Z0-9\-]+)$`),
+		productPathMatcher: regexp.MustCompile(`^(/[/a-zA-Z0-9_-]+)?/products(/[a-zA-Z0-9_-]+){1,3}$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -52,7 +52,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 // ID
 func (c *_Crawler) ID() string {
 	// every spider should got an unique id which should not larget than 64 in length
-	return "116e38308fbd44caafaef7e949674104"
+	return "7ed560400e38cbce6d5c08f0cc452846"
 }
 
 // Version
@@ -97,9 +97,8 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
-		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 // Parse is the entry to run the spider.
@@ -122,17 +121,18 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 
 	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(p) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
 }
 
+// @deprecated
 func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -211,60 +211,53 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 }
 
 func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	rootUrl := "https://www.drbrandtskincare.com/"
+	req, _ := http.NewRequest(http.MethodGet, rootUrl, nil)
+	opts := c.CrawlOptions(req.URL)
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    false,
+		EnableSessionInit: false,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	defer resp.Body.Close()
 
+	respBody, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
 	var (
 		cates   []*pbItem.Category
 		cateMap = map[string]*pbItem.Category{}
 	)
 	if err := func(yield func(names []string, url string) error) error {
-
-		rootUrl := "https://www.drbrandtskincare.com/"
-		req, _ := http.NewRequest(http.MethodGet, rootUrl, nil)
-		opts := c.CrawlOptions(req.URL)
-		for _, c := range opts.MustCookies {
-			req.AddCookie(c)
-		}
-		for k := range opts.MustHeader {
-			req.Header.Set(k, opts.MustHeader.Get(k))
-		}
-		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-			EnableProxy:       true,
-			EnableHeadless:    false,
-			EnableSessionInit: false,
-			Reliability:       opts.Reliability,
-		})
-		if err != nil {
-			c.logger.Error(err)
-			//return nil, err
-		}
-		defer resp.Body.Close()
-
-		respBody, err := ioutil.ReadAll(resp.Body)
-
-		if err != nil {
-			return err
-		}
-		dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-		if err != nil {
-			c.logger.Error(err)
-			return err
-		}
-
-		var cates []*pbItem.Category
 		sel := dom.Find(`.multi-level-nav > .tier-1 > ul > li`)
 		for i := range sel.Nodes {
 			node := sel.Eq(i)
 			cateName := strings.TrimSpace(node.Find(`a`).First().Text())
-			if cateName == "" {
+			if cateName == "" || cateName == "Our story" || cateName == "Build Your Bundle" {
 				continue
 			}
 			//nnctx := context.WithValue(ctx, "Category", cateName)
-			fmt.Println()
-			fmt.Println(cateName)
 
 			cate := pbItem.Category{
-				Name:  cateName,
-				Url:   node.Find(`a`).First().AttrOr("href", ""),
+				Name: cateName,
+				//Url:   node.Find(`a`).First().AttrOr("href", ""),
 				Depth: 1,
 			}
 			cates = append(cates, &cate)
@@ -279,7 +272,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 
 					subCate := pbItem.Category{
 						Name: subCateName,
-						Url:  subNode.Find(`a`).First().AttrOr("href", ""),
+						//Url:  subNode.Find(`a`).First().AttrOr("href", ""),
 					}
 
 					cate.Children = append(cate.Children, &subCate)
@@ -294,17 +287,22 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 
 							lastCateName := strings.TrimSpace(subNode1.Find(`a`).First().Text())
 
-							href := subNode.Find(`a`).First().AttrOr("href", "")
+							href := subNode1.Find(`a`).First().AttrOr("href", "")
 							if href == "" {
 								continue
 							}
 
-							_, err := url.Parse(href)
+							href, err := c.CanonicalUrl(href)
 							if err != nil {
-								c.logger.Error("parse url %s failed", href)
+								c.logger.Errorf("got invalid url %s", href)
 								continue
 							}
 
+							u, _ := url.Parse(href)
+							if p := strings.TrimSuffix(u.Path, "/"); !c.categoryPathMatcher.MatchString(p) {
+								c.logger.Warnf("get invalid category url %s", href)
+								continue
+							}
 							subCate2 := pbItem.Category{
 								Name: lastCateName,
 								Url:  href,
@@ -321,12 +319,11 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 			} else {
 				// category
-				if err := yield([]string{cate.Name}, cate.Url); err != nil {
-					return err
-				}
+				//if err := yield([]string{cate.Name}, cate.Url); err != nil {
+				//	return err
+				//}
 			}
 		}
-
 		return nil
 	}(func(names []string, url string) error {
 		if len(names) == 0 {
@@ -519,7 +516,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	var viewData parseProductResponse
-	matched := doc.Find(`script[type="application/ld+json"]`).Last().Text()
+	matched := doc.Find(`script[type="application/ld+json"]`).Eq(-2).Text()
 	if err = json.Unmarshal([]byte(matched), &viewData); err != nil {
 		c.logger.Debugf("parse %s failed, error=%s", matched, err)
 		return err
@@ -550,7 +547,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:           viewData.Sku,
+			Id:           strconv.Format(viewProductVariantsData.ID),
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 			//GroupId:      doc.Find(`meta[property="product:age_group"]`).AttrOr(`content`, ``),
@@ -567,7 +564,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 
-	item.Description = htmlTrimRegp.ReplaceAllString(viewProductVariantsData.Description, " ")
+	item.Description = strings.TrimSpace(strings.ReplaceAll(htmlTrimRegp.ReplaceAllString(viewProductVariantsData.Description, " "), " \n", ""))
 
 	if viewProductVariantsData.Available {
 		item.Stock.StockStatus = pbItem.Stock_InStock
@@ -608,13 +605,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	//shopify
 	var medias []*pbMedia.Media
 	for j, mediumUrl := range viewProductVariantsData.Media {
-		template := strings.Split(mediumUrl.Src, ".jpg")[0]
+		//template := strings.Split(mediumUrl.Src, ".jpg")[0] + ".jpg"
 		medias = append(medias, pbMedia.NewImageMedia(
-			strconv.Format(j),
-			template+".jpg",
-			mediumUrl.Src+"_1000x.jpg",
-			mediumUrl.Src+"_600x.jpg",
-			mediumUrl.Src+"_500x.jpg",
+			strconv.Format(mediumUrl.ID),
+			mediumUrl.Src,
+			mediumUrl.Src+"&width=800",
+			mediumUrl.Src+"&width=600",
+			mediumUrl.Src+"&width=500",
 			"",
 			j == 0,
 		))
@@ -635,7 +632,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		sku := pbItem.Sku{
-			SourceId: fmt.Sprintf("%d-%s", rawsku.ID, rawsku.Sku),
+			// 分析SourceId是使用rawsku.Sku还是rawsku.ID，参考了JS代码的添加到购物车，传参是rawsku.Sku
+			SourceId: rawsku.Sku,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(currentPrice),
@@ -644,6 +642,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			},
 			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			Medias: medias,
+			Stats: &pbItem.Stats{
+				ReviewCount: int32(reviewcount),
+				Rating:      float32(rating),
+			},
 		}
 
 		if viewProductVariantsData.Available {
@@ -663,7 +665,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			colorSpec := pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    strconv.Format(rawsku.ID),
+				Id:    colorVal,
 				Name:  colorVal,
 				Value: colorVal,
 			}
@@ -682,9 +684,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    rawsku.Sku,
+				Id:    sizeVal,
 				Name:  sizeVal,
 				Value: sizeVal,
+			})
+		}
+
+		if len(sku.Specs) == 0 {
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Id:    "-",
+				Name:  "-",
+				Value: "-",
 			})
 		}
 
