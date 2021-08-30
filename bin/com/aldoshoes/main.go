@@ -84,7 +84,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 // the returned domains is matched in glob regulation.
 // more about glob regulation see here https://golang.org/pkg/path/filepath/#Match
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"*.aldoshoes.in"}
+	return []string{"*.aldoshoes.com"}
 }
 
 // CanonicalUrl
@@ -97,7 +97,7 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		u.Scheme = "https"
 	}
 	if u.Host == "" {
-		u.Host = "www.aldoshoes.in"
+		u.Host = "www.aldoshoes.com"
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
@@ -556,7 +556,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.aldoshoes.com/us/en_US",
 		//"https://www.aldoshoes.com/us/en_US/women/new-arrivals/footwear",
-		//"https://www.aldoshoes.in/aldo-accessories-women/aldo-accessories-women",
+		//"https://www.aldoshoes.com/aldo-accessories-women/aldo-accessories-women",
 		//"https://www.aldoshoes.com/us/en_US/etealia-light-purple/p/13189117",
 		"https://www.aldoshoes.com/us/en_US/gleawia-white/p/13189060",
 	} {
