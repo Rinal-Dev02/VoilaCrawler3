@@ -3,6 +3,10 @@ package checker
 import (
 	"errors"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"strings"
 
 	"github.com/voiladev/VoilaCrawler/pkg/context"
@@ -16,6 +20,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	imgSizeSmall = iota
+	imgSizeMedium
+	imgSizeLarge
+)
+
 var supportedHttpMethods = map[string]struct{}{}
 
 func init() {
@@ -24,7 +34,7 @@ func init() {
 	}
 }
 
-func Check(ctx context.Context, i interface{}, logger glog.Log) error {
+func Check(ctx context.Context, i interface{}, logger glog.Log, httpClient http.Client) error {
 	if i == nil {
 		return errors.New("Checker: got invalid yield item")
 	}
@@ -43,7 +53,7 @@ func Check(ctx context.Context, i interface{}, logger glog.Log) error {
 	case *crawl.Error:
 		return checkError(ctx, v, logger)
 	case *pbItem.Product:
-		return checkProduct(ctx, v, logger)
+		return checkProduct(ctx, v, logger, httpClient)
 	case *pbItem.Tiktok_Item:
 		return nil
 	case *pbItem.Tiktok_Author:
@@ -69,7 +79,7 @@ func checkRequest(ctx context.Context, req *http.Request, logger glog.Log) error
 }
 
 // checkProduct
-func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log) error {
+func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log, httpClient http.Client) error {
 	if !context.Exists(ctx, "item.index") {
 		logger.Warnf("Checker.Product: no shared value item.index found")
 	}
@@ -107,6 +117,7 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log) er
 		if m == nil {
 			return errors.New("Checker.Product: invalid media")
 		}
+
 		switch m.GetDetail().GetTypeUrl() {
 		case protoutil.GetTypeUrl(&media.Media_Image{}):
 			var img media.Media_Image
@@ -118,12 +129,18 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log) er
 			}
 			if img.GetLargeUrl() == "" {
 				return errors.New("Checker.Product: invalid image large url")
+			} else if err := checkImage(ctx, img.GetLargeUrl(), imgSizeLarge, httpClient); err != nil {
+				return err
 			}
 			if img.GetMediumUrl() == "" {
 				return errors.New("Checker.Product: invalid image medium url")
+			} else if err := checkImage(ctx, img.GetMediumUrl(), imgSizeMedium, httpClient); err != nil {
+				return err
 			}
 			if img.GetSmallUrl() == "" {
 				return errors.New("Checker.Product: invalid image small url")
+			} else if err := checkImage(ctx, img.GetSmallUrl(), imgSizeSmall, httpClient); err != nil {
+				return err
 			}
 			if img.GetSmallUrl() == img.GetLargeUrl() {
 				return errors.New("Checker.Product: SmallUrl should in width >=500, MediumUrl should in width >=600, LargeUrl should in width >=800")
@@ -271,6 +288,41 @@ func checkError(ctx context.Context, e *crawl.Error, logger glog.Log) error {
 	}
 	if e.GetErrMsg() == "" {
 		return errors.New("Checker.Error: without message")
+	}
+	return nil
+}
+
+// checkImage do http request to check image width
+func checkImage(ctx context.Context, url string, imgSizeType int, httpClient http.Client) error {
+	var (
+		imgSizeName string
+		imgSize     int
+	)
+	switch imgSizeType {
+	case imgSizeSmall:
+		imgSizeName = "SmallImage"
+		imgSize = 500
+	case imgSizeMedium:
+		imgSizeName = "MediumImage"
+		imgSize = 600
+	case imgSizeLarge:
+		imgSizeName = "LargeImage"
+		imgSize = 800
+	default:
+		return fmt.Errorf("Checker.Product.Media: unsupport image size type %d", imgSizeType)
+	}
+	imgReq, _ := http.NewRequest(http.MethodGet, url, nil)
+	imgResp, err := httpClient.Do(ctx, imgReq)
+	if err != nil {
+		return fmt.Errorf("Checker.Product.Media: Get %s err=%s", imgSizeName, err)
+	}
+	defer imgResp.Body.Close()
+	img, _, err := image.Decode(imgResp.Body)
+	if err != nil {
+		return fmt.Errorf("Checker.Product.Media: Read %s Data err=%s", imgSizeName, err)
+	}
+	if img.Bounds().Dx() < imgSize {
+		return fmt.Errorf("Checker.Product.Media: %s width should >=%d, not %d", imgSizeName, imgSize, img.Bounds().Dx())
 	}
 	return nil
 }
