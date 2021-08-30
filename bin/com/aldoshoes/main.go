@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -71,8 +72,10 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
 		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
+		MustHeader:        crawler.NewCrawlOptions().MustHeader,
 	}
 
+	opts.MustHeader.Add(`cookie`, `optimizelyEndUserId=e68c2c31744e000079aa2c61a800000080240000; kppid=e68c2c31744e000079aa2c61a800000081240000`)
 	return opts
 }
 
@@ -89,6 +92,12 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	u, err := url.Parse(rawurl)
 	if err != nil {
 		return "", err
+	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.aldoshoes.in"
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
@@ -120,14 +129,12 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
-		fmt.Println(`productPathMatcher`)
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) || c.categoryAPIPathMatcher.MatchString(resp.Request.URL.Path) {
-		fmt.Println(`categoryPathMatcher`)
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get the index from the shared data.
@@ -136,17 +143,13 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")))
 }
 
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
 
-	rootUrl := "https://www.aldoshoes.in/index.php?route=extension/module/megamenu/getMenu&_=1629952316290"
+	rootUrl := "https://www.aldoshoes.com/us/en_US"
 	req, _ := http.NewRequest(http.MethodGet, rootUrl, nil)
 	opts := c.CrawlOptions(req.URL)
 	req.Header.Set("accept-language", "en-GB,en-US;q=0.9,en")
 	req.Header.Set("accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
-	req.Header.Set("referer", "https://www.aldoshoes.in/")
 
 	for _, c := range opts.MustCookies {
 		req.AddCookie(c)
@@ -166,6 +169,105 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	}
 	defer resp.Body.Close()
 
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
+
+		sel := dom.Find(`.c-navigation.c-navigation--primary>ul>li`)
+
+		for a := range sel.Nodes {
+			node := sel.Eq(a)
+
+			catname := strings.TrimSpace(node.Find(`span`).First().Text())
+			if catname == "" {
+				continue
+			}
+
+			sublvl1div := node.Find(`li[class="u-hide@md-mid"]`)
+
+			for b := range sublvl1div.Nodes {
+				sublvl1 := sublvl1div.Eq(b)
+				sublvl1name := strings.TrimSpace(sublvl1.Find(`span`).First().Text())
+
+				sublvl2 := sublvl1.Find(`li`)
+				for k := range sublvl2.Nodes {
+					selsublvl3 := sublvl2.Eq(k)
+					sublvl2name := strings.TrimSpace(selsublvl3.Find(`a`).First().Text())
+
+					href := sublvl2.Find(`a`).AttrOr("href", "")
+					if href == "" || sublvl2name == "" {
+						continue
+					}
+
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{catname, sublvl1name, sublvl2name}, href); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
+
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
+
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
+				}
+				cateMap[path] = cate
+				if lastCate != nil {
+					//lastCate.Children = append(lastCate.Children, cate)
+				}
+				lastCate = cate
+
+				if i == 0 {
+					cates = append(cates, cate)
+				}
+			}
+		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	return cates, nil
+}
+
+func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
+	if c == nil || yield == nil {
+		return nil
+	}
+
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return err
@@ -177,36 +279,33 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		return err
 	}
 
-	sel := dom.Find(`.megamenu-pattern > div > ul > li`)
-	fmt.Println(len(sel.Nodes))
+	sel := dom.Find(`.c-navigation.c-navigation--primary>ul>li`)
 
 	for a := range sel.Nodes {
 		node := sel.Eq(a)
 
-		catname := strings.TrimSpace(node.Find(`a`).First().Find(`span > strong`).Text())
+		catname := strings.TrimSpace(node.Find(`span`).First().Text())
 		if catname == "" {
 			continue
 		}
+		fmt.Println()
 		fmt.Println(`CategoryName >>`, catname)
 		//nctx := context.WithValue(ctx, "Category", cateName)
 
-		sublvl1div := node.Find(`.sub-menu > div > div > div > div > div > .withchild`)
+		sublvl1div := node.Find(`li[class="u-hide@md-mid"]`)
+		fmt.Println(len(sel.Nodes))
 		for b := range sublvl1div.Nodes {
 			sublvl1 := sublvl1div.Eq(b)
-			sublvl1name := strings.TrimSpace(sublvl1.Find(`h4`).First().Text())
-			if sublvl1name == "" {
-				continue
-			}
-			fmt.Println(`SubLevel1 >>`, catname+`>>`+sublvl1name)
+			sublvl1name := strings.TrimSpace(sublvl1.Find(`span`).First().Text())
 
-			sublvl2 := sublvl1.Find(`ul > li`)
+			sublvl2 := sublvl1.Find(`li`)
 			for c := range sublvl2.Nodes {
 				selsublvl3 := sublvl2.Eq(c)
 				sublvl2name := strings.TrimSpace(selsublvl3.Find(`a`).First().Text())
 				if sublvl2name == "" {
 					continue
 				}
-				fmt.Println(`SubLevel2 `, sublvl1name+`>>`+sublvl2name)
+				fmt.Println(sublvl1name + " > " + sublvl2name)
 
 				// nnnctx := context.WithValue(nnctx, "SubCategory", sublvl2name)
 				// req, _ := http.NewRequest(http.MethodGet, href, nil)
@@ -217,8 +316,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	}
 	return nil
 }
-
-var productsTotalCountReg = regexp.MustCompile(`var\s*total_pages\s*=\s*'\d+';`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -240,68 +337,36 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	lastIndex := nextIndex(ctx)
 
-	ioutil.WriteFile("C:\\NewGIT_SVN\\Project_VoilaCrawler\\VoilaCrawler\\Output"+strconv.Format(lastIndex)+".html", respBody, 0644)
-
-	sel := dom.Find(`.product-name`)
+	sel := dom.Find(`.c-product-tile__link-product`)
 	for i := range sel.Nodes {
-		fmt.Println(lastIndex)
+
 		node := sel.Eq(i)
-		href := node.Find(`a`).AttrOr("href", "")
+		href := node.AttrOr("href", "")
 		if href == "" {
 			continue
 		}
 
-		// req, err := http.NewRequest(http.MethodGet, href, nil)
-		// if err != nil {
-		// 	c.logger.Errorf("load http request of url %s failed, error=%s", href, err)
-		// 	return err
-		// }
+		req, err := http.NewRequest(http.MethodGet, href, nil)
+		if err != nil {
+			c.logger.Errorf("load http request of url %s failed, error=%s", href, err)
+			return err
+		}
 
-		// nctx := context.WithValue(ctx, "item.index", lastIndex)
+		nctx := context.WithValue(ctx, "item.index", lastIndex)
 		lastIndex += 1
-		// if err := yield(nctx, req); err != nil {
-		// 	return err
-		// }
+		if err := yield(nctx, req); err != nil {
+			return err
+		}
 	}
 
-	matched := productsTotalCountReg.FindSubmatch(respBody)
-	if len(matched) > 1 {
-		fmt.Println(`matched `, string(matched[1]))
-	}
-
-	// get current page number
-	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("page"))
-	if page == 0 {
-		page = 1
-	}
-
-	if len(sel.Nodes) < 27 {
+	nextUrl := dom.Find(`link[rel="next"]`).AttrOr(`href`, ``)
+	if nextUrl == "" {
 		return nil
 	}
 
-	// set pagination
-	u := *resp.Request.URL
-	vals := u.Query()
-	vals.Set("page", strconv.Format(page+1))
-	vals.Set("is_ajax", "0")
-	u.RawQuery = vals.Encode()
-
-	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, _ := http.NewRequest(http.MethodGet, nextUrl, nil)
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
-}
-
-type categoryStructure struct {
-	Pagination struct {
-		PageSize             int    `json:"pageSize"`
-		Sort                 string `json:"sort"`
-		CurrentPage          int    `json:"currentPage"`
-		TotalNumberOfResults int    `json:"totalNumberOfResults"`
-		NumberOfPages        int    `json:"numberOfPages"`
-	} `json:"pagination"`
-	Products []struct {
-		URL string `json:"url"`
-	} `json:"products"`
 }
 
 func TrimSpaceNewlineInString(s []byte) []byte {
@@ -316,26 +381,10 @@ func TrimSpaceNewlineInString(s []byte) []byte {
 	return resp
 }
 
-var productsReviewExtractReg = regexp.MustCompile(`(?Ums)<script type="application/ld\+json">\s*({.*})\s*</script>`)
+var imgReg = regexp.MustCompile(`_\d+x\d+.jpg`)
 
 // used to trim html labels in description
 var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
-
-type parseProductResponse struct {
-	Context     string `json:"@context"`
-	Type        string `json:"@type"`
-	Name        string `json:"name"`
-	Image       string `json:"image"`
-	Description string `json:"description"`
-	Sku         string `json:"sku"`
-	Offers      struct {
-		Type          string `json:"@type"`
-		Price         string `json:"price"`
-		URL           string `json:"url"`
-		PriceCurrency string `json:"priceCurrency"`
-		Availability  string `json:"availability"`
-	} `json:"offers"`
-}
 
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -357,36 +406,36 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
 	}
 
-	brand := doc.Find(`#logo`).Find(`img`).AttrOr("title", "")
-	if brand == "" {
-		brand = "ALDO"
-	}
+	brand := "ALDO"
+
+	s := strings.Split(resp.Request.URL.Path, `/`)
+	pid := s[len(s)-1]
 
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:           "",
+			Id:           pid,
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 		},
 		BrandName: brand,
-		Title:     doc.Find(`.product-title`).Text(),
+		Title:     doc.Find(`.c-buy-module__product-title`).Text(),
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
-		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
 	}
 
 	// desc
-	description := htmlTrimRegp.ReplaceAllString(doc.Find(`.custom-description`).Text(), " ")
+	description := htmlTrimRegp.ReplaceAllString(doc.Find(`.c-product-description`).First().Text(), " ")
 	item.Description = string(TrimSpaceNewlineInString([]byte(description)))
 
-	// if strings.Contains(doc.Find(`.availability product-availability`).AttrOr(`data-available`, ``), "true") {
-	// 	item.Stock.StockStatus = pbItem.Stock_InStock
-	// }
+	msrp, _ := strconv.ParsePrice(doc.Find(`.c-product-price__formatted-price--original`).Text())
+	currentPrice, _ := strconv.ParsePrice(doc.Find(`.c-product-price__formatted-price--is-reduced`).Text())
 
-	currentPrice, _ := strconv.ParsePrice(doc.Find(`li[class="price-new"]`).Find(`h2`).Text())
-	msrp, _ := strconv.ParsePrice(doc.Find(`li[class="price-old"]`).Find(`span`).Text())
+	if len(doc.Find(`.c-product-price__formatted-price--is-reduced`).Nodes) == 0 {
+		currentPrice, _ = strconv.ParsePrice(doc.Find(`.c-product-price__formatted-price`).Text())
+	}
 
 	if msrp == 0 {
 		msrp = currentPrice
@@ -397,22 +446,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	//images
-	sel := doc.Find(`.zoom-thumbnails > div`)
+	sel := doc.Find(`.c-carousel__indicator`)
 	for j := range sel.Nodes {
 		node := sel.Eq(j)
-		imgurl := strings.Split(node.Find(`img`).AttrOr(`src`, ``), "?")[0]
+		imgurl := imgReg.ReplaceAllString(strings.Split(node.Find(`img`).AttrOr(`data-srcset`, ``), " ")[0], "")
 
 		item.Medias = append(item.Medias, pbMedia.NewImageMedia(
 			strconv.Format(j),
-			imgurl,
-			imgurl+"?sw=800&sh=800&q=80",
-			imgurl+"?sw=500&sh=500&q=80",
-			imgurl+"?sw=300&sh=300&q=80",
+			imgurl+"_600x600.jpg",
+			imgurl+"_1000x1000.jpg",
+			imgurl+"_800x800.jpg",
+			imgurl+"_500x500.jpg",
 			"", j == 0))
 	}
 
 	// itemListElement
-	sel = doc.Find(`.breadcrumb>li`)
+	sel = doc.Find(`.c-breadcrumb__list`).First().Find(`li`)
 	c.logger.Debugf("nodes %d", len(sel.Nodes))
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
@@ -432,20 +481,21 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	// Color
-	cid := ""
+	cid := pid
 	colorName := ""
 	var colorSelected *pbItem.SkuSpecOption
-	sel = doc.Find(`.grop-product-product > a`)
+	sel = doc.Find(`.o-style-option__list-item`)
+	fmt.Println(len(sel.Nodes))
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 
-		if strings.Contains(node.AttrOr(`active`, ``), ``) {
-			// cid = node.AttrOr(`data-variationgroupid`, "")
-			icon := strings.ReplaceAll(strings.ReplaceAll(node.Find(`img`).AttrOr(`src`, ""), "background-image: url(", ""), ")", "")
-			// colorName = node.AttrOr(`colour-name`, "")
+		if strings.Contains(node.Find(`a`).AttrOr(`class`, ``), `o-style-option__option--is-checked`) {
+
+			icon := strings.Split(node.Find(`img`).AttrOr(`data-srcset`, ""), " ")[0]
+			colorName = node.Find(`a`).AttrOr(`title`, ``)
 			colorSelected = &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    cid,
+				Id:    cid + colorName,
 				Name:  colorName,
 				Value: colorName,
 				Icon:  icon,
@@ -453,11 +503,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
-	sel = doc.Find(`#product`).Find(`.radio-type-button2`)
+	sel = doc.Find(`.c-product-option__list--size`).Find(`li`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 
-		sid := (node.Find(`label`).First().Text())
+		sid := (node.AttrOr(`aria-label`, ``))
 		if sid == "" {
 			continue
 		}
@@ -466,16 +516,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			SourceId: fmt.Sprintf("%s-%s", cid, sid),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(currentPrice),
-				Msrp:     int32(msrp),
+				Current:  int32(currentPrice * 100),
+				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
 			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
 		}
 
-		// if strings.Contains(node.Find(`input`).First().AttrOr("class", ""), "js-show-notify-modal") {
-		// 	sku.Stock.StockStatus = pbItem.Stock_OutOfStock
-		// }
+		if strings.Contains(node.AttrOr("aria-disabled", ""), "true") {
+			sku.Stock.StockStatus = pbItem.Stock_OutOfStock
+		}
 
 		if colorSelected != nil {
 			sku.Specs = append(sku.Specs, colorSelected)
@@ -504,9 +554,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		//"https://www.aldoshoes.in/",
+		//"https://www.aldoshoes.com/us/en_US",
+		//"https://www.aldoshoes.com/us/en_US/women/new-arrivals/footwear",
 		//"https://www.aldoshoes.in/aldo-accessories-women/aldo-accessories-women",
-		//"https://www.aldoshoes.in/aldo-women-footware-pumps-61671/1184031",
+		//"https://www.aldoshoes.com/us/en_US/etealia-light-purple/p/13189117",
+		"https://www.aldoshoes.com/us/en_US/gleawia-white/p/13189060",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
