@@ -178,13 +178,15 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			}
 
 			subSel := node.Find(`.contains-sub-sub-category.third-level-navigator`)
-
+			if len(subSel.Nodes) == 0 {
+				subSel = node.Find(`.second-level`)
+			}
 			for k := range subSel.Nodes {
 				subNode2 := subSel.Eq(k)
 
 				subcat2 := strings.TrimSpace(subNode2.Find(`a`).First().Text())
 				if subcat2 == "" {
-					continue
+					subcat2 = strings.TrimSpace(subNode2.Find(`a`).Last().Text())
 				}
 
 				subNode2list := subNode2.Find(`.nav.navbar-nav>li`)
@@ -211,7 +213,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 
 				if len(subNode2list.Nodes) == 0 {
-					href := subNode2.Find(`a`).AttrOr("href", "")
+					href := subNode2.Find(`a`).First().AttrOr("href", "")
 					if href == "" {
 						continue
 					}
@@ -231,10 +233,12 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			}
 
 			if len(subSel.Nodes) == 0 {
-				href := subSel.Find(`a`).AttrOr("href", "")
+
+				href := node.Find(`a`).First().AttrOr("href", "")
 				if href == "" {
 					continue
 				}
+
 				href, err := c.CanonicalUrl(href)
 				if err != nil {
 					c.logger.Errorf("got invalid url %s", href)
@@ -260,6 +264,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			lastCate *pbItem.Category
 			path     string
 		)
+
 		for i, name := range names {
 			path = strings.Join([]string{path, name}, "-")
 
@@ -655,10 +660,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
 					strconv.Format(j),
-					imgurl,
-					imgurl+"?fmt=pjpeg&fmt=jpg&wid=1000&hei=1000",
-					imgurl+"?fmt=pjpeg&fmt=jpg&wid=600&hei=600",
-					imgurl+"?fmt=pjpeg&fmt=jpg&wid=500&hei=500",
+					"https:"+imgurl,
+					"https:"+imgurl+"?fmt=pjpeg&wid=1000&hei=1000",
+					"https:"+"?fmt=pjpeg&wid=600&hei=600",
+					"https:"+"?fmt=pjpeg&wid=500&hei=500",
 					"", j == 0))
 			}
 
@@ -693,7 +698,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			item.SkuItems = append(item.SkuItems, &sku)
-
 		}
 	} else {
 		// single variation
@@ -716,7 +720,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		//color
 		if viewVariationData.ProductColor != "None" {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
 				Id:    "C-" + viewVariationData.Sku,
 				Name:  viewVariationData.ProductColor,
 				Value: viewVariationData.ProductColor,
@@ -733,6 +737,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 
+		if viewVariationData.Variant == "" || viewVariationData.ProductColor == "None" {
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
+				Id:    doc.Find(`.sub-header`).Text(),
+				Name:  doc.Find(`.sub-header`).Text(),
+				Value: doc.Find(`.sub-header`).Text(),
+			})
+		}
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
