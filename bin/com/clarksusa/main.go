@@ -104,7 +104,7 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		u.RawQuery = ""
 		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 // Parse is the entry to run the spider.
@@ -185,7 +185,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			for b := range subdiv.Nodes {
 				sublvl2 := subdiv.Eq(b)
 				subcat2 := strings.TrimSpace(sublvl2.Find(`a`).First().Text())
-				href := sublvl2.Find(`a`).AttrOr("href", "")
+				href := sublvl2.Find(`a`).First().AttrOr("href", "")
 				if href == "" {
 					continue
 				}
@@ -212,7 +212,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				selsublvl3 := sublvl2.Find(`ul > li`)
 				for k := range selsublvl3.Nodes {
 					sublvl3 := selsublvl3.Eq(k)
-					subcat3 := strings.TrimSpace(sublvl3.Find(`a`).First().Text())
+					subcat3 := strings.TrimSpace(sublvl3.Find(`a`).Text())
 
 					href := sublvl2.Find(`a`).AttrOr("href", "")
 					if href == "" {
@@ -258,7 +258,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 				cateMap[path] = cate
 				if lastCate != nil {
-					//lastCate.Children = append(lastCate.Children, cate)
+					lastCate.Children = append(lastCate.Children, cate)
 				}
 				lastCate = cate
 
