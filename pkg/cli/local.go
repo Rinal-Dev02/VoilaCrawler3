@@ -305,7 +305,7 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 					}
 
 					if !c.Bool("disable-checker") {
-						if err := checker.Check(ctx, i, logger); err != nil {
+						if err := checker.Check(ctx, i, logger, client); err != nil {
 							return err
 						}
 					}
@@ -336,7 +336,7 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 					logger.Debugf("data: %s", data)
 
 					if !c.Bool("disable-checker") {
-						if err := checker.Check(ctx, val, logger); err != nil {
+						if err := checker.Check(ctx, val, logger, client); err != nil {
 							return err
 						}
 					}

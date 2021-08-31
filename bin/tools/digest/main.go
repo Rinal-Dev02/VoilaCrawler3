@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/urfave/cli/v2"
-	"github.com/voiladev/VoilaCrawler/bin/tools/og/diffbot"
+	"github.com/voiladev/VoilaCrawler/bin/tools/digest/diffbot"
+	"github.com/voiladev/VoilaCrawler/pkg/brand"
 	cmd "github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
@@ -154,6 +155,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}()
 	wg.Wait()
 
+	var item *pbItem.OpenGraph_Product
 	c.logger.Debugf("duration diffbot:%s, op: %s", diffDuration, opDuration)
 	if diffbotProd != nil {
 		if opProd != nil {
@@ -175,10 +177,10 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 				diffbotProd.BrandName = opProd.BrandName
 			}
 		}
-		return yield(ctx, diffbotProd)
+		item = diffbotProd
 	} else if opProd != nil {
 		c.logger.Debug("opengraph")
-		return yield(ctx, opProd)
+		item = opProd
 	} else {
 		err := diffbotErr
 		if err == nil {
@@ -186,6 +188,12 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		}
 		return yield(ctx, &pbCrawl.Error{ErrMsg: err.Error()})
 	}
+
+	if item.BrandName == "" {
+		item.BrandName = brand.GetBrand(resp.Request.URL.Hostname())
+	}
+	item.BrandName = strings.TrimSpace(strings.TrimPrefix(item.BrandName, "brand:"))
+	return yield(ctx, item)
 }
 
 func (c *_Crawler) parseOpenGraph(ctx context.Context, req *http.Request) (*pbItem.OpenGraph_Product, error) {
@@ -324,7 +332,7 @@ func (c *_Crawler) parseOpenGraph(ctx context.Context, req *http.Request) (*pbIt
 	}
 
 	// feat: added support of brand fetch
-	if item.Title != "" {
+	if item.Title != "" && item.BrandName == "" {
 		fields := strings.Split(item.Title, " | ")
 		lastField := fields[len(fields)-1]
 		if len(fields) > 1 && len(lastField) < 20 {
