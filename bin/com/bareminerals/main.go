@@ -101,7 +101,7 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		u.RawQuery = ""
 		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 // Parse is the entry to run the spider.
@@ -273,7 +273,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 				cateMap[path] = cate
 				if lastCate != nil {
-					//lastCate.Children = append(lastCate.Children, cate)
+					lastCate.Children = append(lastCate.Children, cate)
 				}
 				lastCate = cate
 
@@ -780,13 +780,13 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		//"https://bareminerals.com/",
+		"https://bareminerals.com/",
 		//"https://www.bareminerals.com/makeup/",
 		//"https://www.bareminerals.com/skincare/moisturizers/ageless-phyto-retinol-neck-cream/US41700210101.html",
 		//"https://www.bareminerals.com/makeup/eyes/brow/strength-%26-length-serum-infused-brow-gel/USmasterslbrowgel.html",
 		//"https://www.bareminerals.com/makeup/lips/all-lips/maximal-color%2C-minimal-ingredients/US41700127101.html?rrec=true",
 		//"https://www.bareminerals.com/skincare/category/lips/ageless-phyto-retinol-lip-balm/US41700893101.html",
-		"https://www.bareminerals.com/offers/sale/barepro-performance-wear-powder-foundation/USmasterbareprosale.html",
+		//"https://www.bareminerals.com/offers/sale/barepro-performance-wear-powder-foundation/USmasterbareprosale.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
