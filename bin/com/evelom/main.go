@@ -194,7 +194,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 
 				if c.categoryPathMatcher.MatchString(u.Path) {
-					if err := yield([]string{catname, sublvl1name}, href); err != nil {
+					if err := yield([]string{catname, sublvl1name}, "https://www.evelom.com"+href); err != nil {
 						return err
 					}
 				}
