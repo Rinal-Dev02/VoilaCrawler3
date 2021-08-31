@@ -45,7 +45,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher:    regexp.MustCompile(`^(/([/A-Za-z0-9_-]+)/c([/A-Za-z0-9_-]+))|(/([/A-Za-z0-9_-]+))$`),
+		categoryPathMatcher:    regexp.MustCompile(`^(/([/A-Za-z0-9_-]+)/c([/A-Za-z0-9_-]+))$`),
 		categoryAPIPathMatcher: regexp.MustCompile(`^/category-search-ajax$`),
 		productPathMatcher:     regexp.MustCompile(`^/c([/A-Za-z0-9_-]+)/p/([/A-Za-z0-9_-]+)`),
 		logger:                 logger.New("_Crawler"),
