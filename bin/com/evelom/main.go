@@ -100,7 +100,7 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		u.RawQuery = ""
 		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 // Parse is the entry to run the spider.
@@ -615,7 +615,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		if sizeIndex == -1 && colorIndex == -1 {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecUnknown,
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
 				Id:    rawVariation.Sku,
 				Name:  rawVariation.Options[0],
 				Value: rawVariation.Options[0],
