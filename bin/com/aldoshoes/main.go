@@ -101,9 +101,8 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
-		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 // Parse is the entry to run the spider.
@@ -183,6 +182,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 
 		sel := dom.Find(`.c-navigation.c-navigation--primary>ul>li`)
 
+		c.logger.Val("sel1.Nodes", len(sel.Nodes))
 		for a := range sel.Nodes {
 			node := sel.Eq(a)
 
@@ -202,19 +202,21 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					selsublvl3 := sublvl2.Eq(k)
 					sublvl2name := strings.TrimSpace(selsublvl3.Find(`a`).First().Text())
 
-					href := sublvl2.Find(`a`).AttrOr("href", "")
+					href := selsublvl3.Find(`a`).AttrOr("href", "")
 					if href == "" || sublvl2name == "" {
 						continue
 					}
 
-					u, err := url.Parse(href)
+					canonicalHref, err := c.CanonicalUrl(href)
 					if err != nil {
-						c.logger.Error("parse url %s failed", href)
+						c.logger.Errorf("got invalid url %s", href)
 						continue
 					}
 
+					u, _ := url.Parse(canonicalHref)
+
 					if c.categoryPathMatcher.MatchString(u.Path) {
-						if err := yield([]string{catname, sublvl1name, sublvl2name}, href); err != nil {
+						if err := yield([]string{catname, sublvl1name, sublvl2name}, canonicalHref); err != nil {
 							return err
 						}
 					}
@@ -245,7 +247,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 				cateMap[path] = cate
 				if lastCate != nil {
-					//lastCate.Children = append(lastCate.Children, cate)
+					lastCate.Children = append(lastCate.Children, cate)
 				}
 				lastCate = cate
 
@@ -583,6 +585,6 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
+	//os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
