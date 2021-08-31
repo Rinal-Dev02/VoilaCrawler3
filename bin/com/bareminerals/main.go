@@ -206,6 +206,9 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					}
 
 					if c.categoryPathMatcher.MatchString(u.Path) {
+						if !strings.Contains(href, ".bareminerals.com") {
+							href = "https://www.bareminerals.com" + href
+						}
 						if err := yield([]string{cateName, subcat2, subcat3}, href); err != nil {
 							return err
 						}
@@ -225,6 +228,9 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					}
 
 					if c.categoryPathMatcher.MatchString(u.Path) {
+						if !strings.Contains(href, ".bareminerals.com") {
+							href = "https://www.bareminerals.com" + href
+						}
 						if err := yield([]string{cateName, subcat2}, href); err != nil {
 							return err
 						}
@@ -247,6 +253,9 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				u, _ := url.Parse(href)
 
 				if c.categoryPathMatcher.MatchString(u.Path) {
+					if !strings.Contains(href, ".bareminerals.com") {
+						href = "https://www.bareminerals.com" + href
+					}
 					if err := yield([]string{cateName}, href); err != nil {
 						return err
 					}
