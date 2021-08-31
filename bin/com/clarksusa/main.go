@@ -45,7 +45,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher:    regexp.MustCompile(`^/([/A-Za-z0-9_-]+)/c([/A-Za-z0-9_-]+)$`),
+		categoryPathMatcher:    regexp.MustCompile(`^(/([/A-Za-z0-9_-]+)/c([/A-Za-z0-9_-]+))|(/([/A-Za-z0-9_-]+))$`),
 		categoryAPIPathMatcher: regexp.MustCompile(`^/category-search-ajax$`),
 		productPathMatcher:     regexp.MustCompile(`^/c([/A-Za-z0-9_-]+)/p/([/A-Za-z0-9_-]+)`),
 		logger:                 logger.New("_Crawler"),
@@ -76,7 +76,6 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
 		MustHeader:        crawler.NewCrawlOptions().MustHeader,
 	}
-	opts.MustHeader.Add(`cookie`, `mt.v=2.223379299.1629697502271; ku1-vid=8b51f997-3c01-c058-d172-6f8370ef2a59; _gcl_au=1.1.1755824579.1629697507; CoreID6=00145028208216296975066&ci=52540000|www.clarksusa.com; _ga=GA1.2.151645057.1629697507; _cs_c=0; REVLIFTER={"w":"fe93176c-afed-4170-aba7-cdeb8342c252","u":"c0fb7857-7b63-4bd6-9fa7-3d481082ecae","s":"cd714084-df74-46ac-a404-e75cd202cfdd","se":1632289508}; _fbp=fb.1.1629697508668.1725031793; _lc2_fpi=b5bb2b35bd9c--01fdrrn1dtrbfe3z9yjm9r2pg7; _mibhv=anon-1629697509213-1094887326_5146; _pin_unauth=dWlkPVpXWmhZamxoWkdFdFlUVTRaUzAwWkdGbExXSmhNalV0WldNeVpHUTBabUppWldKbQ; usi_id=vu3hkf_1629697541; akacd_holding_page_us=3807600773~rv=21~id=307a28760ca530a0d965fcb062c40cdf; cmTPSet=Y; JSESSIONID=120D602A5FE74D8878468C7C266BABDD.c2; ROUTEID=.2; b1pi=!5qRyQEAuPKvlGzng6Jezi6NCgogoyHZSn5YuQFy7q+DRUmnjMV8HHH4Y1W2rcjkhI4KTKxpaEQM3hK0=; ku1-sid=PXhVZbHYMtaXh76FyjLpl; CMAVID=none; _li_dcdm_c=.clarksusa.com; clarkscookiepolicy=accept; BVImplmain_site=19244; a1ashgd=zv7o4wo6y7000000zv7o4wo6y7000000; BVBRANDID=f57dd15d-ad65-43aa-a082-409f25452157; _cs_id=27ef90f6-2f4a-aaf6-c8bf-07bcbdb2a6b4.1629697508.4.1630150967.1630147977.1.1663861508382; _uetvid=45de888003d511ec814a7554b126c08c; 52540000|www.clarksusa.com_clogin=l=86231221630147975416&v=1&e=1630152770416; __idcontext=eyJjb29raWVJRCI6IjMyRkxVMlBTTjJMNUtXS0hWTUwzVEZJMkJSTjNRU0pPS0VJN1dVRU5RVzJRPT09PSIsImRldmljZUlEIjoiMzJGTFUyUFNNR01MQTZCR1JJSTZKSDNJRlZaSVlISUVEVVNNS1NVSVNDN0E9PT09IiwiaXYiOiJSNE1DRzZVM1daTEQzS1NWS1Q0RUtWVU41ND09PT09PSIsInYiOjF9; ADRUM=s=1630155133339&r=https://www.clarksusa.com/c/Pure2-Trim/p/26161613?0; ADRUM=s=1630155133525&r=https://www.clarksusa.com/c/Wave2-0-Step-/p/26152359?0; RT="z=1&dm=www.clarksusa.com&si=b8915d30-d65d-41ea-af8a-64d3c5a60ec3&ss=ksvo0hi2&sl=6&tt=2kpt&bcn=//684d0d37.akstat.io/&obo=1&rl=1&ld=49hh2&r=2rq3hgoq&ul=49hhy&hd=49hyw"`)
 	return opts
 }
 
@@ -181,7 +180,8 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			}
 
 			attrM := "#" + attrName
-			subdiv := dom.Find(attrM).Find(`.new-header__flyout-top-links > li`)
+			//subdiv := dom.Find(attrM)
+			subdiv := dom.Find(attrM).Find(`.new-header__flyout-top-links>li`)
 			for b := range subdiv.Nodes {
 				sublvl2 := subdiv.Eq(b)
 				subcat2 := strings.TrimSpace(sublvl2.Find(`a`).First().Text())
@@ -197,24 +197,25 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 
 				if c.categoryPathMatcher.MatchString(u.Path) {
-					if err := yield([]string{cateName, subcat2}, href); err != nil {
+					if err := yield([]string{cateName, subcat2}, "https://www.clarksusa.com"+href); err != nil {
 						return err
 					}
 				}
 
 			}
 
-			subdiv = subdiv.Find(`.new-header__flyout-menu-list > li`)
-			for b := range subdiv.Nodes {
-				sublvl2 := subdiv.Eq(b)
+			subdiv2 := dom.Find(attrM).Find(`.new-header__flyout-menu-list>li`)
+			for b := range subdiv2.Nodes {
+				sublvl2 := subdiv2.Eq(b)
 				subcat2 := strings.TrimSpace(sublvl2.Find(`h2`).First().Text())
 
-				selsublvl3 := sublvl2.Find(`ul > li`)
+				selsublvl3 := sublvl2.Find(`ul>li`)
+
 				for k := range selsublvl3.Nodes {
 					sublvl3 := selsublvl3.Eq(k)
 					subcat3 := strings.TrimSpace(sublvl3.Find(`a`).Text())
 
-					href := sublvl2.Find(`a`).AttrOr("href", "")
+					href := sublvl3.Find(`a`).AttrOr("href", "")
 					if href == "" {
 						continue
 					}
@@ -226,11 +227,10 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					}
 
 					if c.categoryPathMatcher.MatchString(u.Path) {
-						if err := yield([]string{cateName, subcat2, subcat3}, href); err != nil {
+						if err := yield([]string{cateName, subcat2, subcat3}, "https://www.clarksusa.com"+href); err != nil {
 							return err
 						}
 					}
-
 				}
 			}
 		}
@@ -294,7 +294,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	}
 
 	sel := dom.Find(`.new-header__main-navigation-list > li`)
-	fmt.Println(len(sel.Nodes))
 
 	for a := range sel.Nodes {
 		node := sel.Eq(a)
@@ -469,7 +468,6 @@ type SkuDetail2 struct {
 	NotifyMeEnabled      bool   `json:"notifyMeEnabled"`
 	ProductCode          string `json:"productCode"`
 	//} `json:"FIT_4W"`
-
 }
 
 type SkuDetail1 struct {
@@ -751,8 +749,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
 				Id:    rawSku.ProductCode,
-				Name:  sid + " " + j,
-				Value: sid + " " + j,
+				Name:  sid + " " + strings.ReplaceAll(j, `FIT_`, ``),
+				Value: sid + " " + strings.ReplaceAll(j, `FIT_`, ``),
 			})
 
 			item.SkuItems = append(item.SkuItems, &sku)
