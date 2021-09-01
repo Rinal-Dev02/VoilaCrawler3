@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
@@ -40,9 +42,9 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^/us/(mens|womens)(/[a-zA-Z0-9\-]+){1,6}$`),
+		categoryPathMatcher: regexp.MustCompile(`^/([/a-zA-Z0-9\-]+)$`),
 		// this regular used to match product page url path
-		productPathMatcher: regexp.MustCompile(`^/us/products(/[a-zA-Z0-9\-]+){1,4}\-\d+?$`),
+		productPathMatcher: regexp.MustCompile(`^(/[/a-zA-Z0-9\-]+).html$`),
 		logger:             logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -71,15 +73,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		Reliability:       pbProxy.ProxyReliability_ReliabilityLow,
 		MustHeader:        make(http.Header),
 	}
-	// opts.MustCookies = append(opts.MustCookies,
-	// 	&http.Cookie{Name: "language", Value: "en_US"},
-	// 	&http.Cookie{Name: "country", Value: "USA"},
-	// 	&http.Cookie{Name: "billingCurrency", Value: "USD"},
-	// 	&http.Cookie{Name: "saleRegion", Value: "US"},
-	// 	&http.Cookie{Name: "MR", Value: "0"},
-	// 	&http.Cookie{Name: "loggedIn", Value: "false"},
-	// 	&http.Cookie{Name: "_dy_geo", Value: "US.NA.US_CA.US_CA_Los%20Angeles"},
-	// )
+
 	return opts
 }
 
@@ -132,14 +126,157 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return c.parseCategories(ctx, resp, yield)
 	}
 
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseCategoryProducts(ctx, resp, yield)
-	} else if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yield)
+	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.laroche-posay.us/", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
+		sel := dom.Find(`.c-navigation > ul > li`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			cateName := strings.TrimSpace(node.Find(`.c-navigation__item-title`).Find(`a`).First().Text())
+			if cateName == "" {
+				continue
+			}
+
+			subSel := node.Find(`.c-navigation__flyout-element > .m-level-2 > .c-navigation__item`)
+
+			if len(subSel.Nodes) > 0 {
+
+				for j := range subSel.Nodes {
+
+					subNode := subSel.Eq(j)
+
+					subCateName := strings.TrimSpace(subNode.Find(`.c-navigation__item-title`).Find(`a`).First().Text())
+
+					if subCateName == "View all" {
+						continue
+					}
+
+					subSel1 := subNode.Find(`.m-level-3 > .c-navigation__item`)
+
+					if len(subSel1.Nodes) > 0 {
+
+						for k := range subSel1.Nodes {
+
+							subNode1 := subSel1.Eq(k)
+
+							lastcat := strings.TrimSpace(subNode1.Find(`.c-navigation__item-title`).Find(`a`).First().Text())
+
+							href := subNode1.Find(`.c-navigation__item-title`).Find(`a`).First().AttrOr("href", "")
+
+							if href == "" {
+								continue
+							}
+
+							u, err := url.Parse(href)
+							if err != nil {
+								c.logger.Error("parse url %s failed", href)
+								continue
+							}
+
+							if c.categoryPathMatcher.MatchString(u.Path) {
+								if err := yield([]string{cateName, subCateName, lastcat}, href); err != nil {
+									return err
+								}
+							}
+						}
+					} else {
+
+						subCateName := strings.TrimSpace(subNode.Find(`.c-navigation__item-title`).Find(`a`).First().Text())
+
+						href := subNode.Find(`.c-navigation__item-title`).Find(`a`).First().AttrOr("href", "")
+
+						if href == "" {
+							continue
+						}
+
+						u, err := url.Parse(href)
+						if err != nil {
+							c.logger.Error("parse url %s failed", href)
+							continue
+						}
+
+						if c.categoryPathMatcher.MatchString(u.Path) {
+							if err := yield([]string{cateName, subCateName}, href); err != nil {
+								return err
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
+
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
+
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
+				}
+				cateMap[path] = cate
+				if lastCate != nil {
+					lastCate.Children = append(lastCate.Children, cate)
+				}
+				lastCate = cate
+
+				if i == 0 {
+					cates = append(cates, cate)
+				}
+			}
+		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	return cates, nil
+}
+
+// @deprecated
 func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -161,7 +298,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		if cateName == "" {
 			continue
 		}
-		nnctx := context.WithValue(ctx, "Category", cateName)
+		//nnctx := context.WithValue(ctx, "Category", cateName)
 
 		subSel := node.Find(`.c-navigation__flyout-element > .m-level-2 > .c-navigation__item`)
 
@@ -173,9 +310,9 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 
 				subCateName := strings.TrimSpace(subNode.Find(`.c-navigation__item-title`).Find(`a`).First().Text())
 
-				if subCateName == "View all" {
-					continue
-				}
+				// if subCateName == "View all" {
+				// 	continue
+				// }
 
 				subSel1 := subNode.Find(`.m-level-3 > .c-navigation__item`)
 
@@ -191,7 +328,7 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 							continue
 						}
 
-						href := subNode.Find(`.c-navigation__item-title`).Find(`a`).First().AttrOr("href", "")
+						href := subNode1.Find(`.c-navigation__item-title`).Find(`a`).First().AttrOr("href", "")
 						if href == "" {
 							continue
 						}
@@ -202,17 +339,13 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 							continue
 						}
 
-						if subCateName == "" {
-							subCateName = lastcat
-						} else {
-							subCateName = subCateName + " >> " + lastcat
-						}
+						fmt.Println(cateName, " > ", subCateName, " > ", lastcat)
 
-						nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-						req, _ := http.NewRequest(http.MethodGet, href, nil)
-						if err := yield(nnnctx, req); err != nil {
-							return err
-						}
+						// nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
+						// req, _ := http.NewRequest(http.MethodGet, href, nil)
+						// if err := yield(nnnctx, req); err != nil {
+						// 	return err
+						// }
 					}
 				}
 			}
@@ -246,10 +379,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	lastIndex := nextIndex(ctx)
-
 	sel := doc.Find(`.c-product-tile__name`)
-
-	c.logger.Debugf("nodes %d", len(sel.Nodes))
 
 	for i := range sel.Nodes {
 
@@ -270,10 +400,12 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	nextUrl := doc.Find(`.l-plp__pagination > .c-load-more`).Find(`a`).First().AttrOr("href", "")
+	nextUrl := doc.Find(`.c-load-more__button`).AttrOr("href", "")
 	if nextUrl == "" {
 		return nil
 	}
+
+	nextUrl = strings.ReplaceAll(nextUrl, `&sz=6`, `&sz=60`)
 
 	req, _ := http.NewRequest(http.MethodGet, nextUrl, nil)
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
@@ -303,6 +435,171 @@ type parseProductResponse struct {
 
 var productsReviewExtractReg = regexp.MustCompile(`(?Ums)<script type="application/ld\+json">\s*({.*})\s*</script>`)
 
+type parseProductVariantsResponse struct {
+	Productmedia struct {
+		SingleImage        bool   `json:"singleImage"`
+		ImageZoomClassName string `json:"imageZoomClassName"`
+		ComponentName      string `json:"componentName"`
+		ComponentOptions   struct {
+			TemplateName string `json:"templateName"`
+			EnableZoom   bool   `json:"enableZoom"`
+			ContentURL   string `json:"contentUrl"`
+			ClassNames   struct {
+				Carousel string `json:"carousel"`
+			} `json:"classNames"`
+			AriaLabel string `json:"ariaLabel"`
+		} `json:"componentOptions"`
+		Analytics struct {
+			Category string `json:"category"`
+			Label    string `json:"label"`
+		} `json:"analytics"`
+		Text struct {
+			Zoom string `json:"zoom"`
+		} `json:"text"`
+		CSSClass string `json:"cssClass"`
+		Items    []struct {
+			Image         string `json:"image,omitempty"`
+			ImageIndex    int    `json:"imageIndex,omitempty"`
+			ImageTypeUsed string `json:"imageTypeUsed,omitempty"`
+			VideoID       struct {
+				DataComponent    string `json:"dataComponent"`
+				ComponentOptions struct {
+					FrontendComponent string `json:"frontendComponent"`
+					Loop              int    `json:"loop"`
+					Mute              int    `json:"mute"`
+					ImageOptions      struct {
+						ViewType string `json:"viewType"`
+					} `json:"imageOptions"`
+					VideoID      string `json:"videoId"`
+					VideoSources []struct {
+						Src  string `json:"src"`
+						Type string `json:"type"`
+					} `json:"videoSources"`
+					Breakpoints struct {
+					} `json:"breakpoints"`
+					A11Y struct {
+						ControlAriaLabelStop string `json:"controlAriaLabelStop"`
+						ControlAriaLabelPlay string `json:"controlAriaLabelPlay"`
+					} `json:"a11y"`
+				} `json:"componentOptions"`
+				Cover                     string    `json:"cover"`
+				URL                       string    `json:"url"`
+				PosterURL                 string    `json:"posterUrl"`
+				ThumbnailURL              string    `json:"thumbnailUrl"`
+				HideDescription           bool      `json:"hideDescription"`
+				Title                     string    `json:"title"`
+				TitleTagName              string    `json:"titleTagName"`
+				Description               string    `json:"description"`
+				UploadDate                time.Time `json:"uploadDate"`
+				AriaLabel                 string    `json:"ariaLabel"`
+				ShowAccessibilityControl  bool      `json:"showAccessibilityControl"`
+				AccessibilityControlClass string    `json:"accessibilityControlClass"`
+				CSSClasses                struct {
+					AssetLink string `json:"assetLink"`
+					InfoName  string `json:"infoName"`
+				} `json:"cssClasses"`
+				Text struct {
+					AutoplayAriaLabelStop string `json:"autoplayAriaLabelStop"`
+				} `json:"text"`
+			} `json:"videoID,omitempty"`
+			IsVideo bool `json:"isVideo,omitempty"`
+		} `json:"items"`
+		CarouselConfig struct {
+			ComponentOptions struct {
+				InitialSlide  int    `json:"initialSlide"`
+				Direction     string `json:"direction"`
+				SlidesPerView int    `json:"slidesPerView"`
+				Loop          bool   `json:"loop"`
+				SpaceBetween  int    `json:"spaceBetween"`
+				ShowArrows    bool   `json:"showArrows"`
+				Breakpoints   struct {
+					MediumDown struct {
+						ShowArrows bool `json:"showArrows"`
+					} `json:"medium down"`
+				} `json:"breakpoints"`
+			} `json:"componentOptions"`
+		} `json:"carouselConfig"`
+		CommonCarousel struct {
+			SuppressRender bool `json:"suppressRender"`
+		} `json:"common/carousel"`
+		CommonVideoasset struct {
+			SuppressRender bool `json:"suppressRender"`
+		} `json:"common/videoasset"`
+		ProductPreview360 struct {
+			SuppressRender bool `json:"suppressRender"`
+		} `json:"product/preview360"`
+		CommonComponentslistProductDetailImageMosaicServices struct {
+			Items []struct {
+				Section string `json:"section"`
+				ID      string `json:"id"`
+				Data    struct {
+					SuppressRender bool `json:"suppressRender"`
+				} `json:"data"`
+				ForceRemoteInclude bool `json:"forceRemoteInclude"`
+				Preprocess         bool `json:"preprocess"`
+			} `json:"items"`
+			Wrapper struct {
+				CSSClass string `json:"cssClass"`
+				TagName  string `json:"tagName"`
+			} `json:"wrapper"`
+		} `json:"common/componentslist#product-detail-image-mosaic-services"`
+		CommonComponentslistProductDetailImageMosaicServicesMain struct {
+			Items []struct {
+				Section string `json:"section"`
+				ID      string `json:"id"`
+				Data    struct {
+					SuppressRender bool `json:"suppressRender"`
+				} `json:"data"`
+				ForceRemoteInclude bool `json:"forceRemoteInclude"`
+				Preprocess         bool `json:"preprocess"`
+			} `json:"items"`
+			Wrapper struct {
+				CSSClass string `json:"cssClass"`
+				TagName  string `json:"tagName"`
+			} `json:"wrapper"`
+		} `json:"common/componentslist#product-detail-image-mosaic-services-main"`
+	} `json:"productmedia"`
+	Analytics struct {
+		Products []struct {
+			Pid         string `json:"pid"`
+			Title       string `json:"title"`
+			Description struct {
+			} `json:"description"`
+			URL                       string      `json:"url"`
+			ImgURL                    string      `json:"imgUrl"`
+			Currency                  string      `json:"currency"`
+			Price                     float64     `json:"price"`
+			Name                      string      `json:"name"`
+			ID                        string      `json:"id"`
+			SalePrice                 float64     `json:"salePrice"`
+			Brand                     string      `json:"brand"`
+			Category                  string      `json:"category"`
+			ProductTopCategory        string      `json:"productTopCategory"`
+			Variant                   string      `json:"variant"`
+			Size                      string      `json:"size"`
+			Color                     string      `json:"color"`
+			Fragrance                 string      `json:"fragrance"`
+			Stock                     string      `json:"stock"`
+			AutoReplenishmentInterval string      `json:"autoReplenishmentInterval"`
+			Upc                       string      `json:"upc"`
+			RegularPrice              interface{} `json:"regularPrice"`
+			IsProductSet              bool        `json:"isProductSet"`
+			IsProductGroup            bool        `json:"isProductGroup"`
+			IsBundle                  bool        `json:"isBundle"`
+			BundleID                  string      `json:"bundleID"`
+			Rating                    string      `json:"rating"`
+			NumberReviews             int         `json:"numberReviews"`
+			VtoState                  string      `json:"vtoState"`
+			Collection                []string    `json:"collection"`
+			Customizations            struct {
+				Engraving string `json:"engraving"`
+			} `json:"customizations"`
+			Badges     string `json:"badges"`
+			SrEligible bool   `json:"srEligible"`
+		} `json:"products"`
+	} `json:"analytics"`
+}
+
 // used to trim html labels in description
 var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
 
@@ -326,6 +623,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err != nil {
 		return err
 	}
+	ioutil.WriteFile("C:\\Rinal\\ServiceBasedPRojects\\VoilaWork_new\\VoilaCrawl\\Output.html", respBody, 0644)
 
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
@@ -351,8 +649,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		brand = "2422"
 	}
 
-	rating, _ := strconv.ParseFloat(doc.Find(`.bvseo-aggregateRatingSection`).Find(`.bvseo-ratingValue`).Text())
-	reviewcount, _ := strconv.ParseInt(doc.Find(`.bvseo-aggregateRatingSection`).Find(`.bvseo-reviewCount`).Text())
+	rating, _ := strconv.ParseFloat(doc.Find(`.bvseo-ratingValue`).Text())
+	reviewcount, _ := strconv.ParseInt(doc.Find(`.bvseo-reviewCount`).Text())
 
 	currentPrice, _ := strconv.ParsePrice(viewData.Offers.Price)
 	msrp, _ := strconv.ParsePrice(viewData.Offers.Price)
@@ -402,10 +700,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		item.Medias = append(item.Medias, pbMedia.NewImageMedia(
 			strconv.Format(j),
-			strings.Replace(imgurl, "?sw=68&sfrm=jpg&q=70", "?sw=1024&sfrm=jpg&q=80", 1),
-			strings.Replace(imgurl, "?sw=68&sfrm=jpg&q=70", "?sw=800&sfrm=jpg&q=80", 1),
-			strings.Replace(imgurl, "?sw=68&sfrm=jpg&q=70", "?sw=500&sfrm=jpg&q=80", 1),
-			strings.Replace(imgurl, "?sw=68&sfrm=jpg&q=70", "?sw=300&sfrm=jpg&q=80", 1),
+			imgurl,
+			imgurl+"?sw=1000&sfrm=jpg&q=70",
+			imgurl+"?sw=800&sfrm=jpg&q=70",
+			imgurl+"?sw=500&sfrm=jpg&q=70",
 			"", j == 0))
 	}
 
@@ -451,46 +749,62 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	// 	}
 	// }
 
-	sel = doc.Find(`.c-carousel__inner`).Find(`.c-carousel__content`).Find(`.c-carousel__item`)
+	sel = doc.Find(`.c-carousel__inner`).Find(`.c-carousel__content`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 
-		if strings.Contains(node.Find(`a`).AttrOr(`class`, ``), `m-selected`) {
+		currentPrice, _ = strconv.ParsePrice(node.Find(`.c-product-price__value`).Text())
+		msrp, _ = strconv.ParsePrice(node.Find(`.c-product-price__value`).Text())
 
-			sid := (node.Find(`a`).AttrOr("data-js-pid", ""))
-			if sid == "" {
-				continue
-			}
-
-			sName := (node.Find(`a`).AttrOr("data-js-value", ""))
-
-			sku := pbItem.Sku{
-				SourceId: fmt.Sprintf("%s-%s", cid, sid),
-				Price: &pbItem.Price{
-					Currency: regulation.Currency_USD,
-					Current:  int32(currentPrice),
-					Msrp:     int32(msrp),
-					Discount: int32(discount),
-				},
-				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
-			}
-
-			sku.Stock.StockStatus = pbItem.Stock_InStock
-
-			// if colorSelected != nil {
-			// 	sku.Specs = append(sku.Specs, colorSelected)
-			// }
-
-			// size
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    sid,
-				Name:  sName,
-				Value: sName,
-			})
-
-			item.SkuItems = append(item.SkuItems, &sku)
+		if msrp == 0 {
+			msrp = currentPrice
 		}
+		discount := 0
+		if msrp > currentPrice {
+			discount = (int)(((msrp - currentPrice) / msrp) * 100)
+		}
+
+		sid := (node.Find(`a`).AttrOr("data-js-pid", ""))
+		if sid == "" {
+			continue
+		}
+
+		sName := (node.Find(`a`).AttrOr("data-js-value", ""))
+
+		sku := pbItem.Sku{
+			SourceId: fmt.Sprintf("%s-%s", cid, sid),
+			Price: &pbItem.Price{
+				Currency: regulation.Currency_USD,
+				Current:  int32(currentPrice),
+				Msrp:     int32(msrp),
+				Discount: int32(discount),
+			},
+			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+		}
+
+		if !strings.Contains(node.Find(`a`).AttrOr(`class`, ``), `m-selected`) {
+
+			// request new for image
+		} else {
+
+		}
+
+		sku.Stock.StockStatus = pbItem.Stock_InStock
+
+		// if colorSelected != nil {
+		// 	sku.Specs = append(sku.Specs, colorSelected)
+		// }
+
+		// size
+		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+			Type:  pbItem.SkuSpecType_SkuSpecSize,
+			Id:    "S-" + sid,
+			Name:  sName,
+			Value: sName,
+		})
+
+		item.SkuItems = append(item.SkuItems, &sku)
+
 	}
 
 	// yield item result
@@ -501,11 +815,42 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	return nil
 }
+func (c *_Crawler) VariationRequest(ctx context.Context, rootUrl string) (reqs []byte) {
+
+	req, _ := http.NewRequest(http.MethodGet, rootUrl, nil)
+	opts := c.CrawlOptions(req.URL)
+	req.Header.Set("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+	req.Header.Set("accept", "application/json")
+	req.Header.Set("referer", "https://www.target.com/")
+
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    false,
+		EnableSessionInit: false,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		//return nil, err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := ioutil.ReadAll(resp.Body)
+	return respBody
+}
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.laroche-posay.us/",
+		//"https://www.laroche-posay.us/",
+		//"https://www.laroche-posay.us/shop-by-concern/skin-concern",
+		"https://www.laroche-posay.us/our-products/acne-oily-skin/face-wash/effaclar-gel-facial-wash-for-oily-skin-effaclargelcleanser.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
