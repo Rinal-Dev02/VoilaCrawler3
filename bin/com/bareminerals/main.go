@@ -173,7 +173,8 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			node := sel.Eq(i)
 			cateName := strings.TrimSpace(node.Find(`a`).First().Text())
 
-			if cateName == "" {
+			// skip OUR PURPOSE & DISCOVER, as product list not found
+			if cateName == "" || strings.ToLower(cateName) == "discover" || strings.ToLower(cateName) == "our purpose" {
 				continue
 			}
 
@@ -328,7 +329,8 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		node := sel.Eq(i)
 		cateName := strings.TrimSpace(node.Find(`a`).First().Text())
 
-		if cateName == "" {
+		// skip OUR PURPOSE & DISCOVER, as product list not found
+		if cateName == "" || strings.ToLower(cateName) == "discover" || strings.ToLower(cateName) == "our purpose" {
 			continue
 		}
 		fmt.Println()
@@ -464,6 +466,9 @@ func TrimSpaceNewlineInString(s []byte) []byte {
 	return resp
 }
 
+// used to trim html labels in description
+var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+
 type parseProductResponse struct {
 	Context     string `json:"@context"`
 	Type        string `json:"@type"`
@@ -565,7 +570,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 		BrandName:   "Bare Minerals",
 		Title:       viewData.Name,
-		Description: viewData.Description,
+		Description: strings.TrimSpace(htmlTrimRegp.ReplaceAllString(viewData.Description, "")),
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
@@ -578,16 +583,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	sel = doc.Find(`.breadcrumb .breadcrumb-element`)
 	for i := range sel.Nodes {
-		if i > len(sel.Nodes)-1 {
-			continue
-		}
 
 		node := sel.Eq(i)
 		breadcrumb := strings.TrimSpace(node.Text())
 
 		if i == 1 {
 			item.Category = breadcrumb
-			item.CrowdType = breadcrumb
+			//item.CrowdType = breadcrumb
 		} else if i == 2 {
 			item.SubCategory = breadcrumb
 		} else if i == 3 {
@@ -604,7 +606,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	currentPrice, _ := strconv.ParsePrice(doc.Find(`.price-text`).Text())
-	msrp, _ := strconv.ParsePrice(doc.Find(`.price-value.hide`).Text())
+	msrp := float64(0)
+	if len(doc.Find(`.price-value.hide`).Nodes) > 0 {
+		msrp, _ = strconv.ParsePrice(doc.Find(`.price-value.hide`).Text())
+	} else {
+		msrp, _ = strconv.ParsePrice(doc.Find(`.price-standard`).Text())
+	}
 
 	if msrp == 0 {
 		msrp = currentPrice
@@ -634,20 +641,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	//variation-select amount-select
 	sel = doc.Find(`.variation-select.amount-select>option`)
 
-	if len(sel.Nodes) != 0 {
+	if len(sel.Nodes) > 0 {
 		for i := range sel.Nodes {
 			node := sel.Eq(i)
-
-			sku := pbItem.Sku{
-				SourceId: fmt.Sprintf(viewData.Sku),
-				Price: &pbItem.Price{
-					Currency: regulation.Currency_USD,
-					Current:  int32(currentPrice),
-					Msrp:     int32(msrp),
-					Discount: int32(discount),
-				},
-				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
-			}
 
 			idVal := `#tealiumProductDetails-` + node.AttrOr(`data-product_variant_id`, ``)
 
@@ -657,6 +653,42 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			docV, err := goquery.NewDocumentFromReader(bytes.NewReader(respBodyV))
 			if err != nil {
 				return err
+			}
+
+			currentPrice, _ = strconv.ParsePrice(docV.Find(`.price-text`).Text())
+			msrp = float64(0)
+			if len(docV.Find(`.price-value.hide`).Nodes) > 0 {
+				msrp, _ = strconv.ParsePrice(docV.Find(`.price-value.hide`).Text())
+			} else {
+				msrp, _ = strconv.ParsePrice(docV.Find(`.price-standard`).Text())
+			}
+			if msrp == 0 {
+				msrp = currentPrice
+			}
+			discount = int32(0)
+			if msrp > currentPrice {
+				discount = int32(((msrp - currentPrice) / msrp) * 100)
+			}
+
+			if err := json.Unmarshal([]byte(doc.Find(idVal).First().AttrOr(`data-tealium-product-variant`, ``)), &viewVariationData); err != nil {
+				fmt.Println(err)
+				//c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+				//return err
+			}
+
+			sku := pbItem.Sku{
+				SourceId: viewVariationData.VariantProductID,
+				Price: &pbItem.Price{
+					Currency: regulation.Currency_USD,
+					Current:  int32(currentPrice * 100),
+					Msrp:     int32(msrp * 100),
+					Discount: int32(discount),
+				},
+				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+			}
+
+			if strings.Contains(viewVariationData.ProductOutOfStock, "In Stock") {
+				sku.Stock.StockStatus = pbItem.Stock_InStock
 			}
 
 			//images
@@ -671,25 +703,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					strconv.Format(j),
 					"https:"+imgurl,
 					"https:"+imgurl+"?fmt=pjpeg&wid=1000&hei=1000",
-					"https:"+"?fmt=pjpeg&wid=600&hei=600",
-					"https:"+"?fmt=pjpeg&wid=500&hei=500",
+					"https:"+imgurl+"?fmt=pjpeg&wid=600&hei=600",
+					"https:"+imgurl+"?fmt=pjpeg&wid=500&hei=500",
 					"", j == 0))
-			}
-
-			if err := json.Unmarshal([]byte(doc.Find(idVal).First().AttrOr(`data-tealium-product-variant`, ``)), &viewVariationData); err != nil {
-				fmt.Println(err)
-				//c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
-				//return err
-			}
-
-			if strings.Contains(viewVariationData.ProductOutOfStock, "In Stock") {
-				sku.Stock.StockStatus = pbItem.Stock_InStock
 			}
 
 			//color
 			if viewVariationData.ProductColor != "None" {
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
 					Id:    "C-" + viewVariationData.Sku,
 					Name:  viewVariationData.ProductColor,
 					Value: viewVariationData.ProductColor,
@@ -711,11 +733,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	} else {
 		// single variation
 		sku := pbItem.Sku{
-			SourceId: fmt.Sprintf(viewData.Sku),
+			SourceId: "V-" + viewVariationData.VariantProductID,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(currentPrice),
-				Msrp:     int32(msrp),
+				Current:  int32(currentPrice * 100),
+				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
 			Medias: item.Medias,
@@ -746,7 +768,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 
-		if viewVariationData.Variant == "" || viewVariationData.ProductColor == "None" {
+		if viewVariationData.Variant == "" && viewVariationData.ProductColor == "None" {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
 				Id:    doc.Find(`.sub-header`).Text(),
@@ -801,13 +823,15 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://bareminerals.com/",
-		//"https://www.bareminerals.com/makeup/",
+		//"https://bareminerals.com/",
+		//"https://www.bareminerals.com/makeup/face/all-face/",
 		//"https://www.bareminerals.com/skincare/moisturizers/ageless-phyto-retinol-neck-cream/US41700210101.html",
 		//"https://www.bareminerals.com/makeup/eyes/brow/strength-%26-length-serum-infused-brow-gel/USmasterslbrowgel.html",
 		//"https://www.bareminerals.com/makeup/lips/all-lips/maximal-color%2C-minimal-ingredients/US41700127101.html?rrec=true",
 		//"https://www.bareminerals.com/skincare/category/lips/ageless-phyto-retinol-lip-balm/US41700893101.html",
 		//"https://www.bareminerals.com/offers/sale/barepro-performance-wear-powder-foundation/USmasterbareprosale.html",
+		//"https://www.bareminerals.com/offers/sale/barepro-performance-wear-liquid-foundation-spf-20/USmasterbareproliquidsale.html",
+		"https://www.bareminerals.com/skincare/all-skincare/skinlongevity-green-tea-herbal-eye-mask/US41700067101.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
