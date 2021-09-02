@@ -282,25 +282,31 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")) + 1)
 }
 
-type productListType struct {
-	ListingItems struct {
-		Items []struct {
-			ID  int    `json:"id"`
-			URL string `json:"url"`
-		} `json:"items"`
-	} `json:"listingItems"`
-	ListingPagination struct {
-		Index                int    `json:"index"`
-		View                 int    `json:"view"`
-		TotalItems           int    `json:"totalItems"`
-		TotalPages           int    `json:"totalPages"`
-		NormalizedTotalItems string `json:"normalizedTotalItems"`
-	} `json:"listingPagination"`
+type parseProductsResponse struct {
+	InitialStates struct {
+		SliceListing struct {
+			// ListingItems struct {
+			// 	Items []struct {
+			// 		ID  int    `json:"id"`
+			// 		URL string `json:"url"`
+			// 	} `json:"items"`
+			// } `json:"listingItems"`
+			ListingPagination struct {
+				Index                int32  `json:"index"`
+				View                 int32  `json:"view"`
+				TotalItems           int32  `json:"totalItems"`
+				TotalPages           int32  `json:"totalPages"`
+				NormalizedTotalItems string `json:"normalizedTotalItems"`
+			} `json:"listingPagination"`
+			Path   string `json:"path"`
+			Gender string `json:"gender"`
+		} `json:"slice-listing"`
+	} `json:"initialStates"`
 }
 
 var prodDataExtraReg = regexp.MustCompile(`(?Ums)window\['__initialState_portal-slices-listing__'\]\s*=\s*({.*});?\s*</script>`)
-var prodDataExtraReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__'\]\s*=\s*(".*");</script>`)
-var prodDataExtraReg2 = regexp.MustCompile(`(?Ums)window\.__HYDRATION_STATE__\s*=\s*(".*");</script>`)
+var prodDataExtraReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__'\]\s*=\s*(".*");?</script>`)
+var prodDataExtraReg2 = regexp.MustCompile(`(?Ums)window\.__HYDRATION_STATE__\s*=\s*(".*");?</script>`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -320,8 +326,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 	sel := dom.Find(`ul[data-testid="product-card-list"]>li[data-testid="productCard"]>a`)
-
-	c.logger.Debugf("found %d", len(sel.Nodes))
 
 	lastIndex := nextIndex(ctx)
 	for i := range sel.Nodes {
@@ -347,11 +351,37 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	nextNode := dom.Find(`div[data-testid="pagination"]>div[data-testid="pagination-section"] a[data-testid="page-next"]`).First()
-	if href := nextNode.AttrOr("href", ""); href != "" {
-		req, _ := http.NewRequest(http.MethodGet, href, nil)
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		return yield(nctx, req)
+	data, _ := resp.RawBody()
+	matched := prodDataExtraReg2.FindStringSubmatch(string(data))
+	if len(matched) > 0 {
+		if matched[1], err = strconv.Unquote(string(matched[1])); err != nil {
+			c.logger.Errorf("unquote raw data failed, error=%s", err)
+			return err
+		}
+		var viewData parseProductsResponse
+		if err := json.Unmarshal([]byte(matched[1]), &viewData); err != nil {
+			c.logger.Error(err)
+			return err
+		}
+
+		// nextNode := dom.Find(`div[data-testid="pagination"] div[data-testid="pagination-section"] a[data-testid="page-next"]`).First()
+		currentPage, _ := strconv.ParseInt32(resp.Request.URL.Query().Get("page"))
+		if currentPage <= 0 {
+			currentPage = 1
+		}
+		page := viewData.InitialStates.SliceListing.ListingPagination
+
+		if currentPage < page.TotalPages {
+			u := *resp.Request.URL
+			vals := u.Query()
+			vals.Set("page", strconv.Format(currentPage+1))
+			vals.Set("view", strconv.Format(page.View))
+			vals.Set("rootCategory", viewData.InitialStates.SliceListing.Gender)
+			u.RawQuery = vals.Encode()
+			req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			return yield(nctx, req)
+		}
 	}
 	return nil
 }
@@ -609,15 +639,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.farfetch.com",
-		//"https://www.farfetch.com/de/shopping/women/denim-1/items.aspx",
-		// "https://www.farfetch.com/shopping/women/denim-1/items.aspx",
+		// "https://www.farfetch.com",
+		"https://www.farfetch.com/shopping/women/denim-1/items.aspx",
 		// "https://www.farfetch.com/shopping/women/low-classic-rolled-cuffs-high-waisted-jeans-item-16070965.aspx?storeid=9359",
-		// "https://www.farfetch.com/de/shopping/women/aztech-mountain-galena-mantel-item-15896311.aspx?storeid=10254",
-		//"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
-		//"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
-		//"https://www.farfetch.com/sets/women/new-in-this-week-eu-women.aspx?view=90&sort=4&scale=280&category=136310",
-
+		// "https://www.farfetch.com/shopping/women/aztech-mountain-galena-mantel-item-15896311.aspx?storeid=10254",
+		// "https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
+		// "https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
+		// "https://www.farfetch.com/sets/women/new-in-this-week-eu-women.aspx?view=90&sort=4&scale=280&category=136310",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
