@@ -71,6 +71,7 @@ func (c *_Crawler) AllowedDomains() []string {
 }
 
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	rawurl = strings.TrimSpace(rawurl)
 	if rawurl == "" || rawurl == "#" {
 		return "", nil
 	}
@@ -197,18 +198,26 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				cate.Children = append(cate.Children, &subCate)
 
 				for _, subChild2 := range subChild.Children {
+					u := buildUrl(subChild2.Url)
+					if u == "" && len(subChild2.Children) == 0 {
+						continue
+					}
 					subCate2 := pbItem.Category{
 						Name: strings.TrimSpace(subChild2.Description),
-						Url:  buildUrl(subChild2.Url),
+						Url:  u,
 					}
 					subCate.Children = append(subCate.Children, &subCate2)
 
 					for _, subChild3 := range subChild2.Children {
+						u := buildUrl(subChild3.Url)
+						if u == "" && len(subChild3.Children) == 0 {
+							continue
+						}
 						subCate3 := pbItem.Category{
 							Name: strings.TrimSpace(subChild3.Description),
-							Url:  buildUrl(subChild3.Url),
+							Url:  u,
 						}
-						subCate2.Children = append(subCate.Children, &subCate3)
+						subCate2.Children = append(subCate2.Children, &subCate3)
 					}
 				}
 			}
