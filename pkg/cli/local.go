@@ -6,6 +6,7 @@ import (
 	rhttp "net/http"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 
@@ -54,9 +55,13 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 			Name:  "enable-session-init",
 			Usage: "Enable session init",
 		},
-		&cli.BoolFlag{
-			Name:  "enable-lifo",
-			Usage: "Enable queue LIFO for requests",
+		&cli.StringFlag{
+			Name:  "include-path",
+			Usage: "Path regulare expression that will do http request",
+		},
+		&cli.StringFlag{
+			Name:  "exclude-path",
+			Usage: "Path regulare expression that to ignore",
 		},
 		&cli.BoolFlag{
 			Name:  "disable-checker",
@@ -236,6 +241,22 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 				os.Setenv("DEBUG", "1")
 			}
 
+			var (
+				err            error
+				includePathReg *regexp.Regexp
+				excludePathReg *regexp.Regexp
+			)
+			if e := c.String("include-path"); e != "" {
+				if includePathReg, err = regexp.Compile(e); err != nil {
+					return cli.NewExitError(fmt.Sprintf("invalid include-path regular expression, error=%s", err), 1)
+				}
+			}
+			if e := c.String("exclude-path"); e != "" {
+				if excludePathReg, err = regexp.Compile(e); err != nil {
+					return cli.NewExitError(fmt.Sprintf("invalid exclude-path regular expression, error=%s", err), 1)
+				}
+			}
+
 			proxyAddr := c.String("proxy-addr")
 			if proxyAddr == "" {
 				return errors.New("proxy address not specified")
@@ -310,9 +331,6 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 						}
 					}
 
-					i = i.WithContext(ctx)
-					reqQueue.PushBack(i)
-
 					sharedVals := context.RetrieveAllValues(ctx)
 					vals := map[string]interface{}{}
 					for k, v := range sharedVals {
@@ -320,8 +338,14 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 							vals[ks] = v
 						}
 					}
-					logger.Debugf("Appended %s, data=%+v", i.URL, vals)
+					if (includePathReg != nil && !includePathReg.MatchString(i.URL.Path)) ||
+						(excludePathReg != nil && excludePathReg.MatchString(i.URL.Path)) {
+						return nil
+					}
+					logger.Debugf("Queued %s, data=%+v", i.URL, vals)
 
+					i = i.WithContext(ctx)
+					reqQueue.PushBack(i)
 					return nil
 				default:
 					marshaler := protojson.MarshalOptions{}
@@ -364,15 +388,8 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 						if reqQueue.Len() == 0 {
 							return
 						}
-
-						if c.Bool("enable-lifo") {
-							if v := reqQueue.PopBack(); v != nil {
-								req = v.(*http.Request)
-							}
-						} else {
-							if v := reqQueue.PopFront(); v != nil {
-								req = v.(*http.Request)
-							}
+						if v := reqQueue.PopFront(); v != nil {
+							req = v.(*http.Request)
 						}
 					}
 
