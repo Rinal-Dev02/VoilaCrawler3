@@ -229,6 +229,9 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					}
 
 					if c.categoryPathMatcher.MatchString(u.Path) {
+						if strings.ToLower(subcat2) == "offers" || strings.ToLower(subcat2) == "virtual beauty services" {
+							continue
+						}
 						if !strings.Contains(href, ".bareminerals.com") {
 							href = "https://www.bareminerals.com" + href
 						}
@@ -406,6 +409,8 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 	return nil
 }
 
+var categoryProductReg = regexp.MustCompile(`(?Ums)certonaRecommendations\(({.*})\);`)
+
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -443,6 +448,43 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
+	//special category link
+	if len(sel.Nodes) == 0 {
+		if len(doc.Find(`.pt_categorylanding`).Nodes) > 0 {
+			categoryName := strings.Split(strings.TrimSuffix(resp.Request.URL.Path, "/"), `/`)
+			requestURL := "https://www.res-x.com/ws/r2/Resonance.aspx?appid=bareminerals01&tk=958677643273121&pg=525672038920870&sg=1&ev=content&ei=&bx=true&sc=campaign1_rr&sc=campaign2_rr&no=20&AllCategories=" + categoryName[len(categoryName)-1] + "&ccb=certonaRecommendations&vr=5.11x&ref=&url=" + resp.Request.URL.String()
+			respBodyV := c.variationRequest(ctx, requestURL, resp.Request.URL.String())
+
+			var viewData categoryStructure
+			{
+				matched := categoryProductReg.FindSubmatch(respBodyV)
+				if len(matched) > 1 {
+					if err := json.Unmarshal(matched[1], &viewData); err != nil {
+						c.logger.Errorf("unmarshal category detail data fialed, error=%s", err)
+					}
+				}
+			}
+
+			for _, item := range viewData.Resonance.Schemes {
+				for _, itemDetail := range item.Items {
+
+					if href := itemDetail.ProductDetailURL; href != "" {
+						req, err := http.NewRequest(http.MethodGet, href, nil)
+						if err != nil {
+							c.logger.Error(err)
+							continue
+						}
+						lastIndex += 1
+						nctx := context.WithValue(ctx, "item.index", lastIndex)
+						if err := yield(nctx, req); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+	}
+
 	nextUrl := doc.Find(`.infinite-scroll-placeholder`).AttrOr("data-grid-url", "")
 	if nextUrl == "" {
 		return nil
@@ -452,6 +494,23 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	req, _ := http.NewRequest(http.MethodGet, nextUrl, nil)
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
+}
+
+type categoryStructure struct {
+	Resonance struct {
+		Schemes []struct {
+			Items []struct {
+				ID               string `json:"ID"`
+				ProductName      string `json:"ProductName"`
+				ProductImageURL  string `json:"ProductImageURL"`
+				ProductDetailURL string `json:"ProductDetailURL"`
+				Rating           string `json:"rating"`
+				ListPrice        string `json:"listPrice"`
+				SalePrice        string `json:"salePrice"`
+				Reviews          string `json:"reviews"`
+			} `json:"items"`
+		} `json:"schemes"`
+	} `json:"resonance"`
 }
 
 func TrimSpaceNewlineInString(s []byte) []byte {
@@ -512,6 +571,26 @@ type parseProductVariant struct {
 	Variant           string `json:"variant"`
 	Category          string `json:"category"`
 }
+type parseProductKitVariant struct {
+	ProductSets []struct {
+		ID       string `json:"id"`
+		HashID   string `json:"hashId"`
+		Name     string `json:"name"`
+		ImgURL   string `json:"imgURL"`
+		ItemImg  string `json:"itemImg,omitempty"`
+		IsBucket bool   `json:"isBucket"`
+		Products []struct {
+			ID              string `json:"id"`
+			Name            string `json:"name"`
+			IsMasterProduct bool   `json:"isMasterProduct"`
+			ImgURL          string `json:"imgURL"`
+			ImgURLMedium    string `json:"imgURLMedium"`
+			InStock         bool   `json:"inStock"`
+		} `json:"products"`
+		AccordianName string `json:"accordianName,omitempty"`
+	} `json:"productSets"`
+	RecommendedFrequency interface{} `json:"recommendedFrequency"`
+}
 
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -526,6 +605,40 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
 		return err
+	}
+
+	// For kit product
+	// example https://www.bareminerals.com/makeup/face/foundation-kits/i-am-an-original-get-started-makeup-kit/US102713.html
+	if len(doc.Find(`#bundleJson`).Nodes) > 0 {
+		jsonContent := doc.Find(`#bundleJson`).AttrOr(`value`, ``)
+
+		var viewData parseProductKitVariant
+		{
+			if err := json.Unmarshal([]byte(jsonContent), &viewData); err != nil {
+				fmt.Println(err)
+				//c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
+			}
+		}
+
+		for _, items := range viewData.ProductSets {
+			for _, itemsproducts := range items.Products {
+
+				u := "https://www.bareminerals.com/" + itemsproducts.ID + ".html"
+				if u == "" {
+					continue
+				}
+				req, err := http.NewRequest(http.MethodGet, u, nil)
+				if err != nil {
+					c.logger.Error(err)
+					continue
+				}
+				if err := yield(ctx, req); err != nil {
+					return err
+				}
+
+			}
+		}
+		return nil
 	}
 
 	var viewData parseProductResponse
@@ -552,9 +665,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		//return err
 	}
 
-	reviewCount, _ := strconv.ParseInt(viewData.AggregateRating[0].ReviewCount)
-	rating, _ := strconv.ParseFloat(viewData.AggregateRating[0].RatingValue)
-
+	reviewCount := int64(0)
+	rating := float64(0)
+	if len(viewData.AggregateRating) > 0 {
+		reviewCount, _ = strconv.ParseInt(viewData.AggregateRating[0].ReviewCount)
+		rating, _ = strconv.ParseFloat(viewData.AggregateRating[0].RatingValue)
+	}
 	canUrl, _ := c.CanonicalUrl(doc.Find(`link[rel="canonical"]`).AttrOr("href", ""))
 	if canUrl == "" {
 		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
@@ -628,14 +744,47 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		imgurl := strings.Split(node.Find(`img`).AttrOr(`data-src`, ``), "?")[0]
 		if imgurl == "" {
 			continue
+		} else if !strings.HasPrefix(imgurl, "http") {
+			imgurl = "https:" + strings.Split(node.Find(`img`).AttrOr(`data-src`, ``), "?")[0]
 		}
 		item.Medias = append(item.Medias, pbMedia.NewImageMedia(
 			strconv.Format(j),
 			imgurl,
-			imgurl+"?fmt=pjpeg&fmt=jpg&wid=1000&hei=1000",
-			imgurl+"?fmt=pjpeg&fmt=jpg&wid=600&hei=600",
-			imgurl+"?fmt=pjpeg&fmt=jpg&wid=500&hei=500",
+			imgurl+"?fmt=pjpeg&wid=1000&hei=1000",
+			imgurl+"?fmt=pjpeg&wid=600&hei=600",
+			imgurl+"?fmt=pjpeg&wid=500&hei=500",
 			"", j == 0))
+	}
+
+	// Video
+	sel1 = doc.Find(`.tealium-pdp-video-click`)
+	for j := range sel1.Nodes {
+		node := sel1.Eq(j).Parent()
+		videoId := node.AttrOr(`data-video-id`, ``)
+		if videoId == "" {
+			continue
+		}
+
+		requestURL := "https://www.bareminerals.com/on/demandware.store/Sites-BareMinerals_US_CA-Site/en_US/Product-GetVideo?videoname=" + videoId
+		respBodyV := c.variationRequest(ctx, requestURL, resp.Request.URL.String())
+
+		docV, err := goquery.NewDocumentFromReader(bytes.NewReader(respBodyV))
+		if err != nil {
+			return err
+		}
+
+		videoURL := docV.Find(`iframe`).AttrOr(`src`, ``)
+		if videoURL == "" {
+			continue
+		} else if !strings.HasPrefix(videoURL, "http") {
+			videoURL = "https:" + docV.Find(`iframe`).AttrOr(`src`, ``)
+		}
+		item.Medias = append(item.Medias, pbMedia.NewVideoMedia(
+			strconv.Format(j),
+			"",
+			videoURL,
+			300, 300, 0, "", "",
+			j == 0))
 	}
 
 	//variation-select amount-select
@@ -677,14 +826,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			sku := pbItem.Sku{
-				SourceId: viewVariationData.VariantProductID,
+				SourceId: viewVariationData.Sku,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(currentPrice * 100),
 					Msrp:     int32(msrp * 100),
 					Discount: int32(discount),
 				},
-				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
 
 			if strings.Contains(viewVariationData.ProductOutOfStock, "In Stock") {
@@ -698,21 +847,56 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				imgurl := strings.Split(node.Find(`img`).AttrOr(`data-src`, ``), "?")[0]
 				if imgurl == "" {
 					continue
+				} else if !strings.HasPrefix(imgurl, "http") {
+					imgurl = "https:" + strings.Split(node.Find(`img`).AttrOr(`data-src`, ``), "?")[0]
 				}
+
 				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
 					strconv.Format(j),
-					"https:"+imgurl,
-					"https:"+imgurl+"?fmt=pjpeg&wid=1000&hei=1000",
-					"https:"+imgurl+"?fmt=pjpeg&wid=600&hei=600",
-					"https:"+imgurl+"?fmt=pjpeg&wid=500&hei=500",
+					imgurl,
+					imgurl+"?fmt=pjpeg&wid=1000&hei=1000",
+					imgurl+"?fmt=pjpeg&wid=600&hei=600",
+					imgurl+"?fmt=pjpeg&wid=500&hei=500",
 					"", j == 0))
+			}
+
+			// Video
+			sel1 = docV.Find(`.tealium-pdp-video-click`)
+			for j := range sel1.Nodes {
+				node := sel1.Eq(j).Parent()
+				videoId := node.AttrOr(`data-video-id`, ``)
+				if videoId == "" {
+					continue
+				}
+
+				requestURL := "https://www.bareminerals.com/on/demandware.store/Sites-BareMinerals_US_CA-Site/en_US/Product-GetVideo?videoname=" + videoId
+				respBodyV := c.variationRequest(ctx, requestURL, resp.Request.URL.String())
+
+				docV, err := goquery.NewDocumentFromReader(bytes.NewReader(respBodyV))
+				if err != nil {
+					return err
+				}
+
+				videoURL := docV.Find(`iframe`).AttrOr(`src`, ``)
+				if videoURL == "" {
+					continue
+				} else if !strings.HasPrefix(videoURL, "http") {
+					videoURL = "https:" + docV.Find(`iframe`).AttrOr(`src`, ``)
+				}
+
+				item.Medias = append(item.Medias, pbMedia.NewVideoMedia(
+					strconv.Format(j),
+					"",
+					videoURL,
+					300, 300, 0, "", "",
+					j == 0))
 			}
 
 			//color
 			if viewVariationData.ProductColor != "None" {
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 					Type:  pbItem.SkuSpecType_SkuSpecColor,
-					Id:    "C-" + viewVariationData.Sku,
+					Id:    viewVariationData.ProductColor,
 					Name:  viewVariationData.ProductColor,
 					Value: viewVariationData.ProductColor,
 				})
@@ -722,7 +906,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			if viewVariationData.Variant != "" {
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 					Type:  pbItem.SkuSpecType_SkuSpecSize,
-					Id:    "S-" + viewVariationData.Sku,
+					Id:    viewVariationData.Variant,
 					Name:  viewVariationData.Variant,
 					Value: viewVariationData.Variant,
 				})
@@ -733,7 +917,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	} else {
 		// single variation
 		sku := pbItem.Sku{
-			SourceId: "V-" + viewVariationData.VariantProductID,
+			SourceId: viewVariationData.Sku,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(currentPrice * 100),
@@ -741,7 +925,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Discount: int32(discount),
 			},
 			Medias: item.Medias,
-			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
 		if strings.Contains(viewVariationData.ProductOutOfStock, "In Stock") {
@@ -752,7 +936,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if viewVariationData.ProductColor != "None" {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    "C-" + viewVariationData.Sku,
+				Id:    viewVariationData.ProductColor,
 				Name:  viewVariationData.ProductColor,
 				Value: viewVariationData.ProductColor,
 			})
@@ -762,18 +946,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if viewVariationData.Variant != "" {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    "S-" + viewVariationData.Sku,
+				Id:    viewVariationData.Variant,
 				Name:  viewVariationData.Variant,
 				Value: viewVariationData.Variant,
 			})
 		}
 
 		if viewVariationData.Variant == "" && viewVariationData.ProductColor == "None" {
+			subTitle := strings.TrimSpace(doc.Find(`.sub-header`).First().Text())
+			if subTitle == "" {
+				subTitle = strings.TrimSpace(doc.Find(`.product-title-block`).First().Find(`.product-name`).Text())
+			}
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    doc.Find(`.sub-header`).Text(),
-				Name:  doc.Find(`.sub-header`).Text(),
-				Value: doc.Find(`.sub-header`).Text(),
+				Id:    subTitle,
+				Name:  subTitle,
+				Value: subTitle,
 			})
 		}
 		item.SkuItems = append(item.SkuItems, &sku)
@@ -824,6 +1012,7 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://bareminerals.com/",
+		//"https://www.bareminerals.com/skincare/skincare-explore/bareblends-customizable-skin-care/",
 		//"https://www.bareminerals.com/makeup/face/all-face/",
 		//"https://www.bareminerals.com/skincare/moisturizers/ageless-phyto-retinol-neck-cream/US41700210101.html",
 		//"https://www.bareminerals.com/makeup/eyes/brow/strength-%26-length-serum-infused-brow-gel/USmasterslbrowgel.html",
@@ -831,7 +1020,12 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.bareminerals.com/skincare/category/lips/ageless-phyto-retinol-lip-balm/US41700893101.html",
 		//"https://www.bareminerals.com/offers/sale/barepro-performance-wear-powder-foundation/USmasterbareprosale.html",
 		//"https://www.bareminerals.com/offers/sale/barepro-performance-wear-liquid-foundation-spf-20/USmasterbareproliquidsale.html",
-		"https://www.bareminerals.com/skincare/all-skincare/skinlongevity-green-tea-herbal-eye-mask/US41700067101.html",
+		//"https://www.bareminerals.com/skincare/all-skincare/skinlongevity-green-tea-herbal-eye-mask/US41700067101.html",
+		//"https://www.bareminerals.com/makeup/face/foundation-kits/i-am-an-original-get-started-makeup-kit/US102713.html",
+		//"https://www.bareminerals.com/new/new-explore/poreless-skincare-2/poreless-3-step-regimen/US92860.html",
+		//"https://www.bareminerals.com/makeup/face/blush/gen-nude-powder-blush/USmastergnblush.html",
+		"https://www.bareminerals.com/makeup/makeup-brushes/face-brushes/beautiful-finish-foundation-brush/US77069.html",
+		//"https://www.bareminerals.com/US41700196101.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
