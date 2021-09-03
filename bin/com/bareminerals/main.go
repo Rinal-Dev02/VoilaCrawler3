@@ -45,7 +45,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 		httpClient: client,
 		// this regular used to match category page url path
 		categoryPathMatcher: regexp.MustCompile(`^(/([/A-Za-z0-9_-]+))$`),
-		productPathMatcher:  regexp.MustCompile(`^(/[/A-Za-z0-9&_-]+.html)`),
+		productPathMatcher:  regexp.MustCompile(`^(/[/A-Za-z0-9:+&_-]+.html)`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -99,7 +99,6 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
-		return u.String(), nil
 	}
 	return u.String(), nil
 }
@@ -123,7 +122,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
 	if c.productPathMatcher.MatchString(p) {
@@ -336,8 +335,8 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		if cateName == "" || strings.ToLower(cateName) == "discover" || strings.ToLower(cateName) == "our purpose" {
 			continue
 		}
-		fmt.Println()
-		fmt.Println("Category", cateName)
+		//fmt.Println()
+		//fmt.Println("Category", cateName)
 
 		// nctx := context.WithValue(ctx, "Category", cateName)
 
@@ -469,7 +468,15 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 				for _, itemDetail := range item.Items {
 
 					if href := itemDetail.ProductDetailURL; href != "" {
-						req, err := http.NewRequest(http.MethodGet, href, nil)
+						canonicalHref, err := c.CanonicalUrl(href)
+						if err != nil {
+							c.logger.Error(err)
+							continue
+						}
+						if i := strings.Index(canonicalHref, "&"); i != -1 {
+							canonicalHref = canonicalHref[0:i]
+						}
+						req, err := http.NewRequest(http.MethodGet, canonicalHref, nil)
 						if err != nil {
 							c.logger.Error(err)
 							continue
@@ -615,8 +622,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		var viewData parseProductKitVariant
 		{
 			if err := json.Unmarshal([]byte(jsonContent), &viewData); err != nil {
-				fmt.Println(err)
-				//c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
+				//fmt.Println(err)
+				c.logger.Errorf("unmarshal kit product detail data failed, error=%s", err)
 			}
 		}
 
@@ -651,18 +658,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		if strings.Contains(node.Text(), `"@type":"Product"`) {
 			if err := json.Unmarshal([]byte(node.Text()), &viewData); err != nil {
-				fmt.Println(err)
-				//c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
-				//return err
+				//fmt.Println(err)
+				c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+				return err
 			}
 			break
 		}
 	}
 
 	if err := json.Unmarshal([]byte(doc.Find(`.tealiumProductDetails>div`).AttrOr(`data-tealium-product-variant`, ``)), &viewVariationData); err != nil {
-		fmt.Println(err)
-		//c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
-		//return err
+		//fmt.Println(err)
+		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+		return err
 	}
 
 	reviewCount := int64(0)
@@ -717,9 +724,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
-	if strings.Contains(doc.Find(`meta[property="og:availability"]`).AttrOr(`content`, ``), "IN_STOCK") {
-		item.Stock.StockStatus = pbItem.Stock_InStock
-	}
+	//if strings.Contains(doc.Find(`meta[property="og:availability"]`).AttrOr(`content`, ``), "IN_STOCK") {
+	//	item.Stock.StockStatus = pbItem.Stock_InStock
+	//}
 
 	currentPrice, _ := strconv.ParsePrice(doc.Find(`.price-text`).Text())
 	msrp := float64(0)
@@ -759,10 +766,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	// Video
 	sel1 = doc.Find(`.tealium-pdp-video-click`)
 	for j := range sel1.Nodes {
-		node := sel1.Eq(j).Parent()
-		videoId := node.AttrOr(`data-video-id`, ``)
+		node := sel1.Eq(j)
+		videoId := node.Parent().AttrOr(`data-video-id`, ``)
 		if videoId == "" {
 			continue
+		}
+		cover := node.Find(`img`).AttrOr("src", "")
+		if cover != "" && strings.HasPrefix(cover, "//") {
+			cover = "https:" + cover
 		}
 
 		requestURL := "https://www.bareminerals.com/on/demandware.store/Sites-BareMinerals_US_CA-Site/en_US/Product-GetVideo?videoname=" + videoId
@@ -783,7 +794,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			strconv.Format(j),
 			"",
 			videoURL,
-			300, 300, 0, "", "",
+			0, 0, 0, cover, "",
 			j == 0))
 	}
 
@@ -820,9 +831,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			if err := json.Unmarshal([]byte(doc.Find(idVal).First().AttrOr(`data-tealium-product-variant`, ``)), &viewVariationData); err != nil {
-				fmt.Println(err)
-				//c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
-				//return err
+				//fmt.Println(err)
+				c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+				return err
 			}
 
 			sku := pbItem.Sku{
@@ -955,7 +966,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if viewVariationData.Variant == "" && viewVariationData.ProductColor == "None" {
 			subTitle := strings.TrimSpace(doc.Find(`.sub-header`).First().Text())
 			if subTitle == "" {
-				subTitle = strings.TrimSpace(doc.Find(`.product-title-block`).First().Find(`.product-name`).Text())
+				//subTitle = strings.TrimSpace(doc.Find(`.product-title-block`).First().Find(`.product-name`).Text())
+				subTitle = "-"
 			}
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
@@ -965,6 +977,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 		item.SkuItems = append(item.SkuItems, &sku)
+	}
+
+	// product stock
+	for _, skuItem := range item.SkuItems {
+		if skuItem.Stock.StockStatus == pbItem.Stock_InStock {
+			item.Stock.StockStatus = pbItem.Stock_InStock
+			break
+		}
 	}
 
 	// yield item result
