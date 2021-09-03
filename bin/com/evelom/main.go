@@ -43,7 +43,8 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^/([/A-Za-z0-9_-]+)$`),
+
+		categoryPathMatcher: regexp.MustCompile(`^/collections/([/A-Za-z0-9_-]+)$`),
 		productPathMatcher:  regexp.MustCompile(`^/([/A-Za-z0-9_-]+)/products([/A-Za-z0-9_-]+)$`),
 		logger:              logger.New("_Crawler"),
 	}
@@ -98,7 +99,6 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
-		return u.String(), nil
 	}
 	return u.String(), nil
 }
@@ -544,13 +544,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	var medias []*pbMedia.Media
 	for m, mid := range viewData.Images {
 
-		template := strings.Split(mid, "?")[0]
+		imgURL := strings.ReplaceAll(strings.Split(mid, "?")[0], `.jpg`, ``)
+		if imgURL == "" {
+			continue
+		} else if !strings.HasPrefix(imgURL, "http") {
+			imgURL = "https:" + strings.ReplaceAll(strings.Split(mid, "?")[0], `.jpg`, ``)
+		}
 		medias = append(medias, pbMedia.NewImageMedia(
 			strconv.Format(m),
-			"https:"+template,
-			"https:"+strings.ReplaceAll(template, `.jpg`, `_1000x.jpg`),
-			"https:"+strings.ReplaceAll(template, `.jpg`, `_800x.jpg`),
-			"https:"+strings.ReplaceAll(template, `.jpg`, `_600x.jpg`),
+			imgURL+".jpg",
+			imgURL+`_1000x.jpg`,
+			imgURL+`_800x.jpg`,
+			imgURL+`_600x.jpg`,
 			"",
 			m == 0,
 		))
@@ -583,8 +588,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			SourceId: fmt.Sprintf("%s-%s", rawVariation.Barcode, rawVariation.Sku),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(current),
-				Msrp:     int32(msrp),
+				Current:  int32(current * 100),
+				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
 			Medias: medias,
