@@ -436,27 +436,7 @@ type parseProductResponse struct {
 
 type parseProductVariantsResponse struct {
 	Productmedia struct {
-		SingleImage        bool   `json:"singleImage"`
-		ImageZoomClassName string `json:"imageZoomClassName"`
-		ComponentName      string `json:"componentName"`
-		ComponentOptions   struct {
-			TemplateName string `json:"templateName"`
-			EnableZoom   bool   `json:"enableZoom"`
-			ContentURL   string `json:"contentUrl"`
-			ClassNames   struct {
-				Carousel string `json:"carousel"`
-			} `json:"classNames"`
-			AriaLabel string `json:"ariaLabel"`
-		} `json:"componentOptions"`
-		Analytics struct {
-			Category string `json:"category"`
-			Label    string `json:"label"`
-		} `json:"analytics"`
-		Text struct {
-			Zoom string `json:"zoom"`
-		} `json:"text"`
-		CSSClass string `json:"cssClass"`
-		Items    []struct {
+		Items []struct {
 			Image         string `json:"image,omitempty"`
 			ImageIndex    int    `json:"imageIndex,omitempty"`
 			ImageTypeUsed string `json:"imageTypeUsed,omitempty"`
@@ -503,60 +483,6 @@ type parseProductVariantsResponse struct {
 			} `json:"videoID,omitempty"`
 			IsVideo bool `json:"isVideo,omitempty"`
 		} `json:"items"`
-		CarouselConfig struct {
-			ComponentOptions struct {
-				InitialSlide  int    `json:"initialSlide"`
-				Direction     string `json:"direction"`
-				SlidesPerView int    `json:"slidesPerView"`
-				Loop          bool   `json:"loop"`
-				SpaceBetween  int    `json:"spaceBetween"`
-				ShowArrows    bool   `json:"showArrows"`
-				Breakpoints   struct {
-					MediumDown struct {
-						ShowArrows bool `json:"showArrows"`
-					} `json:"medium down"`
-				} `json:"breakpoints"`
-			} `json:"componentOptions"`
-		} `json:"carouselConfig"`
-		CommonCarousel struct {
-			SuppressRender bool `json:"suppressRender"`
-		} `json:"common/carousel"`
-		CommonVideoasset struct {
-			SuppressRender bool `json:"suppressRender"`
-		} `json:"common/videoasset"`
-		ProductPreview360 struct {
-			SuppressRender bool `json:"suppressRender"`
-		} `json:"product/preview360"`
-		CommonComponentslistProductDetailImageMosaicServices struct {
-			Items []struct {
-				Section string `json:"section"`
-				ID      string `json:"id"`
-				Data    struct {
-					SuppressRender bool `json:"suppressRender"`
-				} `json:"data"`
-				ForceRemoteInclude bool `json:"forceRemoteInclude"`
-				Preprocess         bool `json:"preprocess"`
-			} `json:"items"`
-			Wrapper struct {
-				CSSClass string `json:"cssClass"`
-				TagName  string `json:"tagName"`
-			} `json:"wrapper"`
-		} `json:"common/componentslist#product-detail-image-mosaic-services"`
-		CommonComponentslistProductDetailImageMosaicServicesMain struct {
-			Items []struct {
-				Section string `json:"section"`
-				ID      string `json:"id"`
-				Data    struct {
-					SuppressRender bool `json:"suppressRender"`
-				} `json:"data"`
-				ForceRemoteInclude bool `json:"forceRemoteInclude"`
-				Preprocess         bool `json:"preprocess"`
-			} `json:"items"`
-			Wrapper struct {
-				CSSClass string `json:"cssClass"`
-				TagName  string `json:"tagName"`
-			} `json:"wrapper"`
-		} `json:"common/componentslist#product-detail-image-mosaic-services-main"`
 	} `json:"productmedia"`
 	Analytics struct {
 		Products []struct {
@@ -590,11 +516,6 @@ type parseProductVariantsResponse struct {
 			NumberReviews             int         `json:"numberReviews"`
 			VtoState                  string      `json:"vtoState"`
 			Collection                []string    `json:"collection"`
-			Customizations            struct {
-				Engraving string `json:"engraving"`
-			} `json:"customizations"`
-			Badges     string `json:"badges"`
-			SrEligible bool   `json:"srEligible"`
 		} `json:"products"`
 	} `json:"analytics"`
 }
@@ -634,10 +555,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		msrp = currentPrice
 	}
 
+	pid := strings.Split(resp.Request.URL.Path, "-")
+
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:           viewData.Sku,
+			Id:           strings.TrimSuffix(pid[len(pid)-1], `.html`),
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 			//GroupId:      doc.Find(`meta[property="product:age_group"]`).AttrOr(`content`, ``),
@@ -647,6 +570,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Stats: &pbItem.Stats{
 			ReviewCount: int32(reviewcount),
 			Rating:      float32(rating),
+		},
+		Price: &pbItem.Price{
+			Currency: regulation.Currency_USD,
 		},
 		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
@@ -703,7 +629,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		sName := (node.Find(`a`).AttrOr("data-js-value", ""))
 
 		sku := pbItem.Sku{
-			SourceId: fmt.Sprintf("SKU-%s", sid),
+			SourceId: fmt.Sprintf("%s-%s", sid, sName),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(currentPrice * 100),
@@ -714,11 +640,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		colorName := ""
-		cid := ""
 		if !strings.Contains(node.Find(`a`).AttrOr(`class`, ``), `m-selected`) {
 
 			// request new for image
-
 			variantURL := node.Find(`a`).AttrOr(`href`, ``) + "&ajax=true"
 			respBodyV := c.VariationRequest(ctx, variantURL, resp.Request.URL.String())
 
@@ -731,6 +655,20 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			for m, mid := range viewDataImage.Productmedia.Items {
 
 				domI, _ := goquery.NewDocumentFromReader(bytes.NewReader([]byte(mid.Image)))
+
+				if mid.IsVideo {
+					cover := mid.VideoID.ThumbnailURL
+					if cover != "" && strings.HasPrefix(cover, "//") {
+						cover = "https:" + cover
+					}
+
+					sku.Medias = append(sku.Medias, pbMedia.NewVideoMedia(
+						strconv.Format(m),
+						"", mid.VideoID.URL,
+						0, 0, 0, cover, "",
+						m == 0))
+				}
+
 				imgurl := strings.Split(domI.Find(`img`).AttrOr(`src`, ``), "?")[0]
 				if imgurl == "" {
 					continue
@@ -744,13 +682,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					"",
 					m == 0,
 				))
-				if mid.IsVideo {
-					sku.Medias = append(sku.Medias, pbMedia.NewVideoMedia(
-						strconv.Format(m),
-						"", mid.VideoID.URL,
-						0, 0, 0, "", "",
-						m == 0))
-				}
 			}
 
 			if viewDataImage.Analytics.Products[0].Stock == "in stock" {
@@ -759,7 +690,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			if viewDataImage.Analytics.Products[0].Color != "" {
 				colorName = viewDataImage.Analytics.Products[0].Color
-				cid = "C-" + viewDataImage.Analytics.Products[0].Upc
 			}
 
 			if viewDataImage.Analytics.Products[0].Size != "" {
@@ -802,14 +732,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			sel = doc.Find(`.c-product-detail-image__alternatives`).Find(`.c-video-asset__link `)
 			for m := range sel.Nodes {
 				node := sel.Eq(m)
-				videourl := strings.Split(node.AttrOr(`data-url`, ``), "?")[0]
+				cover := node.Find(`img`).AttrOr("src", "")
+				if cover != "" && strings.HasPrefix(cover, "//") {
+					cover = "https:" + cover
+				}
+
+				videourl := node.AttrOr(`data-url`, ``)
 				if videourl == "" {
 					continue
 				}
 				sku.Medias = append(sku.Medias, pbMedia.NewVideoMedia(
 					strconv.Format(m),
 					"", videourl,
-					0, 0, 0, "", "",
+					0, 0, 0, cover, "",
 					m == 0))
 			}
 
@@ -822,7 +757,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if colorName != "" {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    cid,
+				Id:    colorName,
 				Name:  colorName,
 				Value: colorName,
 			})
@@ -831,7 +766,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		// size
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    "S-" + sid,
+			Id:    sName,
 			Name:  sName,
 			Value: sName,
 		})
@@ -853,7 +788,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		sku := pbItem.Sku{
-			SourceId: fmt.Sprintf("SKU-%s", viewData.Sku),
+			SourceId: fmt.Sprintf("%s", viewData.Sku),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(currentPrice * 100),
@@ -886,6 +821,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		sel = doc.Find(`.c-product-detail-image__alternatives`).Find(`.c-video-asset__link `)
 		for m := range sel.Nodes {
 			node := sel.Eq(m)
+			cover := node.Find(`img`).AttrOr("src", "")
+			if cover != "" && strings.HasPrefix(cover, "//") {
+				cover = "https:" + cover
+			}
+
 			videourl := node.AttrOr(`data-url`, ``)
 			if videourl == "" {
 				continue
@@ -893,16 +833,21 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			sku.Medias = append(sku.Medias, pbMedia.NewVideoMedia(
 				strconv.Format(m),
 				"", videourl,
-				0, 0, 0, "", "",
+				0, 0, 0, cover, "",
 				m == 0))
+		}
+
+		subTitle := strings.TrimSpace(doc.Find(`.c-product-main__subtitle`).Text())
+		if subTitle == "" {
+			subTitle = "-"
 		}
 
 		// Variants
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecColor,
-			Id:    strings.TrimSpace(doc.Find(`.c-product-main__subtitle`).Text()),
-			Name:  strings.TrimSpace(doc.Find(`.c-product-main__subtitle`).Text()),
-			Value: strings.TrimSpace(doc.Find(`.c-product-main__subtitle`).Text()),
+			Id:    subTitle,
+			Name:  subTitle,
+			Value: subTitle,
 		})
 
 		item.SkuItems = append(item.SkuItems, &sku)
@@ -956,7 +901,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.laroche-posay.us/our-products/acne-oily-skin/face-wash/effaclar-gel-facial-wash-for-oily-skin-effaclargelcleanser.html",
 		//"https://www.laroche-posay.us/our-products/anti-aging/anti-aging-moisturizer/active-vitamin-c-10%25-wrinkle-cream-3337872414053.html",
 		//"https://www.laroche-posay.us/our-products/acne-oily-skin/face-wash/effaclar-micellar-water-for-oily-skin-effaclarmicellarwaterultra.html",
-		"https://www.laroche-posay.us/our-products/sun/body-sunscreen/anthelios-cooling-water-sunscreen-lotion-spf-60-3606000403826.html",
+		//"https://www.laroche-posay.us/our-products/sun/body-sunscreen/anthelios-cooling-water-sunscreen-lotion-spf-60-3606000403826.html",
+		"https://www.laroche-posay.us/our-products/anti-aging/anti-aging-serum/hyalu-b5-pure-hyaluronic-acid-serum-hyaluB5serum.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
