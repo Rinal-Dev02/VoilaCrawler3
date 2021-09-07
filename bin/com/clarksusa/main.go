@@ -391,6 +391,11 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
+	// facts := resp.Request.URL.Query()
+	// for key, val := range facts {
+
+	// }
+
 	for _, items := range viewData.Products {
 		if href := items.URL; href != "" {
 
@@ -423,8 +428,36 @@ type categoryStructure struct {
 		TotalNumberOfResults int    `json:"totalNumberOfResults"`
 		NumberOfPages        int    `json:"numberOfPages"`
 	} `json:"pagination"`
+	Facets []struct {
+		Code    string `json:"code"`
+		Visible bool   `json:"visible"`
+		Values  []struct {
+			Code  string `json:"code"`
+			Query struct {
+				Query struct {
+					Value string `json:"value"`
+				} `json:"query"`
+				URL string `json:"url"`
+			} `json:"query"`
+			Name     string `json:"name"`
+			Count    int    `json:"count"`
+			Selected bool   `json:"selected"`
+			Key      string `json:"key"`
+		} `json:"values"`
+		SelectedValuesCount int    `json:"selectedValuesCount"`
+		Name                string `json:"name"`
+		Priority            int    `json:"priority"`
+		Category            bool   `json:"category"`
+		MultiSelect         bool   `json:"multiSelect"`
+	} `json:"facets"`
 	Products []struct {
-		URL string `json:"url"`
+		URL       string `json:"url"`
+		FacetData struct {
+			Facets []struct {
+				Code   string   `json:"code"`
+				Values []string `json:"values"`
+			} `json:"facets"`
+		} `json:"facetData"`
 	} `json:"products"`
 }
 
@@ -885,8 +918,9 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.clarksusa.com/",
 		//"https://www.clarksusa.com/Womens-Best-Sellers/c/us182",
 		//"https://www.clarksusa.com/c/Wave2-0-Step-/p/26152404",
-		"https://www.clarksusa.com/c/Camzin-Strap/p/26161979",
+		//"https://www.clarksusa.com/c/Camzin-Strap/p/26161979",
 		//"https://www.clarksusa.com/c/Bamboo-No-Show/p/261548710000",
+		"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109?q=:relevance:department:womens&sort=relevance",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
