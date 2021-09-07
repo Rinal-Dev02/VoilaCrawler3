@@ -63,8 +63,8 @@ type Product struct {
 	HumanLanguage    string `json:"humanLanguage"`
 	DiffbotURI       string `json:"diffbotUri"`
 	MultipleProducts bool   `json:"multipleProducts"`
-	Availability     bool   `json:"availability"`
-	Category         string `json:"category"`
+	// Availability     bool   `json:"availability"`
+	Category string `json:"category"`
 }
 
 type _RawResponse struct {
