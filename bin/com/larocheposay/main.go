@@ -721,12 +721,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					continue
 				}
 				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-					strconv.Format(m),
+					strconv.Format(len(sku.Medias)),
 					imgurl,
 					imgurl+"?sw=1000&sfrm=jpg&q=70",
 					imgurl+"?sw=800&sfrm=jpg&q=70",
 					imgurl+"?sw=500&sfrm=jpg&q=70",
-					"", m == 0))
+					"", len(sku.Medias) == 0))
 			}
 
 			// video
@@ -743,10 +743,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					continue
 				}
 				sku.Medias = append(sku.Medias, pbMedia.NewVideoMedia(
-					strconv.Format(m),
+					strconv.Format(len(sku.Medias)),
 					"", videourl,
 					0, 0, 0, cover, "",
-					m == 0))
+					len(sku.Medias) == 0))
 			}
 
 			if strings.Contains(viewData.Offers.Availability, "InStock") {
