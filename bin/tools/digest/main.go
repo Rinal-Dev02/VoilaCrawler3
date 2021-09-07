@@ -13,6 +13,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 	"github.com/voiladev/VoilaCrawler/bin/tools/digest/diffbot"
+	"github.com/voiladev/VoilaCrawler/bin/tools/digest/util"
 	"github.com/voiladev/VoilaCrawler/pkg/brand"
 	cmd "github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/context"
@@ -296,6 +297,10 @@ func (c *_Crawler) parseOpenGraph(ctx context.Context, req *http.Request) (*pbIt
 					v = "https:" + v
 				} else if strings.HasPrefix(v, "/") {
 					v = resp.CurrentUrl().Scheme + "://" + resp.CurrentUrl().Host + v
+				}
+				v, err := util.FormatImageUrl(v)
+				if err != nil {
+					continue
 				}
 				item.Medias = append(item.Medias, media.NewImageMedia("", v, "", "", "", "", false))
 			}
