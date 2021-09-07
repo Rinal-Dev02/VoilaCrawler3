@@ -7,6 +7,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	goHttp "net/http"
 	"strings"
 
 	"github.com/voiladev/VoilaCrawler/pkg/context"
@@ -293,7 +294,7 @@ func checkError(ctx context.Context, e *crawl.Error, logger glog.Log) error {
 }
 
 // checkImage do http request to check image width
-func checkImage(ctx context.Context, url string, imgSizeType int, httpClient http.Client) error {
+func checkImage(_ context.Context, url string, imgSizeType int, _ http.Client) error {
 	var (
 		imgSizeName string
 		imgSize     int
@@ -311,8 +312,10 @@ func checkImage(ctx context.Context, url string, imgSizeType int, httpClient htt
 	default:
 		return fmt.Errorf("Checker.Product.Media: unsupport image size type %d", imgSizeType)
 	}
-	imgReq, _ := http.NewRequest(http.MethodGet, url, nil)
-	imgResp, err := httpClient.Do(ctx, imgReq)
+
+	//imgReq, _ := http.NewRequest(http.MethodGet, url, nil)
+	//imgResp, err := httpClient.Do(ctx, imgReq)
+	imgResp, err := goHttp.Get(url)
 	if err != nil {
 		return fmt.Errorf("Checker.Product.Media: Get %s err=%s", imgSizeName, err)
 	}
