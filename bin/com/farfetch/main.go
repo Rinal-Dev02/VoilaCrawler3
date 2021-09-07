@@ -71,6 +71,10 @@ func (c *_Crawler) AllowedDomains() []string {
 }
 
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
+	rawurl = strings.TrimSpace(rawurl)
+	if rawurl == "" || rawurl == "#" {
+		return "", nil
+	}
 	u, err := url.Parse(rawurl)
 	if err != nil {
 		return "", err
@@ -94,42 +98,65 @@ func getPathFirstSection(p string) string {
 	return "/" + strings.SplitN(strings.TrimPrefix(p, "/"), "/", 2)[0]
 }
 
+type categoryItem struct {
+	UrlToken    string          `json:"urlToken"`
+	Url         string          `json:"url"`
+	Description string          `json:"description"`
+	Children    []*categoryItem `json:"children"`
+	Deep        int             `json:"deep"`
+}
+
 type categoryChildrenStructure struct {
-	Children []struct {
-		Type     string `json:"type"`
-		Title    string `json:"title"`
-		Href     string `json:"href"`
-		Children []struct {
-			Type     string `json:"type"`
-			Children []struct {
-				Title string `json:"title"`
-				Href  string `json:"href"`
-			} `json:"children"`
-		} `json:"children"`
-	} `json:"children"`
+	ListingFilters struct {
+		Facets struct {
+			Category struct {
+				Values []*categoryItem `json:"values"`
+			} `json:"category"`
+		} `json:"facets"`
+	} `json:"listingFilters"`
 }
 
 func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
 	var cates []*pbItem.Category
 
 	buildUrl := func(u string) string {
-		if u == "" {
-			return ""
-		}
 		u, _ = c.CanonicalUrl(u)
 		return u
 	}
 
-	for mainCate, rawurl := range map[string]string{
-		"Women": "https://www.farfetch.com/headerslice/meganav/GetGenderChildren?genderId=249&isPreviewMode=false",
-		"Men":   "https://www.farfetch.com/headerslice/meganav/GetGenderChildren?genderId=248&isPreviewMode=false",
-		"Kids":  "https://www.farfetch.com/headerslice/meganav/GetGenderChildren?genderId=19018&isPreviewMode=false",
+	for mainCate, item := range map[string]struct {
+		Url     string
+		Headers map[string]string
+	}{
+		"Women": {
+			Url: "https://www.farfetch.com/plpslice/listing-api/products-facets?view=9&rootCategory=Women",
+			Headers: map[string]string{
+				"cookie":  "usr-gender=249; ckm-ctx-sf=%2F",
+				"referer": "https://www.farfetch.com/shopping/women/coats-1/items.aspx",
+			},
+		},
+		"Men": {
+			Url: "https://www.farfetch.com/plpslice/listing-api/products-facets?view=9&rootCategory=Men",
+			Headers: map[string]string{
+				"cookie":  "usr-gender=248; ckm-ctx-sf=%2F",
+				"referer": "https://www.farfetch.com/shopping/men/clothing-2/items.aspx",
+			},
+		},
+		"Kids": {
+			Url: "https://www.farfetch.com/plpslice/listing-api/products-facets?view=9&rootCategory=Kids",
+			Headers: map[string]string{
+				"cookie":  "usr-gender=19018; ckm-ctx-sf=%2F",
+				"referer": "https://www.farfetch.com/shopping/kids/coats-9/items.aspx",
+			},
+		},
 	} {
-		req, _ := http.NewRequest(http.MethodGet, rawurl, nil)
+		req, _ := http.NewRequest(http.MethodGet, item.Url, nil)
 		req.Header.Add("accept", "application/json, text/plain, */*")
-		req.Header.Add("referer", "https://www.farfetch.com/")
 		req.Header.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
 		req.Header.Add("x-requested-with", "XMLHttpRequest")
+		for k, v := range item.Headers {
+			req.Header.Set(k, v)
+		}
 		opts := c.CrawlOptions(req.URL)
 
 		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
@@ -151,32 +178,47 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			return nil, err
 		}
 
-		cate := pbItem.Category{
+		mainCate := pbItem.Category{
 			Name:  mainCate,
 			Depth: 1,
 		}
-		cates = append(cates, &cate)
-		for _, level1RawCate := range viewData.Children {
-			level1Cate := pbItem.Category{
-				Name: level1RawCate.Title,
-				Url:  buildUrl(level1RawCate.Href),
+		cates = append(cates, &mainCate)
+		for _, item := range viewData.ListingFilters.Facets.Category.Values {
+			cate := pbItem.Category{
+				Name: strings.TrimSpace(item.Description),
+				Url:  buildUrl(item.Url),
 			}
-			cate.Children = append(cate.Children, &level1Cate)
+			mainCate.Children = append(mainCate.Children, &cate)
 
-			for _, wrapper := range level1RawCate.Children {
-				if wrapper.Type != "segment" {
-					continue
+			for _, subChild := range item.Children {
+				subCate := pbItem.Category{
+					Name: strings.TrimSpace(subChild.Description),
+					Url:  buildUrl(subChild.Url),
 				}
+				cate.Children = append(cate.Children, &subCate)
 
-				for _, level2RawCate := range wrapper.Children {
-					if level2RawCate.Title == "" || level2RawCate.Href == "" {
+				for _, subChild2 := range subChild.Children {
+					u := buildUrl(subChild2.Url)
+					if u == "" && len(subChild2.Children) == 0 {
 						continue
 					}
-					level2Cate := pbItem.Category{
-						Name: level2RawCate.Title,
-						Url:  buildUrl(level2RawCate.Href),
+					subCate2 := pbItem.Category{
+						Name: strings.TrimSpace(subChild2.Description),
+						Url:  u,
 					}
-					level1Cate.Children = append(level1Cate.Children, &level2Cate)
+					subCate.Children = append(subCate.Children, &subCate2)
+
+					for _, subChild3 := range subChild2.Children {
+						u := buildUrl(subChild3.Url)
+						if u == "" && len(subChild3.Children) == 0 {
+							continue
+						}
+						subCate3 := pbItem.Category{
+							Name: strings.TrimSpace(subChild3.Description),
+							Url:  u,
+						}
+						subCate2.Children = append(subCate2.Children, &subCate3)
+					}
 				}
 			}
 		}
@@ -249,25 +291,31 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")) + 1)
 }
 
-type productListType struct {
-	ListingItems struct {
-		Items []struct {
-			ID  int    `json:"id"`
-			URL string `json:"url"`
-		} `json:"items"`
-	} `json:"listingItems"`
-	ListingPagination struct {
-		Index                int    `json:"index"`
-		View                 int    `json:"view"`
-		TotalItems           int    `json:"totalItems"`
-		TotalPages           int    `json:"totalPages"`
-		NormalizedTotalItems string `json:"normalizedTotalItems"`
-	} `json:"listingPagination"`
+type parseProductsResponse struct {
+	InitialStates struct {
+		SliceListing struct {
+			// ListingItems struct {
+			// 	Items []struct {
+			// 		ID  int    `json:"id"`
+			// 		URL string `json:"url"`
+			// 	} `json:"items"`
+			// } `json:"listingItems"`
+			ListingPagination struct {
+				Index                int32  `json:"index"`
+				View                 int32  `json:"view"`
+				TotalItems           int32  `json:"totalItems"`
+				TotalPages           int32  `json:"totalPages"`
+				NormalizedTotalItems string `json:"normalizedTotalItems"`
+			} `json:"listingPagination"`
+			Path   string `json:"path"`
+			Gender string `json:"gender"`
+		} `json:"slice-listing"`
+	} `json:"initialStates"`
 }
 
 var prodDataExtraReg = regexp.MustCompile(`(?Ums)window\['__initialState_portal-slices-listing__'\]\s*=\s*({.*});?\s*</script>`)
-var prodDataExtraReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__'\]\s*=\s*(".*");</script>`)
-var prodDataExtraReg2 = regexp.MustCompile(`(?Ums)window\.__HYDRATION_STATE__\s*=\s*(".*");</script>`)
+var prodDataExtraReg1 = regexp.MustCompile(`(?Ums)window\['__initialState__'\]\s*=\s*(".*");?</script>`)
+var prodDataExtraReg2 = regexp.MustCompile(`(?Ums)window\.__HYDRATION_STATE__\s*=\s*(".*");?</script>`)
 
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -287,8 +335,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 	sel := dom.Find(`ul[data-testid="product-card-list"]>li[data-testid="productCard"]>a`)
-
-	c.logger.Debugf("found %d", len(sel.Nodes))
 
 	lastIndex := nextIndex(ctx)
 	for i := range sel.Nodes {
@@ -314,11 +360,37 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	nextNode := dom.Find(`div[data-testid="pagination"]>div[data-testid="pagination-section"] a[data-testid="page-next"]`).First()
-	if href := nextNode.AttrOr("href", ""); href != "" {
-		req, _ := http.NewRequest(http.MethodGet, href, nil)
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		return yield(nctx, req)
+	data, _ := resp.RawBody()
+	matched := prodDataExtraReg2.FindStringSubmatch(string(data))
+	if len(matched) > 0 {
+		if matched[1], err = strconv.Unquote(string(matched[1])); err != nil {
+			c.logger.Errorf("unquote raw data failed, error=%s", err)
+			return err
+		}
+		var viewData parseProductsResponse
+		if err := json.Unmarshal([]byte(matched[1]), &viewData); err != nil {
+			c.logger.Error(err)
+			return err
+		}
+
+		// nextNode := dom.Find(`div[data-testid="pagination"] div[data-testid="pagination-section"] a[data-testid="page-next"]`).First()
+		currentPage, _ := strconv.ParseInt32(resp.Request.URL.Query().Get("page"))
+		if currentPage <= 0 {
+			currentPage = 1
+		}
+		page := viewData.InitialStates.SliceListing.ListingPagination
+
+		if currentPage < page.TotalPages {
+			u := *resp.Request.URL
+			vals := u.Query()
+			vals.Set("page", strconv.Format(currentPage+1))
+			vals.Set("view", strconv.Format(page.View))
+			vals.Set("rootCategory", viewData.InitialStates.SliceListing.Gender)
+			u.RawQuery = vals.Encode()
+			req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			return yield(nctx, req)
+		}
 	}
 	return nil
 }
@@ -576,15 +648,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.farfetch.com",
-		//"https://www.farfetch.com/de/shopping/women/denim-1/items.aspx",
-		// "https://www.farfetch.com/shopping/women/denim-1/items.aspx",
+		// "https://www.farfetch.com",
+		"https://www.farfetch.com/shopping/women/denim-1/items.aspx",
 		// "https://www.farfetch.com/shopping/women/low-classic-rolled-cuffs-high-waisted-jeans-item-16070965.aspx?storeid=9359",
-		// "https://www.farfetch.com/de/shopping/women/aztech-mountain-galena-mantel-item-15896311.aspx?storeid=10254",
-		//"https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
-		//"https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
-		//"https://www.farfetch.com/sets/women/new-in-this-week-eu-women.aspx?view=90&sort=4&scale=280&category=136310",
-
+		// "https://www.farfetch.com/shopping/women/aztech-mountain-galena-mantel-item-15896311.aspx?storeid=10254",
+		// "https://www.farfetch.com/shopping/women/gucci-x-ken-scott-floral-print-shirt-item-16359693.aspx?storeid=9445",
+		// "https://www.farfetch.com/shopping/women/escada-floral-print-shirt-item-13761571.aspx?rtype=portal_pdp_outofstock_b&rpos=3&rid=027c2611-6135-4842-abdd-59895d30e924",
+		// "https://www.farfetch.com/sets/women/new-in-this-week-eu-women.aspx?view=90&sort=4&scale=280&category=136310",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
