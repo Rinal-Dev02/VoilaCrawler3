@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -76,6 +75,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
 		MustHeader:        crawler.NewCrawlOptions().MustHeader,
 	}
+
 	return opts
 }
 
@@ -101,7 +101,6 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
-		return u.String(), nil
 	}
 	return u.String(), nil
 }
@@ -302,8 +301,6 @@ func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yie
 		if cateName == "" {
 			continue
 		}
-		fmt.Println()
-		fmt.Println(cateName)
 		//nctx := context.WithValue(ctx, "Category", cateName)
 
 		attrM := "#" + attrName
@@ -412,7 +409,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	// Next page url not found
 	if viewData.Pagination.NumberOfPages > 1 {
-		fmt.Println(`implement pagination`)
 		c.logger.Errorf("implement pagination=%s")
 		return nil
 	}
@@ -441,10 +437,13 @@ func TrimSpaceNewlineInString(s []byte) []byte {
 	resp = bytes.ReplaceAll(resp, []byte("&lt;"), []byte("<"))
 	resp = bytes.ReplaceAll(resp, []byte("&gt;"), []byte(">"))
 	resp = bytes.ReplaceAll(resp, []byte("  "), []byte(""))
+	resp = bytes.ReplaceAll(resp, []byte(`:"`), []byte(`":"`))
+	resp = bytes.ReplaceAll(resp, []byte(`",`), []byte(`","`))
+	resp = bytes.ReplaceAll(resp, []byte(`{`), []byte(`{"`))
 	return resp
 }
 
-var productsReviewExtractReg = regexp.MustCompile(`(?Ums)var attributesProductView=\s*({.*}),attributesProductViewString`)
+var productsReviewExtractReg = regexp.MustCompile(`(?Ums)var\s*attributesProductView=\s*({.*}),attributesProductViewString`)
 var imageRegStart = regexp.MustCompile(`\(([^;]+),`)
 
 // used to trim html labels in description
@@ -480,18 +479,23 @@ type parseVariationProductResponse struct {
 
 type parseImageResponse struct {
 	Set struct {
-		Pv   string `json:"pv"`
-		Type string `json:"type"`
-		N    string `json:"n"`
 		Item []struct {
 			I struct {
 				N string `json:"n"`
 			} `json:"i"`
-			S struct {
+
+			Iv string `json:"iv"`
+		} `json:"item"`
+	} `json:"set"`
+}
+
+type parseImageSingleResponse struct {
+	Set struct {
+		ItemSingle struct {
+			I struct {
 				N string `json:"n"`
-			} `json:"s"`
-			Dx string `json:"dx"`
-			Dy string `json:"dy"`
+			} `json:"i"`
+
 			Iv string `json:"iv"`
 		} `json:"item"`
 	} `json:"set"`
@@ -568,8 +572,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	var viewData parseProductResponse
 	matched := productsReviewExtractReg.FindSubmatch([]byte(respBody))
+
 	if len(matched) > 1 {
+		matched[1] = TrimSpaceNewlineInString(matched[1])
 		if err := json.Unmarshal(matched[1], &viewData); err != nil {
+			fmt.Println(err)
 			//c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
 			//return err
 		}
@@ -624,23 +631,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	//-----------------------------------
+	s = strings.Split(canUrl, `/`)
+	pidimg := s[len(s)-1]
+	imgrequest := "https://clarks.scene7.com/is/image/Pangaea2Build/" + pidimg + "_SET?req=set,json&s7jsonResponse=axiosJsonpCallback1"
 
-	imgrequest := "https://clarks.scene7.com/is/image/Pangaea2Build/" + pid + "_SET?req=set,json&s7jsonResponse=axiosJsonpCallback1"
-
-	req, err := http.NewRequest(http.MethodGet, imgrequest, nil)
-	req.Header.Set("Referer", resp.Request.URL.String())
-
-	imgreq, err := c.httpClient.Do(ctx, req)
-	if err != nil {
-		panic(err)
-	}
-	defer imgreq.Body.Close()
-
-	respBodyImg, err := io.ReadAll(imgreq.Body)
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
+	respBodyImg := c.variationRequest(ctx, imgrequest, resp.Request.URL.String())
 
 	matched = imageRegStart.FindSubmatch(respBodyImg)
 	if len(matched) <= 1 {
@@ -653,28 +648,58 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	for key, img := range q.Set.Item {
+	var medias []*pbMedia.Media // video not found
+	if len(q.Set.Item) > 0 {
+		for key, img := range q.Set.Item {
 
-		if strings.Contains(img.I.N, "Image_Not") || strings.Contains(img.I.N, "_video") {
-			continue
+			if strings.Contains(img.I.N, "Image_Not") || strings.Contains(img.I.N, "_video") || img.I.N == "" {
+				continue
+			}
+			imgURLDefault := "https://clarks.scene7.com/is/image/" + img.I.N
+
+			medias = append(medias, pbMedia.NewImageMedia(
+				strconv.Format(img.Iv),
+				imgURLDefault,
+				imgURLDefault+"?qlt=70&fmt=jpeg&wid=1000&hei=1200",
+				imgURLDefault+"?qlt=70&fmt=jpeg&wid=690&hei=810",
+				imgURLDefault+"?qlt=70&fmt=jpeg&wid=590&hei=700",
+				"",
+				key == 0,
+			))
 		}
-		imgURLDefault := "https://clarks.scene7.com/is/image/" + img.I.N
 
-		item.Medias = append(item.Medias, pbMedia.NewImageMedia(
-			strconv.Format(img.Iv),
-			imgURLDefault,
-			imgURLDefault+"?qlt=70&fmt=jpeg&wid=1000&hei=1200",
-			imgURLDefault+"?qlt=70&fmt=jpeg&wid=690&hei=810",
-			imgURLDefault+"?qlt=70&fmt=jpeg&wid=590&hei=700",
-			"",
-			key == 0,
-		))
+	} else {
+		// one image
+		var q parseImageSingleResponse
+		if err = json.Unmarshal(matched[1], &q); err != nil {
+			c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
+			return err
+		}
+
+		if q.Set.ItemSingle.I.N != "" {
+
+			imgURLDefault := "https://clarks.scene7.com/is/image/" + q.Set.ItemSingle.I.N
+
+			medias = append(medias, pbMedia.NewImageMedia(
+				strconv.Format(q.Set.ItemSingle.Iv),
+				imgURLDefault,
+				imgURLDefault+"?qlt=70&fmt=jpeg&wid=1000&hei=1200",
+				imgURLDefault+"?qlt=70&fmt=jpeg&wid=690&hei=810",
+				imgURLDefault+"?qlt=70&fmt=jpeg&wid=590&hei=700",
+				"",
+				true,
+			))
+
+		}
 	}
 
 	// itemListElement
 	sel := doc.Find(`.breadcrumb>li`)
 	c.logger.Debugf("nodes %d", len(sel.Nodes))
 	for i := range sel.Nodes {
+		if i == len(sel.Nodes)-1 {
+			continue
+		}
 		node := sel.Eq(i)
 		breadcrumb := strings.TrimSpace(node.Find(`a`).First().Text())
 
@@ -702,6 +727,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if strings.Contains(node.AttrOr(`class`, ``), `selected`) {
 			cid = node.AttrOr(`colour-name`, ``)
 			icon := strings.ReplaceAll(strings.ReplaceAll(node.Find(`img`).AttrOr(`src`, ""), "background-image: url(", ""), ")", "")
+			if icon == "" {
+				continue
+			} else if !strings.HasPrefix(icon, "http") {
+				icon = "https:" + strings.ReplaceAll(strings.ReplaceAll(node.Find(`img`).AttrOr(`src`, ""), "background-image: url(", ""), ")", "")
+			}
+
 			colorName = node.AttrOr(`colour-name`, "")
 			colorSelected = &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
@@ -713,6 +744,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
+	counter := 0
 	sel = doc.Find(`.box-selectors__wrapper > label`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
@@ -724,16 +756,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		for j, rawSku := range viewDataSize.SkuDetails[sizeValue].SizeDetails {
-
+			counter++
 			sku := pbItem.Sku{
-				SourceId: fmt.Sprintf("%s-%s-%s", cid, sid, rawSku.ProductCode),
+				SourceId: strconv.Format(counter),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
-					Current:  int32(currentPrice),
-					Msrp:     int32(msrp),
+					Current:  int32(currentPrice * 100),
+					Msrp:     int32(msrp * 100),
 					Discount: int32(discount),
 				},
-				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+				Medias: medias,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
 
 			if rawSku.AvailableStockAmount > 0 {
@@ -756,6 +789,31 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
+	if len(sel.Nodes) == 0 {
+
+		sku := pbItem.Sku{
+			SourceId: "0",
+			Price: &pbItem.Price{
+				Currency: regulation.Currency_USD,
+				Current:  int32(currentPrice * 100),
+				Msrp:     int32(msrp * 100),
+				Discount: int32(discount),
+			},
+			Medias: medias,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+		}
+
+		if len(doc.Find(`#addToCartButton`).Nodes) > 0 {
+			sku.Stock.StockStatus = pbItem.Stock_InStock
+			item.Stock.StockStatus = pbItem.Stock_InStock
+		}
+
+		if colorSelected != nil {
+			sku.Specs = append(sku.Specs, colorSelected)
+		}
+
+		item.SkuItems = append(item.SkuItems, &sku)
+	}
 
 	// yield item result
 	if err = yield(ctx, &item); err != nil {
@@ -763,7 +821,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	// // found other color
+	// found other color
 	sel = doc.Find(`.color-swatch-selector>ul>li`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
@@ -826,7 +884,9 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.clarksusa.com/",
 		//"https://www.clarksusa.com/Womens-Best-Sellers/c/us182",
-		"https://www.clarksusa.com/c/Wave2-0-Step-/p/26152404",
+		//"https://www.clarksusa.com/c/Wave2-0-Step-/p/26152404",
+		"https://www.clarksusa.com/c/Camzin-Strap/p/26161979",
+		//"https://www.clarksusa.com/c/Bamboo-No-Show/p/261548710000",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -851,6 +911,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
