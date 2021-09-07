@@ -629,7 +629,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		sName := (node.Find(`a`).AttrOr("data-js-value", ""))
 
 		sku := pbItem.Sku{
-			SourceId:  sid,
+			SourceId: sid,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(currentPrice * 100),
@@ -729,13 +729,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					"", m == 0))
 			}
 
-			// video		
+			// video
 			sel = doc.Find(`.c-product-detail-image__alternatives`).Find(`.c-video-asset__link`)
 			for m := range sel.Nodes {
 				node := sel.Eq(m)
 				cover := node.Find(`img`).First().AttrOr("data-src", "")
 				if cover != "" && strings.HasPrefix(cover, "//") {
-					cover = "https:" + strconv.ReplaceAll( node.Find(`img`).AttrOr("data-src", ""),`&sh=0`,``)
+					cover = "https:" + strings.ReplaceAll(node.Find(`img`).AttrOr("data-src", ""), `&sh=0`, ``)
 				}
 
 				videourl := node.AttrOr(`data-url`, ``)
