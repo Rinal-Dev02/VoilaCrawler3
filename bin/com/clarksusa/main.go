@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/guillaumeblaquiere/jsonFilter"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
@@ -345,6 +346,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	lastIndex := nextIndex(ctx)
+	queryparams := strings.Split(strings.ReplaceAll(resp.Request.URL.String(), `q=:relevance:`, ``), `?`)
 
 	var viewData categoryStructure
 
@@ -391,12 +393,51 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	// facts := resp.Request.URL.Query()
-	// for key, val := range facts {
+	filter := jsonFilter.Filter{}
 
-	// }
+	var results []Product
+	results = viewData.Products
 
-	for _, items := range viewData.Products {
+	facts := ""
+	if len(queryparams) > 1 {
+		var paramList []string
+
+		if strings.Contains(queryparams[len(queryparams)-1], `&`) {
+			queryparams = strings.Split(queryparams[len(queryparams)-1], `&`)
+			paramList = strings.Split(queryparams[0], `:`)
+		} else {
+			paramList = strings.Split(queryparams[len(queryparams)-1], `:`)
+		}
+
+		for i, itemP := range paramList {
+			if i%2 == 0 {
+				facts = "FacetData.Facets.Code=" + itemP + ":FacetData.Facets.Values=" + paramList[i+1]
+			} else {
+				continue
+			}
+
+			if facts != "" {
+				err := filter.Init(facts, Product{})
+				if err != nil {
+					//TODO error handling
+					continue
+				}
+
+				ret, err := filter.ApplyFilter(results)
+				if err != nil {
+					//TODO error handling
+					continue
+				}
+				results = ret.([]Product)
+			}
+
+			if len(paramList)/2 < i+1 {
+				break
+			}
+		}
+	}
+
+	for _, items := range results {
 		if href := items.URL; href != "" {
 
 			req, err := http.NewRequest(http.MethodGet, href, nil)
@@ -420,6 +461,15 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	return nil
 }
 
+type Product struct {
+	URL       string `json:"url"`
+	FacetData struct {
+		Facets []struct {
+			Code   string   `json:"code"`
+			Values []string `json:"values"`
+		} `json:"facets"`
+	} `json:"facetData"`
+}
 type categoryStructure struct {
 	Pagination struct {
 		PageSize             int    `json:"pageSize"`
@@ -428,37 +478,7 @@ type categoryStructure struct {
 		TotalNumberOfResults int    `json:"totalNumberOfResults"`
 		NumberOfPages        int    `json:"numberOfPages"`
 	} `json:"pagination"`
-	Facets []struct {
-		Code    string `json:"code"`
-		Visible bool   `json:"visible"`
-		Values  []struct {
-			Code  string `json:"code"`
-			Query struct {
-				Query struct {
-					Value string `json:"value"`
-				} `json:"query"`
-				URL string `json:"url"`
-			} `json:"query"`
-			Name     string `json:"name"`
-			Count    int    `json:"count"`
-			Selected bool   `json:"selected"`
-			Key      string `json:"key"`
-		} `json:"values"`
-		SelectedValuesCount int    `json:"selectedValuesCount"`
-		Name                string `json:"name"`
-		Priority            int    `json:"priority"`
-		Category            bool   `json:"category"`
-		MultiSelect         bool   `json:"multiSelect"`
-	} `json:"facets"`
-	Products []struct {
-		URL       string `json:"url"`
-		FacetData struct {
-			Facets []struct {
-				Code   string   `json:"code"`
-				Values []string `json:"values"`
-			} `json:"facets"`
-		} `json:"facetData"`
-	} `json:"products"`
+	Products []Product `json:"products"`
 }
 
 func TrimSpaceNewlineInString(s []byte) []byte {
@@ -516,7 +536,6 @@ type parseImageResponse struct {
 			I struct {
 				N string `json:"n"`
 			} `json:"i"`
-
 			Iv string `json:"iv"`
 		} `json:"item"`
 	} `json:"set"`
@@ -920,7 +939,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.clarksusa.com/c/Wave2-0-Step-/p/26152404",
 		//"https://www.clarksusa.com/c/Camzin-Strap/p/26161979",
 		//"https://www.clarksusa.com/c/Bamboo-No-Show/p/261548710000",
-		"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109?q=:relevance:department:womens&sort=relevance",
+		//"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109?q=:relevance:department:womens&sort=relevance",
+		"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
