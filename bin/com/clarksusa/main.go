@@ -13,7 +13,6 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/guillaumeblaquiere/jsonFilter"
 	"github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
@@ -350,7 +349,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	}
 
 	lastIndex := nextIndex(ctx)
-	queryparams := strings.Split(strings.ReplaceAll(resp.Request.URL.String(), `q=:relevance:`, ``), `?`)
+	//queryparams := strings.Split(strings.ReplaceAll(resp.Request.URL.String(), `q=:relevance:`, ``), `?`)
 
 	var viewData categoryStructure
 
@@ -397,49 +396,48 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	filter := jsonFilter.Filter{}
-
 	var results []Product
 	results = viewData.Products
 
-	facts := ""
-	if len(queryparams) > 1 {
-		var paramList []string
+	//filter := jsonFilter.Filter{}
+	// facts := ""
+	// if len(queryparams) > 1 {
+	// 	var paramList []string
 
-		if strings.Contains(queryparams[len(queryparams)-1], `&`) {
-			queryparams = strings.Split(queryparams[len(queryparams)-1], `&`)
-			paramList = strings.Split(queryparams[0], `:`)
-		} else {
-			paramList = strings.Split(queryparams[len(queryparams)-1], `:`)
-		}
+	// 	if strings.Contains(queryparams[len(queryparams)-1], `&`) {
+	// 		queryparams = strings.Split(queryparams[len(queryparams)-1], `&`)
+	// 		paramList = strings.Split(queryparams[0], `:`)
+	// 	} else {
+	// 		paramList = strings.Split(queryparams[len(queryparams)-1], `:`)
+	// 	}
 
-		for i, itemP := range paramList {
-			if i%2 == 0 {
-				facts = "FacetData.Facets.Code=" + itemP + ":FacetData.Facets.Values=" + paramList[i+1]
-			} else {
-				continue
-			}
+	// 	for i, itemP := range paramList {
+	// 		if i%2 == 0 {
+	// 			facts = "FacetData.Facets.Code=" + itemP + ":FacetData.Facets.Values=" + paramList[i+1]
+	// 		} else {
+	// 			continue
+	// 		}
 
-			if facts != "" {
-				err := filter.Init(facts, Product{})
-				if err != nil {
-					//TODO error handling
-					continue
-				}
+	// 		if facts != "" {
+	// 			err := filter.Init(facts, Product{})
+	// 			if err != nil {
+	// 				//TODO error handling
+	// 				continue
+	// 			}
 
-				ret, err := filter.ApplyFilter(results)
-				if err != nil {
-					//TODO error handling
-					continue
-				}
-				results = ret.([]Product)
-			}
+	// 			ret, err := filter.ApplyFilter(results)
+	// 			if err != nil {
+	// 				//TODO error handling
+	// 				continue
+	// 			}
+	// 			results = ret.([]Product)
+	// 		}
 
-			if len(paramList)/2 < i+1 {
-				break
-			}
-		}
-	}
+	// 		if len(paramList)/2 < i+1 {
+	// 			break
+	// 		}
+	// 	}
+	// }
 
 	for _, items := range results {
 		if href := items.URL; href != "" {
@@ -946,6 +944,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.clarksusa.com/c/Bamboo-No-Show/p/261548710000",
 		//"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109?q=:relevance:department:womens&sort=relevance",
 		//"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109",
+		"https://www.clarksusa.com/featured-collection/Spring-Summer-Collection/c/us163?q=:relevance:department:womens&sort=relevance",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
