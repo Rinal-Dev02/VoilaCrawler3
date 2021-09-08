@@ -188,6 +188,8 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				href := sublvl2.Find(`a`).First().AttrOr("href", "")
 				if href == "" {
 					continue
+				} else if !strings.HasPrefix(href, "http") {
+					href = "https://www.clarksusa.com" + href
 				}
 
 				u, err := url.Parse(href)
@@ -197,7 +199,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 
 				if c.categoryPathMatcher.MatchString(u.Path) {
-					if err := yield([]string{cateName, subcat2}, "https://www.clarksusa.com"+href); err != nil {
+					if err := yield([]string{cateName, subcat2}, href); err != nil {
 						return err
 					}
 				}
@@ -218,6 +220,8 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					href := sublvl3.Find(`a`).AttrOr("href", "")
 					if href == "" {
 						continue
+					} else if !strings.HasPrefix(href, "http") {
+						href = "https://www.clarksusa.com" + href
 					}
 
 					u, err := url.Parse(href)
@@ -227,7 +231,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					}
 
 					if c.categoryPathMatcher.MatchString(u.Path) {
-						if err := yield([]string{cateName, subcat2, subcat3}, "https://www.clarksusa.com"+href); err != nil {
+						if err := yield([]string{cateName, subcat2, subcat3}, href); err != nil {
 							return err
 						}
 					}
@@ -439,7 +443,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	for _, items := range results {
 		if href := items.URL; href != "" {
-
+			fmt.Println(lastIndex, " ", href)
 			req, err := http.NewRequest(http.MethodGet, href, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -935,12 +939,13 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.clarksusa.com/",
+		//"https://www.clarksusa.com/womens/dress-shoes/c/w20",
 		//"https://www.clarksusa.com/Womens-Best-Sellers/c/us182",
 		//"https://www.clarksusa.com/c/Wave2-0-Step-/p/26152404",
 		//"https://www.clarksusa.com/c/Camzin-Strap/p/26161979",
 		//"https://www.clarksusa.com/c/Bamboo-No-Show/p/261548710000",
 		//"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109?q=:relevance:department:womens&sort=relevance",
-		"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109",
+		//"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
