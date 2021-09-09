@@ -582,7 +582,7 @@ func DecodeResponseVarWidth(respBody []byte) (*parseVariationProductResponse, er
 			}
 
 			for key2, msg2 := range ret2 {
-				if regexp.MustCompile(`FIT_[0-9]+W`).MatchString(key2) {
+				if regexp.MustCompile(`FIT_[0-9A-Z]+`).MatchString(key2) {
 					var (
 						rawData, _ = msg2.MarshalJSON()
 						article2   SkuDetail2
@@ -622,6 +622,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	variantURL := "https://www.clarksusa.com/p/" + pid + "/getProductSizeMatrix"
 
 	respBodyV := c.variationRequest(ctx, variantURL, resp.Request.URL.String())
+
 	viewDataSize, _ := DecodeResponseVarWidth(respBodyV)
 
 	var viewData parseProductResponse
@@ -799,7 +800,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	counter := 0
-	sel = doc.Find(`.box-selectors__wrapper > label`)
+	sel = doc.Find(`.box-selectors__wrapper>label`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 
@@ -835,10 +836,23 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			// size
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    rawSku.ProductCode,
-				Name:  sid + " " + strings.ReplaceAll(j, `FIT_`, ``),
-				Value: sid + " " + strings.ReplaceAll(j, `FIT_`, ``),
+				Id:    sid,
+				Name:  sid,
+				Value: sid,
 			})
+
+			widthVal := doc.Find(`#` + j + `-label`).Text()
+
+			//width
+			if widthVal != "" {
+
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecWidth,
+					Id:    widthVal,
+					Name:  widthVal,
+					Value: widthVal,
+				})
+			}
 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
@@ -944,7 +958,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.clarksusa.com/c/Bamboo-No-Show/p/261548710000",
 		//"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109?q=:relevance:department:womens&sort=relevance",
 		//"https://www.clarksusa.com/collections/The-Icons/The-Desert-Boot-2/c/us109",
-		"https://www.clarksusa.com/featured-collection/Spring-Summer-Collection/c/us163?q=:relevance:department:womens&sort=relevance",
+		//"https://www.clarksusa.com/featured-collection/Spring-Summer-Collection/c/us163?q=:relevance:department:womens&sort=relevance",
+		"https://www.clarksusa.com/c/Desert-Boot-2/p/26155498",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
