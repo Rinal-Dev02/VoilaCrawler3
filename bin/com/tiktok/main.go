@@ -32,7 +32,6 @@ import (
 	"github.com/voiladev/go-framework/protoutil"
 	"github.com/voiladev/go-framework/strconv"
 	"github.com/voiladev/go-framework/timeutil"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
@@ -55,10 +54,16 @@ type _Crawler struct {
 }
 
 func (_ *_Crawler) New(c *cli.Context, httpClient http.Client, logger glog.Log) (crawler.Crawler, error) {
+	var (
+		err      error
+		s3Client *s3.S3Client
+	)
 	host, bucket := c.String("s3-addr"), c.String("s3-bucket")
-	s3Client, err := s3.New(host, bucket)
-	if err != nil {
-		return nil, err
+	if host != "" && bucket != "" {
+		s3Client, err = s3.New(host, bucket)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if httpClient == nil {
 		return nil, errors.New("invalid http client")
@@ -71,13 +76,16 @@ func (_ *_Crawler) New(c *cli.Context, httpClient http.Client, logger glog.Log) 
 		rhttpClient: &rhttp.Client{
 			Transport: &rhttp.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
 		},
-		personalVideoList:      regexp.MustCompile(`^/@[0-9a-zA-Z-_.]+/?$`),
+		personalVideoList:      regexp.MustCompile(`^/@([0-9a-zA-Z-_.]+)/?$`),
 		personalVideoJSONList:  regexp.MustCompile(`^/api/post/item_list/?$`),
 		detailPageReg:          regexp.MustCompile(`^/@[0-9a-zA-Z-_.]+/video/[0-9]+/?$`),
 		detailInternalPageReg:  regexp.MustCompile(`^/v/[0-9]+.html$`),
 		detailShortLinkPageReg: regexp.MustCompile(`^/[a-zA-Z0-9]+/?$`),
 		downloadVideoReg:       regexp.MustCompile(`^/video/tos/alisg/tos\-alisg\-pve\-[a-z0-9]+/[a-z0-9]+/?$`),
 		logger:                 logger.New("_Crawler"),
+	}
+	if cw.s3Client == nil {
+		cw.logger.Warnf("s3 client not setup")
 	}
 	return &cw, nil
 }
@@ -105,8 +113,11 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options.MustHeader.Set("Accept-Charset", "UTF-8,*;q=0.5")
 	options.MustHeader.Set("Accept-Language", "en-US,en;q=0.8")
 	options.MustHeader.Set("User-Agent", userAgent)
-
 	// options.MustCookies = append(options.MustCookies)
+
+	if c.personalVideoList.MatchString(u.Path) {
+		options.SkipDoRequest = true
+	}
 	return options
 }
 
@@ -117,6 +128,10 @@ func (c *_Crawler) AllowedDomains() []string {
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
+	}
+
+	if c.personalVideoList.MatchString(resp.Request.URL.Path) {
+		return c.parsePersonalVideoList(ctx, resp, yield)
 	}
 
 	respBody, err := io.ReadAll(resp.Body)
@@ -191,8 +206,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	if c.personalVideoList.MatchString(resp.Request.URL.Path) {
 		return c.parsePersonalVideoList(ctx, resp, callback)
-	} else if c.personalVideoJSONList.MatchString(resp.Request.URL.Path) {
-		return c.parsePersonalVideoJSONList(ctx, resp, callback)
+		// } else if c.personalVideoJSONList.MatchString(resp.Request.URL.Path) {
+		// 	return c.parsePersonalVideoJSONList(ctx, resp, callback)
 	} else if c.detailShortLinkPageReg.MatchString(resp.Request.URL.Path) ||
 		c.detailPageReg.MatchString(resp.Request.URL.Path) ||
 		c.detailInternalPageReg.MatchString(resp.Request.URL.Path) {
@@ -207,11 +222,18 @@ func (c *_Crawler) persistentResource(ctx context.Context, name string, rawurl s
 	if rawurl == "" {
 		return "", errors.New("invalid rawurl")
 	}
+	if c.s3Client == nil {
+		return rawurl, nil
+	}
 
 	req, err := rhttp.NewRequestWithContext(ctx, http.MethodGet, rawurl, nil)
 	if err != nil {
 		c.logger.Errorf("create request from url %s failed, error=%s", rawurl, err)
 		return "", err
+	}
+	opts := c.CrawlOptions(req.URL)
+	for key := range opts.MustHeader {
+		req.Header.Set(key, opts.MustHeader.Get(key))
 	}
 	resp, err := c.rhttpClient.Do(req)
 	if err != nil {
@@ -313,299 +335,55 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 		return nil
 	}
 
-	vals := resp.Request.URL.Query()
-	vals.Del("lang")
-	if len(vals) > 0 {
-		req := resp.Request
-		req.URL.RawQuery = "lang=en"
-
-		return yield(ctx, req)
+	matched := c.personalVideoList.FindStringSubmatch(resp.Request.URL.Path)
+	if len(matched) == 0 {
+		return errors.New("unsupported username")
 	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
+	u := fmt.Sprintf("%s/by_username?username=%s&count=%d", c.tiktokApiAddr, matched[1], 36)
+	req, err := rhttp.NewRequestWithContext(ctx, rhttp.MethodGet, u, nil)
 	if err != nil {
+		c.logger.Error(err)
 		return err
 	}
-
-	matched := propsDataReg.FindSubmatch(respBody)
-	if len(matched) <= 1 {
-		return fmt.Errorf("next data for url %s not found", resp.Request.URL)
-	}
-
-	var interData PropDataV1
-	if err := json.Unmarshal(matched[1], &interData); err != nil {
-		return err
-	}
-
-	var (
-		cookies, _ = c.httpClient.Jar().Cookies(ctx, resp.Request.URL)
-		cookie     string
-		expiresAt  time.Time
-	)
-	for _, c := range cookies {
-		v := fmt.Sprintf("%s=%s", c.Name, c.Value)
-		if cookie == "" {
-			cookie = v
-		} else {
-			cookie += "; " + v
-		}
-
-		if !c.Expires.IsZero() {
-			if expiresAt.IsZero() || expiresAt.After(c.Expires) {
-				expiresAt = c.Expires
-			}
-		} else if c.MaxAge > 0 {
-			t := time.Now().Add(time.Second * time.Duration(c.MaxAge))
-			if expiresAt.IsZero() || expiresAt.After(t) {
-				expiresAt = t
-			}
-		}
-	}
-
-	userInfo := interData.Props.PageProps.UserInfo
-	auth := pbItem.Tiktok_Author{
-		Id:          userInfo.User.ID,
-		Name:        userInfo.User.UniqueID,
-		Nickname:    userInfo.User.Nickname,
-		Avatar:      userInfo.User.AvatarLarger,
-		Description: userInfo.User.Signature,
-		Stats: &pbItem.Tiktok_Author_Stats{
-			FollowingCount: int32(userInfo.Stats.FollowingCount),
-			FollowerCount:  int32(userInfo.Stats.FollowerCount),
-			LikeCount:      int32(userInfo.Stats.HeartCount),
-			VideoCount:     int32(userInfo.Stats.VideoCount),
-			DiggCount:      int32(userInfo.Stats.DiggCount),
-		},
-	}
-
-	authData, _ := protojson.Marshal(&auth)
-	ctx = context.WithValue(ctx, "author", fmt.Sprintf("%s", authData))
-	lastIndex := nextIndex(ctx)
-
-	for _, prop := range interData.Props.PageProps.Items {
-		item := pbItem.Tiktok_Item{
-			Source: &pbItem.Tiktok_Source{},
-			Video:  &media.Media_Video{Cover: &media.Media_Image{}},
-			Author: &auth,
-			Headers: map[string]string{
-				"Referer": resp.Request.URL.String(),
-			},
-			Stats: &pbItem.Tiktok_Stats{
-				ShareCount:   int32(prop.Stats.ShareCount),
-				CommentCount: int32(prop.Stats.CommentCount),
-				PlayCount:    int32(prop.Stats.PlayCount),
-				DiggCount:    int32(prop.Stats.DiggCount),
-			},
-			CrawledUtc: time.Now().Unix(),
-		}
-		item.Source.Id = prop.ID
-		item.Source.SourceUrl = fmt.Sprintf("https://www.tiktok.com/@%s/video/%s?lang=en", prop.Author.UniqueID, prop.ID)
-		item.Source.PublishUtc = prop.CreateTime
-		item.Title = prop.Desc
-		if prop.Video.DownloadAddr != "" {
-			item.Video.OriginalUrl = prop.Video.DownloadAddr
-		} else if prop.Video.PlayAddr != "" {
-			item.Video.OriginalUrl = prop.Video.PlayAddr
-		} else {
-			return fmt.Errorf("no download url found for %s", resp.Request.URL)
-		}
-		item.Video.Width = int32(prop.Video.Width)
-		item.Video.Height = int32(prop.Video.Height)
-		item.Video.Duration = int32(prop.Video.Duration)
-		if prop.Video.OriginCover != "" {
-			item.Video.Cover.OriginalUrl = prop.Video.OriginCover
-		} else if prop.Video.Cover != "" {
-			item.Video.Cover.OriginalUrl = prop.Video.Cover
-		}
-		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
-			if u, err :=
-				c.persistentResource(ctx,
-					fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
-					item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
-				c.logger.Errorf("persistent cover resource failed, error=%s", err)
-			} else {
-				item.Video.Cover.OriginalUrl = u
-			}
-		}
-
-		cookie, expiresAt, err := c.getCookies(ctx, item.Video.OriginalUrl)
-		if err != nil {
-			return err
-		}
-		item.Headers["Cookie"] = cookie
-		item.ExpiresUtc = expiresAt
-
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		lastIndex += 1
-		if err := yield(nctx, &item); err != nil {
-			return err
-		}
-	}
-
-	if interData.Props.PageProps.VideoListHasMore {
-		u, _ := url.Parse("https://m.tiktok.com/api/post/item_list/")
-		vals := u.Query()
-		vals.Set("aid", "1988")
-		vals.Set("app_name", "tiktok_web")
-		vals.Set("device_platform", "web")
-		refererUrl := resp.Request.URL
-		vals.Set("referer", "")
-		refererUrl.RawQuery = ""
-		vals.Set("root_referer", "")
-		// vals.Set("user_agent", userAgent)
-		vals.Set("cookie_enabled", "true")
-		vals.Set("screen_width", "1920")
-		vals.Set("screen_height", "1080")
-		vals.Set("browser_language", "en-US")
-		vals.Set("browser_platform", "WindowsIntel")
-		vals.Set("browser_name", "Mozilla")
-		vals.Set("browser_version", "5.0 (iPhone; CPU iPhone OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1")
-		vals.Set("browser_online", "true")
-		// vals.Set("ac", "4g")
-		vals.Set("timezone_name", "America/Chicago")
-		// vals.Set("page_referer", refererUrl.String()+"?")
-		vals.Set("priority_region", "")
-		vals.Set("region", "US")
-		// vals.Set("appType", "m")
-		// vals.Set("isAndroid", "false")
-		// vals.Set("isMobile", "false")
-		// vals.Set("isIOS", "false")
-		// vals.Set("OS", "windows")
-		vals.Set("device_id", interData.Props.InitialProps.Wid)
-		vals.Set("count", "30")
-		vals.Set("cursor", strconv.Format(interData.Props.PageProps.VideoListMaxCursor))
-		vals.Set("secUid", interData.Props.PageProps.UserInfo.User.SecUID)
-		vals.Set("language", "en")
-		u.RawQuery = vals.Encode()
-
-		{
-			// connect to tiktok server
-			signReq, _ := rhttp.NewRequestWithContext(ctx, http.MethodGet, c.tiktokApiAddr, nil)
-			signVals := signReq.URL.Query()
-			signVals.Set("url", u.String())
-			signVals.Set("custom_device_id", interData.Props.InitialProps.Wid)
-			signReq.URL.RawQuery = signVals.Encode()
-
-			signresp, err := rhttp.DefaultClient.Do(signReq)
-			if err != nil {
-				c.logger.Error(err)
-				return err
-			}
-			defer signresp.Body.Close()
-			if signresp.StatusCode != http.StatusOK {
-			}
-
-			data, err := io.ReadAll(signresp.Body)
-			if err != nil {
-				c.logger.Error(err)
-				return err
-			}
-			c.logger.Debugf("%s", data)
-
-			var ret struct {
-				Signature string `json:"_signature"`
-				DeviceId  string `json:"device_id"`
-				Referrer  string `json:"referrer"`
-				UserAgent string `json:"userAgent"`
-				VerifyFp  string `json:"verifyFp"`
-			}
-			if err := json.Unmarshal(data, &ret); err != nil {
-				c.logger.Error(err)
-				return err
-			}
-			vals.Set("verifyFp", ret.VerifyFp)
-			vals.Set("_signature", ret.Signature)
-			u.RawQuery = vals.Encode()
-		}
-
-		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-		req.Header.Set("Referer", resp.Request.URL.String())
-
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		return yield(nctx, req)
-	}
-	c.logger.Debugf("got %d count", len(interData.Props.PageProps.Items))
-	return nil
-}
-
-func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
+	_resp, err := rhttp.DefaultClient.Do(req)
 	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	defer _resp.Body.Close()
+
+	var videos []*TikTokItemV2
+	if err := json.NewDecoder(_resp.Body).Decode(&videos); err != nil {
+		c.logger.Error(err)
 		return err
 	}
 
-	var respData struct {
-		Cursor     string       `json:"cursor"`
-		HasMore    bool         `json:"hasMore"`
-		ItemList   []TiktokItem `json:"itemList"`
-		StatusCode int          `json:"statusCode"`
-	}
-	if err := json.Unmarshal(respBody, &respData); err != nil {
-		c.logger.Debugf("decode json response failed, error=%s", err)
-		return err
-	}
-	if respData.StatusCode != 0 {
-		return fmt.Errorf("api statusCode is %v", respData.StatusCode)
-	}
+	for _, prop := range videos {
+		var item pbItem.Tiktok_Item
 
-	var auth *pbItem.Tiktok_Author
-	if val := ctx.Value("author"); val != nil {
-		if data, _ := val.(string); data != "" {
-			auth = &pbItem.Tiktok_Author{}
-			if err := protojson.Unmarshal([]byte(data), auth); err != nil {
-				c.logger.Errorf("unmarshal shared author failed, error=%s", err)
-				auth = nil
-			}
+		item.Author = &pbItem.Tiktok_Author{
+			Stats: &pbItem.Tiktok_Author_Stats{},
 		}
-	}
+		item.Author.Id = prop.Author.ID
+		item.Author.Name = prop.Author.UniqueID
+		item.Author.Nickname = prop.Author.Nickname
+		item.Author.Avatar = prop.Author.AvatarLarger
+		item.Author.Description = prop.Author.Signature
+		item.Author.Stats.FollowingCount = int32(prop.AuthorStats.FollowingCount)
+		item.Author.Stats.FollowerCount = int32(prop.AuthorStats.FollowerCount)
+		item.Author.Stats.LikeCount = int32(prop.AuthorStats.HeartCount)
+		item.Author.Stats.VideoCount = int32(prop.AuthorStats.VideoCount)
+		item.Author.Stats.DiggCount = int32(prop.AuthorStats.DiggCount)
 
-	lastIndex := nextIndex(ctx)
-	for _, prop := range respData.ItemList {
-		item := pbItem.Tiktok_Item{
-			Source: &pbItem.Tiktok_Source{
-				Id:         prop.ID,
-				SourceUrl:  fmt.Sprintf("https://www.tiktok.com/@%s/video/%s?lang=en", prop.Author.UniqueID, prop.ID),
-				PublishUtc: prop.CreateTime,
-			},
-			Title:  prop.Desc,
-			Author: auth,
-			Video:  &media.Media_Video{Cover: &media.Media_Image{}},
-			Headers: map[string]string{
-				"Referer": resp.Request.Header.Get("Referer"),
-			},
-			Stats: &pbItem.Tiktok_Stats{
-				ShareCount:   int32(prop.Stats.ShareCount),
-				CommentCount: int32(prop.Stats.CommentCount),
-				PlayCount:    int32(prop.Stats.PlayCount),
-				DiggCount:    int32(prop.Stats.DiggCount),
-			},
-			CrawledUtc: time.Now().Unix(),
-		}
-		if item.Author == nil {
-			item.Author = &pbItem.Tiktok_Author{
-				Stats: &pbItem.Tiktok_Author_Stats{},
-			}
-			item.Author.Id = prop.Author.ID
-			item.Author.Name = prop.Author.UniqueID
-			item.Author.Nickname = prop.Author.Nickname
-			item.Author.Avatar = prop.Author.AvatarLarger
-			item.Author.Description = prop.Author.Signature
-			item.Author.Stats.FollowingCount = int32(prop.AuthorStats.FollowingCount)
-			item.Author.Stats.FollowerCount = int32(prop.AuthorStats.FollowerCount)
-			item.Author.Stats.LikeCount = int32(prop.AuthorStats.HeartCount)
-			item.Author.Stats.VideoCount = int32(prop.AuthorStats.VideoCount)
-			item.Author.Stats.DiggCount = int32(prop.AuthorStats.DiggCount)
+		item.Video = &media.Media_Video{
+			Cover: &media.Media_Image{},
 		}
 		if prop.Video.DownloadAddr != "" {
 			item.Video.OriginalUrl = prop.Video.DownloadAddr
 		} else if prop.Video.PlayAddr != "" {
 			item.Video.OriginalUrl = prop.Video.PlayAddr
 		} else {
-			return fmt.Errorf("no download url found for %s", resp.Request.URL)
+			return fmt.Errorf("no download url found for %s", _resp.Request.URL)
 		}
 		item.Video.Width = int32(prop.Video.Width)
 		item.Video.Height = int32(prop.Video.Height)
@@ -626,76 +404,9 @@ func (c *_Crawler) parsePersonalVideoJSONList(ctx context.Context, resp *http.Re
 				item.Video.Cover.OriginalUrl = u
 			}
 		}
-
-		cookie, expiresAt, err := c.getCookies(ctx, item.Video.OriginalUrl)
-		if err != nil {
+		if err := yield(ctx, &item); err != nil {
 			return err
 		}
-		item.Headers["Cookie"] = cookie
-		item.ExpiresUtc = expiresAt
-
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		lastIndex += 1
-		if err := yield(nctx, &item); err != nil {
-			return err
-		}
-	}
-
-	if respData.HasMore {
-		u := *resp.Request.URL
-		vals := u.Query()
-		vals.Del("verifyFp")
-		vals.Del("_signature")
-		vals.Set("cursor", strconv.Format(respData.Cursor))
-		u.RawQuery = vals.Encode()
-
-		{
-			// connect to tiktok server
-			signReq, _ := rhttp.NewRequestWithContext(ctx, http.MethodGet, c.tiktokApiAddr, nil)
-			signVals := signReq.URL.Query()
-			signVals.Set("url", u.String())
-			signVals.Set("custom_device_id", vals.Get("device_id"))
-			signReq.URL.RawQuery = signVals.Encode()
-
-			signresp, err := rhttp.DefaultClient.Do(signReq)
-			if err != nil {
-				c.logger.Error(err)
-				return err
-			}
-			defer signresp.Body.Close()
-
-			data, err := io.ReadAll(signresp.Body)
-			if err != nil {
-				c.logger.Error(err)
-				return err
-			}
-			c.logger.Debugf("%s", data)
-
-			var ret struct {
-				Signature string `json:"_signature"`
-				DeviceId  string `json:"device_id"`
-				Referrer  string `json:"referrer"`
-				UserAgent string `json:"userAgent"`
-				VerifyFp  string `json:"verifyFp"`
-			}
-			if err := json.Unmarshal(data, &ret); err != nil {
-				c.logger.Error(err)
-				return err
-			}
-			vals.Set("verifyFp", ret.VerifyFp)
-			vals.Set("_signature", ret.Signature)
-			u.RawQuery = vals.Encode()
-		}
-
-		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-		if resp.Request.Header.Get("Referer") != "" {
-			req.Header.Set("Referer", resp.Request.Header.Get("Referer"))
-		} else {
-			req.Header.Set("Referer", resp.Request.URL.Query().Get("referer"))
-		}
-
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		return yield(nctx, req)
 	}
 	return nil
 }

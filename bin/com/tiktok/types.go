@@ -515,3 +515,110 @@ func parsePropData(data []byte) (string, *pbItem.Tiktok_Item, error) {
 	}
 	return "", nil, errors.New("not found")
 }
+
+type TikTokItemV2 struct {
+	Author struct {
+		AvatarLarger   string `json:"avatarLarger"`
+		AvatarMedium   string `json:"avatarMedium"`
+		AvatarThumb    string `json:"avatarThumb"`
+		CommentSetting int    `json:"commentSetting"`
+		DuetSetting    int    `json:"duetSetting"`
+		Ftc            bool   `json:"ftc"`
+		ID             string `json:"id"`
+		Nickname       string `json:"nickname"`
+		OpenFavorite   bool   `json:"openFavorite"`
+		PrivateAccount bool   `json:"privateAccount"`
+		Relation       int    `json:"relation"`
+		SecUID         string `json:"secUid"`
+		Secret         bool   `json:"secret"`
+		Signature      string `json:"signature"`
+		StitchSetting  int    `json:"stitchSetting"`
+		UniqueID       string `json:"uniqueId"`
+		Verified       bool   `json:"verified"`
+	} `json:"author"`
+	AuthorStats struct {
+		DiggCount      int `json:"diggCount"`
+		FollowerCount  int `json:"followerCount"`
+		FollowingCount int `json:"followingCount"`
+		Heart          int `json:"heart"`
+		HeartCount     int `json:"heartCount"`
+		VideoCount     int `json:"videoCount"`
+	} `json:"authorStats"`
+	CreateTime  int    `json:"createTime"`
+	Desc        string `json:"desc"`
+	Digged      bool   `json:"digged"`
+	DuetDisplay int    `json:"duetDisplay"`
+	DuetEnabled bool   `json:"duetEnabled"`
+	DuetInfo    struct {
+		DuetFromID string `json:"duetFromId"`
+	} `json:"duetInfo"`
+	ForFriend         bool   `json:"forFriend"`
+	ID                string `json:"id"`
+	IsAd              bool   `json:"isAd"`
+	ItemCommentStatus int    `json:"itemCommentStatus"`
+	ItemMute          bool   `json:"itemMute"`
+	Music             struct {
+		Album       string `json:"album"`
+		AuthorName  string `json:"authorName"`
+		CoverLarge  string `json:"coverLarge"`
+		CoverMedium string `json:"coverMedium"`
+		CoverThumb  string `json:"coverThumb"`
+		Duration    int    `json:"duration"`
+		ID          string `json:"id"`
+		Original    bool   `json:"original"`
+		PlayURL     string `json:"playUrl"`
+		Title       string `json:"title"`
+	} `json:"music"`
+	OfficalItem  bool `json:"officalItem"`
+	OriginalItem bool `json:"originalItem"`
+	PrivateItem  bool `json:"privateItem"`
+	Secret       bool `json:"secret"`
+	ShareEnabled bool `json:"shareEnabled"`
+	ShowNotPass  bool `json:"showNotPass"`
+	Stats        struct {
+		CommentCount int `json:"commentCount"`
+		DiggCount    int `json:"diggCount"`
+		PlayCount    int `json:"playCount"`
+		ShareCount   int `json:"shareCount"`
+	} `json:"stats"`
+	StickersOnItem []struct {
+		StickerText []string `json:"stickerText"`
+		StickerType int      `json:"stickerType"`
+	} `json:"stickersOnItem"`
+	StitchDisplay int  `json:"stitchDisplay"`
+	StitchEnabled bool `json:"stitchEnabled"`
+	TextExtra     []struct {
+		AwemeID      string `json:"awemeId"`
+		End          int    `json:"end"`
+		HashtagID    string `json:"hashtagId"`
+		HashtagName  string `json:"hashtagName"`
+		IsCommerce   bool   `json:"isCommerce"`
+		SecUID       string `json:"secUid"`
+		Start        int    `json:"start"`
+		Type         int    `json:"type"`
+		UserID       string `json:"userId"`
+		UserUniqueID string `json:"userUniqueId"`
+	} `json:"textExtra"`
+	Video struct {
+		Bitrate       int      `json:"bitrate"`
+		CodecType     string   `json:"codecType"`
+		Cover         string   `json:"cover"`
+		Definition    string   `json:"definition"`
+		DownloadAddr  string   `json:"downloadAddr"`
+		Duration      int      `json:"duration"`
+		DynamicCover  string   `json:"dynamicCover"`
+		EncodeUserTag string   `json:"encodeUserTag"`
+		EncodedType   string   `json:"encodedType"`
+		Format        string   `json:"format"`
+		Height        int      `json:"height"`
+		ID            string   `json:"id"`
+		OriginCover   string   `json:"originCover"`
+		PlayAddr      string   `json:"playAddr"`
+		Ratio         string   `json:"ratio"`
+		ReflowCover   string   `json:"reflowCover"`
+		ShareCover    []string `json:"shareCover"`
+		VideoQuality  string   `json:"videoQuality"`
+		Width         int      `json:"width"`
+	} `json:"video"`
+	Vl1 bool `json:"vl1"`
+}
