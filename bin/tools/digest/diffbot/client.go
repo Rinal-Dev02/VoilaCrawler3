@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/voiladev/VoilaCrawler/bin/tools/digest/util"
 	"github.com/voiladev/go-framework/glog"
 )
 
@@ -62,8 +63,8 @@ type Product struct {
 	HumanLanguage    string `json:"humanLanguage"`
 	DiffbotURI       string `json:"diffbotUri"`
 	MultipleProducts bool   `json:"multipleProducts"`
-	Availability     bool   `json:"availability"`
-	Category         string `json:"category"`
+	// Availability     bool   `json:"availability"`
+	Category string `json:"category"`
 }
 
 type _RawResponse struct {
@@ -150,12 +151,24 @@ func (c *DiffbotCient) Fetch(ctx context.Context, rawurl string) ([]*Product, er
 		break
 	}
 
+	filter := map[string]struct{}{}
 	for _, prod := range ret.Objects {
 		imgs := prod.Images[0:0]
 		for _, img := range prod.Images {
 			if _, ok := imgBlackList[img.URL]; ok {
 				continue
 			}
+
+			nurl, err := util.FormatImageUrl(img.URL)
+			if err != nil {
+				continue
+			}
+			if _, ok := filter[nurl]; ok {
+				continue
+			}
+			filter[nurl] = struct{}{}
+
+			img.URL = nurl
 			imgs = append(imgs, img)
 		}
 		prod.Images = imgs

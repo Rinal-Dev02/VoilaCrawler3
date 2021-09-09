@@ -452,7 +452,10 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		if len(doc.Find(`.pt_categorylanding`).Nodes) > 0 {
 			categoryName := strings.Split(strings.TrimSuffix(resp.Request.URL.Path, "/"), `/`)
 			requestURL := "https://www.res-x.com/ws/r2/Resonance.aspx?appid=bareminerals01&tk=958677643273121&pg=525672038920870&sg=1&ev=content&ei=&bx=true&sc=campaign1_rr&sc=campaign2_rr&no=20&AllCategories=" + categoryName[len(categoryName)-1] + "&ccb=certonaRecommendations&vr=5.11x&ref=&url=" + resp.Request.URL.String()
-			respBodyV := c.variationRequest(ctx, requestURL, resp.Request.URL.String())
+			respBodyV, err := c.variationRequest(ctx, requestURL, resp.Request.URL.String())
+			if err != nil {
+				return err
+			}
 
 			var viewData categoryStructure
 			{
@@ -777,7 +780,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		requestURL := "https://www.bareminerals.com/on/demandware.store/Sites-BareMinerals_US_CA-Site/en_US/Product-GetVideo?videoname=" + videoId
-		respBodyV := c.variationRequest(ctx, requestURL, resp.Request.URL.String())
+		respBodyV, err := c.variationRequest(ctx, requestURL, resp.Request.URL.String())
+		if err != nil {
+			return err
+		}
 
 		docV, err := goquery.NewDocumentFromReader(bytes.NewReader(respBodyV))
 		if err != nil {
@@ -808,7 +814,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			idVal := `#tealiumProductDetails-` + node.AttrOr(`data-product_variant_id`, ``)
 
 			variantURL := node.AttrOr(`value`, ``)
-			respBodyV := c.variationRequest(ctx, variantURL, resp.Request.URL.String())
+			respBodyV, err := c.variationRequest(ctx, variantURL, resp.Request.URL.String())
+			if err != nil {
+				return err
+			}
 
 			docV, err := goquery.NewDocumentFromReader(bytes.NewReader(respBodyV))
 			if err != nil {
@@ -881,7 +890,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 
 				requestURL := "https://www.bareminerals.com/on/demandware.store/Sites-BareMinerals_US_CA-Site/en_US/Product-GetVideo?videoname=" + videoId
-				respBodyV := c.variationRequest(ctx, requestURL, resp.Request.URL.String())
+				respBodyV, err := c.variationRequest(ctx, requestURL, resp.Request.URL.String())
+				if err != nil {
+					return err
+				}
 
 				docV, err := goquery.NewDocumentFromReader(bytes.NewReader(respBodyV))
 				if err != nil {
@@ -996,7 +1008,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
-func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) []byte {
+func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) ([]byte, error) {
 
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
 	opts := c.CrawlOptions(req.URL)
@@ -1019,13 +1031,11 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 	})
 	if err != nil {
 		c.logger.Error(err)
-		//return nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
-
-	return respBody
+	return ioutil.ReadAll(resp.Body)
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.

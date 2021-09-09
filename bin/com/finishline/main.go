@@ -318,7 +318,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 		},
-		Title:       strings.Trim(doc.Find(`.hmb-2.titleDesk`).Text(), " \n\r"),
+		Title:       strings.Trim(doc.Find(`.hmb-2.titleDesk`).Eq(0).Text(), " \n\r"),
 		Description: strings.Trim(doc.Find(`#productDescription`).Text(), " \n\r"),
 		BrandName:   brandName,
 		Price: &pbItem.Price{
