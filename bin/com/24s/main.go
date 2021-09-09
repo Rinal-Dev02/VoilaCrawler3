@@ -546,10 +546,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		//return err
 	}
 
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		return err
-	}
+	// dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+	// if err != nil {
+	// 	return err
+	// }
 
 	var (
 		p        = viewData.Props.InitialState.Pdp.ProductFormated
@@ -564,10 +564,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
-	canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
-	if canUrl == "" {
-		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
-	}
+	// canUrl := dom.Find(`link[rel="canonical"]`).AttrOr("href", "")
+	// if canUrl == "" {
+	// for different colors, the canonical is the same, but the access url is not the same
+	// use the crawl url as the canonical url
+	canUrl, _ := c.CanonicalUrl(resp.Request.URL.String())
+	// }
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
