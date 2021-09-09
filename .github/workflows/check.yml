@@ -1,0 +1,81 @@
+name: Check
+
+on:
+  pull_request:
+    branches:
+      - spiders
+    paths:
+      - '**.go'
+      - 'go.mod'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+
+      - name: Granting private modules access
+        run: git config --global url."https://duantiao:${{ secrets.DUANTIAO_ACCESS_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Check
+        env:
+          VOILA_PROXY_URL: "${{ secrets.VOILA_PROXY_URL }}"
+        #        GO111MODULE: "on"
+        #        GONOSUMDB: "*"
+        #        GONOPROXY: "github.com/voiladev"
+        run: |
+          # Get folder name from github.head_ref
+          HEAD_REF="${{ github.head_ref }}"
+          # BranchName format feature-spider/{new_website_folder_name}
+          FOLDER_NAME="${HEAD_REF##*/}"
+          # Folder if is exist
+          if [ ! -d "./bin/com/${FOLDER_NAME}"]; then
+          # Send a comment about branch name irregularities
+          echo "Send a comment about branch name irregularities"
+          curl \
+            -X POST \
+            "https://api.github.com/repos/${{ github.event.pull_request.base.repo.full_name }}/issues/${{ github.event.pull_request.number }}/comments" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "{\"body\":\"Please keep the branch name in the format feature-spider/{new_website_folder_name}, folder ${FOLDER_NAME} is not exist in ./bin/com/\"}" \
+            -u "duantiao:${{ secrets.DUANTIAO_ACCESS_TOKEN }}"
+          exit 1
+          fi
+          echo "Found folder ./bin/com/${FOLDER_NAME}"
+
+          # Build
+          echo "EXEC=> make bin target=com/${FOLDER_NAME}"
+          make bin target=com/${FOLDER_NAME}
+
+          # GetCategories get the last category url
+          echo "EXEC=> ./releases/com.${FOLDER_NAME}.bin test --debug call --name 'GetCategories'"
+          LAST_CATEGORY_URL="$(./releases/com.${FOLDER_NAME}.bin test --debug call --name "GetCategories" | awk 'END{if (NR!=1&&match($NF,"^https.*$")) print $NF}')"
+          if [[ -z "${LAST_CATEGORY_URL}" ]]; then
+          # Send a comment about GetCategories error
+          echo "Send a comment about GetCategories error"
+          curl \
+            -X POST \
+            "https://api.github.com/repos/${{ github.event.pull_request.base.repo.full_name }}/issues/${{ github.event.pull_request.number }}/comments" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "{\"body\":\"exec ./releases/com.${FOLDER_NAME}.bin test --debug call --name 'GetCategories' failed.\"}" \
+            -u "duantiao:${{ secrets.DUANTIAO_ACCESS_TOKEN }}"
+          exit 1
+          fi
+
+          # Test parse category url
+          echo "EXEC=> ./releases/com.${FOLDER_NAME}.bin test --debug --pretty --target ${LAST_CATEGORY_URL}"
+          PARSE_CATEGORY_OUTPUT_ERROR_LINE="$(./releases/com.${FOLDER_NAME}.bin test --debug --pretty --target ${LAST_CATEGORY_URL} | grep -E 'ERROR' | tr -d '\r\n')"
+          if [[ ${PARSE_CATEGORY_OUTPUT_ERROR_LINE} =~ ERROR ]]; then
+          # Send a comment about GetCategoryProducts error
+          echo "Send a comment about GetCategoryProducts error"
+          curl \
+            -X POST \
+            "https://api.github.com/repos/${{ github.event.pull_request.base.repo.full_name }}/issues/${{ github.event.pull_request.number }}/comments" \
+            -H "Accept: application/vnd.github.v3+json" \
+            -d "{\"body\":\"exec ./releases/com.${FOLDER_NAME}.bin test --debug --pretty --target ${LAST_CATEGORY_URL}\n\`\`\`${PARSE_CATEGORY_OUTPUT_ERROR_LINE}\`\`\`\"}" \
+            -u "duantiao:${{ secrets.DUANTIAO_ACCESS_TOKEN }}"
+          exit 1
+          fi
+
