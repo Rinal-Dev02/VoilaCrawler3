@@ -54,7 +54,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 
 // ID
 func (c *_Crawler) ID() string {
-	return "1a802ce5da394208b6feeac90dacd332"
+	return "f774f5173630182083b26b14a8af70aa"
 }
 
 // Version
@@ -621,7 +621,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	pid := s[len(s)-1]
 	variantURL := "https://www.clarksusa.com/p/" + pid + "/getProductSizeMatrix"
 
-	respBodyV := c.variationRequest(ctx, variantURL, resp.Request.URL.String())
+	respBodyV, err := c.variationRequest(ctx, variantURL, resp.Request.URL.String())
+	if err != nil {
+		return err
+	}
 
 	viewDataSize, _ := DecodeResponseVarWidth(respBodyV)
 
@@ -631,8 +634,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if len(matched) > 1 {
 		matched[1] = TrimSpaceNewlineInString(matched[1])
 		if err := json.Unmarshal(matched[1], &viewData); err != nil {
-			fmt.Println(err)
-			//c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+			c.logger.Warnf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
 			//return err
 		}
 	}
@@ -690,7 +692,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	pidimg := s[len(s)-1]
 	imgrequest := "https://clarks.scene7.com/is/image/Pangaea2Build/" + pidimg + "_SET?req=set,json&s7jsonResponse=axiosJsonpCallback1"
 
-	respBodyImg := c.variationRequest(ctx, imgrequest, resp.Request.URL.String())
+	respBodyImg, err := c.variationRequest(ctx, imgrequest, resp.Request.URL.String())
+	if err != nil {
+		return err
+	}
 
 	matched = imageRegStart.FindSubmatch(respBodyImg)
 	if len(matched) <= 1 {
@@ -813,7 +818,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		for j, rawSku := range viewDataSize.SkuDetails[sizeValue].SizeDetails {
 			counter++
 			sku := pbItem.Sku{
-				SourceId: strconv.Format(counter),
+				SourceId: pid,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(currentPrice * 100),
@@ -854,13 +859,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				})
 			}
 
+			for _, spec := range sku.Specs {
+				sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+			}
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
 	if len(sel.Nodes) == 0 {
 
 		sku := pbItem.Sku{
-			SourceId: "0",
+			SourceId: pid,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(currentPrice * 100),
@@ -879,7 +887,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if colorSelected != nil {
 			sku.Specs = append(sku.Specs, colorSelected)
 		}
-
+		for _, spec := range sku.Specs {
+			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+		}
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
@@ -915,7 +925,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
-func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) []byte {
+func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) ([]byte, error) {
 
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
 	opts := c.CrawlOptions(req.URL)
@@ -938,13 +948,11 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 	})
 	if err != nil {
 		c.logger.Error(err)
-		//return nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
-
-	return respBody
+	return ioutil.ReadAll(resp.Body)
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
