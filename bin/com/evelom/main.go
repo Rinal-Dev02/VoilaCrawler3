@@ -166,7 +166,6 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 	)
 	if err := func(yield func(names []string, url string) error) error {
 		sel := dom.Find(`#shopify-section-header`).Find(`nav[class="nav-bar"] > ul > li`)
-
 		for a := range sel.Nodes {
 			node := sel.Eq(a)
 
@@ -565,15 +564,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	colorIndex := -1
 	sizeIndex := -1
+	widthIndex := -1
 	for k, key := range viewData.Options {
 		if key == "Color" {
 			colorIndex = k
 		} else if key == "Size" {
 			sizeIndex = k
+		} else if key == "Width" {
+			widthIndex = k
 		}
 	}
 
-	for _, rawVariation := range viewData.Variants {
+	for i, rawVariation := range viewData.Variants {
 		current, _ := strconv.ParsePrice(viewData.Price)
 		msrp, _ := strconv.ParsePrice(viewData.CompareAtPrice)
 		discount := 0.0
@@ -585,11 +587,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		sku := pbItem.Sku{
-			SourceId: fmt.Sprintf("%s-%s", rawVariation.Barcode, rawVariation.Sku),
+			SourceId: strconv.Format(i),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(current * 100),
-				Msrp:     int32(msrp * 100),
+				Current:  int32(current),
+				Msrp:     int32(msrp),
 				Discount: int32(discount),
 			},
 			Medias: medias,
@@ -618,12 +620,21 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 
-		if sizeIndex == -1 && colorIndex == -1 {
+		if widthIndex > -1 {
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecWidth,
+				Id:    rawVariation.Options[widthIndex],
+				Name:  rawVariation.Options[widthIndex],
+				Value: rawVariation.Options[widthIndex],
+			})
+		}
+
+		if sizeIndex == -1 && colorIndex == -1 && widthIndex == -1 {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    rawVariation.Sku,
-				Name:  rawVariation.Options[0],
-				Value: rawVariation.Options[0],
+				Id:    "-",
+				Name:  "-",
+				Value: "-",
 			})
 		}
 
@@ -643,10 +654,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.evelom.com/",
+		//"https://www.evelom.com/collections/travel-essentials",
+		//"https://www.evelom.com/collections/shop-all",
 		//"https://www.evelom.com/collections/masks",
 		//"https://www.evelom.com/collections/anti-aging",
 		//"https://www.evelom.com/collections/masks/products/rescue-mask-100-ml",
-		"https://www.evelom.com/collections/shop-all/products/copy-of-begin-end-ornament",
+		//"https://www.evelom.com/collections/shop-all/products/begin-end-gift-set",
+		//"https://www.evelom.com/collections/best-sellers/products/moisture-cream",
+		"https://www.evelom.com/collections/cleanser/products/begin-end-gift-set",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
