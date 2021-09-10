@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -42,9 +43,9 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(/[/A-Za-z0-9_-]+)$`),
+		categoryPathMatcher: regexp.MustCompile(`^(/us-en/(.*)/c/[/A-Za-z0-9_-]+)|(/us-en/[/A-Za-z0-9_-]+.html)$`),
 		//productPathMatcher:  regexp.MustCompile(`^(/[/A-Za-z0-9_-]+.html)$`),
-		productPathMatcher: regexp.MustCompile(`^/us-en/[/A-Za-z0-9_-]+/p/[/A-Za-z0-9_-]+$`),
+		productPathMatcher: regexp.MustCompile(`^(/us-en/[/A-Za-z0-9_-]+/p/[/A-Za-z0-9_-]+)|(/us-en/p/[/A-Za-z0-9_-]+)$`),
 
 		logger: logger.New("_Crawler"),
 	}
@@ -71,10 +72,10 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
-		Reliability:       proxy.ProxyReliability_ReliabilityIntelligent,
+		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
 		MustHeader:        crawler.NewCrawlOptions().MustHeader,
 	}
-	opts.MustHeader.Add(`cookie`, `1P_JAR=2021-09-08-07; NID=223=XZE69l0bnn9VPRT-b7Nxvci75O9V0cxHwCe9vAHX9bfCA9yBKTLbfM69X_X_Hgb08kbid2I_PFKykeO9hok9wMqXnRWq20MWVX1H77BRNz9-JdIxI0ShNmgvcHMWCLiQkyk7V_ApGM89wBOrcDMyhHJRyv1DrZvTDekOCuABE2Y`)
+	opts.MustHeader.Add(`cookie`, `JSESSIONID=B72373D29C88B101FC4CACEBBBC88A7F; countryIP=IN; geo-akamai=true; OptanonAlertBoxClosed=2021-09-09T10:11:08.500Z; _gcl_au=1.1.949434437.1631182269; _gid=GA1.2.1216332765.1631182269; _fbp=fb.1.1631182268928.920918955; cbar_uid=5597198485632; cbar_cart_checksum=0; _pin_unauth=dWlkPVl6RmhOV1UyWTJNdE56QmpPUzAwTWpBekxXRmxZbVl0WmpBd01qbGtZemt3WkdWaQ; ftr_ncd=6; counterNewsletterCookie=15; pageUrl=https://www.tods.com/us-en/tods-world/pre-fall21.html; newsletterClosed=true; customerData={"name":"Anonymous","userCode":"anonymous","countryCode":"US","countryName":"United+States","relativePath":"https://www.tods.com/","site":"tods-us","lingua":"en","isGuest":false,"cobrand":"","ctryLang":"us-en","currency":"USD","brochureSite":false,"visualSearch":true,"bookAnAppointment":true,"reserveInStore":true,"omnichannelStore":true,"sapCarEnabled":true,"asmEnabled":true,"newsletter":true,"counterNewsletterCookie":1,"rightToLeft":false,"algoliaSearch":true,"algoliaIndexName":"production_algoliaIndex_tods-us","algoliaApplicationID":"TM06P1CDJX","algoliaSearchAPIKey":"69755e034733f4af2cec64028cacda91","returnInStore":false}; AKA_A2=A; JSESSIONID=071C9B77E2B8EE9BD19838C02A18A3E1; _abck=7C4132A9CFF8987B662EE77CC0AFFBC4~0~YAAQJ1stFxp9lMZ7AQAAaQmzzQYmmnsf2/qU+qv6+aMbd3O+8XKeLP2V5cS2SIELLb6Li5QAGV6tYBBb8SlW6mMICOw3ZgE1+OO0bcKlqvq7pk+swjRfV/AyDY6rkX5kaYQ2SiHOyuos98tSAVmrLeJVo8o0EmqBWWs83ACksDBs5Tu4yxEn4+4ByQSoNB5vGVv69P8Z7loG0gVWfvLfPD7aCI46dKJ8gVyS9TARBw3MyuVYMuW0AFsm6tYm0rAJHa+OjUegJVRE4DWEUKqrhqtdYRjLUQWVIG2KHEz47yq/2+XQIDifjsRE2Uhcvz8zf5iGtY3Zgg8FI5MS3r4/MA98BlvKmuFoFQloaZ4WQ1xuhh4l2ZeL6qGHhoNFcao/l51sN2xHrYVL/5PtM3q11wMtwe6aQw==~-1~-1~-1; bm_sz=B20954987A4205608C0AB42E2B569FE5~YAAQJ1stFxx9lMZ7AQAAaQmzzQ2xNxku7vvD60cdVoxt+lACMKw3v/lCs5Xz1PB7FBo4Vt31TyyumZEdEUh0RWYe5n5/ROoO8r+xhDd/8KugLo4XWX7sGPeox8T4W0C6AUcFQt5RODvR3dFxEXv3LBEX8OgqvBlV8ZW3khUiwbD6l/PofCsUglZbXWqNxpRtc6ET66eskjT01KCdgNkJyusCc+aVdeKf9LQ5OTgjTK0+lDDMTGo8dccQbPsE9+coM1bJNt2gzx9QBuLsu++gvIb+LKPIRjdFXmUnxs/XSNR7~4604210~4470585; forterToken=2e1263fe8a894380bae7c1657dd2ba3d_1631243667640__UDF43_9ck; currentStepNewsletter=8; bm_sv=0F6B4EB741EEBBA4D1626AAFE688CD80~CFcDLL2Iy0L/qbk28bJ87Jaq4AexDiROnSzf+pKeRhN9zhJBRLOFLuiiO5P8fQGN2PJuGDHyweVLWa7ExrkJhWV9PgJ3jq8qtr0bxxgnWtE3yNDV3Du7oEpM0whLiMJZU657zg3c1Z1GQkFwZ1LIeQ==; ak_bmsc=956CB8D9164E3186559BECD9EF1E2E43~000000000000000000000000000000~YAAQJ1stF4V9lMZ7AQAA3R+zzQ0FR2mYrh3DhS10bwUwj9VcCLQDBiKsi9EqNMo6Si8HZcKlnHr3WWDsM7WqEwJ3m60YMojWLGftS8Kekd9zQU6z+G5xdF0CmJOASAjx+uekTIlqkXivI1cfbB+1VJOMmAxyEkD7WSbXLM7E4Ou3PBeWjuB7dfdtE6W+30sw1WMQpLjyqi94U/jUZYkpK9GkrNaaPGmOoWmrsUEwis7NGSbD9maV4+wQoth4Ui1vhe5avzzyZzzQ+LsXsjIL96GzAtnCFPJEf35MY8xIA1vk0lsyLZqC6QDc0VuUGTJ8b+awlfvapTJNl++hX5RkUvxsSZTGv3nP9WXvknJy1OxR+DlJRehE8hm1zmciY+q+s/GHioF3JoTsCk5faRrRiGYdKQEFgMmgz28owryS2Kv2G/GZblOb0bBqjUR++KPQlOQk4OJzLkBI/zRsjEiRNRBFjgZO37ymedNbWsL68xZkNBybMevu0NA=; QueueITAccepted-SDFrts345E-V3_tods=EventId=tods&QueueId=00000000-0000-0000-0000-000000000000&RedirectType=disabled&IssueTime=1631243675&Hash=20534b687e59170d4fc81b8d9efc2bf1f3a4f132a8ff9efcbadf8b83ac8cc9fa; OptanonConsent=isGpcEnabled=0&datestamp=Fri+Sep+10+2021+08:44:34+GMT+0530+(India+Standard+Time)&version=6.21.0&isIABGlobal=false&consentId=93bea2d4-c5a3-4347-9377-7257e41b189e&interactionCount=1&landingPath=NotLandingPage&groups=C0001:1,C0002:1,C0003:1,C0004:1&hosts=H11:1,H26:1,H5:1,H37:1,H6:1,H16:1,H23:1,H30:1,H33:1,H42:1,H25:1,H19:1,H40:1,H2:1,H4:1,H28:1,H20:1,H27:1,H21:1,H22:1&geolocation=;&AwaitingReconsent=false; _uetsid=408c1270115611ec9c408d6fd1a09e59; _uetvid=408c3e90115611ec9bef6f7c9ebf6a46; _ga_YMQ83SWR7E=GS1.1.1631243664.3.1.1631243674.50; stc119143=env:1631243675|20211011031435|20210910034435|1|1086561:20220910031435|uid:1631182269223.1268403493.5008063.119143.87714896.2:20220910031435|srchist:1086561:1631243675:20211011031435:20220910031435|tsa:1631243675089.1041145819.487102.1512017284480207.1:20210910034435; _sp_ses.3fc3=*; inside-eu2=314720467-077440eb89f2c8ce62d1218ba9d01ed6995cf43c55be52ceddca42ad237fbc7c-0-0; _sp_id.3fc3=b47ade9a-abd4-41c5-a042-2610ca11c4d3.1631182304.3.1631243677.1631189636.aa3a60b5-3ada-4a61-8fb3-47f69dad5651; cbar_lvt=1631243675; cbar_sess=3; cbar_sess_pv=2; RT="z=1&dm=tods.com&si=733e87d9-5e54-4d3e-9fba-ae9e83fa77ed&ss=ktdsd1hr&sl=0&tt=0&ld=wjph0&nu=d41d8cd98f00b204e9800998ecf8427e&cl=425j"; _ga=GA1.2.397623229.1631182269; _gat_UA-1567085-14=1`)
 
 	return opts
 }
@@ -139,6 +140,118 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")))
 }
 
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.tods.com/us-en/home.html", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
+		sel := dom.Find(`.navigationWrapper>li`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			cateName := strings.TrimSpace(node.Find(`a`).First().Text())
+			if cateName == "" {
+				continue
+			}
+
+			subSel := node.Find(`.subNavigation__list`)
+
+			for k := range subSel.Nodes {
+				subNode2 := subSel.Eq(k)
+				subcat2 := strings.TrimSpace(subNode2.Find(`span`).First().Text())
+
+				subNode2list := subNode2.Find(`.thirdNavigation__list>ul>li`)
+				for j := range subNode2list.Nodes {
+					subNode := subNode2list.Eq(j)
+					subcat3 := strings.TrimSpace(subNode.Find(`a`).First().Text())
+
+					if subcat3 == "" {
+						continue
+					}
+
+					href := subNode.Find(`a`).First().AttrOr("href", "")
+					if href == "" {
+						continue
+					} else if !strings.HasPrefix(href, `http`) {
+						href = "https://www.tods.com" + href
+					}
+
+					u, err := url.Parse(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{cateName, subcat2, subcat3}, href); err != nil {
+							return err
+						}
+					}
+
+				}
+			}
+		}
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
+
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
+
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
+				}
+				cateMap[path] = cate
+				if lastCate != nil {
+					lastCate.Children = append(lastCate.Children, cate)
+				}
+				lastCate = cate
+
+				if i == 0 {
+					cates = append(cates, cate)
+				}
+			}
+		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	return cates, nil
+}
+
+// @deprecated
 func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -229,7 +342,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	ioutil.WriteFile("D:\\STS5\\New_VoilaCrawl\\VoilaCrawler\\Output.html", respBody, 0644)
+	lastIndex := nextIndex(ctx)
 
 	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
@@ -237,8 +350,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		return err
 	}
 
-	lastIndex := nextIndex(ctx)
-	sel := dom.Find(`.j-listingList .listingItem`)
+	sel := dom.Find(`.listingItem`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 		href := node.AttrOr("href", "")
@@ -276,6 +388,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	req, _ := http.NewRequest(http.MethodGet, nextUrl, nil)
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
+
 }
 
 func TrimSpaceNewlineInString(s []byte) []byte {
@@ -422,8 +535,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	ioutil.WriteFile("D:\\STS5\\New_VoilaCrawl\\VoilaCrawler\\Output_Product.html", respBody, 0644)
-
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
 		return err
@@ -441,11 +552,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	s := strings.Split(resp.Request.URL.Path, `/`)
+	s := strings.Split(strings.TrimSuffix(resp.Request.URL.Path, `/`), `/`)
 	pid := s[len(s)-1]
 	rootURL := "https://www.tods.com/rest/v2/tods-us/products/" + pid + "?lang=en&key=undefined"
 
-	respBodyV := c.variationRequest(ctx, rootURL, resp.Request.URL.String())
+	respBodyV, _ := c.variationRequest(ctx, rootURL, resp.Request.URL.String())
 
 	var viewData parseProductResponse
 
@@ -495,7 +606,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			strconv.Format(j),
 			imgurl,
 			imgurl+"?imwidth=1000",
-			imgurl+"?imwidth=600",
+			imgurl+"?imwidth=800",
 			imgurl+"?imwidth=500",
 			"", j == 0))
 	}
@@ -586,23 +697,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
-func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) []byte {
+func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) ([]byte, error) {
 
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
 	opts := c.CrawlOptions(req.URL)
 
 	req.Header.Set("accept", "application/json, text/plain, */*")
-
 	req.Header.Set("referer", referer)
 
-	// for _, c := range opts.MustCookies {
-	// 	req.AddCookie(c)
-	// }
-	// for k := range opts.MustHeader {
-	// 	req.Header.Set(k, opts.MustHeader.Get(k))
-	// }
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
 
-	req.Header.Add(`cookie`, `OptanonAlertBoxClosed=2021-09-03T05:37:50.844Z; _gcl_au=1.1.553004577.1630647471; cbar_uid=544726692287; _pin_unauth=dWlkPU1qY3paREJoTlRFdE9HRTVaQzAwWmpJNUxXSmtNemt0WWpoaU5qWmtPREV6T0dSbQ; ftr_ncd=6; _gid=GA1.2.2041738442.1630898479; countryIP=IN; geo-akamai=true; cbar_cart_checksum=0; _abck=06D5FC3C0B3EEBA681A195CC20E5AE6C~0~YAAQnNsNF9mkzLV6AQAA6T+AwwZAOyNDIu14d1HUmvbk5te5+nppdcFat8qjIzzSf8ehuXKuHSq5MMbL/frJYOZosKMzhjIv37/pJRGjd9KlvlAw86C0P+A7sIG52IrVpMDSpUMEbkcKSHBCnDC6yO+jkjPWSCLTPOxpdA4ec5XdC4lAavleiTFMl05Z812KEHUtg4Jsjxs19acd012J5HHTZu/Qo0rUJmoQYTG2nPJzhgRSR4SUBSADTxg/qo+tZtpRKhKIGt1bmO7DwQ2wTELCu35a3BSn5GXm3SaK9FwtVFhEk1NaA1tuIXKu/8ISq0vG1ubmiw8xvL4DK9HtfHX/bEv/gUPq1lWG+RDnzhcU2QjTyTs8EvpSoyEREM2nAFVIe9nQ6HiBOLmhvNVI9jrUVh0i/g==~-1~-1~-1; bm_sz=1A2638B75F7E6082316CA0EE30409F39~YAAQnNsNF9ukzLV6AQAA6T+Aww2wLh9Y22gvIFduC9ZCW8AlE5BKZ6/E1pUaj4nZI8RWKlXjydIY80gXKPNRUsTtcn4caqOjGkvRCnvMelN8OJND0BlfAylQjxGHrUGf+RfLgbhftyFd4ymyRtF/4iJYMg0L70R7wqIp4ClLAuQqP4lZRcC8S/2rQu/vDLqptlznu2w0bRW2522+wHFQ2Dm690/xjc/viYaV1mFNM078ZfxVUjJ2WuEHoR+cRPgmCMRlbKScTyb8Se0/542qb5lA+GItTx/RLFKNe4IMsPPs~3753013~4601923; ak_bmsc=65F38766CD85C1C0D6C154E87D3E4816~000000000000000000000000000000~YAAQnNsNF9+kzLV6AQAAxGuAww2zaAIMOqfHC5+XfjDgGb8izcOgl2cy/xEozFvzKhTSvsxHt9tx/QOUvcgyrkVMPP0zqk5WpdUcoFAXMju2aXVxY46jfjesYy5ps4f3ewifbrh6RCehZ8qbRwqLbIjG7kQp5nWNDPOUIW5VSHYR4dxjNdw7E0W6JoSc2CVVCPEH2+3yj2VHv0gxCoqwSgcikTlYmITYqCDNdkhnfUkkwfDDPwvWJIbkszyupy0ckBOjyonhiY8HuXHnk7+uQtdkBmXnyGTIMImeEH/QosLFyFvfsvIsG6g4+o/nH12kg01HARwKYOytpQk/SjOdwVKZi2HxzXvtrA4q8BmXcAXHRCTp6xGi2D9zO3lKk6J4KNdlHD2mOgaJTYys/rNXyr0WzQf78FOLer9/dyIX9imA7GscpWwlqS2/yAAiJUOHJAsr6mC1edL3mvxSFJfYrMTVltvRGUhzJNJR2nLOXHJlYf3HwLp7KrE=; AKA_A2=A; cbar_sess=8; geoBlocking=1; _sp_ses.3fc3=*; JSESSIONID=EB66E4FB17DFB1BFFAFD7538A05D57E8; firstView=true; counterNewsletterCookie=4; pageUrl=https://www.tods.com/us-en/tods-no-code.html; newsletterClosed=true; customerData={"name":"Anonymous","userCode":"anonymous","countryCode":"US","countryName":"UNITED+STATES","relativePath":"https://www.tods.com/","site":"tods-us","lingua":"en","isGuest":false,"cobrand":"","ctryLang":"us-en","currency":"USD","brochureSite":false,"visualSearch":true,"bookAnAppointment":true,"reserveInStore":true,"omnichannelStore":true,"sapCarEnabled":true,"asmEnabled":true,"newsletter":true,"counterNewsletterCookie":1,"rightToLeft":false,"algoliaSearch":true,"algoliaIndexName":"production_algoliaIndex_tods-us","algoliaApplicationID":"TM06P1CDJX","algoliaSearchAPIKey":"69755e034733f4af2cec64028cacda91","returnInStore":false}; forterToken=18b740fca3f148c692c667b2decdca63_1631074714457__UDF43_9ck; OptanonConsent=isGpcEnabled=0&datestamp=Wed+Sep+08+2021+09:48:39+GMT+0530+(India+Standard+Time)&version=6.21.0&isIABGlobal=false&consentId=b4b94b50-7f98-4db9-820e-ed3fef4e9566&interactionCount=1&landingPath=NotLandingPage&groups=C0001:1,C0002:1,C0003:1,C0004:1&hosts=H11:1,H26:1,H5:1,H37:1,H6:1,H16:1,H23:1,H30:1,H33:1,H42:1,H25:1,H19:1,H40:1,H2:1,H4:1,H28:1,H20:1,H27:1,H21:1,H22:1&geolocation=;&AwaitingReconsent=false; _uetsid=815229b00ec111eca51bd59a8d6169ff; _uetvid=5a50c3a007bb11ec9c46e556d353f498; stc119143=env:1631072579|20211009034259|20210908044840|18|1086561:20220908041840|uid:1630647471233.945477715.1467705.119143.346834212.8:20220908041840|srchist:1086561:1631072579:20211009034259:20220908041840|tsa:1631072579618.603696417.057908.941133133057404.191:20210908044840; QueueITAccepted-SDFrts345E-V3_tods=EventId=tods&QueueId=00000000-0000-0000-0000-000000000000&RedirectType=disabled&IssueTime=1631074720&Hash=eb0c013fb9bb27d689c23a4c848bab9c2e234ae63a54e4bda019529727c92954; cbar_lvt=1631074721; cbar_sess_pv=19; _ga=GA1.2.376280201.1630647471; _ga_YMQ83SWR7E=GS1.1.1631072568.11.1.1631074736.37; currentStepNewsletter=38; _sp_id.3fc3=0bca9af2-cb68-497e-b2d4-4509c4f3468d.1630647483.6.1631074737.1630913693.417c7c17-2e00-4989-9333-6247845726d6; inside-eu2=311475046-bf4764d3283ade318442ac18e4bbd7719e853061e75a16d0be17377cc0985dce-0-0; bm_sv=1B2BF40C5DA2E2DE93135909282FAA52~pdPdQQ6OsvB3AygMR+D8alVznOR5R8zpaV4PX8yn6AuAGyfDeR1b121Pkkd1QKkPHjpyDTX6q3i9ysHIeihoORiUQcOhWyhgOpx6RryyqYzpopHkVmuyuAcMwFJT9ynSsHkhhI2xkirMJXZM8lRcyg==; RT="z=1&dm=tods.com&si=d6413a9a-7d12-4231-8ff4-18bda7844504&ss=ktayhqau&sl=c&tt=29ww&bcn=//684fc53e.akstat.io/&obo=4&rl=1&nu=d41d8cd98f00b204e9800998ecf8427e&cl=1u2ag"; _gat_UA-1567085-14=1`)
+	req.Header.Add(`cookie`, `JSESSIONID=B72373D29C88B101FC4CACEBBBC88A7F; countryIP=IN; geo-akamai=true; OptanonAlertBoxClosed=2021-09-09T10:11:08.500Z; _gcl_au=1.1.949434437.1631182269; _gid=GA1.2.1216332765.1631182269; _fbp=fb.1.1631182268928.920918955; cbar_uid=5597198485632; cbar_cart_checksum=0; _pin_unauth=dWlkPVl6RmhOV1UyWTJNdE56QmpPUzAwTWpBekxXRmxZbVl0WmpBd01qbGtZemt3WkdWaQ; ftr_ncd=6; counterNewsletterCookie=15; pageUrl=https://www.tods.com/us-en/tods-world/pre-fall21.html; newsletterClosed=true; customerData={"name":"Anonymous","userCode":"anonymous","countryCode":"US","countryName":"United+States","relativePath":"https://www.tods.com/","site":"tods-us","lingua":"en","isGuest":false,"cobrand":"","ctryLang":"us-en","currency":"USD","brochureSite":false,"visualSearch":true,"bookAnAppointment":true,"reserveInStore":true,"omnichannelStore":true,"sapCarEnabled":true,"asmEnabled":true,"newsletter":true,"counterNewsletterCookie":1,"rightToLeft":false,"algoliaSearch":true,"algoliaIndexName":"production_algoliaIndex_tods-us","algoliaApplicationID":"TM06P1CDJX","algoliaSearchAPIKey":"69755e034733f4af2cec64028cacda91","returnInStore":false}; AKA_A2=A; JSESSIONID=071C9B77E2B8EE9BD19838C02A18A3E1; _abck=7C4132A9CFF8987B662EE77CC0AFFBC4~0~YAAQJ1stFxp9lMZ7AQAAaQmzzQYmmnsf2/qU+qv6+aMbd3O+8XKeLP2V5cS2SIELLb6Li5QAGV6tYBBb8SlW6mMICOw3ZgE1+OO0bcKlqvq7pk+swjRfV/AyDY6rkX5kaYQ2SiHOyuos98tSAVmrLeJVo8o0EmqBWWs83ACksDBs5Tu4yxEn4+4ByQSoNB5vGVv69P8Z7loG0gVWfvLfPD7aCI46dKJ8gVyS9TARBw3MyuVYMuW0AFsm6tYm0rAJHa+OjUegJVRE4DWEUKqrhqtdYRjLUQWVIG2KHEz47yq/2+XQIDifjsRE2Uhcvz8zf5iGtY3Zgg8FI5MS3r4/MA98BlvKmuFoFQloaZ4WQ1xuhh4l2ZeL6qGHhoNFcao/l51sN2xHrYVL/5PtM3q11wMtwe6aQw==~-1~-1~-1; bm_sz=B20954987A4205608C0AB42E2B569FE5~YAAQJ1stFxx9lMZ7AQAAaQmzzQ2xNxku7vvD60cdVoxt+lACMKw3v/lCs5Xz1PB7FBo4Vt31TyyumZEdEUh0RWYe5n5/ROoO8r+xhDd/8KugLo4XWX7sGPeox8T4W0C6AUcFQt5RODvR3dFxEXv3LBEX8OgqvBlV8ZW3khUiwbD6l/PofCsUglZbXWqNxpRtc6ET66eskjT01KCdgNkJyusCc+aVdeKf9LQ5OTgjTK0+lDDMTGo8dccQbPsE9+coM1bJNt2gzx9QBuLsu++gvIb+LKPIRjdFXmUnxs/XSNR7~4604210~4470585; forterToken=2e1263fe8a894380bae7c1657dd2ba3d_1631243667640__UDF43_9ck; currentStepNewsletter=8; bm_sv=0F6B4EB741EEBBA4D1626AAFE688CD80~CFcDLL2Iy0L/qbk28bJ87Jaq4AexDiROnSzf+pKeRhN9zhJBRLOFLuiiO5P8fQGN2PJuGDHyweVLWa7ExrkJhWV9PgJ3jq8qtr0bxxgnWtE3yNDV3Du7oEpM0whLiMJZU657zg3c1Z1GQkFwZ1LIeQ==; ak_bmsc=956CB8D9164E3186559BECD9EF1E2E43~000000000000000000000000000000~YAAQJ1stF4V9lMZ7AQAA3R+zzQ0FR2mYrh3DhS10bwUwj9VcCLQDBiKsi9EqNMo6Si8HZcKlnHr3WWDsM7WqEwJ3m60YMojWLGftS8Kekd9zQU6z+G5xdF0CmJOASAjx+uekTIlqkXivI1cfbB+1VJOMmAxyEkD7WSbXLM7E4Ou3PBeWjuB7dfdtE6W+30sw1WMQpLjyqi94U/jUZYkpK9GkrNaaPGmOoWmrsUEwis7NGSbD9maV4+wQoth4Ui1vhe5avzzyZzzQ+LsXsjIL96GzAtnCFPJEf35MY8xIA1vk0lsyLZqC6QDc0VuUGTJ8b+awlfvapTJNl++hX5RkUvxsSZTGv3nP9WXvknJy1OxR+DlJRehE8hm1zmciY+q+s/GHioF3JoTsCk5faRrRiGYdKQEFgMmgz28owryS2Kv2G/GZblOb0bBqjUR++KPQlOQk4OJzLkBI/zRsjEiRNRBFjgZO37ymedNbWsL68xZkNBybMevu0NA=; QueueITAccepted-SDFrts345E-V3_tods=EventId=tods&QueueId=00000000-0000-0000-0000-000000000000&RedirectType=disabled&IssueTime=1631243675&Hash=20534b687e59170d4fc81b8d9efc2bf1f3a4f132a8ff9efcbadf8b83ac8cc9fa; OptanonConsent=isGpcEnabled=0&datestamp=Fri+Sep+10+2021+08:44:34+GMT+0530+(India+Standard+Time)&version=6.21.0&isIABGlobal=false&consentId=93bea2d4-c5a3-4347-9377-7257e41b189e&interactionCount=1&landingPath=NotLandingPage&groups=C0001:1,C0002:1,C0003:1,C0004:1&hosts=H11:1,H26:1,H5:1,H37:1,H6:1,H16:1,H23:1,H30:1,H33:1,H42:1,H25:1,H19:1,H40:1,H2:1,H4:1,H28:1,H20:1,H27:1,H21:1,H22:1&geolocation=;&AwaitingReconsent=false; _uetsid=408c1270115611ec9c408d6fd1a09e59; _uetvid=408c3e90115611ec9bef6f7c9ebf6a46; _ga_YMQ83SWR7E=GS1.1.1631243664.3.1.1631243674.50; stc119143=env:1631243675|20211011031435|20210910034435|1|1086561:20220910031435|uid:1631182269223.1268403493.5008063.119143.87714896.2:20220910031435|srchist:1086561:1631243675:20211011031435:20220910031435|tsa:1631243675089.1041145819.487102.1512017284480207.1:20210910034435; _sp_ses.3fc3=*; inside-eu2=314720467-077440eb89f2c8ce62d1218ba9d01ed6995cf43c55be52ceddca42ad237fbc7c-0-0; _sp_id.3fc3=b47ade9a-abd4-41c5-a042-2610ca11c4d3.1631182304.3.1631243677.1631189636.aa3a60b5-3ada-4a61-8fb3-47f69dad5651; cbar_lvt=1631243675; cbar_sess=3; cbar_sess_pv=2; RT="z=1&dm=tods.com&si=733e87d9-5e54-4d3e-9fba-ae9e83fa77ed&ss=ktdsd1hr&sl=0&tt=0&ld=wjph0&nu=d41d8cd98f00b204e9800998ecf8427e&cl=425j"; _ga=GA1.2.397623229.1631182269; _gat_UA-1567085-14=1`)
 
 	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 		EnableProxy:       true,
@@ -618,8 +728,7 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 
-	ioutil.WriteFile("D:\\STS5\\New_VoilaCrawl\\VoilaCrawler\\Output_Product_js.html", respBody, 0644)
-	return respBody
+	return respBody, err
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
@@ -627,7 +736,12 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.tods.com/us-en/",
 		//"https://www.tods.com/us-en/Kate-Loafers-in-Leather/p/XXW79A0DD00NF5S607",
-		"https://www.tods.com/us-en/Men/Shoes/Loafers/c/213-Tods/",
+		//"https://www.tods.com/us-en/Men/Shoes/Loafers/c/213-Tods/",
+		//"https://www.tods.com/us-en/Men/Shoes/View-all/c/219-Tods/",
+		//"https://www.tods.com/us-en/Women/Shoes/Gommini/c/111-Tods/",
+		//"https://www.tods.com/us-en/Gommino-Driving-Shoes-in-Suede/p/XXW00G00010RE0R411",
+		//"https://www.tods.com/us-en/p/XXW00G00010RE0L012/",
+		"https://www.tods.com/us-en/Gommino-Driving-Shoes-in-Leather/p/XXW00G000105J1M025",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -652,7 +766,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
-
 	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
