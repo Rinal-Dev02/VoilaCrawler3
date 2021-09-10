@@ -45,7 +45,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 		// this regular used to match category page url path
 		categoryPathMatcher: regexp.MustCompile(`^(/us-en/(.*)/c/[/A-Za-z0-9_-]+)|(/us-en/[/A-Za-z0-9_-]+.html)$`),
 		//productPathMatcher:  regexp.MustCompile(`^(/[/A-Za-z0-9_-]+.html)$`),
-		productPathMatcher: regexp.MustCompile(`^(/us-en/[/A-Za-z0-9_-]+/p/[/A-Za-z0-9_-]+)|(/us-en/p/[/A-Za-z0-9_-]+)$`),
+		productPathMatcher: regexp.MustCompile(`^(/us-en/[/A-Za-z0-9_'-]+/p/[/A-Za-z0-9_-]+)|(/us-en/p/[/A-Za-z0-9_-]+)$`),
 
 		logger: logger.New("_Crawler"),
 	}
@@ -54,7 +54,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 
 // ID
 func (c *_Crawler) ID() string {
-	return "ab77778901be4b0fa5ac62f2acd2921c"
+	return "acd01516a3fcadc297b3dd70df2b8056"
 }
 
 // Version
@@ -73,7 +73,6 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
 		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
-		MustHeader:        crawler.NewCrawlOptions().MustHeader,
 	}
 
 	return opts
@@ -123,7 +122,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 	if p == "" || p == "/us-en" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 	if c.productPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yield)
@@ -359,10 +358,10 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			continue
 		}
 
-		rawurl := ""
-		if href != "" {
-			rawurl = fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, href)
-		}
+		rawurl, _ := c.CanonicalUrl(href)
+		//if href != "" {
+		//	rawurl = fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, href)
+		//}
 
 		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 		if err != nil {
@@ -555,7 +554,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	pid := s[len(s)-1]
 	rootURL := "https://www.tods.com/rest/v2/tods-us/products/" + pid + "?lang=en&key=undefined"
 
-	respBodyV, _ := c.variationRequest(ctx, rootURL, resp.Request.URL.String())
+	respBodyV, err := c.variationRequest(ctx, rootURL, resp.Request.URL.String())
+	if err != nil {
+		c.logger.Errorf("http get %s failed, error=%s", rootURL, err)
+		return err
+	}
 
 	var viewData parseProductResponse
 
@@ -656,26 +659,32 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		if rawSku.StockLevel > 0 {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
-			item.Stock.StockStatus = pbItem.Stock_InStock
+			if item.Stock.StockStatus == pbItem.Stock_OutOfStock {
+				item.Stock.StockStatus = pbItem.Stock_InStock
+			}
 		}
 
 		// color
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecColor,
-			Id:    rawSku.Color,
-			Name:  rawSku.Color,
-			Value: rawSku.Color,
-		})
+		if rawSku.Color != "" {
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
+				Id:    rawSku.Color,
+				Name:  rawSku.Color,
+				Value: rawSku.Color,
+			})
+		}
 
 		// size
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    rawSku.Size,
-			Name:  rawSku.Size,
-			Value: rawSku.Size,
-		})
+		if rawSku.Size != "" {
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
+				Id:    rawSku.Size,
+				Name:  rawSku.Size,
+				Value: rawSku.Size,
+			})
+		}
 
-		if rawSku.Size == "" && rawSku.Color == "" {
+		if len(sku.Specs) == 0 {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
 				Id:    "-",
@@ -684,6 +693,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 
+		for _, spec := range sku.Specs {
+			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+		}
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
@@ -691,6 +703,22 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err = yield(ctx, &item); err != nil {
 		c.logger.Errorf("yield sub request failed, error=%s", err)
 		return err
+	}
+
+	// other products
+	if ctx.Value("groupId") == nil {
+		nctx := context.WithValue(ctx, "groupId", item.GetSource().GetId())
+		for _, colorSizeOption := range viewData.ColorSizeOptions {
+			if colorSizeOption.SkuOrigin == item.GetSource().GetId() {
+				continue
+			}
+			nextProductUrl := fmt.Sprintf("https://www.tods.com/us-en/p/%s/", colorSizeOption.SkuOrigin)
+			if req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil); err != nil {
+				return err
+			} else if err = yield(nctx, req); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -719,13 +747,11 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 	})
 	if err != nil {
 		c.logger.Error(err)
-		//return nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
-
-	return respBody, err
+	return ioutil.ReadAll(resp.Body)
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
