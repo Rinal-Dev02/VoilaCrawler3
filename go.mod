@@ -7,6 +7,7 @@ require (
 	github.com/andybalholm/brotli v1.0.1
 	github.com/gammazero/deque v0.1.0
 	github.com/gosimple/slug v1.9.0
+	github.com/guillaumeblaquiere/jsonFilter v0.3.0
 	github.com/jedib0t/go-pretty/v6 v6.2.2
 	github.com/mitchellh/mapstructure v1.1.2
 	github.com/robertkrimen/otto v0.0.0-20200922221731-ef014fd054ac
@@ -15,6 +16,7 @@ require (
 	github.com/voiladev/go-framework v1.0.5-release
 	github.com/voiladev/protobuf v0.0.0-20210601082211-e3414413f564
 	go.uber.org/fx v1.13.1
+	golang.org/x/image v0.0.0-20210628002857-a66eb6448b8d // indirect
 	golang.org/x/net v0.0.0-20210510120150-4163338589ed
 	golang.org/x/oauth2 v0.0.0-20210427180440-81ed05c6b58c
 	google.golang.org/api v0.30.0
