@@ -359,10 +359,19 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 	}
 
 	for _, prop := range videos {
-		var item pbItem.Tiktok_Item
-
-		item.Author = &pbItem.Tiktok_Author{
-			Stats: &pbItem.Tiktok_Author_Stats{},
+		item := pbItem.Tiktok_Item{
+			Source: &pbItem.Tiktok_Source{
+				Id:         prop.ID,
+				SourceUrl:  fmt.Sprintf("https://www.tiktok.com/@%s/video/%s?lang=en", prop.Author.UniqueID, prop.ID),
+				PublishUtc: int64(prop.CreateTime),
+			},
+			Author: &pbItem.Tiktok_Author{
+				Stats: &pbItem.Tiktok_Author_Stats{},
+			},
+			Title: prop.Desc,
+			Video: &media.Media_Video{
+				Cover: &media.Media_Image{},
+			},
 		}
 		item.Author.Id = prop.Author.ID
 		item.Author.Name = prop.Author.UniqueID
@@ -375,9 +384,6 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 		item.Author.Stats.VideoCount = int32(prop.AuthorStats.VideoCount)
 		item.Author.Stats.DiggCount = int32(prop.AuthorStats.DiggCount)
 
-		item.Video = &media.Media_Video{
-			Cover: &media.Media_Image{},
-		}
 		if prop.Video.DownloadAddr != "" {
 			item.Video.OriginalUrl = prop.Video.DownloadAddr
 		} else if prop.Video.PlayAddr != "" {
