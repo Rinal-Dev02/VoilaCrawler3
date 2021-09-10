@@ -3,11 +3,15 @@ package checker
 import (
 	"errors"
 	"fmt"
+	_ "golang.org/x/image/bmp"
+	_ "golang.org/x/image/tiff"
+	_ "golang.org/x/image/webp"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	goHttp "net/http"
+	"net/url"
 	"strings"
 
 	"github.com/voiladev/VoilaCrawler/pkg/context"
@@ -130,17 +134,17 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log, ht
 			}
 			if img.GetLargeUrl() == "" {
 				return errors.New("Checker.Product: invalid image large url")
-			} else if err := checkImage(ctx, img.GetLargeUrl(), imgSizeLarge, httpClient); err != nil {
+			} else if err := checkImage(ctx, logger, img.GetLargeUrl(), imgSizeLarge, httpClient, item); err != nil {
 				return err
 			}
 			if img.GetMediumUrl() == "" {
 				return errors.New("Checker.Product: invalid image medium url")
-			} else if err := checkImage(ctx, img.GetMediumUrl(), imgSizeMedium, httpClient); err != nil {
+			} else if err := checkImage(ctx, logger, img.GetMediumUrl(), imgSizeMedium, httpClient, item); err != nil {
 				return err
 			}
 			if img.GetSmallUrl() == "" {
 				return errors.New("Checker.Product: invalid image small url")
-			} else if err := checkImage(ctx, img.GetSmallUrl(), imgSizeSmall, httpClient); err != nil {
+			} else if err := checkImage(ctx, logger, img.GetSmallUrl(), imgSizeSmall, httpClient, item); err != nil {
 				return err
 			}
 			if img.GetSmallUrl() == img.GetLargeUrl() {
@@ -294,7 +298,7 @@ func checkError(ctx context.Context, e *crawl.Error, logger glog.Log) error {
 }
 
 // checkImage do http request to check image width
-func checkImage(_ context.Context, url string, imgSizeType int, _ http.Client) error {
+func checkImage(_ context.Context, logger glog.Log, imgUrl string, imgSizeType int, _ http.Client, item *pbItem.Product) error {
 	var (
 		imgSizeName string
 		imgSize     int
@@ -310,19 +314,88 @@ func checkImage(_ context.Context, url string, imgSizeType int, _ http.Client) e
 		imgSizeName = "LargeImage"
 		imgSize = 800
 	default:
-		return fmt.Errorf("Checker.Product.Media: unsupport image size type %d", imgSizeType)
+		return fmt.Errorf("Checker.Product.Media: unsupport image size type %d, url=%s", imgSizeType, imgUrl)
 	}
 
-	//imgReq, _ := http.NewRequest(http.MethodGet, url, nil)
+	//imgReq, _ := http.NewRequest(http.MethodGet, imgUrl, nil)
 	//imgResp, err := httpClient.Do(ctx, imgReq)
-	imgResp, err := goHttp.Get(url)
-	if err != nil {
-		return fmt.Errorf("Checker.Product.Media: Get %s err=%s", imgSizeName, err)
+
+	buildRequest := []func() *goHttp.Request{
+		func() *goHttp.Request {
+			req, _ := goHttp.NewRequest(goHttp.MethodGet, imgUrl, nil)
+			req.Header.Set("accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+			req.Header.Set("accept-encoding", "gzip, deflate, br")
+			req.Header.Set("accept-language", "en-US,en;q=0.9")
+			req.Header.Set("cache-control", "no-cache")
+			req.Header.Set("pragma", "no-cache")
+			req.Header.Set("sec-ch-ua", "\"Chromium\";v=\"92\", \" Not A;Brand\";v=\"99\", \"Google Chrome\";v=\"92\"")
+			req.Header.Set("sec-ch-ua-mobile", "?0")
+			req.Header.Set("sec-fetch-dest", "image")
+			req.Header.Set("sec-fetch-mode", "no-cors")
+			req.Header.Set("sec-fetch-site", "same-origin")
+			req.Header.Set("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36")
+			req.Header.Set("referer", item.GetSource().GetCrawlUrl())
+			return req
+		},
+		func() *goHttp.Request {
+			req, _ := goHttp.NewRequest(goHttp.MethodGet, imgUrl, nil)
+			req.Header.Set("accept", "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8")
+			req.Header.Set("accept-encoding", "gzip, deflate, br")
+			req.Header.Set("accept-language", "en-US,en;q=0.9")
+			req.Header.Set("cache-control", "no-cache")
+			req.Header.Set("pragma", "no-cache")
+			req.Header.Set("sec-ch-ua", "\"Chromium\";v=\"92\", \" Not A;Brand\";v=\"99\", \"Google Chrome\";v=\"92\"")
+			req.Header.Set("sec-ch-ua-mobile", "?0")
+			req.Header.Set("sec-fetch-dest", "image")
+			req.Header.Set("sec-fetch-mode", "no-cors")
+			req.Header.Set("sec-fetch-site", "cross-site")
+			req.Header.Set("user-agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36")
+			u, _ := url.Parse(item.GetSource().GetCrawlUrl())
+			u.Path = "/"
+			u.RawQuery = ""
+			req.Header.Set("referer", u.String())
+			return req
+		},
 	}
-	defer imgResp.Body.Close()
-	img, _, err := image.Decode(imgResp.Body)
+
+	var (
+		req, _     = goHttp.NewRequest(goHttp.MethodGet, imgUrl, nil)
+		imgResp    *goHttp.Response
+		err        error
+		img        image.Image
+		retryCount int
+	)
+	defer func() {
+		if imgResp != nil {
+			imgResp.Body.Close()
+		}
+	}()
+
+getImgFlag:
+	imgResp, err = goHttp.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("Checker.Product.Media: Read %s Data err=%s", imgSizeName, err)
+		return fmt.Errorf("Checker.Product.Media: Get %s err=%s, url=%s", imgSizeName, err, imgUrl)
+	}
+	if imgResp.StatusCode != goHttp.StatusOK {
+		if retryCount < len(buildRequest) {
+			req = buildRequest[retryCount]()
+			retryCount++
+			imgResp.Body.Close()
+			logger.Debugf("retry %s count=%d", imgUrl, retryCount)
+			goto getImgFlag
+		}
+		return fmt.Errorf("Checker.Product.Media: get url=%s status code != 200! ", imgUrl)
+	}
+	img, _, err = image.Decode(imgResp.Body)
+	if err != nil {
+		if errors.Is(err, image.ErrFormat) && retryCount < len(buildRequest) {
+			req = buildRequest[retryCount]()
+			retryCount++
+			imgResp.Body.Close()
+			logger.Debugf("retry %s count=%d", imgUrl, retryCount)
+			goto getImgFlag
+		}
+		return fmt.Errorf("Checker.Product.Media: Read %s Data err=%s, url=%s, retryCount=%d", imgSizeName, err, imgUrl, retryCount)
 	}
 	if img.Bounds().Dx() < imgSize {
 		return fmt.Errorf("Checker.Product.Media: %s width should >=%d, not %d", imgSizeName, imgSize, img.Bounds().Dx())
