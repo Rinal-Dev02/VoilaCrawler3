@@ -693,9 +693,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 
-		for _, spec := range sku.Specs {
-			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
-		}
+		//for _, spec := range sku.Specs {
+		//	sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+		//}
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
