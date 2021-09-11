@@ -75,10 +75,10 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
-		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
+		Reliability:       proxy.ProxyReliability_ReliabilityHigh,
 		MustHeader:        crawler.NewCrawlOptions().MustHeader,
 	}
-	opts.MustHeader.Add(`cookie`, `1P_JAR=2021-09-08-07; NID=223=XZE69l0bnn9VPRT-b7Nxvci75O9V0cxHwCe9vAHX9bfCA9yBKTLbfM69X_X_Hgb08kbid2I_PFKykeO9hok9wMqXnRWq20MWVX1H77BRNz9-JdIxI0ShNmgvcHMWCLiQkyk7V_ApGM89wBOrcDMyhHJRyv1DrZvTDekOCuABE2Y`)
+	opts.MustHeader.Add(`cookie`, `_gcl_au=1.1.137093935.1631353411; _ga=GA1.2.1041971002.1631353411; _gid=GA1.2.1527387527.1631353411; crl8.fpcuid=bffc118b-0710-43a9-8975-7bd67660e98b; _fbp=fb.1.1631353411515.1650021108; _hjid=7fc4e30a-9ae6-4432-b8a5-b15f71aad11a; _hjFirstSeen=1; _hjAbsoluteSessionInProgress=1; _scid=a7b99f23-7b83-4073-9313-9d1a20d96b00; _sctr=1|1631298600000; _aeaid=f35895fa-38fc-4b76-9cb4-cda73beb766f; aeatstartmessage=true; skip_geocode=1; ABTasty=uid=2arpqzx3mfm027g5&fst=1631353410907&pst=-1&cst=1631353410907&ns=1&pvt=8&pvis=8&th=650924.0.8.8.1.1.1631353411261.1631355829306.1; ABTastySession=mrasn=&sen=23&lp=https%3A%2F%2Fwww.hunterboots.com%2Fus%2Fen_us%2F; _hjIncludedInPageviewSample=1; _hjIncludedInSessionSample=0; ometria=2_cid=ekzfTrkCqFrAHmCe&nses=1&osts=1631353412&sid=2344ee93NzOmJ8fcewcT&npv=6&tids=&slt=1631355830; stc113516=tsa:1631353413266.659767092.0619063.18146429130529595.:20210911105350|env:1|20211120094333|20210911105350|6|1028364:20220911102350|uid:1631353413264.1517807210.5045915.113516.711914970.:20220911102350|srchist:1028364:1:20211120094333:20220911102350`)
 
 	return opts
 }
@@ -126,11 +126,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-	fmt.Println(p)
 
-	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
-	}
 	if c.productPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(p) || c.categoryPathApiMatcher.MatchString(p) {
@@ -185,22 +181,18 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 
 		sel := dom.Find(`.navigation__grid-container>.navigation__sections>li`)
 
-		c.logger.Val("sel.Nodes", len(sel.Nodes))
-
 		for i := range sel.Nodes {
 
 			node := sel.Eq(i)
 			catname := strings.TrimSpace(node.Find(`a h2`).First().Text())
-			if catname == "" {
+			if catname == "" || catname == "Help & Info" {
 				continue
 			}
-
-			fmt.Println(`catname `, catname)
 
 			subSel := node.Find(`.navigation-column>.navigation-linkblock`)
 			for k := range subSel.Nodes {
 				subNode2 := subSel.Eq(k)
-				subcat1 := strings.TrimSpace(subNode2.Find(`.navigation-category__link h3`).Text())
+				subcat1 := strings.TrimSpace(subNode2.Find(`.navigation-category__link`).First().Text())
 
 				subNode2list := subNode2.Find(`ul>li`)
 				for j := range subNode2list.Nodes {
@@ -212,24 +204,9 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					}
 
 					href := subNode.Find(`a`).First().AttrOr("href", "")
-
 					if href == "" {
 						continue
 					}
-
-					if !strings.Contains(href, `https://www.hunterboots.com`) {
-						href = "https://www.hunterboots.com" + href
-					}
-
-					finalsubCatName := ""
-					if subcat1 != "" {
-						finalsubCatName = subcat1 + " >> " + subcat2
-					} else {
-						finalsubCatName = subcat2
-					}
-
-					fmt.Println(`SubCategory:`, finalsubCatName)
-					fmt.Println(`href:`, href)
 
 					canonicalHref, err := c.CanonicalUrl(href)
 					if err != nil {
@@ -241,6 +218,25 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 
 					if c.categoryPathMatcher.MatchString(u.Path) {
 						if err := yield([]string{catname, subcat1, subcat2}, canonicalHref); err != nil {
+							return err
+						}
+					}
+				}
+				if len(subNode2list.Nodes) == 0 {
+					href := subNode2.Find(`.navigation-category__link`).First().AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+
+					canonicalHref, err := c.CanonicalUrl(href)
+					if err != nil {
+						c.logger.Errorf("got invalid url %s", href)
+						continue
+					}
+
+					u, _ := url.Parse(canonicalHref)
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{catname, subcat1}, canonicalHref); err != nil {
 							return err
 						}
 					}
@@ -375,69 +371,13 @@ type categoryProductsResponse struct {
 			Results    int `json:"results"`
 			Page       int `json:"page"`
 		} `json:"page"`
-		Facets []struct {
-			Name        string `json:"name"`
-			DisplayName string `json:"displayName"`
-			Type        string `json:"type"`
-			Values      []struct {
-				Value        string `json:"value"`
-				DisplayValue string `json:"displayValue"`
-				Count        int    `json:"count"`
-				Applied      bool   `json:"applied"`
-			} `json:"values"`
-		} `json:"facets"`
 	} `json:"meta"`
 	Links struct {
-		Self  string `json:"self"`
-		First string `json:"first"`
-		Last  string `json:"last"`
-		Next  string `json:"next"`
+		Next string `json:"next"`
 	} `json:"links"`
 	Data []struct {
-		Type       string `json:"type"`
-		ID         string `json:"id"`
 		Attributes struct {
-			ProductReference string `json:"productReference"`
-			Name             string `json:"name"`
-			URL              string `json:"url"`
-			Pricing          struct {
-				Currency     string `json:"currency"`
-				TaxInclusive bool   `json:"taxInclusive"`
-				Pricing      string `json:"pricing"`
-				Min          struct {
-					Rendered string `json:"rendered"`
-					Currency string `json:"currency"`
-					Value    int    `json:"value"`
-				} `json:"min"`
-				Max struct {
-					Rendered string `json:"rendered"`
-					Currency string `json:"currency"`
-					Value    int    `json:"value"`
-				} `json:"max"`
-				MaxRetail struct {
-					Rendered string `json:"rendered"`
-					Currency string `json:"currency"`
-					Value    int    `json:"value"`
-				} `json:"maxRetail"`
-			} `json:"pricing"`
-			Images []struct {
-				Ratio   string `json:"ratio"`
-				RiasURL string `json:"riasUrl"`
-			} `json:"images"`
-			Attributes struct {
-				ColorCode     string      `json:"colorCode"`
-				ColorName     string      `json:"colorName"`
-				ColorHex      []string    `json:"colorHex"`
-				ColorGroupHex []string    `json:"colorGroupHex"`
-				CategoryPath  string      `json:"categoryPath"`
-				Rating        interface{} `json:"rating"`
-			} `json:"attributes"`
-			Tags []struct {
-				Collection        string `json:"collection,omitempty"`
-				Feature           string `json:"feature,omitempty"`
-				ScheduledMessage  string `json:"scheduled-message,omitempty"`
-				WeatherRatingRain string `json:"weather-rating-rain,omitempty"`
-			} `json:"tags"`
+			URL string `json:"url"`
 		} `json:"attributes"`
 	} `json:"data"`
 }
@@ -453,21 +393,26 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		c.logger.Debug(err)
 		return err
 	}
-	ioutil.WriteFile("D:\\STS5\\New_VoilaCrawl\\VoilaCrawler\\Output_1.html", respBody, 0644)
+
 	lastIndex := nextIndex(ctx)
+
 	var viewData categoryProductsResponse
-	fmt.Println(`resp.Request. `, resp.Request.URL.Path)
-	if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+
+	if !c.categoryPathApiMatcher.MatchString(resp.Request.URL.Path) {
+
 		s := strings.Split(strings.TrimSuffix(resp.Request.URL.Path, `/`), `/`)
 		pid := s[len(s)-1]
 
 		rootURL := "https://www.hunterboots.com/us/en_us/api/catalog/products/" + pid + "/us/EUPG01/en_US/?page[number]=1&page[size]=24"
 
-		respBodyC := c.categoryProductsRequest(ctx, rootURL, resp.Request.URL.String())
-		ioutil.WriteFile("D:\\STS5\\New_VoilaCrawl\\VoilaCrawler\\Output"+strconv.Format(lastIndex)+".html", respBodyC, 0644)
-		fmt.Println("done...")
+		respBodyC, _ := c.variationRequest(ctx, rootURL, resp.Request.URL.String())
 
 		if err := json.Unmarshal(respBodyC, &viewData); err != nil {
+			c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+			return err
+		}
+	} else {
+		if err := json.Unmarshal(respBody, &viewData); err != nil {
 			c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
 			return err
 		}
@@ -480,9 +425,11 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	for _, idv := range viewData.Data {
 
-		rawurl, _ := c.CanonicalUrl(idv.Attributes.URL)
-
-		fmt.Println(lastIndex, " ", rawurl)
+		rawurl, err := c.CanonicalUrl(idv.Attributes.URL)
+		if err != nil {
+			continue
+		}
+		//fmt.Println(lastIndex, " ", rawurl)
 		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 		if err != nil {
 			c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
@@ -498,63 +445,26 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	// get current page number
-	page, _ := strconv.ParseInt(resp.Request.URL.Query().Get("page[number]"))
-	fmt.Println(`page `, page)
-
 	// check if this is the last page
-	if lastIndex >= viewData.Meta.Page.Results || page >= int64(viewData.Meta.Page.Pages) {
+	if lastIndex >= viewData.Meta.Page.Results || viewData.Meta.Page.Page >= viewData.Meta.Page.Pages {
 		return nil
 	}
 
-	// set pagination
-	u := *resp.Request.URL
-	vals := u.Query()
-	vals.Set("page[number]", strconv.Format(page+1))
-	u.RawQuery = vals.Encode()
+	u, _ := url.QueryUnescape(viewData.Links.Next)
 
-	req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, _ := http.NewRequest(http.MethodGet, u, nil)
 	// update the index of last page
 	nctx := context.WithValue(ctx, "item.index", lastIndex)
 	return yield(nctx, req)
 }
 
-func (c *_Crawler) categoryProductsRequest(ctx context.Context, url string, referer string) []byte {
-
-	req, _ := http.NewRequest(http.MethodGet, url, nil)
-	opts := c.CrawlOptions(req.URL)
-
-	req.Header.Set("accept", "application/json, text/plain, */*")
-	req.Header.Set("referer", "https://www.hunterboots.com"+referer)
-	req.Header.Add(`cookie`, `_gcl_au=1.1.1746811912.1630126168; _ga=GA1.2.125166996.1630126168; crl8.fpcuid=124f0070-d28b-4cc3-9a49-1969f3c8aa4a; _hjid=d732b178-1cc3-4e37-ac2c-d43afcc3363e; GlobalE_CT_Data={"CUID":"483184138.449817819.321","CHKCUID":null}; _scid=c1590e95-00a6-4f80-8883-5653adaea8e2; BVBRANDID=7dfb9cbb-d44b-418f-a2e7-0411f849ad6d; _gid=GA1.2.834711025.1631158687; GlobalE_Full_Redirect=false; token=undefined; GlobalE_SupportThirdPartCookies=true; _sctr=1|1631125800000; _aeaid=332b79ea-b641-4761-ba4d-284681aa9cf8; aeatstartmessage=true; GlobalE_Data={"countryISO":"US","currencyCode":"GBP","cultureCode":"en-US"}; stc114663=env:1631165241|20211010052721|20210909055721|1|1041477:20220909052721|uid:1630126171568.1906915484.1347685.114663.1499012269:20220909052721|srchist:1041477:1631165241:20211010052721:20220909052721|tsa:1631165241880.459461039.38041353.763137507379525.1:20210909055721; _hjAbsoluteSessionInProgress=0; _hjIncludedInSessionSample=0; skip_geocode=1; _dc_gtm_UA-11730184-1=1; ometria=2_cid=XaHecdX9PJSd3slP&nses=9&osts=1630126171&sid=2344ee93Gh9E4yXHMGKd&npv=3&tids=&slt=1631253182; stc113516=env:1631251701|20211119052821|20210910062302|3|1028364:20220910055302|uid:1631158756340.184967259.8643341.113516.1967005747.:20220910055302|srchist:1028364:1631251701:20211119052821:20220910055302|tsa:1631251701803.615200736.3742375.4468504780622091.4:20210910062302; ABTasty=uid=9n2sh6yb4npwqm27&fst=1630126168027&pst=1631242644166&cst=1631249083004&ns=14&pvt=70&pvis=4&th=650924.807921.56.4.8.1.1631158754013.1631253238430.1_745561.926508.21.8.5.1.1631158754136.1631170661662.1; ABTastySession=mrasn=&sen=14&lp=https%3A%2F%2Fwww.hunterboots.com%2Fus%2Fen_us%2Fmens-insulated-boots`)
-
-	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-		EnableProxy:       true,
-		EnableHeadless:    false,
-		EnableSessionInit: false,
-		Reliability:       opts.Reliability,
-	})
-	if err != nil {
-		c.logger.Error(err)
-		//return nil, err
-	}
-	defer resp.Body.Close()
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-
-	ioutil.WriteFile("D:\\STS5\\New_VoilaCrawl\\VoilaCrawler\\Output_categoryProducts.html", respBody, 0644)
-	return respBody
-}
-
-func TrimSpaceNewlineInString(s []byte) []byte {
+func TrimSpaceNewlineInString(s string) string {
 	re := regexp.MustCompile(`\n`)
-	resp := re.ReplaceAll(s, []byte(" "))
-	resp = bytes.ReplaceAll(resp, []byte("\\n"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("\r"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("\t"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("&lt;"), []byte("<"))
-	resp = bytes.ReplaceAll(resp, []byte("&gt;"), []byte(">"))
-	resp = bytes.ReplaceAll(resp, []byte("  "), []byte(" "))
+	resp := re.ReplaceAllString(s, " ")
+	resp = strings.ReplaceAll(resp, "\\n", " ")
+	resp = strings.ReplaceAll(resp, "\r", " ")
+	resp = strings.ReplaceAll(resp, "\t", " ")
+	resp = strings.ReplaceAll(resp, "  ", " ")
 	return resp
 }
 
@@ -568,10 +478,7 @@ type parseProductResponse struct {
 	ColorCode           string `json:"colorCode"`
 	CategoryPath        string `json:"categoryPath"`
 	AvailableToPurchase bool   `json:"availableToPurchase"`
-	Tags                []struct {
-		Key   string `json:"key"`
-		Value string `json:"value"`
-	} `json:"tags"`
+
 	Images []struct {
 		Ratio   string `json:"ratio"`
 		RiasURL string `json:"riasUrl"`
@@ -722,8 +629,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	ioutil.WriteFile("D:\\STS5\\New_VoilaCrawl\\VoilaCrawler\\Output_Product.html", respBody, 0644)
-
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
 		return err
@@ -740,9 +645,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
 		return err
 	}
-
-	// s := strings.Split(resp.Request.URL.Path, `/`)
-	// pid := s[len(s)-1]
 
 	rootURL := "https://www.hunterboots.com/us/en_us/api/product/skus/EUPG01/" + viewDataProduct.Sku
 
@@ -764,9 +666,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			fmt.Println(err)
 		}
 
-		//ret["data"] = bytes.TrimSuffix(bytes.TrimPrefix(bytes.ReplaceAll(bytes.ReplaceAll(ret["data"], []byte(`\\`), []byte(``)), []byte(`\"`), []byte(`"`)), []byte(`"`)), []byte(`"`))
-
-		ret["data"] = bytes.TrimSuffix(bytes.TrimPrefix(bytes.ReplaceAll(ret["data"], []byte(`\"`), []byte(`"`)), []byte(`"`)), []byte(`"`))
+		ret["data"] = bytes.TrimSuffix(bytes.TrimPrefix(bytes.ReplaceAll(bytes.ReplaceAll(ret["data"], []byte(`\\u`), []byte(`\u`)), []byte(`\"`), []byte(`"`)), []byte(`"`)), []byte(`"`))
 
 		if err := json.Unmarshal([]byte(html.UnescapeString(string(ret["data"]))), &viewDataDetail); err != nil {
 			c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
@@ -808,14 +708,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	// desc
 	description := viewDataDetail.ProductDetails.Description + viewDataDetail.ProductDetails.Features
-	item.Description = htmlTrimRegp.ReplaceAllString(description, ``)
+	item.Description = TrimSpaceNewlineInString(htmlTrimRegp.ReplaceAllString(description, ``))
 
 	//images
 	var medias []*pbMedia.Media
 	for j, mid := range viewDataDetail.Images {
-		imgurl := mid.RiasURL
-		if strings.HasPrefix(mid.RiasURL, `//`) {
-			imgurl = "https:" + mid.RiasURL
+		imgurl := strings.ReplaceAll(mid.RiasURL, `\/`, `/`)
+		if !strings.HasPrefix(mid.RiasURL, `http`) {
+			imgurl = "https:" + imgurl
 		}
 		imgurl = strings.ReplaceAll(strings.ReplaceAll(imgurl, `{quality}`, `85`), `{extension}`, `webp`)
 
@@ -828,8 +728,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			"", j == 0))
 	}
 
-	item.Medias = medias
 	for i, breadcrumb := range strings.Split(viewDataDetail.CategoryPath, `/`) {
+		breadcrumb := strings.TrimSuffix(breadcrumb, `\`)
 
 		if i == 0 {
 			item.Category = breadcrumb
@@ -845,7 +745,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	currentPrice, _ := strconv.ParsePrice(viewDataDetail.Pricing.MinAsMoney.Value)
-	msrp, _ := strconv.ParsePrice(viewDataDetail.Pricing.MaxAsMoney.Value)
+	msrp, _ := strconv.ParsePrice(viewDataDetail.Pricing.MaxRetailAsMoney.Value)
 
 	if msrp == 0 {
 		msrp = currentPrice
@@ -865,8 +765,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
-			//Medias: medias,
-			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			Medias: medias,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
 		if rawSku.HasStock {
@@ -952,18 +852,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	// other products
 	if ctx.Value("groupId") == nil {
-		//nctx := context.WithValue(ctx, "groupId", item.GetSource().GetId())
+		nctx := context.WithValue(ctx, "groupId", item.GetSource().GetId())
 		for _, colorSizeOption := range viewDataDetail.Siblings {
 			if colorSizeOption.Reference == viewDataDetail.Reference {
 				continue
 			}
-			nextProductUrl := fmt.Sprintf("https://www.hunterboots.com%s", colorSizeOption.URL)
+			nextProductUrl, _ := c.CanonicalUrl(strings.ReplaceAll(colorSizeOption.URL, `\/`, `/`))
 			fmt.Println(colorSizeOption.ColorName, " ", nextProductUrl)
-			// if req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil); err != nil {
-			// 	return err
-			// } else if err = yield(nctx, req); err != nil {
-			// 	return err
-			// }
+			if req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil); err != nil {
+				return err
+			} else if err = yield(nctx, req); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -977,7 +877,6 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 
 	req.Header.Set("accept", "application/json, text/plain, */*")
 	req.Header.Set("referer", referer)
-	req.Header.Add(`cookie`, `_gcl_au=1.1.1746811912.1630126168; _ga=GA1.2.125166996.1630126168; crl8.fpcuid=124f0070-d28b-4cc3-9a49-1969f3c8aa4a; _hjid=d732b178-1cc3-4e37-ac2c-d43afcc3363e; GlobalE_CT_Data={"CUID":"483184138.449817819.321","CHKCUID":null}; _scid=c1590e95-00a6-4f80-8883-5653adaea8e2; BVBRANDID=7dfb9cbb-d44b-418f-a2e7-0411f849ad6d; _gid=GA1.2.834711025.1631158687; GlobalE_Full_Redirect=false; token=undefined; GlobalE_SupportThirdPartCookies=true; _sctr=1|1631125800000; _aeaid=332b79ea-b641-4761-ba4d-284681aa9cf8; aeatstartmessage=true; GlobalE_Data={"countryISO":"US","currencyCode":"GBP","cultureCode":"en-US"}; stc114663=env:1631165241|20211010052721|20210909055721|1|1041477:20220909052721|uid:1630126171568.1906915484.1347685.114663.1499012269:20220909052721|srchist:1041477:1631165241:20211010052721:20220909052721|tsa:1631165241880.459461039.38041353.763137507379525.1:20210909055721; _hjAbsoluteSessionInProgress=0; ABTasty=uid=9n2sh6yb4npwqm27&fst=1630126168027&pst=1631249083004&cst=1631251699458&ns=15&pvt=68&pvis=1&th=650924.807921.54.1.9.1.1631158754013.1631251700168.1_745561.926508.21.8.5.1.1631158754136.1631170661662.1; ABTastySession=mrasn=&sen=2&lp=https%3A%2F%2Fwww.hunterboots.com%2Fus%2Fen_us%2Fmens-insulated-boots; _hjIncludedInSessionSample=0; ometria=2_cid=XaHecdX9PJSd3slP&nses=9&osts=1630126171&sid=2344ee93Gh9E4yXHMGKd&npv=1&tids=&slt=1631251701; stc113516=env:1631251701|20211119052821|20210910055821|1|1028364:20220910052821|uid:1631158756340.184967259.8643341.113516.1967005747.:20220910052821|srchist:1028364:1631251701:20211119052821:20220910052821|tsa:1631251701803.615200736.3742375.4468504780622091.4:20210910055821; skip_geocode=1`)
 
 	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 		EnableProxy:       true,
@@ -993,7 +892,6 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 
-	ioutil.WriteFile("D:\\STS5\\New_VoilaCrawl\\VoilaCrawler\\Output_Product_js.html", respBody, 0644)
 	return respBody, err
 }
 
@@ -1003,7 +901,10 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.hunterboots.com/us/en_us",
 		//"https://www.hunterboots.com/us/en_us/womens-footwear-rainboots",
 		// "https://www.hunterboots.com/us/en_us/womens-ankle-boots",
-		"https://www.hunterboots.com/us/en_us/womens-ankle-boots/womens-original-chelsea-boots/yellow/6503",
+		//"https://www.hunterboots.com/us/en_us/womens-ankle-boots/womens-original-chelsea-boots/yellow/6503",
+		//"https://www.hunterboots.com/us/en_us/sale-womens-sale-footwear",
+		//"https://www.hunterboots.com/us/en_us/mens-winter-footwear/mens-insulated-roll-top-sherpa-boots/black/7226",
+		"https://www.hunterboots.com/us/en_us/kids-rain-boots/kids-first-classic-nebula-rain-boots/blue/7249",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -1028,7 +929,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
-
 	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
