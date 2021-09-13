@@ -431,6 +431,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	description := htmlTrimRegp.ReplaceAllString(doc.Find(`.c-product-description`).First().Text(), " ")
 	item.Description = string(TrimSpaceNewlineInString([]byte(description)))
 
+	fmt.Println(len(doc.Find(`.c-product-price__formatted-price--is-reduced`).Nodes))
+	fmt.Println(len(doc.Find(`.c-product-price__formatted-price`).Nodes))
+
+	fmt.Println(doc.Find(`.c-product-price__formatted-price`).Text())
+
 	msrp, _ := strconv.ParsePrice(doc.Find(`.c-product-price__formatted-price--original`).Text())
 	currentPrice, _ := strconv.ParsePrice(doc.Find(`.c-product-price__formatted-price--is-reduced`).Text())
 
@@ -556,22 +561,58 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
+	if len(sel.Nodes) == 0 {
+
+		sku := pbItem.Sku{
+			SourceId: pid,
+			Price: &pbItem.Price{
+				Currency: regulation.Currency_USD,
+				Current:  int32(currentPrice * 100),
+				Msrp:     int32(msrp * 100),
+				Discount: int32(discount),
+			},
+			Medias: item.Medias,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+		}
+
+		if strings.Contains(doc.Find(`.c-purchase-buttons__button--add-to-bag`).AttrOr("aria-disabled", ""), "true") {
+			sku.Stock.StockStatus = pbItem.Stock_OutOfStock
+		}
+
+		if colorSelected != nil {
+			sku.Specs = append(sku.Specs, colorSelected)
+		} else {
+			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+				Type:  pbItem.SkuSpecType_SkuSpecColor,
+				Id:    "-",
+				Name:  "-",
+				Value: "-",
+			})
+		}
+
+		for _, spec := range sku.Specs {
+			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+		}
+		item.SkuItems = append(item.SkuItems, &sku)
+	}
+
 	// yield item result
 	if err = yield(ctx, &item); err != nil {
 		c.logger.Errorf("yield sub request failed, error=%s", err)
 		return err
 	}
 
-	// found other color
+	///found other color
 	sel = doc.Find(`#PdpProductColorSelectorOpts>li`)
 	for i := range sel.Nodes {
+		nctx := context.WithValue(ctx, "groupId", item.GetSource().GetId())
 		node := sel.Eq(i)
 		color := strings.TrimSpace(node.Find(`a`).AttrOr("title", ""))
 		if !strings.Contains(node.Find(`a`).AttrOr(`class`, ``), `o-style-option__option--is-checked`) {
 			c.logger.Debugf("found color %s %t", color, color == colorName)
 
-			u := node.Find(`a`).AttrOr("href", "")
-			if u == "" {
+			u, err := c.CanonicalUrl(node.Find(`a`).AttrOr("href", ""))
+			if u == "" || err == nil {
 				continue
 			}
 			req, err := http.NewRequest(http.MethodGet, u, nil)
@@ -579,7 +620,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				c.logger.Error(err)
 				continue
 			}
-			if err := yield(ctx, req); err != nil {
+			if err := yield(nctx, req); err != nil {
 				return err
 			}
 		}
@@ -598,7 +639,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.aldoshoes.com/us/en_US/gleawia-white/p/13189060",
 		//"https://www.aldoshoes.com/us/en_US/women/footwear/boots",
 		//"https://www.aldoshoes.com/us/en_US/women/lilya-bone/p/13265499",
-		"https://www.aldoshoes.com/us/en_US/women/adreilla-black/p/13199940",
+		"https://www.aldoshoes.com/us/en_US/women/unilax-white/p/13265491",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
