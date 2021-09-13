@@ -123,7 +123,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
 	if c.productPathMatcher.MatchString(p) {
@@ -262,60 +262,6 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 		return nil, err
 	}
 	return cates, nil
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.c-navigation.c-navigation--primary>ul>li`)
-
-	for a := range sel.Nodes {
-		node := sel.Eq(a)
-
-		catname := strings.TrimSpace(node.Find(`span`).First().Text())
-		if catname == "" {
-			continue
-		}
-		fmt.Println()
-		fmt.Println(`CategoryName >>`, catname)
-		//nctx := context.WithValue(ctx, "Category", cateName)
-
-		sublvl1div := node.Find(`li[class="u-hide@md-mid"]`)
-		fmt.Println(len(sel.Nodes))
-		for b := range sublvl1div.Nodes {
-			sublvl1 := sublvl1div.Eq(b)
-			sublvl1name := strings.TrimSpace(sublvl1.Find(`span`).First().Text())
-
-			sublvl2 := sublvl1.Find(`li`)
-			for c := range sublvl2.Nodes {
-				selsublvl3 := sublvl2.Eq(c)
-				sublvl2name := strings.TrimSpace(selsublvl3.Find(`a`).First().Text())
-				if sublvl2name == "" {
-					continue
-				}
-				fmt.Println(sublvl1name + " > " + sublvl2name)
-
-				// nnnctx := context.WithValue(nnctx, "SubCategory", sublvl2name)
-				// req, _ := http.NewRequest(http.MethodGet, href, nil)
-				// if err := yield(nnnctx, req); err != nil {
-				// return err
-			}
-		}
-	}
-	return nil
 }
 
 // parseCategoryProducts parse api url from web page url
