@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -122,7 +121,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
+		return crawler.ErrUnsupportedPath
 	}
 
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -182,8 +181,8 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					continue
 				}
 
-				href := sublvl1.Find(`a`).First().AttrOr("href", "")
-				if href == "" || sublvl1name == "" {
+				href, err := c.CanonicalUrl(sublvl1.Find(`a`).First().AttrOr("href", ""))
+				if href == "" || sublvl1name == "" || err != nil {
 					continue
 				}
 				u, err := url.Parse(href)
@@ -193,7 +192,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 
 				if c.categoryPathMatcher.MatchString(u.Path) {
-					if err := yield([]string{catname, sublvl1name}, "https://www.evelom.com"+href); err != nil {
+					if err := yield([]string{catname, sublvl1name}, href); err != nil {
 						return err
 					}
 				}
@@ -240,64 +239,6 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 	return cates, nil
 }
 
-// @deprecated
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`#shopify-section-header`).Find(`nav[class="nav-bar"] > ul > li`)
-	fmt.Println(len(sel.Nodes))
-
-	for a := range sel.Nodes {
-		node := sel.Eq(a)
-
-		catname := strings.TrimSpace(node.Find(`a`).First().Text())
-		if catname == "" {
-			continue
-		}
-		fmt.Println()
-		fmt.Println(`CategoryName >>`, catname)
-
-		sublvl1div := node.Find(`ul > li`)
-		for b := range sublvl1div.Nodes {
-			sublvl1 := sublvl1div.Eq(b)
-			sublvl1name := strings.TrimSpace(sublvl1.Find(`a`).First().Text())
-			if sublvl1name == "" {
-				continue
-			}
-			fmt.Println(sublvl1name)
-
-			href := sublvl1.Find(`a`).First().AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-			_, err := url.Parse(href)
-			if err != nil {
-				//c.logger.Error("parse url %s failed", href)
-				continue
-			}
-
-			// nnnctx := context.WithValue(nnctx, "SubCategory", sublvl2name)
-			// req, _ := http.NewRequest(http.MethodGet, href, nil)
-			// if err := yield(nnnctx, req); err != nil {
-			// return err
-		}
-	}
-	return nil
-}
-
 type categoryStructure struct {
 	Context         string `json:"@context"`
 	Type            string `json:"@type"`
@@ -338,8 +279,8 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	for _, procat := range viewData.ItemListElement {
 
-		href := procat.URL
-		if href == "" {
+		href, err := c.CanonicalUrl(procat.URL)
+		if href == "" || err != nil {
 			continue
 		}
 
@@ -543,11 +484,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	var medias []*pbMedia.Media
 	for m, mid := range viewData.Images {
 
-		imgURL := strings.ReplaceAll(strings.Split(mid, "?")[0], `.jpg`, ``)
-		if imgURL == "" {
+		imgURL, err := c.CanonicalUrl(strings.ReplaceAll(strings.Split(mid, "?")[0], `.jpg`, ``))
+		if err != nil {
 			continue
-		} else if !strings.HasPrefix(imgURL, "http") {
-			imgURL = "https:" + strings.ReplaceAll(strings.Split(mid, "?")[0], `.jpg`, ``)
 		}
 		medias = append(medias, pbMedia.NewImageMedia(
 			strconv.Format(m),
