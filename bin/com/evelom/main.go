@@ -514,7 +514,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
-	for i, rawVariation := range viewData.Variants {
+	for _, rawVariation := range viewData.Variants {
 		current, _ := strconv.ParsePrice(viewData.Price)
 		msrp, _ := strconv.ParsePrice(viewData.CompareAtPrice)
 		discount := 0.0
@@ -526,7 +526,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		sku := pbItem.Sku{
-			SourceId: strconv.Format(i),
+			SourceId: strconv.Format(rawVariation.ID),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(current),
@@ -600,7 +600,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.evelom.com/collections/masks/products/rescue-mask-100-ml",
 		//"https://www.evelom.com/collections/shop-all/products/begin-end-gift-set",
 		//"https://www.evelom.com/collections/best-sellers/products/moisture-cream",
-		"https://www.evelom.com/collections/cleanser/products/begin-end-gift-set",
+		//"https://www.evelom.com/collections/cleanser/products/begin-end-gift-set",
+		"https://www.evelom.com/collections/best-sellers/products/reveal-your-radiance-ritual",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
