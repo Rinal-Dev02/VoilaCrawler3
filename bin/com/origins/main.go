@@ -171,7 +171,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			node := sel.Eq(i)
 			cateName := strings.TrimSpace(node.Find(`.gnav-menu-item__title-wrap`).First().Text())
 
-			if cateName == "" {
+			if cateName == "" || strings.ToLower(cateName) == "skin services" || strings.ToLower(cateName) == "about us" {
 				continue
 			}
 
@@ -192,11 +192,9 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					subNode3 := subNode2list.Eq(j)
 					subcat3 := strings.TrimSpace(subNode3.Find(`.gnav-menu-link__item`).First().Text())
 
-					href := subNode3.Find(`a`).AttrOr("href", "")
-					if href == "" || subcat3 == "" {
+					href, err := c.CanonicalUrl(subNode3.Find(`a`).AttrOr("href", ""))
+					if href == "" || subcat3 == "" || err != nil {
 						continue
-					} else if !strings.HasPrefix(href, `http`) {
-						href = "https://www.origins.com" + href
 					}
 
 					u, err := url.Parse(href)
@@ -213,11 +211,9 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 
 				if len(subNode2list.Nodes) == 0 {
-					href := subNode2.Find(`a`).First().AttrOr("href", "")
-					if href == "" {
+					href, err := c.CanonicalUrl(subNode2.Find(`a`).First().AttrOr("href", ""))
+					if href == "" || err != nil {
 						continue
-					} else if !strings.HasPrefix(href, `http`) {
-						href = "https://www.origins.com" + href
 					}
 
 					u, err := url.Parse(href)
@@ -227,7 +223,6 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					}
 
 					if c.categoryPathMatcher.MatchString(u.Path) {
-
 						if err := yield([]string{cateName, subcat2}, href); err != nil {
 							return err
 						}
@@ -279,7 +274,6 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 }
 
 // parseCategoryProducts parse api url from web page url
-
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
@@ -303,7 +297,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		if href, _ := node.Find(`a`).Attr("href"); href != "" {
+		if href, err := c.CanonicalUrl(node.Find(`a`).AttrOr("href", ``)); err == nil && href != "" {
 
 			req, err := http.NewRequest(http.MethodGet, href, nil)
 			if err != nil {
@@ -343,6 +337,8 @@ func TrimSpaceNewlineInString(s []byte) []byte {
 
 var productsDetailsReg = regexp.MustCompile(`(?Ums)<script type="application/json"\s*id="page_data">\s*({.*})\s*</script>`)
 
+var productsReviewExtractReg = regexp.MustCompile(`(?Ums)<script type="application/ld\+json">\s*({.*})\s*</script>`)
+
 // used to trim html labels in description
 var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
 
@@ -354,8 +350,54 @@ type parseProductResponse struct {
 	} `json:"analytics-datalayer"`
 	CatalogSpp struct {
 		Products []struct {
-			DESCRIPTION string `json:"DESCRIPTION"`
-			Skus        []struct {
+			Path                   string      `json:"path"`
+			Description            string      `json:"DESCRIPTION"`
+			Feature                interface{} `json:"FEATURE"`
+			MiscFlag               int         `json:"MISC_FLAG"`
+			ContentVideoTitle      interface{} `json:"CONTENT_VIDEO_TITLE"`
+			FamilyCode             string      `json:"FAMILY_CODE"`
+			VideoSource1           string      `json:"VIDEO_SOURCE_1"`
+			ImageMV2               []string    `json:"IMAGE_M_V2"`
+			RatingRange            interface{} `json:"RATING_RANGE"`
+			MetaDescription        string      `json:"META_DESCRIPTION"`
+			ImageSV2               []string    `json:"IMAGE_S_V2"`
+			ShopAllFilter          string      `json:"SHOP_ALL_FILTER"`
+			Video1File             interface{} `json:"VIDEO_1_FILE"`
+			VideoPoster            []string    `json:"VIDEO_POSTER"`
+			ProdSkinTypeText       string      `json:"PROD_SKIN_TYPE_TEXT"`
+			SkinConcernAttr        interface{} `json:"SKIN_CONCERN_ATTR"`
+			ContentVideoPoster     string      `json:"CONTENT_VIDEO_POSTER"`
+			Video2Name             interface{} `json:"VIDEO_2_NAME"`
+			ImageLV2               []string    `json:"IMAGE_L_V2"`
+			WorksWith              []string    `json:"worksWith"`
+			Shaded                 int         `json:"shaded"`
+			DefaultPath            string      `json:"defaultPath"`
+			VideoSource2           string      `json:"VIDEO_SOURCE_2"`
+			VideoSource3           string      `json:"VIDEO_SOURCE_3"`
+			FilterFinish           interface{} `json:"FILTER_FINISH"`
+			ProdCatDisplayOrder    int         `json:"PROD_CAT_DISPLAY_ORDER"`
+			ImageM                 []string    `json:"IMAGE_M"`
+			ImageL                 []string    `json:"IMAGE_L"`
+			Formula                interface{} `json:"FORMULA"`
+			TestimonialsProduct    interface{} `json:"TESTIMONIALS_PRODUCT"`
+			VideoPoster1           string      `json:"VIDEO_POSTER_1"`
+			VideoPoster2           string      `json:"VIDEO_POSTER_2"`
+			VideoPoster3           string      `json:"VIDEO_POSTER_3"`
+			ImageXl                []string    `json:"IMAGE_XL"`
+			SkinConcernLabel       string      `json:"SKIN_CONCERN_LABEL"`
+			TestimonialsProdSource interface{} `json:"TESTIMONIALS_PROD_SOURCE"`
+			AttributeSkintype      interface{} `json:"ATTRIBUTE_SKINTYPE"`
+			RatingImage            string      `json:"RATING_IMAGE"`
+			KeyIngredient          interface{} `json:"KEY_INGREDIENT"`
+			WhyItIsDifferent       interface{} `json:"WHY_IT_IS_DIFFERENT"`
+			Sized                  int         `json:"sized"`
+			Finish                 interface{} `json:"FINISH"`
+			ProdCatImageName       string      `json:"PROD_CAT_IMAGE_NAME"`
+			Video1Title            interface{} `json:"VIDEO_1_TITLE"`
+			ProductID              string      `json:"PRODUCT_ID"`
+			RecommendedCount       interface{} `json:"RECOMMENDED_COUNT"`
+
+			Skus []struct {
 				PRODUCTSIZE       string   `json:"PRODUCT_SIZE"`
 				PRICE2            float64  `json:"PRICE2"`
 				SKUID             string   `json:"SKU_ID"`
@@ -371,6 +413,14 @@ type parseProductResponse struct {
 			PRODRGNSUBHEADING string `json:"PROD_RGN_SUBHEADING"`
 		} `json:"products"`
 	} `json:"catalog-spp"`
+}
+
+type parseProductReview struct {
+	AggregateRating struct {
+		Type        string  `json:"@type"`
+		RatingValue float64 `json:"ratingValue"`
+		ReviewCount int     `json:"reviewCount"`
+	} `json:"aggregateRating"`
 }
 
 // parseProduct
@@ -397,6 +447,21 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
+	var viewDatavariant parseProductReview
+	matched1 := productsReviewExtractReg.FindSubmatch([]byte(respBody))
+	if len(matched) > 1 {
+		if err := json.Unmarshal(matched1[1], &viewDatavariant); err != nil {
+			c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
+			return err
+		}
+	}
+
+	reviewCount := int64(0)
+	rating := float64(0)
+
+	reviewCount, _ = strconv.ParseInt(viewDatavariant.AggregateRating.ReviewCount)
+	rating, _ = strconv.ParseFloat(viewDatavariant.AggregateRating.RatingValue)
+
 	canUrl, _ := c.CanonicalUrl(doc.Find(`link[rel="canonical"]`).AttrOr("href", ""))
 	if canUrl == "" {
 		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
@@ -412,16 +477,46 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		},
 		BrandName:   "Origins",
 		Title:       viewData.AnalyticsDatalayer.ProductName[0],
-		Description: htmlTrimRegp.ReplaceAllString(viewData.CatalogSpp.Products[0].DESCRIPTION, ``),
+		Description: htmlTrimRegp.ReplaceAllString(viewData.CatalogSpp.Products[0].Description, ``),
 		Category:    viewData.AnalyticsDatalayer.ProductCategoryName[0],
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
-
+		Stats: &pbItem.Stats{
+			ReviewCount: int32(reviewCount),
+			Rating:      float32(rating),
+		},
 		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 
 	for _, itema := range viewData.CatalogSpp.Products {
+		var videos []*pbMedia.Media
+
+		if itema.VideoSource1 != "" {
+			videos = append(videos, pbMedia.NewVideoMedia(
+				strconv.Format(1),
+				"",
+				"https://www.youtube.com/embed/"+itema.VideoSource1+"?autoplay=1",
+				300, 300, 0, "https://www.origins.com"+itema.VideoPoster1, "",
+				true))
+		}
+		if itema.VideoSource2 != "" {
+			videos = append(videos, pbMedia.NewVideoMedia(
+				strconv.Format(2),
+				"",
+				"https://www.youtube.com/embed/"+itema.VideoSource2+"?autoplay=1",
+				0, 0, 0, "https://www.origins.com"+itema.VideoPoster2, "",
+				true))
+		}
+		if itema.VideoSource3 != "" {
+			videos = append(videos, pbMedia.NewVideoMedia(
+				strconv.Format(3),
+				"",
+				"https://www.youtube.com/embed/"+itema.VideoSource3+"?autoplay=1",
+				0, 0, 0, "https://www.origins.com"+itema.VideoPoster3, "",
+				true))
+		}
+
 		for _, rawSku := range itema.Skus {
 
 			currentPrice, _ := strconv.ParsePrice(rawSku.PRICE)
@@ -449,25 +544,21 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			//images
-
 			for j, img := range rawSku.LARGEIMAGEV2 {
-
-				imgurl := img
-				if imgurl == "" {
+				imgurl, err := c.CanonicalUrl(img)
+				if err != nil {
 					continue
-				} else if !strings.HasPrefix(imgurl, "http") {
-					imgurl = "https://www.origins.com" + img
 				}
 
 				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
 					strconv.Format(j),
 					imgurl,
-					imgurl,
-					strings.ReplaceAll(imgurl, `1000x1000`, "600x600_gray"),
-					strings.ReplaceAll(imgurl, `1000x1000`, "100x100"),
+					imgurl, imgurl+"?v=1", imgurl+"?v=1",
+					// strings.ReplaceAll(imgurl, `1000x1000`, "600x600_gray"),
+					// strings.ReplaceAll(imgurl, `1000x1000`, "100x100"),
 					"", j == 0))
 			}
-
+			sku.Medias = append(sku.Medias, videos...)
 			if rawSku.RsSkuAvailability > 0 {
 				item.Stock.StockStatus = pbItem.Stock_InStock
 				sku.Stock.StockStatus = pbItem.Stock_InStock
@@ -484,7 +575,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			// size
-			if rawSku.SHADENAME != "" {
+			if rawSku.PRODUCTSIZE != "" {
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 					Type:  pbItem.SkuSpecType_SkuSpecSize,
 					Id:    rawSku.PRODUCTSIZE,
@@ -497,19 +588,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			if subTitle == "" {
 				subTitle = "-"
 			}
-			if rawSku.SHADENAME == "" && rawSku.SHADENAME == "" {
+			if rawSku.PRODUCTSIZE == "" && rawSku.SHADENAME == "" {
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 					Type:  pbItem.SkuSpecType_SkuSpecColor,
 					Id:    subTitle,
 					Name:  subTitle,
 					Value: subTitle,
-				})
-
-				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecSize,
-					Id:    rawSku.PRODUCTSIZE,
-					Name:  rawSku.PRODUCTSIZE,
-					Value: rawSku.PRODUCTSIZE,
 				})
 			}
 
@@ -524,14 +608,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		//"https://origins.com/",
-		//"https://www.origins.com/",
+		//"https://www.origins.com/products/15352/skincare/moisturize/moisturizers",
 		//"https://www.origins.com/products/15332/bath-body",
 		//"https://www.origins.com/whats-new",
 		//"https://www.origins.com/product/15370/68585/makeup/face-makeup/foundation/pretty-in-bloom/flower-infused-long-wear-foundation-spf20",
-		"https://www.origins.com/product/15348/90674/skincare/treat/eye-care/ginzing/vitamin-c-niacinamide-eye-cream-to-brighten-and-depuff",
+		//"https://www.origins.com/product/15348/90674/skincare/treat/eye-care/ginzing/vitamin-c-niacinamide-eye-cream-to-brighten-and-depuff",
 		//	"https://www.origins.com/product/15346/66858/skincare/treat/mask/glow-co-nuts/hydrating-coconut-mask",
 		//"https://www.origins.com/product/15347/84612/skincare/treat/serums/plantscription/multi-powered-youth-serum",
+		//"https://www.origins.com/product/15352/39259/skincare/moisturize/moisturizers/dr-andrew-weil-for-origins/mega-defense-barrier-boosting-essence-oil#/sku/68083",
+		//"https://www.origins.com/product/15352/23831/skincare/moisturize/moisturizers/make-a-difference-plus/rejuvenating-moisturizer",
+		"https://www.origins.com/product/15346/62427/skincare/treat/mask/clear-improvement/active-charcoal-mask-to-clear-pores#/sku/98640",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -556,6 +642,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
