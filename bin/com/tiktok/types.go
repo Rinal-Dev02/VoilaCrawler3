@@ -281,12 +281,12 @@ type PropDataV1 struct {
 					Type       string `json:"type"`
 				} `json:"header"`
 			} `json:"pageOptions"`
-			Items               []TiktokItem `json:"videoData"`
-			VideoListHasMore    bool         `json:"videoListHasMore"`
-			VideoListMaxCursor  int64        `json:"videoListMaxCursor"`
-			VideoListMinCursor  int64        `json:"videoListMinCursor"`
-			VideoListStatusCode int          `json:"videoListStatusCode"`
-			VideoListMode       string       `json:"videoListMode"`
+			Items               []*TiktokItem `json:"videoData"`
+			VideoListHasMore    bool          `json:"videoListHasMore"`
+			VideoListMaxCursor  int64         `json:"videoListMaxCursor"`
+			VideoListMinCursor  int64         `json:"videoListMinCursor"`
+			VideoListStatusCode int           `json:"videoListStatusCode"`
+			VideoListMode       string        `json:"videoListMode"`
 		} `json:"pageProps"`
 	} `json:"props"`
 	BuildID      string `json:"buildId"`

@@ -32,6 +32,7 @@ import (
 	"github.com/voiladev/go-framework/protoutil"
 	"github.com/voiladev/go-framework/strconv"
 	"github.com/voiladev/go-framework/timeutil"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 const userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"
@@ -335,61 +336,122 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 		return nil
 	}
 
-	matched := c.personalVideoList.FindStringSubmatch(resp.Request.URL.Path)
-	if len(matched) == 0 {
-		return errors.New("unsupported username")
-	}
-	u := fmt.Sprintf("%s/by_username?username=%s&count=%d", c.tiktokApiAddr, matched[1], 36)
-	req, err := rhttp.NewRequestWithContext(ctx, rhttp.MethodGet, u, nil)
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-	_resp, err := rhttp.DefaultClient.Do(req)
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-	defer _resp.Body.Close()
-
-	var videos []*TikTokItemV2
-	if err := json.NewDecoder(_resp.Body).Decode(&videos); err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	for _, prop := range videos {
-		item := pbItem.Tiktok_Item{
-			Source: &pbItem.Tiktok_Source{
-				Id:         prop.ID,
-				SourceUrl:  fmt.Sprintf("https://www.tiktok.com/@%s/video/%s?lang=en", prop.Author.UniqueID, prop.ID),
-				PublishUtc: int64(prop.CreateTime),
-			},
-			Author: &pbItem.Tiktok_Author{
-				Stats: &pbItem.Tiktok_Author_Stats{},
-			},
-			Title: prop.Desc,
-			Video: &media.Media_Video{
-				Cover: &media.Media_Image{},
-			},
+	opts := c.CrawlOptions(resp.RawUrl())
+	{
+		req, _ := http.NewRequest(http.MethodGet, "https://www.tiktok.com/foryou?is_copy_url=1&is_from_webapp=v1", nil)
+		for key := range opts.MustHeader {
+			req.Header.Set(key, opts.MustHeader.Get(key))
 		}
-		item.Author.Id = prop.Author.ID
-		item.Author.Name = prop.Author.UniqueID
-		item.Author.Nickname = prop.Author.Nickname
-		item.Author.Avatar = prop.Author.AvatarLarger
-		item.Author.Description = prop.Author.Signature
-		item.Author.Stats.FollowingCount = int32(prop.AuthorStats.FollowingCount)
-		item.Author.Stats.FollowerCount = int32(prop.AuthorStats.FollowerCount)
-		item.Author.Stats.LikeCount = int32(prop.AuthorStats.HeartCount)
-		item.Author.Stats.VideoCount = int32(prop.AuthorStats.VideoCount)
-		item.Author.Stats.DiggCount = int32(prop.AuthorStats.DiggCount)
+		if _, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy: true,
+			Reliability: pbProxy.ProxyReliability_ReliabilityRealtime,
+		}); err != nil {
+			c.logger.Error(err)
+			return err
+		}
+	}
 
+	req := resp.Request
+	for key := range opts.MustHeader {
+		req.Header.Set(key, opts.MustHeader.Get(key))
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{})
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+	rawdata, err := resp.RawBody()
+	if err != nil {
+		c.logger.Error(err)
+		return err
+	}
+
+	matched := propsDataReg.FindSubmatch(rawdata)
+	if len(matched) <= 1 {
+		return fmt.Errorf("next data for url %s not found", resp.Request.URL)
+	}
+
+	var viewData PropDataV1
+	if err := json.Unmarshal(matched[1], &viewData); err != nil {
+		return err
+	}
+
+	var (
+		cookies, _ = c.httpClient.Jar().Cookies(ctx, resp.Request.URL)
+		cookie     string
+		expiresAt  time.Time
+	)
+	for _, c := range cookies {
+		v := fmt.Sprintf("%s=%s", c.Name, c.Value)
+		if cookie == "" {
+			cookie = v
+		} else {
+			cookie += "; " + v
+		}
+
+		if !c.Expires.IsZero() {
+			if expiresAt.IsZero() || expiresAt.After(c.Expires) {
+				expiresAt = c.Expires
+			}
+		} else if c.MaxAge > 0 {
+			t := time.Now().Add(time.Second * time.Duration(c.MaxAge))
+			if expiresAt.IsZero() || expiresAt.After(t) {
+				expiresAt = t
+			}
+		}
+	}
+
+	userInfo := viewData.Props.PageProps.UserInfo
+	auth := pbItem.Tiktok_Author{
+		Id:          userInfo.User.ID,
+		Name:        userInfo.User.UniqueID,
+		Nickname:    userInfo.User.Nickname,
+		Avatar:      userInfo.User.AvatarLarger,
+		Description: userInfo.User.Signature,
+		Stats: &pbItem.Tiktok_Author_Stats{
+			FollowingCount: int32(userInfo.Stats.FollowingCount),
+			FollowerCount:  int32(userInfo.Stats.FollowerCount),
+			LikeCount:      int32(userInfo.Stats.HeartCount),
+			VideoCount:     int32(userInfo.Stats.VideoCount),
+			DiggCount:      int32(userInfo.Stats.DiggCount),
+		},
+	}
+
+	authData, _ := protojson.Marshal(&auth)
+	ctx = context.WithValue(ctx, "author", fmt.Sprintf("%s", authData))
+	lastIndex := nextIndex(ctx)
+
+	var (
+		// hasMore = viewData.Props.PageProps.VideoListHasMore
+		// cursor  = fmt.Sprintf("%v", viewData.Props.PageProps.VideoListMaxCursor)
+		items = viewData.Props.PageProps.Items
+	)
+	for _, prop := range items {
+		item := pbItem.Tiktok_Item{
+			Source: &pbItem.Tiktok_Source{},
+			Video:  &media.Media_Video{Cover: &media.Media_Image{}},
+			Author: &auth,
+			Headers: map[string]string{
+				"Referer": resp.Request.URL.String(),
+			},
+			Stats: &pbItem.Tiktok_Stats{
+				ShareCount:   int32(prop.Stats.ShareCount),
+				CommentCount: int32(prop.Stats.CommentCount),
+				PlayCount:    int32(prop.Stats.PlayCount),
+				DiggCount:    int32(prop.Stats.DiggCount),
+			},
+			CrawledUtc: time.Now().Unix(),
+		}
+		item.Source.Id = prop.ID
+		item.Source.SourceUrl = fmt.Sprintf("https://www.tiktok.com/@%s/video/%s?lang=en", prop.Author.UniqueID, prop.ID)
+		item.Source.PublishUtc = prop.CreateTime
+		item.Title = prop.Desc
 		if prop.Video.DownloadAddr != "" {
 			item.Video.OriginalUrl = prop.Video.DownloadAddr
 		} else if prop.Video.PlayAddr != "" {
 			item.Video.OriginalUrl = prop.Video.PlayAddr
 		} else {
-			return fmt.Errorf("no download url found for %s", _resp.Request.URL)
+			return fmt.Errorf("no download url found for %s", resp.Request.URL)
 		}
 		item.Video.Width = int32(prop.Video.Width)
 		item.Video.Height = int32(prop.Video.Height)
@@ -399,7 +461,6 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 		} else if prop.Video.Cover != "" {
 			item.Video.Cover.OriginalUrl = prop.Video.Cover
 		}
-
 		if item.GetVideo().GetCover().GetOriginalUrl() != "" {
 			if u, err :=
 				c.persistentResource(ctx,
@@ -410,11 +471,202 @@ func (c *_Crawler) parsePersonalVideoList(ctx context.Context, resp *http.Respon
 				item.Video.Cover.OriginalUrl = u
 			}
 		}
-		if err := yield(ctx, &item); err != nil {
+
+		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		lastIndex += 1
+		if err := yield(nctx, &item); err != nil {
 			return err
 		}
 	}
+	/*
+		if !hasMore {
+			break
+		}
+		u, _ := url.Parse("https://m.tiktok.com/api/post/item_list/")
+		vals := u.Query()
+		vals.Set("aid", "1988")
+		vals.Set("app_name", "tiktok_web")
+		vals.Set("device_platform", "web")
+		refererUrl := resp.Request.URL
+		vals.Set("referer", "")
+		refererUrl.RawQuery = ""
+		vals.Set("root_referer", "")
+		vals.Set("cookie_enabled", "true")
+		vals.Set("screen_width", "1920")
+		vals.Set("screen_height", "1080")
+		vals.Set("browser_language", "en-US")
+		vals.Set("browser_platform", "WindowsIntel")
+		vals.Set("browser_name", "Mozilla")
+		vals.Set("browser_version", "5.0 (iPhone; CPU iPhone OS 12_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1")
+		vals.Set("browser_online", "true")
+		vals.Set("timezone_name", "America/Chicago")
+		vals.Set("priority_region", "")
+		vals.Set("region", "US")
+		vals.Set("device_id", viewData.Props.InitialProps.Wid)
+		vals.Set("count", "30")
+		vals.Set("cursor", cursor)
+		vals.Set("secUid", viewData.Props.PageProps.UserInfo.User.SecUID)
+		vals.Set("language", "en")
+		u.RawQuery = vals.Encode()
+
+		// connect to tiktok server
+		signReq, _ := rhttp.NewRequestWithContext(ctx, http.MethodGet, c.tiktokApiAddr, nil)
+		signVals := signReq.URL.Query()
+		signVals.Set("url", u.String())
+		signVals.Set("custom_device_id", viewData.Props.InitialProps.Wid)
+		signReq.URL.RawQuery = signVals.Encode()
+
+		signresp, err := rhttp.DefaultClient.Do(signReq)
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		defer signresp.Body.Close()
+		if signresp.StatusCode != http.StatusOK {
+			c.logger.Errorf("%s", signresp.Status)
+			return errors.New("sign url failed")
+		}
+
+		data, err := io.ReadAll(signresp.Body)
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+
+		var ret struct {
+			Signature string `json:"_signature"`
+			DeviceId  string `json:"device_id"`
+			Referrer  string `json:"referrer"`
+			UserAgent string `json:"userAgent"`
+			VerifyFp  string `json:"verifyFp"`
+		}
+		if err := json.Unmarshal(data, &ret); err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		vals.Set("verifyFp", ret.VerifyFp)
+		vals.Set("_signature", ret.Signature)
+		u.RawQuery = vals.Encode()
+
+		req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+		for key := range opts.MustHeader {
+			req.Header.Set(key, opts.MustHeader.Get(key))
+		}
+		req.Header.Set("Referer", resp.Request.URL.String())
+
+		resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+			EnableProxy: true,
+			Reliability: pbProxy.ProxyReliability_ReliabilityRealtime,
+		})
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		rawdata, err := resp.RawBody()
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		c.logger.Debugf("status=%s, data: %s", resp.Status, rawdata)
+
+		var respData struct {
+			Cursor     string        `json:"cursor"`
+			HasMore    bool          `json:"hasMore"`
+			ItemList   []*TiktokItem `json:"itemList"`
+			StatusCode int           `json:"statusCode"`
+		}
+		if err := json.Unmarshal(rawdata, &respData); err != nil {
+			c.logger.Debugf("decode json response failed, error=%s", err)
+			return err
+		}
+		cursor = respData.Cursor
+		hasMore = respData.HasMore
+		items = respData.ItemList
+	*/
 	return nil
+
+	/*
+		matched := c.personalVideoList.FindStringSubmatch(resp.Request.URL.Path)
+		if len(matched) == 0 {
+			return errors.New("unsupported username")
+		}
+		u := fmt.Sprintf("%s/by_username?username=%s&count=%d", c.tiktokApiAddr, matched[1], 36)
+		req, err := rhttp.NewRequestWithContext(ctx, rhttp.MethodGet, u, nil)
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		_resp, err := rhttp.DefaultClient.Do(req)
+		if err != nil {
+			c.logger.Error(err)
+			return err
+		}
+		defer _resp.Body.Close()
+
+		var videos []*TikTokItemV2
+		if err := json.NewDecoder(_resp.Body).Decode(&videos); err != nil {
+			c.logger.Error(err)
+			return err
+		}
+
+		for _, prop := range videos {
+			item := pbItem.Tiktok_Item{
+				Source: &pbItem.Tiktok_Source{
+					Id:         prop.ID,
+					SourceUrl:  fmt.Sprintf("https://www.tiktok.com/@%s/video/%s?lang=en", prop.Author.UniqueID, prop.ID),
+					PublishUtc: int64(prop.CreateTime),
+				},
+				Author: &pbItem.Tiktok_Author{
+					Stats: &pbItem.Tiktok_Author_Stats{},
+				},
+				Title: prop.Desc,
+				Video: &media.Media_Video{
+					Cover: &media.Media_Image{},
+				},
+			}
+			item.Author.Id = prop.Author.ID
+			item.Author.Name = prop.Author.UniqueID
+			item.Author.Nickname = prop.Author.Nickname
+			item.Author.Avatar = prop.Author.AvatarLarger
+			item.Author.Description = prop.Author.Signature
+			item.Author.Stats.FollowingCount = int32(prop.AuthorStats.FollowingCount)
+			item.Author.Stats.FollowerCount = int32(prop.AuthorStats.FollowerCount)
+			item.Author.Stats.LikeCount = int32(prop.AuthorStats.HeartCount)
+			item.Author.Stats.VideoCount = int32(prop.AuthorStats.VideoCount)
+			item.Author.Stats.DiggCount = int32(prop.AuthorStats.DiggCount)
+
+			if prop.Video.DownloadAddr != "" {
+				item.Video.OriginalUrl = prop.Video.DownloadAddr
+			} else if prop.Video.PlayAddr != "" {
+				item.Video.OriginalUrl = prop.Video.PlayAddr
+			} else {
+				return fmt.Errorf("no download url found for %s", _resp.Request.URL)
+			}
+			item.Video.Width = int32(prop.Video.Width)
+			item.Video.Height = int32(prop.Video.Height)
+			item.Video.Duration = int32(prop.Video.Duration)
+			if prop.Video.OriginCover != "" {
+				item.Video.Cover.OriginalUrl = prop.Video.OriginCover
+			} else if prop.Video.Cover != "" {
+				item.Video.Cover.OriginalUrl = prop.Video.Cover
+			}
+
+			if item.GetVideo().GetCover().GetOriginalUrl() != "" {
+				if u, err :=
+					c.persistentResource(ctx,
+						fmt.Sprintf("tiktok_cover_%s.jpg", item.GetSource().GetId()),
+						item.GetVideo().GetCover().GetOriginalUrl()); err != nil {
+					c.logger.Errorf("persistent cover resource failed, error=%s", err)
+				} else {
+					item.Video.Cover.OriginalUrl = u
+				}
+			}
+			if err := yield(ctx, &item); err != nil {
+				return err
+			}
+		}
+		return nil
+	*/
 }
 
 var (
@@ -444,8 +696,6 @@ func (c *_Crawler) parseDetail(ctx context.Context, resp *http.Response, yield f
 	if err != nil {
 		return err
 	}
-
-	c.logger.Debugf("matched %s", resp.Request.URL.Path)
 
 	if c.detailInternalPageReg.MatchString(resp.Request.URL.Path) {
 		if href, exists := doc.Find(`link[rel="canonical"]`).Attr("href"); exists && href != "" {
