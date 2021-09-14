@@ -332,6 +332,232 @@ var imgReg = regexp.MustCompile(`_\d+x\d+.jpg`)
 
 // used to trim html labels in description
 var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+var prodDataExtraReg = regexp.MustCompile(`(?Ums)window.__INITIAL_STATE__\s*=\s*({.*});`)
+
+type parseProductDetail struct {
+	ProductDetails struct {
+		Product struct {
+			AvailableForPickup bool `json:"availableForPickup"`
+			BaseOptions        []struct {
+				Options []struct {
+					ApprovalStatus      string   `json:"approvalStatus"`
+					Code                string   `json:"code"`
+					ColourGroup         string   `json:"colourGroup"`
+					ComingSoon          bool     `json:"comingSoon"`
+					DirectCategoryCodes []string `json:"directCategoryCodes"`
+					PriceData           struct {
+						CurrencyIso        string  `json:"currencyIso"`
+						FormattedValue     string  `json:"formattedValue"`
+						ListPrice          float64 `json:"listPrice"`
+						ListPriceFormatted string  `json:"listPriceFormatted"`
+						PriceType          string  `json:"priceType"`
+						Value              float64 `json:"value"`
+					} `json:"priceData"`
+					Repurchasable bool `json:"repurchasable"`
+					Stock         struct {
+						StockLevel       int    `json:"stockLevel"`
+						StockLevelStatus string `json:"stockLevelStatus"`
+					} `json:"stock"`
+					URL                     string `json:"url"`
+					VariantOptionQualifiers []struct {
+						Img struct {
+							AltText string `json:"altText"`
+							Types   []struct {
+								Backgrounds []struct {
+									Background  string `json:"background"`
+									Proportions []struct {
+										Proportion string `json:"proportion"`
+										Dimensions []struct {
+											H string `json:"h"`
+											W string `json:"w"`
+										} `json:"dimensions"`
+									} `json:"proportions"`
+								} `json:"backgrounds"`
+								Type        string `json:"type"`
+								Code        string `json:"code"`
+								SrcTemplate string `json:"srcTemplate,omitempty"`
+							} `json:"types"`
+							SrcTemplate string `json:"srcTemplate"`
+						} `json:"img"`
+						Name      string `json:"name"`
+						Qualifier string `json:"qualifier"`
+						Value     string `json:"value"`
+					} `json:"variantOptionQualifiers"`
+				} `json:"options"`
+				Selected struct {
+					ApprovalStatus      string   `json:"approvalStatus"`
+					Code                string   `json:"code"`
+					ColourGroup         string   `json:"colourGroup"`
+					ComingSoon          bool     `json:"comingSoon"`
+					DirectCategoryCodes []string `json:"directCategoryCodes"`
+					PriceData           struct {
+						CurrencyIso        string  `json:"currencyIso"`
+						FormattedValue     string  `json:"formattedValue"`
+						ListPrice          float64 `json:"listPrice"`
+						ListPriceFormatted string  `json:"listPriceFormatted"`
+						PriceType          string  `json:"priceType"`
+						Value              float64 `json:"value"`
+					} `json:"priceData"`
+					Repurchasable bool `json:"repurchasable"`
+					Stock         struct {
+						StockLevel       int    `json:"stockLevel"`
+						StockLevelStatus string `json:"stockLevelStatus"`
+					} `json:"stock"`
+					URL                     string `json:"url"`
+					VariantOptionQualifiers []struct {
+						Img struct {
+							AltText string `json:"altText"`
+							Types   []struct {
+								Backgrounds []struct {
+									Background  string `json:"background"`
+									Proportions []struct {
+										Proportion string `json:"proportion"`
+										Dimensions []struct {
+											H string `json:"h"`
+											W string `json:"w"`
+										} `json:"dimensions"`
+									} `json:"proportions"`
+								} `json:"backgrounds"`
+								Type        string `json:"type"`
+								Code        string `json:"code"`
+								SrcTemplate string `json:"srcTemplate,omitempty"`
+							} `json:"types"`
+							SrcTemplate string `json:"srcTemplate"`
+						} `json:"img"`
+						Name      string `json:"name"`
+						Qualifier string `json:"qualifier"`
+						Value     string `json:"value"`
+					} `json:"variantOptionQualifiers"`
+				} `json:"selected"`
+				VariantType string `json:"variantType"`
+			} `json:"baseOptions"`
+			BaseProduct string `json:"baseProduct"`
+			Categories  []struct {
+				ClearanceCategory           bool   `json:"clearanceCategory"`
+				Code                        string `json:"code"`
+				Gallery                     bool   `json:"gallery"`
+				NewArrivalCategory          bool   `json:"newArrivalCategory"`
+				OutletCategory              bool   `json:"outletCategory"`
+				SaleCategory                bool   `json:"saleCategory"`
+				URL                         string `json:"url"`
+				VisualSequencerTemplateView struct {
+					TemplateView string `json:"templateView"`
+				} `json:"visualSequencerTemplateView"`
+			} `json:"categories"`
+			Clearance       bool   `json:"clearance"`
+			Code            string `json:"code"`
+			ColourGroupName string `json:"colourGroupName"`
+			ComingSoon      bool   `json:"comingSoon"`
+			Description     string `json:"description"`
+			Gender          string `json:"gender"`
+			GiftCard        bool   `json:"giftCard"`
+			Image           struct {
+				AltText string `json:"altText"`
+				Types   []struct {
+					Backgrounds []struct {
+						Background  string `json:"background"`
+						Proportions []struct {
+							Proportion string `json:"proportion"`
+							Dimensions []struct {
+								H string `json:"h"`
+								W string `json:"w"`
+							} `json:"dimensions"`
+						} `json:"proportions"`
+					} `json:"backgrounds"`
+					Type        string `json:"type"`
+					Code        string `json:"code"`
+					SrcTemplate string `json:"srcTemplate,omitempty"`
+				} `json:"types"`
+				SrcTemplate string `json:"srcTemplate"`
+			} `json:"image"`
+			KidsGroup string `json:"kidsGroup"`
+			MetaData  []struct {
+				Content string `json:"content"`
+				Name    string `json:"name"`
+			} `json:"metaData"`
+			Name            string `json:"name"`
+			NewArrival      bool   `json:"newArrival"`
+			NonReturnable   bool   `json:"nonReturnable"`
+			OnlineExclusive bool   `json:"onlineExclusive"`
+			Outlet          bool   `json:"outlet"`
+			PreOrder        bool   `json:"preOrder"`
+			Price           struct {
+				CurrencyIso    string  `json:"currencyIso"`
+				FormattedValue string  `json:"formattedValue"`
+				PriceType      string  `json:"priceType"`
+				Value          float64 `json:"value"`
+			} `json:"price"`
+			PriceRange struct {
+				MaxPrice struct {
+					CurrencyIso    string  `json:"currencyIso"`
+					FormattedValue string  `json:"formattedValue"`
+					PriceType      string  `json:"priceType"`
+					Value          float64 `json:"value"`
+				} `json:"maxPrice"`
+			} `json:"priceRange"`
+			ProductMessage struct {
+			} `json:"productMessage"`
+			Purchasable   bool   `json:"purchasable"`
+			Repurchasable bool   `json:"repurchasable"`
+			Sale          bool   `json:"sale"`
+			Scarce        bool   `json:"scarce"`
+			SizeChartID   string `json:"sizeChartID"`
+			Stock         struct {
+				StockLevel       int    `json:"stockLevel"`
+				StockLevelStatus string `json:"stockLevelStatus"`
+			} `json:"stock"`
+			URL            string `json:"url"`
+			VariantOptions []struct {
+				ApprovalStatus string `json:"approvalStatus"`
+				Code           string `json:"code"`
+				ColourGroup    string `json:"colourGroup"`
+				ComingSoon     bool   `json:"comingSoon"`
+				PriceData      struct {
+					CurrencyIso        string  `json:"currencyIso"`
+					FormattedValue     string  `json:"formattedValue"`
+					ListPrice          float64 `json:"listPrice"`
+					ListPriceFormatted string  `json:"listPriceFormatted"`
+					PriceType          string  `json:"priceType"`
+					Value              float64 `json:"value"`
+				} `json:"priceData"`
+				Repurchasable bool `json:"repurchasable"`
+				Stock         struct {
+					StockLevel       int    `json:"stockLevel"`
+					StockLevelStatus string `json:"stockLevelStatus"`
+				} `json:"stock"`
+				URL                     string `json:"url"`
+				VariantOptionQualifiers []struct {
+					Img struct {
+						AltText string `json:"altText"`
+						Options []struct {
+							Backgrounds []struct {
+								Background string `json:"background"`
+								Dimension  []struct {
+									H string `json:"h"`
+									W string `json:"w"`
+								} `json:"dimension"`
+							} `json:"backgrounds,omitempty"`
+							Code      string `json:"code"`
+							Type      string `json:"type"`
+							Dimension []struct {
+								H string `json:"h"`
+								W string `json:"w"`
+							} `json:"dimension,omitempty"`
+							SrcTemplate string `json:"srcTemplate,omitempty"`
+						} `json:"options"`
+						SrcTemplate string `json:"srcTemplate"`
+					} `json:"img"`
+					Name      string `json:"name"`
+					Qualifier string `json:"qualifier"`
+					Value     string `json:"value"`
+				} `json:"variantOptionQualifiers"`
+			} `json:"variantOptions"`
+			SocialImages         []interface{} `json:"socialImages"`
+			SizeChart            interface{}   `json:"sizeChart"`
+			IsBrandDetailEnabled bool          `json:"isBrandDetailEnabled"`
+		} `json:"product"`
+	} `json:"productDetails"`
+}
 
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -347,6 +573,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err != nil {
 		return err
 	}
+
+	// Parse json
+	// matched := prodDataExtraReg.FindSubmatch(respBody)
+	// if len(matched) <= 1 {
+	// 	return fmt.Errorf("extract json from product page %s failed", resp.Request.URL)
+	// }
+	// var viewData parseProductDetail
+	// if err = json.Unmarshal(matched[1], &viewData); err != nil {
+	// 	c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
+	// 	return err
+	// }
 
 	canUrl, _ := c.CanonicalUrl(doc.Find(`link[rel="canonical"]`).AttrOr("href", ""))
 	if canUrl == "" {
@@ -377,11 +614,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	description := htmlTrimRegp.ReplaceAllString(doc.Find(`.c-product-description`).First().Text(), " ")
 	item.Description = string(TrimSpaceNewlineInString([]byte(description)))
 
-	fmt.Println(len(doc.Find(`.c-product-price__formatted-price--is-reduced`).Nodes))
-	fmt.Println(len(doc.Find(`.c-product-price__formatted-price`).Nodes))
-
-	fmt.Println(doc.Find(`.c-product-price__formatted-price`).Text())
-
 	msrp, _ := strconv.ParsePrice(doc.Find(`.c-product-price__formatted-price--original`).Text())
 	currentPrice, _ := strconv.ParsePrice(doc.Find(`.c-product-price__formatted-price--is-reduced`).Text())
 
@@ -403,7 +635,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	sel := doc.Find(`.c-product-detail__carousel-wrapper`).Find(`.c-picture`)
 	for j := range sel.Nodes {
 		node := sel.Eq(j)
-		imgurl := imgReg.ReplaceAllString(strings.Split(node.Find(`img`).AttrOr(`data-srcset`, ``), " ")[0], "")
+
+		imgurl := imgReg.ReplaceAllString(strings.Split(strings.TrimSpace(node.Find(`img`).AttrOr(`data-srcset`, ``)), " ")[0], "")
+		if imgurl == "" {
+			imgurl = imgReg.ReplaceAllString(strings.Split(strings.TrimSpace(node.Find(`img`).AttrOr(`srcset`, ``)), " ")[0], "")
+		}
+
 		if imgurl == "" {
 			continue
 		} else if strings.HasPrefix(imgurl, `//`) {
@@ -464,6 +701,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 		}
 	}
+
+	// sizeIndex := -1
+	// colorIndex := -1
+	// for i, key := range viewData.Options {
+	// 	if key == "Color" {
+	// 		colorIndex = i
+	// 	} else if key == "Size" {
+	// 		sizeIndex = i
+	// 	}
+	// }
 
 	sel = doc.Find(`.c-product-option__list--size`).Find(`li`)
 	for i := range sel.Nodes {
@@ -542,6 +789,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
+	for _, spec := range item.SkuItems {
+		if spec.Stock.StockStatus == pbItem.Stock_InStock {
+			item.Stock.StockStatus = pbItem.Stock_InStock
+			break
+		}
+	}
+
 	// yield item result
 	if err = yield(ctx, &item); err != nil {
 		c.logger.Errorf("yield sub request failed, error=%s", err)
@@ -549,25 +803,28 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	///found other color
-	sel = doc.Find(`#PdpProductColorSelectorOpts>li`)
-	for i := range sel.Nodes {
-		nctx := context.WithValue(ctx, "groupId", item.GetSource().GetId())
-		node := sel.Eq(i)
-		color := strings.TrimSpace(node.Find(`a`).AttrOr("title", ""))
-		if !strings.Contains(node.Find(`a`).AttrOr(`class`, ``), `o-style-option__option--is-checked`) {
-			c.logger.Debugf("found color %s %t", color, color == colorName)
+	if ctx.Value("groupId") == nil {
+		sel = doc.Find(`#PdpProductColorSelectorOpts>li`)
+		for i := range sel.Nodes {
+			nctx := context.WithValue(ctx, "groupId", item.GetSource().GetId())
+			node := sel.Eq(i)
+			color := strings.TrimSpace(node.Find(`a`).AttrOr("title", ""))
+			if !strings.Contains(node.Find(`a`).AttrOr(`class`, ``), `o-style-option__option--is-checked`) {
 
-			u, err := c.CanonicalUrl(node.Find(`a`).AttrOr("href", ""))
-			if u == "" || err == nil {
-				continue
-			}
-			req, err := http.NewRequest(http.MethodGet, u, nil)
-			if err != nil {
-				c.logger.Error(err)
-				continue
-			}
-			if err := yield(nctx, req); err != nil {
-				return err
+				nextProductUrl, err := c.CanonicalUrl(node.Find(`a`).AttrOr("href", ""))
+				fmt.Println(`u: `, color, ` `, nextProductUrl)
+				if nextProductUrl == "" || err != nil {
+					continue
+				}
+
+				if req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil); err != nil {
+					c.logger.Error(err)
+					continue
+				} else if err := yield(nctx, req); err != nil {
+					c.logger.Error(err)
+					return err
+				}
+
 			}
 		}
 	}
@@ -586,6 +843,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.aldoshoes.com/us/en_US/women/footwear/boots",
 		//"https://www.aldoshoes.com/us/en_US/women/lilya-bone/p/13265499",
 		"https://www.aldoshoes.com/us/en_US/women/unilax-white/p/13265491",
+		//"https://www.aldoshoes.com/us/en_US/women/grevillea-light-pink/p/13087793",
+		//"https://www.aldoshoes.com/us/en_US/women-s-thermal-insoles-no-color/p/12652382",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
