@@ -44,7 +44,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 		// this regular used to match category page url path
 
 		categoryPathMatcher: regexp.MustCompile(`^/collections/([/A-Za-z0-9_-]+)$`),
-		productPathMatcher:  regexp.MustCompile(`^/([/A-Za-z0-9_-]+)/products([/A-Za-z0-9_-]+)$`),
+		productPathMatcher:  regexp.MustCompile(`^(/collections/([/A-Za-z0-9_-]+))?/products/([A-Za-z0-9_-]+)$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -488,12 +488,31 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if err != nil {
 			continue
 		}
+		var (
+			largeImgURL, mediumImgURL, smallImgURL string
+		)
+		if strings.HasSuffix(imgURL, ".jpg") {
+			_imgURL := strings.TrimSuffix(imgURL, ".jpg")
+			largeImgURL = _imgURL + "_1000x.jpg"
+			mediumImgURL = _imgURL + "_800x.jpg"
+			smallImgURL = _imgURL + "_600x.jpg"
+		} else if strings.HasSuffix(imgURL, ".png") {
+			_imgURL := strings.TrimSuffix(imgURL, ".png")
+			largeImgURL = _imgURL + "_1000x.png"
+			mediumImgURL = _imgURL + "_800x.png"
+			smallImgURL = _imgURL + "_600x.png"
+		} else {
+			largeImgURL = imgURL + "_1000x.jpg"
+			mediumImgURL = imgURL + "_800x.jpg"
+			smallImgURL = imgURL + "_600x.jpg"
+			imgURL += ".jpg"
+		}
 		medias = append(medias, pbMedia.NewImageMedia(
 			strconv.Format(m),
-			imgURL+".jpg",
-			imgURL+`_1000x.jpg`,
-			imgURL+`_800x.jpg`,
-			imgURL+`_600x.jpg`,
+			imgURL,
+			largeImgURL,
+			mediumImgURL,
+			smallImgURL,
 			"",
 			m == 0,
 		))
