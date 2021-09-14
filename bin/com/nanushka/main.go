@@ -690,7 +690,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Msrp:     int32(msrp),
 				Discount: int32(discount),
 			},
-			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			Medias: item.Medias,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
 		if viewData.Variant.Variants[prodId].Availability {
