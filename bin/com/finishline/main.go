@@ -429,7 +429,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		priceSelNode := doc.Find(fmt.Sprintf(`#prices_%s .productPrice`, style))
 		orgPrice, _ := strconv.ParsePrice(priceSelNode.Find(`.wasPrice`).Text())
+		if orgPrice == 0 || math.IsNaN(orgPrice) {
+			orgPrice, _ = strconv.ParsePrice(priceSelNode.Find(`.wasSeePrice`).Text())
+		}
 		currentPrice, _ := strconv.ParsePrice(priceSelNode.Find(`.nowPrice`).Text())
+		if currentPrice == 0 || math.IsNaN(currentPrice) {
+			currentPrice, _ = strconv.ParsePrice(priceSelNode.Find(`.wasSeePrice`).Text())
+		}
 		discount := float64(0)
 		if currentPrice == 0 {
 			currentPrice, _ = strconv.ParsePrice(priceSelNode.Find(`.fullPrice`).Text())
@@ -454,7 +460,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			sizeName := strings.TrimSpace(snode.Text())
 
 			sku := pbItem.Sku{
-				SourceId: fmt.Sprintf("%s-%v", skuId, i),
+				SourceId: string(skuId),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(currentPrice * 100),
@@ -476,6 +482,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Name:  sizeName,
 				Value: sizeName,
 			})
+			for _, option := range sku.GetSpecs() {
+				sku.SourceId += fmt.Sprintf("-%s", option.GetId())
+			}
+
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
 	}
