@@ -796,10 +796,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Value: "-",
 			})
 		}
-
-		for _, spec := range sku.Specs {
-			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
-		}
+		// In this site, the skuid is unique
+		//for _, spec := range sku.Specs {
+		//	sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+		//}
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
