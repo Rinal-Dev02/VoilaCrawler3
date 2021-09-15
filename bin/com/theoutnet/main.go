@@ -155,12 +155,21 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			for _, rawSubCat2 := range rawSubCat1.Items {
 				if rawSubCat2.Title != "&nbsp;" && rawSubCat2.Title != "" {
 					href, _ := c.CanonicalUrl(rawSubCat2.TargetURL)
-					subCate = &pbItem.Category{Name: rawSubCat2.Title, Url: href}
+					if u, _ := url.Parse(href); u.Path == "" || u.Path == "/" {
+						subCate = &pbItem.Category{Name: rawSubCat2.Title}
+					} else if u.Path == "/en-us/editorial/iris-and-ink" {
+						continue
+					} else {
+						subCate = &pbItem.Category{Name: rawSubCat2.Title, Url: href}
+					}
 					cate.Children = append(cate.Children, subCate)
 				}
 				for _, rawSubCat3 := range rawSubCat2.Items {
 					href, _ := c.CanonicalUrl(rawSubCat3.TargetURL)
 					if rawSubCat3.TargetURL == "" {
+						continue
+					}
+					if u, _ := url.Parse(href); u.Path == "/en-us/shop/designers" {
 						continue
 					}
 					subCate2 := pbItem.Category{Name: rawSubCat3.Title, Url: href}
@@ -285,6 +294,9 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if err := json.Unmarshal(matched[1], &viewData); err != nil {
 		c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
 		return err
+	}
+	if len(viewData.Plp.Listing.VisibleProducts) == 0 {
+		return fmt.Errorf("Unexpected category pages, url=%s ", resp.Request.URL)
 	}
 
 	lastIndex := nextIndex(ctx)
