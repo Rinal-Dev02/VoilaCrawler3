@@ -128,7 +128,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
 	if p == "us/" {
-		//return c.parseCategories(ctx, resp, yield)
+
 		return crawler.ErrUnsupportedPath
 	}
 
@@ -367,7 +367,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if err != nil {
 		return err
 	}
-	ioutil.WriteFile("C:\\Maulika\\Output.html", respBody, 0644)
+
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
 	if err != nil {
 		return err
