@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -575,15 +576,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	// Parse json
-	// matched := prodDataExtraReg.FindSubmatch(respBody)
-	// if len(matched) <= 1 {
-	// 	return fmt.Errorf("extract json from product page %s failed", resp.Request.URL)
-	// }
-	// var viewData parseProductDetail
-	// if err = json.Unmarshal(matched[1], &viewData); err != nil {
-	// 	c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
-	// 	return err
-	// }
+	matched := prodDataExtraReg.FindSubmatch(respBody)
+	if len(matched) <= 1 {
+		return fmt.Errorf("extract json from product page %s failed", resp.Request.URL)
+	}
+	matched[1] = bytes.ReplaceAll(matched[1], []byte(`:undefined`), []byte(`:"undefined"`))
+
+	var viewData parseProductDetail
+	if err = json.Unmarshal(matched[1], &viewData); err != nil {
+		c.logger.Debugf("parse %s failed, error=%s", matched[1], err)
+		return err
+	}
 
 	canUrl, _ := c.CanonicalUrl(doc.Find(`link[rel="canonical"]`).AttrOr("href", ""))
 	if canUrl == "" {
@@ -702,38 +705,42 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
-	// sizeIndex := -1
-	// colorIndex := -1
-	// for i, key := range viewData.Options {
-	// 	if key == "Color" {
-	// 		colorIndex = i
-	// 	} else if key == "Size" {
-	// 		sizeIndex = i
-	// 	}
-	// }
+	sizeIndex := -1
+	//colorIndex := -1
 
-	sel = doc.Find(`.c-product-option__list--size`).Find(`li`)
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-
-		sid := (node.AttrOr(`aria-label`, ``))
-		if sid == "" {
-			continue
+	for _, key := range viewData.ProductDetails.Product.VariantOptions {
+		for i, keyV := range key.VariantOptionQualifiers {
+			if keyV.Name == "Colour" || keyV.Name == "Color" {
+				//colorIndex = i
+			} else if keyV.Name == "Size" {
+				sizeIndex = i
+				break
+			}
 		}
 
+	}
+
+	//sel = doc.Find(`.c-product-option__list--size`).Find(`li`)
+	for _, rawSku := range viewData.ProductDetails.Product.VariantOptions {
+
 		sku := pbItem.Sku{
-			SourceId: pid,
+			SourceId: rawSku.Code,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(currentPrice * 100),
 				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
+<<<<<<< HEAD
 			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+=======
+			Medias: item.Medias,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+>>>>>>> 29df1e4 (Change Skuid)
 		}
 
-		if strings.Contains(node.AttrOr("aria-disabled", ""), "true") {
-			sku.Stock.StockStatus = pbItem.Stock_OutOfStock
+		if rawSku.Stock.StockLevel > 0 {
+			sku.Stock.StockStatus = pbItem.Stock_InStock
 		}
 
 		if colorSelected != nil {
@@ -741,12 +748,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		// size
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    sid,
-			Name:  sid,
-			Value: sid,
-		})
+		if sizeIndex > -1 {
+			if rawSku.VariantOptionQualifiers[sizeIndex].Value != "" && rawSku.VariantOptionQualifiers[sizeIndex].Name == "Size" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					Id:    rawSku.VariantOptionQualifiers[sizeIndex].Value,
+					Name:  rawSku.VariantOptionQualifiers[sizeIndex].Value,
+					Value: rawSku.VariantOptionQualifiers[sizeIndex].Value,
+				})
+			}
+		}
 
 		for _, spec := range sku.Specs {
 			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
@@ -754,7 +765,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
-	if len(sel.Nodes) == 0 {
+	if len(viewData.ProductDetails.Product.VariantOptions) == 0 {
 
 		sku := pbItem.Sku{
 			SourceId: pid,
@@ -808,11 +819,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		for i := range sel.Nodes {
 			nctx := context.WithValue(ctx, "groupId", item.GetSource().GetId())
 			node := sel.Eq(i)
-			color := strings.TrimSpace(node.Find(`a`).AttrOr("title", ""))
+			//color := strings.TrimSpace(node.Find(`a`).AttrOr("title", ""))
 			if !strings.Contains(node.Find(`a`).AttrOr(`class`, ``), `o-style-option__option--is-checked`) {
 
 				nextProductUrl, err := c.CanonicalUrl(node.Find(`a`).AttrOr("href", ""))
-				fmt.Println(`u: `, color, ` `, nextProductUrl)
+
 				if nextProductUrl == "" || err != nil {
 					continue
 				}
@@ -824,7 +835,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					c.logger.Error(err)
 					return err
 				}
-
 			}
 		}
 	}
@@ -842,9 +852,9 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.aldoshoes.com/us/en_US/gleawia-white/p/13189060",
 		//"https://www.aldoshoes.com/us/en_US/women/footwear/boots",
 		//"https://www.aldoshoes.com/us/en_US/women/lilya-bone/p/13265499",
-		"https://www.aldoshoes.com/us/en_US/women/unilax-white/p/13265491",
+		//"https://www.aldoshoes.com/us/en_US/women/unilax-white/p/13265491",
 		//"https://www.aldoshoes.com/us/en_US/women/grevillea-light-pink/p/13087793",
-		//"https://www.aldoshoes.com/us/en_US/women-s-thermal-insoles-no-color/p/12652382",
+		"https://www.aldoshoes.com/us/en_US/women-s-thermal-insoles-no-color/p/12652382",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
