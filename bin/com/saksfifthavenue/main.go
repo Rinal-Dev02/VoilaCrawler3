@@ -616,8 +616,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					strconv.Format(ki),
 					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
 					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=800"), "hei=1066"),
 					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=600"), "hei=800"),
-					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=495"), "hei=660"),
 					"",
 					ki == 0,
 				))
@@ -883,8 +883,8 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 					strconv.Format(ki),
 					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
 					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=800"), "hei=1066"),
 					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=600"), "hei=800"),
-					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=495"), "hei=660"),
 					"",
 					ki == 0,
 				))
