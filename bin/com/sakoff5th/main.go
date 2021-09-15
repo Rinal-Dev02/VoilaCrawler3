@@ -461,7 +461,7 @@ type ProductDataJson struct {
 			AvailableDc string `json:"available_dc"`
 			Sku         string `json:"sku"`
 		} `json:"allAvailableProducts"`
-		StarRating string `json:"starRating"`
+		StarRating float64 `json:"starRating"`
 		// AttributesHTML string `json:"attributesHtml"`
 		// PromotionsHTML string `json:"promotionsHtml"`
 		// FinalSaleHTML  string `json:"finalSaleHtml"`
@@ -560,7 +560,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 
 		for _, skuInfo := range prodInfo.Skus {
-			avaUrl := fmt.Sprintf("https://www.saksfifthavenue.com/on/demandware.store/Sites-SaksFifthAvenue-Site/en_US/Product-AvailabilityAjax?pid=%s&quantity=1&readyToOrder=true", skuInfo.Sku)
+			//avaUrl := fmt.Sprintf("https://www.saksfifthavenue.com/on/demandware.store/Sites-SaksFifthAvenue-Site/en_US/Product-AvailabilityAjax?pid=%s&quantity=1&readyToOrder=true", skuInfo.Sku)
+			avaUrl := fmt.Sprintf("https://www.saksoff5th.com/on/demandware.store/Sites-SaksOff5th-Site/en_US/Product-AvailabilityAjax?pid=%s&quantity=1&readyToOrder=true", skuInfo.Sku)
 			req, _ := http.NewRequest(http.MethodGet, avaUrl, nil)
 			req.Header.Set("Referer", resp.Request.URL.String())
 			req.Header.Set("Accept", "*/*")
@@ -620,8 +621,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					strconv.Format(ki),
 					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
 					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=800"), "hei=1066"),
 					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=600"), "hei=800"),
-					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=495"), "hei=660"),
 					"",
 					ki == 0,
 				))
@@ -810,129 +811,160 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 		if len(colorSel.Nodes) == 0 {
 			colorSel = dom.Find(`.attribute .color .attr-name`)
 		}
-		for i := range colorSel.Nodes {
-			node := colorSel.Eq(i)
-			color := node.AttrOr("data-adobelaunchproductcolor", node.Find(`.color-attribute`).AttrOr("title", ""))
+		c.logger.Val("len(colorSel.Nodes)", len(colorSel.Nodes))
+		if len(colorSel.Nodes) > 0 {
+			for i := range colorSel.Nodes {
+				node := colorSel.Eq(i)
+				color := node.AttrOr("data-adobelaunchproductcolor", node.Find(`.color-attribute`).AttrOr("title", ""))
 
-			u, _ := url.Parse("/on/demandware.store/Sites-SaksOff5th-Site/en_US/Product-Variation")
-			u.Scheme = resp.Request.URL.Scheme
-			u.Host = resp.Request.URL.Host
-			vals := u.Query()
-			vals.Set(fmt.Sprintf("dwvar_%s_color", prodInfo.Code), color)
-			vals.Set("pid", prodInfo.Code)
-			vals.Set("quantity", "1")
-			u.RawQuery = vals.Encode()
+				u, _ := url.Parse("/on/demandware.store/Sites-SaksOff5th-Site/en_US/Product-Variation")
+				u.Scheme = resp.Request.URL.Scheme
+				u.Host = resp.Request.URL.Host
+				vals := u.Query()
+				vals.Set(fmt.Sprintf("dwvar_%s_color", prodInfo.Code), color)
+				vals.Set("pid", prodInfo.Code)
+				vals.Set("quantity", "1")
+				u.RawQuery = vals.Encode()
 
-			req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
-			req.Header.Set("Referer", resp.Request.URL.String())
-			req.Header.Set("Accept", "*/*")
-			req.Header.Set("x-requested-with", "XMLHttpRequest")
-			for k := range opts.MustHeader {
-				req.Header.Set(k, opts.MustHeader.Get(k))
-			}
-			for _, c := range opts.MustCookies {
-				if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
-					val := fmt.Sprintf("%s=%s", c.Name, c.Value)
-					if c := req.Header.Get("Cookie"); c != "" {
-						req.Header.Set("Cookie", c+"; "+val)
-					} else {
-						req.Header.Set("Cookie", val)
+				req, _ := http.NewRequest(http.MethodGet, u.String(), nil)
+				req.Header.Set("Referer", resp.Request.URL.String())
+				req.Header.Set("Accept", "*/*")
+				req.Header.Set("x-requested-with", "XMLHttpRequest")
+				for k := range opts.MustHeader {
+					req.Header.Set(k, opts.MustHeader.Get(k))
+				}
+				for _, c := range opts.MustCookies {
+					if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
+						val := fmt.Sprintf("%s=%s", c.Name, c.Value)
+						if c := req.Header.Get("Cookie"); c != "" {
+							req.Header.Set("Cookie", c+"; "+val)
+						} else {
+							req.Header.Set("Cookie", val)
+						}
 					}
 				}
-			}
 
-			var (
-				colorResp *http.Response
-				e         error
-			)
-			for i := 0; i < 3; i++ {
-				c.logger.Debugf("access sku %s", req.URL)
+				var (
+					colorResp *http.Response
+					e         error
+				)
+				for i := 0; i < 3; i++ {
+					c.logger.Debugf("access sku %s", req.URL)
 
-				if colorResp, e = c.httpClient.DoWithOptions(ctx, req, http.Options{
-					EnableProxy: true,
-					KeepSession: true,
-					Reliability: c.CrawlOptions(resp.Request.URL).Reliability,
-				}); e != nil {
-					continue
-				} else if colorResp.StatusCode == http.StatusNotFound {
-					colorResp.Body.Close()
+					if colorResp, e = c.httpClient.DoWithOptions(ctx, req, http.Options{
+						EnableProxy: true,
+						KeepSession: true,
+						Reliability: c.CrawlOptions(resp.Request.URL).Reliability,
+					}); e != nil {
+						continue
+					} else if colorResp.StatusCode == http.StatusNotFound {
+						colorResp.Body.Close()
 
-					e = errors.New("not found")
-					break
-				} else if colorResp.StatusCode == http.StatusForbidden ||
-					colorResp.StatusCode == -1 {
-					colorResp.Body.Close()
+						e = errors.New("not found")
+						break
+					} else if colorResp.StatusCode == http.StatusForbidden ||
+						colorResp.StatusCode == -1 {
+						colorResp.Body.Close()
 
-					e = fmt.Errorf("status %d %s", colorResp.StatusCode, colorResp.Status)
-					continue
-				}
-				break
-			}
-			if e != nil {
-				c.logger.Error(e)
-				return e
-			}
-			defer colorResp.Body.Close()
-
-			var viewData ProductDataJson
-			if err := json.NewDecoder(colorResp.Body).Decode(&viewData); err != nil {
-				c.logger.Error(err)
-				return err
-			}
-
-			price, _ = strconv.ParsePrice(viewData.Product.Price.Sales.Value)
-			orgPrice, _ = strconv.ParsePrice(viewData.Product.Price.List.Value)
-			if orgPrice == 0 {
-				orgPrice = price
-			}
-			if orgPrice != price {
-				discount = math.Ceil((orgPrice - price) / orgPrice * 100)
-			}
-
-			var medias []*pbMedia.Media
-			for ki, mid := range viewData.Product.Images.Large {
-				template := mid.URL
-				medias = append(medias, pbMedia.NewImageMedia(
-					strconv.Format(ki),
-					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
-					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
-					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=600"), "hei=800"),
-					imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=495"), "hei=660"),
-					"",
-					ki == 0,
-				))
-			}
-
-			var (
-				colorAttr *productVariationAttributes
-				sizeAttr  *productVariationAttributes
-			)
-			for _, attr := range viewData.Product.VariationAttributes {
-				if attr.AttributeID == "color" && colorAttr == nil {
-					colorAttr = attr
-				} else if attr.AttributeID == "size" && sizeAttr == nil {
-					sizeAttr = attr
-				}
-				if colorAttr != nil && sizeAttr != nil {
+						e = fmt.Errorf("status %d %s", colorResp.StatusCode, colorResp.Status)
+						continue
+					}
 					break
 				}
-			}
-
-			for _, colorVal := range colorAttr.Values {
-				if !colorVal.Selected {
-					continue
+				if e != nil {
+					c.logger.Error(e)
+					return e
 				}
-				colorSpec := pbItem.SkuSpecOption{
-					Type:  pbItem.SkuSpecType_SkuSpecColor,
-					Id:    colorVal.ID,
-					Name:  colorVal.DisplayValue,
-					Value: colorVal.Value,
+				defer colorResp.Body.Close()
+
+				var viewData ProductDataJson
+				if err := json.NewDecoder(colorResp.Body).Decode(&viewData); err != nil {
+					c.logger.Error(err)
+					return err
 				}
 
-				if sizeAttr != nil {
-					for _, sizeVal := range sizeAttr.Values {
+				price, _ = strconv.ParsePrice(viewData.Product.Price.Sales.Value)
+				orgPrice, _ = strconv.ParsePrice(viewData.Product.Price.List.Value)
+				if orgPrice == 0 {
+					orgPrice = price
+				}
+				if orgPrice != price {
+					discount = math.Ceil((orgPrice - price) / orgPrice * 100)
+				}
+
+				var medias []*pbMedia.Media
+				for ki, mid := range viewData.Product.Images.Large {
+					template := mid.URL
+					medias = append(medias, pbMedia.NewImageMedia(
+						strconv.Format(ki),
+						imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+						imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+						imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=800"), "hei=1066"),
+						imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=600"), "hei=800"),
+						"",
+						ki == 0,
+					))
+				}
+
+				var (
+					colorAttr *productVariationAttributes
+					sizeAttr  *productVariationAttributes
+				)
+				for _, attr := range viewData.Product.VariationAttributes {
+					if attr.AttributeID == "color" && colorAttr == nil {
+						colorAttr = attr
+					} else if attr.AttributeID == "size" && sizeAttr == nil {
+						sizeAttr = attr
+					}
+					if colorAttr != nil && sizeAttr != nil {
+						break
+					}
+				}
+
+				for _, colorVal := range colorAttr.Values {
+					if !colorVal.Selected {
+						continue
+					}
+					colorSpec := pbItem.SkuSpecOption{
+						Type:  pbItem.SkuSpecType_SkuSpecColor,
+						Id:    colorVal.ID,
+						Name:  colorVal.DisplayValue,
+						Value: colorVal.Value,
+					}
+
+					if sizeAttr != nil {
+						for _, sizeVal := range sizeAttr.Values {
+							sku := pbItem.Sku{
+								SourceId: fmt.Sprintf("%s-%s", colorVal.ID, sizeVal.ID),
+								Title:    viewData.Product.ProductName,
+								Price: &pbItem.Price{
+									Currency: regulation.Currency_USD,
+									Current:  int32(price * 100),
+									Msrp:     int32(orgPrice * 100),
+									Discount: int32(discount),
+								},
+								Medias: medias,
+								Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+								Stats: &pbItem.Stats{
+									Rating:      float32(viewData.Product.Rating),
+									ReviewCount: int32(viewData.Product.TurntoReviewCount),
+								},
+							}
+							if colorVal.Selectable && sizeVal.Selectable {
+								sku.Stock.StockStatus = pbItem.Stock_InStock
+							}
+							sku.Specs = append(sku.Specs, &colorSpec)
+							sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+								Type:  pbItem.SkuSpecType_SkuSpecSize,
+								Id:    sizeVal.ID,
+								Name:  sizeVal.DisplayValue,
+								Value: sizeVal.Value,
+							})
+							item.SkuItems = append(item.SkuItems, &sku)
+						}
+					} else {
 						sku := pbItem.Sku{
-							SourceId: fmt.Sprintf("%s-%s", colorVal.ID, sizeVal.ID),
+							SourceId: colorVal.ID,
 							Title:    viewData.Product.ProductName,
 							Price: &pbItem.Price{
 								Currency: regulation.Currency_USD,
@@ -947,43 +979,142 @@ func (c *_Crawler) parseProduct2(ctx context.Context, resp *http.Response, yield
 								ReviewCount: int32(viewData.Product.TurntoReviewCount),
 							},
 						}
-						if colorVal.Selectable && sizeVal.Selectable {
+						if colorVal.Selectable {
 							sku.Stock.StockStatus = pbItem.Stock_InStock
 						}
 						sku.Specs = append(sku.Specs, &colorSpec)
-						sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-							Type:  pbItem.SkuSpecType_SkuSpecSize,
-							Id:    sizeVal.ID,
-							Name:  sizeVal.DisplayValue,
-							Value: sizeVal.Value,
-						})
 						item.SkuItems = append(item.SkuItems, &sku)
 					}
-				} else {
-					sku := pbItem.Sku{
-						SourceId: colorVal.ID,
-						Title:    viewData.Product.ProductName,
-						Price: &pbItem.Price{
-							Currency: regulation.Currency_USD,
-							Current:  int32(price * 100),
-							Msrp:     int32(orgPrice * 100),
-							Discount: int32(discount),
-						},
-						Medias: medias,
-						Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
-						Stats: &pbItem.Stats{
-							Rating:      float32(viewData.Product.Rating),
-							ReviewCount: int32(viewData.Product.TurntoReviewCount),
-						},
-					}
-					if colorVal.Selectable {
-						sku.Stock.StockStatus = pbItem.Stock_InStock
-					}
-					sku.Specs = append(sku.Specs, &colorSpec)
-					item.SkuItems = append(item.SkuItems, &sku)
 				}
 			}
+		} else {
+			for _, skuInfo := range prodInfo.Skus {
+				//avaUrl := fmt.Sprintf("https://www.saksfifthavenue.com/on/demandware.store/Sites-SaksFifthAvenue-Site/en_US/Product-AvailabilityAjax?pid=%s&quantity=1&readyToOrder=true", skuInfo.Sku)
+				avaUrl := fmt.Sprintf("https://www.saksoff5th.com/on/demandware.store/Sites-SaksOff5th-Site/en_US/Product-AvailabilityAjax?pid=%s&quantity=1&readyToOrder=true", skuInfo.Sku)
+				req, _ := http.NewRequest(http.MethodGet, avaUrl, nil)
+				req.Header.Set("Referer", resp.Request.URL.String())
+				req.Header.Set("Accept", "*/*")
+				req.Header.Set("x-requested-with", "XMLHttpRequest")
+
+				var (
+					skuResp *http.Response
+					e       error
+				)
+				for i := 0; i < 3; i++ {
+					c.logger.Debugf("access sku %s", skuInfo.Sku)
+					if skuResp, e = c.httpClient.DoWithOptions(ctx, req, http.Options{
+						EnableProxy: true,
+						KeepSession: true,
+						Reliability: c.CrawlOptions(resp.Request.URL).Reliability,
+					}); e != nil {
+						continue
+					} else if skuResp.StatusCode == http.StatusNotFound {
+						skuResp.Body.Close()
+
+						e = errors.New("not found")
+						break
+					} else if skuResp.StatusCode == http.StatusForbidden ||
+						skuResp.StatusCode == -1 {
+						skuResp.Body.Close()
+
+						e = fmt.Errorf("status %d %s", skuResp.StatusCode, skuResp.Status)
+						continue
+					}
+					break
+				}
+				if e != nil {
+					c.logger.Error(e)
+					return e
+				}
+				defer skuResp.Body.Close()
+
+				var viewData ProductDataJson
+				if err := json.NewDecoder(skuResp.Body).Decode(&viewData); err != nil {
+					c.logger.Error(err)
+					return err
+				}
+
+				price, _ = strconv.ParsePrice(viewData.Product.Price.Sales.Value)
+				orgPrice, _ = strconv.ParsePrice(viewData.Product.Price.List.Value)
+				if orgPrice == 0 {
+					orgPrice = price
+				}
+				if orgPrice != price {
+					discount = math.Ceil((orgPrice - price) / orgPrice * 100)
+				}
+
+				var medias []*pbMedia.Media
+				for ki, mid := range viewData.Product.Images.Large {
+					template := mid.URL
+					medias = append(medias, pbMedia.NewImageMedia(
+						strconv.Format(ki),
+						imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+						imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=1000"), "hei=1333"),
+						imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=800"), "hei=1066"),
+						imgHeightReg.ReplaceAllString(imgWidthReg.ReplaceAllString(template, "wid=600"), "hei=800"),
+						"",
+						ki == 0,
+					))
+				}
+
+				sku := pbItem.Sku{
+					SourceId: skuInfo.Sku,
+					Title:    viewData.Product.ProductName,
+					Price: &pbItem.Price{
+						Currency: regulation.Currency_USD,
+						Current:  int32(price * 100),
+						Msrp:     int32(orgPrice * 100),
+						Discount: int32(discount),
+					},
+					Medias: medias,
+					Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+					Stats: &pbItem.Stats{
+						Rating:      float32(viewData.Product.Rating),
+						ReviewCount: int32(viewData.Product.TurntoReviewCount),
+					},
+				}
+
+				selectable := true
+				for _, attr := range viewData.Product.VariationAttributes {
+					switch attr.AttributeID {
+					case "color":
+						for _, val := range attr.Values {
+							if !val.Selected {
+								continue
+							}
+							sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+								Type:  pbItem.SkuSpecType_SkuSpecColor,
+								Id:    val.ID,
+								Name:  val.DisplayValue,
+								Value: val.Value,
+							})
+							selectable = selectable && val.Selectable
+							break
+						}
+					case "size":
+						for _, val := range attr.Values {
+							if !val.Selected {
+								continue
+							}
+							sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+								Type:  pbItem.SkuSpecType_SkuSpecSize,
+								Id:    val.ID,
+								Name:  val.DisplayValue,
+								Value: val.Value,
+							})
+							selectable = selectable && val.Selectable
+							break
+						}
+					}
+				}
+				if selectable {
+					sku.Stock.StockStatus = pbItem.Stock_InStock
+				}
+
+				item.SkuItems = append(item.SkuItems, &sku)
+			}
 		}
+
 		for _, rawSku := range item.SkuItems {
 			if rawSku.Stock.StockStatus == pbItem.Stock_InStock {
 				item.Stock = &pbItem.Stock{StockStatus: pbItem.Stock_InStock}
