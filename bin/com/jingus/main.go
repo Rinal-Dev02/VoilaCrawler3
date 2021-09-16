@@ -169,10 +169,6 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	if !crawler.IsTargetTypeSupported(ctx, &pbItem.Product{}) {
-		return crawler.ErrUnsupportedTarget
-	}
-
 	if resp.Request.URL.Path == "" || resp.Request.URL.Path == "/" {
 		return crawler.ErrUnsupportedPath
 	}
@@ -409,8 +405,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if err != nil {
 			c.logger.Errorf("got invalid img url %s", img.Src)
 		}
-		fields := strings.SplitN(u.Path, ".", 2)
-		tpl := strings.Replace(img.Src, u.Path, fields[0]+"_%s."+fields[1], -1)
+		fields := strings.Split(u.Path, ".")
+		tpl := strings.ReplaceAll(img.Src, u.Path, strings.Join(fields[0:len(fields)-1], ".")+"_%s."+fields[len(fields)-1])
 		medias = append(medias, media.NewImageMedia(
 			strconv.Format(img.ID),
 			img.Src,
