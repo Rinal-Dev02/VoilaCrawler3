@@ -130,6 +130,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil {
 		return nil
 	}
+	resp.Request.URL.Path = strings.TrimPrefix(resp.Request.URL.Path, "/@https://www.tiktok.com")
+	c.logger.Error(resp.Request.URL.Path)
 
 	if c.personalVideoList.MatchString(resp.Request.URL.Path) {
 		return c.parsePersonalVideoList(ctx, resp, yield)
