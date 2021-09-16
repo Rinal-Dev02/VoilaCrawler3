@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -148,6 +147,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 		EnableSessionInit: opts.EnableSessionInit,
 		Reliability:       opts.Reliability,
 	})
+
 	if err != nil {
 		c.logger.Error(err)
 		return nil, err
@@ -193,7 +193,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					subcat3 := strings.TrimSpace(subNode3.Find(`.gnav-menu-link__item`).First().Text())
 
 					href, err := c.CanonicalUrl(subNode3.Find(`a`).AttrOr("href", ""))
-					if href == "" || subcat3 == "" || err != nil {
+					if href == "" || subcat3 == "" || err != nil || strings.ToLower(subcat3) == "gift cards" || strings.ToLower(subcat3) == "build a custom set" {
 						continue
 					}
 
@@ -293,24 +293,27 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	lastIndex := nextIndex(ctx)
 
 	sel := doc.Find(`.mpp__content`).Find(`.product-brief__title`)
-	fmt.Println(len(sel.Nodes))
+	if len(sel.Nodes) == 0 {
+		sel = doc.Find(`.basic-noderef`)
+	}
 
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		if href, err := c.CanonicalUrl(node.Find(`a`).AttrOr("href", ``)); err == nil && href != "" {
 
-			req, err := http.NewRequest(http.MethodGet, href, nil)
-			if err != nil {
-				c.logger.Error(err)
-				continue
-			}
-			lastIndex += 1
-			nctx := context.WithValue(ctx, "item.index", lastIndex)
-			if err := yield(nctx, req); err != nil {
-				return err
+		if href, err := c.CanonicalUrl(node.Find(`a`).AttrOr("href", ``)); err == nil && href != "" {
+			if c.productPathMatcher.MatchString(href) {
+				req, err := http.NewRequest(http.MethodGet, href, nil)
+				if err != nil {
+					c.logger.Error(err)
+					continue
+				}
+				lastIndex += 1
+				nctx := context.WithValue(ctx, "item.index", lastIndex)
+				if err := yield(nctx, req); err != nil {
+					return err
+				}
 			}
 		}
-
 	}
 
 	//Note: ProductCount > display on page
@@ -491,30 +494,33 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	for _, itema := range viewData.CatalogSpp.Products {
 		var videos []*pbMedia.Media
-
+		mediaCounter := -1
 		if itema.VideoSource1 != "" {
+			mediaCounter++
 			videos = append(videos, pbMedia.NewVideoMedia(
-				strconv.Format(1),
+				strconv.Format(mediaCounter),
 				"",
 				"https://www.youtube.com/embed/"+itema.VideoSource1+"?autoplay=1",
-				300, 300, 0, "https://www.origins.com"+itema.VideoPoster1, "",
-				true))
+				0, 0, 0, "https://www.origins.com"+itema.VideoPoster1, "",
+				false))
 		}
 		if itema.VideoSource2 != "" {
+			mediaCounter++
 			videos = append(videos, pbMedia.NewVideoMedia(
-				strconv.Format(2),
+				strconv.Format(mediaCounter),
 				"",
 				"https://www.youtube.com/embed/"+itema.VideoSource2+"?autoplay=1",
 				0, 0, 0, "https://www.origins.com"+itema.VideoPoster2, "",
-				true))
+				false))
 		}
 		if itema.VideoSource3 != "" {
+			mediaCounter++
 			videos = append(videos, pbMedia.NewVideoMedia(
-				strconv.Format(3),
+				strconv.Format(mediaCounter),
 				"",
 				"https://www.youtube.com/embed/"+itema.VideoSource3+"?autoplay=1",
 				0, 0, 0, "https://www.origins.com"+itema.VideoPoster3, "",
-				true))
+				false))
 		}
 
 		for _, rawSku := range itema.Skus {
@@ -545,13 +551,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			//images
 			for j, img := range rawSku.LARGEIMAGEV2 {
+				mediaCounter++
 				imgurl, err := c.CanonicalUrl(img)
 				if err != nil {
 					continue
 				}
 
 				sku.Medias = append(sku.Medias, pbMedia.NewImageMedia(
-					strconv.Format(j),
+					strconv.Format(mediaCounter),
 					imgurl,
 					imgurl, imgurl+"?v=1", imgurl+"?v=1",
 					// strings.ReplaceAll(imgurl, `1000x1000`, "600x600_gray"),
@@ -559,6 +566,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					"", j == 0))
 			}
 			sku.Medias = append(sku.Medias, videos...)
+
 			if rawSku.RsSkuAvailability > 0 {
 				item.Stock.StockStatus = pbItem.Stock_InStock
 				sku.Stock.StockStatus = pbItem.Stock_InStock
@@ -568,7 +576,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			if rawSku.SHADENAME != "" {
 				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 					Type:  pbItem.SkuSpecType_SkuSpecColor,
-					Id:    rawSku.UPCCODE,
+					Id:    rawSku.SHADENAME,
 					Name:  rawSku.SHADENAME,
 					Value: rawSku.SHADENAME,
 				})
@@ -617,7 +625,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.origins.com/product/15347/84612/skincare/treat/serums/plantscription/multi-powered-youth-serum",
 		//"https://www.origins.com/product/15352/39259/skincare/moisturize/moisturizers/dr-andrew-weil-for-origins/mega-defense-barrier-boosting-essence-oil#/sku/68083",
 		//"https://www.origins.com/product/15352/23831/skincare/moisturize/moisturizers/make-a-difference-plus/rejuvenating-moisturizer",
-		"https://www.origins.com/product/15346/62427/skincare/treat/mask/clear-improvement/active-charcoal-mask-to-clear-pores#/sku/98640",
+		//"https://www.origins.com/product/15346/62427/skincare/treat/mask/clear-improvement/active-charcoal-mask-to-clear-pores#/sku/98640",
+		"https://www.origins.com/best-beauty-gifts",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
