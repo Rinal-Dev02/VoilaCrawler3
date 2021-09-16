@@ -500,7 +500,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			videos = append(videos, pbMedia.NewVideoMedia(
 				strconv.Format(mediaCounter),
 				"",
-				"https://www.youtube.com/embed/"+itema.VideoSource1+"?autoplay=1",
+				"https://www.youtube.com/embed/"+strings.TrimSpace(itema.VideoSource1),
 				0, 0, 0, "https://www.origins.com"+itema.VideoPoster1, "",
 				false))
 		}
@@ -509,7 +509,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			videos = append(videos, pbMedia.NewVideoMedia(
 				strconv.Format(mediaCounter),
 				"",
-				"https://www.youtube.com/embed/"+itema.VideoSource2+"?autoplay=1",
+				"https://www.youtube.com/embed/"+strings.TrimSpace(itema.VideoSource2),
 				0, 0, 0, "https://www.origins.com"+itema.VideoPoster2, "",
 				false))
 		}
@@ -518,7 +518,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			videos = append(videos, pbMedia.NewVideoMedia(
 				strconv.Format(mediaCounter),
 				"",
-				"https://www.youtube.com/embed/"+itema.VideoSource3+"?autoplay=1",
+				"https://www.youtube.com/embed/"+strings.TrimSpace(itema.VideoSource3),
 				0, 0, 0, "https://www.origins.com"+itema.VideoPoster3, "",
 				false))
 		}
