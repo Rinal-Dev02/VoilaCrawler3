@@ -190,8 +190,29 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return yield(ctx, &pbCrawl.Error{ErrMsg: err.Error()})
 	}
 
+	if item.Site == nil {
+		item.Site = &pbItem.OpenGraph_Site{}
+	}
 	if item.BrandName == "" {
 		item.BrandName = brand.GetBrand(resp.Request.URL.Hostname())
+		if item.BrandName != "" && item.Site.Name == "" {
+			item.Site.Name = item.BrandName
+		}
+	}
+
+	u := *resp.Request.URL
+	u.Path = ""
+	u.RawQuery = ""
+	u.Fragment = ""
+	item.Site.Homepage = u.String()
+	item.Site.Domain = u.Hostname()
+	if item.Site.Name == "" {
+		name := u.Hostname()
+		for _, pre := range []string{"www.", "www2.", "shop.", "us.", "fr.", "au.", "eu", "usa.", "uk.", "au.", "ca."} {
+			name = strings.TrimPrefix(name, pre)
+		}
+		fields := strings.Split(name, ".")
+		item.Site.Name = strings.Join(fields[0:len(fields)-1], ",")
 	}
 	item.BrandName = strings.TrimSpace(strings.TrimPrefix(item.BrandName, "brand:"))
 	return yield(ctx, item)

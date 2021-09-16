@@ -2,6 +2,7 @@ package diffbot
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/voiladev/go-framework/glog"
@@ -178,6 +179,9 @@ func TestDiffbotCient_Fetch(t *testing.T) {
 				t.Error(err)
 			} else if len(prods) == 0 {
 				t.Errorf("no product info found")
+			} else {
+				data, _ := json.Marshal(prods[0])
+				t.Logf("%s", data)
 			}
 		})
 	}
