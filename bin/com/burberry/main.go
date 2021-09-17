@@ -162,7 +162,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					subcat3 := rawcatdata.Link.Title
 
 					href, err := c.CanonicalUrl(rawcatdata.Link.Href)
-					if rawcatdata.Link.Href == "" || subcat3 == "" || err != nil {
+					if rawcatdata.Link.Href == "" || subcat3 == "" || strings.ToLower(subcat3) == "a new identity" || err != nil {
 						continue
 					}
 
