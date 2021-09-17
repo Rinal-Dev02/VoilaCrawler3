@@ -145,7 +145,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 
 			cateName := nodes.Link.Title
 
-			if cateName == "" {
+			if cateName == "" || strings.ToLower(cateName) == "customer service" || strings.ToLower(cateName) == "legal & cookies" {
 				continue
 			}
 
