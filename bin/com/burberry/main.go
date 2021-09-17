@@ -145,7 +145,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 
 			cateName := nodes.Link.Title
 
-			if cateName == "" || strings.ToLower(cateName) == "customer service" || strings.ToLower(cateName) == "legal & cookies" {
+			if cateName == "" || strings.ToLower(cateName) == "customer service" || strings.ToLower(cateName) == "legal & cookies" || strings.ToLower(cateName) == "stories" {
 				continue
 			}
 
@@ -153,7 +153,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 
 				subcat2 := rawcat.Link.Title
 
-				if subcat2 == "" {
+				if subcat2 == "" || (strings.ToLower(cateName) == "stories" && strings.ToLower(subcat2) == "news") {
 					continue
 				}
 
@@ -163,8 +163,6 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 
 					href, err := c.CanonicalUrl(rawcatdata.Link.Href)
 					if rawcatdata.Link.Href == "" || subcat3 == "" || err != nil {
-						continue
-					} else if strings.Contains(strings.ToLower(subcat3), "a new identity") {
 						continue
 					}
 
