@@ -5,6 +5,7 @@ package main
 import (
 	"errors"
 	"fmt"
+
 	"github.com/urfave/cli/v2"
 	"github.com/voiladev/VoilaCrawler/bin/tools/digest/diffbot"
 	"github.com/voiladev/VoilaCrawler/bin/tools/digest/util"
@@ -21,10 +22,8 @@ import (
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/protoutil"
+
 	//"github.com/voiladev/go-framework/randutil"
-	"github.com/voiladev/go-framework/strconv"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
 	"html"
 	"io"
 	"net/url"
@@ -34,6 +33,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 type _Crawler struct {
@@ -125,16 +128,21 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	// convert to our own crawler
 	for allowedDomain, siteId := range util.ConversionMap {
-		if matched, _ := filepath.Match(allowedDomain, resp.Request.URL.Host); matched {
+		if matched, _ := filepath.Match(allowedDomain, resp.Request.URL.Hostname()); matched {
 			// build request
 			// convert http.Request to pbCrawl.Command_Request and forward
 			subreq := pbCrawl.Request{
-				//TracingId:     randutil.MustNewRandomID(),
-				//JobId:         randutil.MustNewRandomID(),
-				//ReqId:         randutil.MustNewRandomID(),
-				SiteId: siteId,
-				Url:    resp.Request.URL.String(),
-				Method: resp.Request.Method,
+				TracingId: context.GetString(ctx, context.TracingIdKey),
+				JobId:     context.GetString(ctx, context.JobIdKey),
+				ReqId:     context.GetString(ctx, context.ReqIdKey),
+				SiteId:    siteId,
+				Url:       resp.Request.URL.String(),
+				Method:    resp.Request.Method,
+				Options: &pbCrawl.Request_Options{
+					MaxItemCount:        1,
+					MaxTtlPerRequest:    60,
+					EnableBlockForItems: true,
+				},
 			}
 
 			if subreq.CustomHeaders == nil {
@@ -164,6 +172,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 				subreq.SharingData[key] = val
 			}
+			c.logger.Infof("fetch from crawler")
+
 			// do parse
 			doParseResp, err := c.crawlerClient.DoParse(ctx, &pbCrawl.DoParseRequest{
 				Request:             &subreq,
@@ -173,6 +183,8 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 				c.logger.Error(err)
 				return err
 			}
+			c.logger.Debugf("%+v", doParseResp)
+
 			for _, doParseRespDataItem := range doParseResp.GetData() {
 				if doParseRespDataItem.GetTypeUrl() != protoutil.GetTypeUrl(&pbCrawl.Item{}) {
 					// ignore other type
@@ -501,5 +513,6 @@ func main() {
 	cmd.NewApp(
 		&_Crawler{},
 		&cli.StringFlag{Name: "diffbot-token", Usage: "diffbot api token"},
+		&cli.StringFlag{Name: "crawlet-addr", Usage: "crawlet server address"},
 	).Run(os.Args)
 }
