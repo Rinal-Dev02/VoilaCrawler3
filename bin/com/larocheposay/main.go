@@ -737,6 +737,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				if cover != "" && strings.HasPrefix(cover, "//") {
 					cover = "https:" + strings.ReplaceAll(node.Find(`img`).AttrOr("data-src", ""), `&sh=0`, ``)
 				}
+				cover = strings.ReplaceAll(cover, "&sh=0", "")
 
 				videourl := node.AttrOr(`data-url`, ``)
 				if videourl == "" {
@@ -822,10 +823,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		sel = doc.Find(`.c-product-detail-image__alternatives`).Find(`.c-video-asset__link `)
 		for m := range sel.Nodes {
 			node := sel.Eq(m)
-			cover := node.Find(`img`).AttrOr("src", "")
+			cover := node.Find(`img`).AttrOr("data-src", "")
 			if cover != "" && strings.HasPrefix(cover, "//") {
 				cover = "https:" + cover
 			}
+			cover = strings.ReplaceAll(cover, "&sh=0", "")
 
 			videourl := node.AttrOr(`data-url`, ``)
 			if videourl == "" {
