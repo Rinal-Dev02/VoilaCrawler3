@@ -3,20 +3,15 @@
 package main
 
 import (
-	"html"
-	"net/url"
-	"os"
-	"regexp"
-	"strings"
-	"sync"
-	"time"
-
+	"errors"
+	"fmt"
 	"github.com/urfave/cli/v2"
 	"github.com/voiladev/VoilaCrawler/bin/tools/digest/diffbot"
 	"github.com/voiladev/VoilaCrawler/bin/tools/digest/util"
 	"github.com/voiladev/VoilaCrawler/pkg/brand"
 	cmd "github.com/voiladev/VoilaCrawler/pkg/cli"
 	"github.com/voiladev/VoilaCrawler/pkg/context"
+	ctxutil "github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
@@ -25,7 +20,20 @@ import (
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
+	"github.com/voiladev/go-framework/protoutil"
+	//"github.com/voiladev/go-framework/randutil"
 	"github.com/voiladev/go-framework/strconv"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
+	"html"
+	"io"
+	"net/url"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
 )
 
 type _Crawler struct {
@@ -37,6 +45,8 @@ type _Crawler struct {
 	productGroupPathMatcher *regexp.Regexp
 	productPathMatcher      *regexp.Regexp
 	logger                  glog.Log
+
+	crawlerClient pbCrawl.CrawlerManagerClient
 }
 
 func (_ *_Crawler) New(cli *cmd.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
@@ -50,6 +60,26 @@ func (_ *_Crawler) New(cli *cmd.Context, client http.Client, logger glog.Log) (c
 	}
 	if cli.String("diffbot-token") != "" {
 		c.diffbotClient, _ = diffbot.New(cli.String("diffbot-token"), logger)
+	}
+	err := func() error {
+		crawletAddr := cli.String("crawlet-addr")
+		if crawletAddr == "" {
+			return errors.New("invalid crawlet address")
+		}
+		conn, err := grpc.DialContext(cli.Context, crawletAddr,
+			grpc.WithInsecure(),
+			grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)),
+			grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(100*1024*1024)),
+		)
+		if err != nil {
+			return err
+		}
+		c.crawlerClient = pbCrawl.NewCrawlerManagerClient(conn)
+
+		return nil
+	}()
+	if err != nil {
+		return nil, err
 	}
 	return &c, nil
 }
@@ -92,6 +122,84 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if c == nil || yield == nil || resp == nil || resp.Request == nil {
 		return nil
 	}
+
+	// convert to our own crawler
+	for allowedDomain, siteId := range util.ConversionMap {
+		if matched, _ := filepath.Match(allowedDomain, resp.Request.URL.Host); matched {
+			// build request
+			// convert http.Request to pbCrawl.Command_Request and forward
+			subreq := pbCrawl.Request{
+				//TracingId:     randutil.MustNewRandomID(),
+				//JobId:         randutil.MustNewRandomID(),
+				//ReqId:         randutil.MustNewRandomID(),
+				SiteId: siteId,
+				Url:    resp.Request.URL.String(),
+				Method: resp.Request.Method,
+			}
+
+			if subreq.CustomHeaders == nil {
+				subreq.CustomHeaders = make(map[string]string)
+			}
+			if subreq.SharingData == nil {
+				subreq.SharingData = map[string]string{}
+			}
+			if resp.Request.Body != nil {
+				defer resp.Request.Body.Close()
+				if data, err := io.ReadAll(resp.Request.Body); err != nil {
+					return err
+				} else {
+					subreq.Body = fmt.Sprintf("%s", data)
+				}
+			}
+			for k := range resp.Request.Header {
+				subreq.CustomHeaders[k] = resp.Request.Header.Get(k)
+			}
+
+			for k, v := range ctxutil.RetrieveAllValues(ctx) {
+				key, ok := k.(string)
+				if !ok {
+					continue
+				}
+				val := strconv.Format(v)
+
+				subreq.SharingData[key] = val
+			}
+			// do parse
+			doParseResp, err := c.crawlerClient.DoParse(ctx, &pbCrawl.DoParseRequest{
+				Request:             &subreq,
+				EnableBlockForItems: true,
+			})
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+			for _, doParseRespDataItem := range doParseResp.GetData() {
+				if doParseRespDataItem.GetTypeUrl() != protoutil.GetTypeUrl(&pbCrawl.Item{}) {
+					// ignore other type
+					continue
+				}
+				var item pbCrawl.Item
+				if err := proto.Unmarshal(doParseRespDataItem.GetValue(), &item); err != nil {
+					c.logger.Errorf("unmarshal item failed, error=%s", err)
+					continue
+				}
+				if item.GetData().GetTypeUrl() != protoutil.GetTypeUrl(&pbItem.Product{}) {
+					// ignore other type
+					continue
+				}
+				var product pbItem.Product
+				if err := proto.Unmarshal(item.GetData().GetValue(), &product); err != nil {
+					c.logger.Errorf("unmarshal item failed, error=%s", err)
+					continue
+				}
+				if err := yield(ctx, &product); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
+
 	rawurl := resp.Request.URL.String()
 
 	var (
