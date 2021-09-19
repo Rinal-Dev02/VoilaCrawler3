@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -46,7 +45,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 		httpClient: client,
 		// this regular used to match category page url path
 		categoryPathMatcher: regexp.MustCompile(`^((/us([/A-Za-z0-9_-]+))|(/on/demandware.store/Sites-jurlique-us-Site/en_US/Search-UpdateGrid))$`),
-		productPathMatcher:  regexp.MustCompile(`^(/us[/A-Za-z0-9_-]+.html)`),
+		productPathMatcher:  regexp.MustCompile(`^/us[/A-Za-z0-9_-]+.html$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -54,7 +53,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 
 // ID
 func (c *_Crawler) ID() string {
-	return "456e2e193aef4aa08ef2bff592341f9b"
+	return "30176ceb79709d8f4069d95ff636247b"
 }
 
 // Version
@@ -441,6 +440,22 @@ type parseProductResponse struct {
 	} `json:"product"`
 }
 
+type videoApiResp struct {
+	Version         string  `json:"version"`
+	Type            string  `json:"type"`
+	HTML            string  `json:"html"`
+	Width           int     `json:"width"`
+	Height          int     `json:"height"`
+	ProviderName    string  `json:"provider_name"`
+	ProviderURL     string  `json:"provider_url"`
+	Title           string  `json:"title"`
+	ThumbnailURL    string  `json:"thumbnail_url"`
+	ThumbnailWidth  int     `json:"thumbnail_width"`
+	ThumbnailHeight int     `json:"thumbnail_height"`
+	PlayerColor     string  `json:"player_color"`
+	Duration        float64 `json:"duration"`
+}
+
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil {
@@ -553,6 +568,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			for j := range sel.Nodes {
 				node := sel.Eq(j)
 				imgurl := strings.Split(node.Find(`img`).AttrOr(`src`, ``), "?")[0]
+				if imgurl == "" {
+					continue
+				}
 
 				media = append(media, pbMedia.NewImageMedia(
 					strconv.Format(j),
@@ -566,6 +584,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		} else {
 			// new variation request
 			variantURL := node.AttrOr(`value`, ``)
+
+			if variantURL == "null" {
+				continue
+			}
 
 			respBodyV, err := c.variationRequest(ctx, variantURL, resp.Request.URL.String())
 			if err != nil {
@@ -593,6 +615,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			for j, img := range viewData.Product.Images.Large {
 				imgurl := strings.Split(img.URL, "?")[0]
+				if imgurl == "" {
+					continue
+				}
 
 				media = append(media, pbMedia.NewImageMedia(
 					strconv.Format(j),
@@ -601,6 +626,50 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					imgurl+"?sw=600&sh=600&q=80",
 					imgurl+"?sw=500&sh=500&q=80",
 					"", j == 0))
+			}
+		}
+
+		// video
+		videoSel := doc.Find(".slider-nav_item.slider-nav_item-video.js-wistia-thumbnail")
+		if len(videoSel.Nodes) > 0 {
+			for i := range videoSel.Nodes {
+				videoApiUrl := videoSel.Eq(i).AttrOr("data-wistia-oembed-url", "")
+				if videoApiUrl == "" {
+					continue
+				}
+				videoResp, err := c.variationRequest(ctx, videoApiUrl, resp.Request.URL.String())
+				if err != nil {
+					c.logger.Errorf("get video api %s error=%s", videoApiUrl, err)
+					continue
+				}
+				var (
+					videoApiRespData videoApiResp
+					videoUrl         string
+				)
+				if err := json.Unmarshal(videoResp, &videoApiRespData); err != nil {
+					c.logger.Errorf("json unmarshal video data error=%s", err)
+					continue
+				}
+				videoHtml := strings.Split(videoApiRespData.HTML, "\"")
+				if len(videoHtml) > 1 {
+					for i := range videoHtml {
+						if i == 0 {
+							continue
+						}
+						u, _ := url.Parse(videoHtml[1])
+						if u.Host == "fast.wistia.net" {
+							videoUrl = u.String()
+							break
+						}
+					}
+				}
+
+				media = append(media, pbMedia.NewVideoMedia(
+					strconv.Format(len(media)),
+					"",
+					videoUrl,
+					videoApiRespData.ThumbnailWidth, videoApiRespData.ThumbnailHeight, int(videoApiRespData.Duration), videoApiRespData.ThumbnailURL, "",
+					false))
 			}
 		}
 
@@ -636,9 +705,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Value: sid,
 		})
 
-		for _, spec := range sku.Specs {
-			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
-		}
+		//for _, spec := range sku.Specs {
+		//	sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+		//}
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
@@ -668,6 +737,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		for j := range sel.Nodes {
 			node := sel.Eq(j)
 			imgurl := strings.Split(node.Find(`img`).AttrOr(`src`, ``), "?")[0]
+			if imgurl == "" {
+				continue
+			}
 
 			media = append(media, pbMedia.NewImageMedia(
 				strconv.Format(j),
@@ -676,6 +748,50 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				imgurl+"?sw=600&sh=600&q=80",
 				imgurl+"?sw=500&sh=500&q=80",
 				"", j == 0))
+		}
+
+		// video
+		videoSel := doc.Find(".slider-nav_item.slider-nav_item-video.js-wistia-thumbnail")
+		if len(videoSel.Nodes) > 0 {
+			for i := range videoSel.Nodes {
+				videoApiUrl := videoSel.Eq(i).AttrOr("data-wistia-oembed-url", "")
+				if videoApiUrl == "" {
+					continue
+				}
+				videoResp, err := c.variationRequest(ctx, videoApiUrl, resp.Request.URL.String())
+				if err != nil {
+					c.logger.Errorf("get video api %s error=%s", videoApiUrl, err)
+					continue
+				}
+				var (
+					videoApiRespData videoApiResp
+					videoUrl         string
+				)
+				if err := json.Unmarshal(videoResp, &videoApiRespData); err != nil {
+					c.logger.Errorf("json unmarshal video data error=%s", err)
+					continue
+				}
+				videoHtml := strings.Split(videoApiRespData.HTML, "\"")
+				if len(videoHtml) > 1 {
+					for i := range videoHtml {
+						if i == 0 {
+							continue
+						}
+						u, _ := url.Parse(videoHtml[1])
+						if u.Host == "fast.wistia.net" {
+							videoUrl = u.String()
+							break
+						}
+					}
+				}
+
+				media = append(media, pbMedia.NewVideoMedia(
+					strconv.Format(len(media)),
+					"",
+					videoUrl,
+					videoApiRespData.ThumbnailWidth, videoApiRespData.ThumbnailHeight, int(videoApiRespData.Duration), videoApiRespData.ThumbnailURL, "",
+					false))
+			}
 		}
 
 		sku := pbItem.Sku{
@@ -703,9 +819,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Value: sid,
 		})
 
-		for _, spec := range sku.Specs {
-			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
-		}
+		//for _, spec := range sku.Specs {
+		//	sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+		//}
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
