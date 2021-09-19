@@ -513,6 +513,6 @@ func main() {
 	cmd.NewApp(
 		&_Crawler{},
 		&cli.StringFlag{Name: "diffbot-token", Usage: "diffbot api token"},
-		&cli.StringFlag{Name: "crawlet-addr", Usage: "crawlet server address"},
+		//&cli.StringFlag{Name: "crawlet-addr", Usage: "crawlet server address"},
 	).Run(os.Args)
 }
