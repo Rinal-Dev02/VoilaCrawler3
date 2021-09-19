@@ -183,7 +183,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 				c.logger.Error(err)
 				return err
 			}
-			c.logger.Debugf("%+v", doParseResp)
+			//c.logger.Debugf("%+v", doParseResp)
 
 			for _, doParseRespDataItem := range doParseResp.GetData() {
 				if doParseRespDataItem.GetTypeUrl() != protoutil.GetTypeUrl(&pbCrawl.Item{}) {
@@ -204,7 +204,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 					c.logger.Errorf("unmarshal item failed, error=%s", err)
 					continue
 				}
-				if err := yield(ctx, &product); err != nil {
+				if err := yield(ctx, util.UnmarshalToOpenGraphProduct(&product)); err != nil {
 					return err
 				}
 			}
