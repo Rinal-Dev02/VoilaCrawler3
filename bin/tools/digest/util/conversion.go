@@ -43,6 +43,12 @@ func UnmarshalToOpenGraphProduct(src interface{}) *pbItem.OpenGraph_Product {
 			Currency: srcValue.GetPrice().GetCurrency(),
 			Value:    srcValue.GetPrice().GetCurrent(),
 		}
+		if item.GetPrice().GetValue() <= 0 {
+			for _, sku := range srcValue.GetSkuItems() {
+				item.Price.Currency = sku.GetPrice().GetCurrency()
+				item.Price.Value = sku.GetPrice().GetCurrent()
+			}
+		}
 	}
 	return &item
 }
