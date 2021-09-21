@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
+	pbMedia "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
@@ -31,7 +33,7 @@ type _Crawler struct {
 	logger              glog.Log
 }
 
-func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
+func (*_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
 		categoryPathMatcher: regexp.MustCompile(`^/categories([/A-Za-z0-9_-]+)$`),
@@ -83,7 +85,7 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 		u.RawQuery = ""
 		return u.String(), nil
 	}
-	return u.String(), nil
+	return rawurl, nil
 }
 
 var countriesPrefix = map[string]struct{}{"/ad": {}, "/ae": {}, "/ar-ae": {}, "/af": {}, "/ag": {}, "/ai": {}, "/al": {}, "/am": {}, "/an": {}, "/ao": {}, "/aq": {}, "/ar": {}, "/at": {}, "/au": {}, "/aw": {}, "/az": {}, "/ba": {}, "/bb": {}, "/bd": {}, "/be": {}, "/bf": {}, "/bg": {}, "/bh": {}, "/ar-bh": {}, "/bi": {}, "/bj": {}, "/bm": {}, "/bn": {}, "/bo": {}, "/br": {}, "/bs": {}, "/bt": {}, "/bv": {}, "/bw": {}, "/by": {}, "/bz": {}, "/ca": {}, "/cc": {}, "/cf": {}, "/cg": {}, "/ch": {}, "/ci": {}, "/ck": {}, "/cl": {}, "/cm": {}, "/cn": {}, "/co": {}, "/cr": {}, "/cv": {}, "/cx": {}, "/cy": {}, "/cz": {}, "/de": {}, "/dj": {}, "/dk": {}, "/dm": {}, "/do": {}, "/dz": {}, "/ec": {}, "/ee": {}, "/eg": {}, "/ar-eg": {}, "/eh": {}, "/es": {}, "/et": {}, "/fi": {}, "/fj": {}, "/fk": {}, "/fm": {}, "/fo": {}, "/fr": {}, "/ga": {}, "/uk": {}, "/gd": {}, "/ge": {}, "/gf": {}, "/gg": {}, "/gh": {}, "/gi": {}, "/gl": {}, "/gm": {}, "/gn": {}, "/gp": {}, "/gq": {}, "/gr": {}, "/gt": {}, "/gu": {}, "/gw": {}, "/gy": {}, "/hk": {}, "/hn": {}, "/hr": {}, "/ht": {}, "/hu": {}, "/ic": {}, "/id": {}, "/ie": {}, "/il": {}, "/in": {}, "/io": {}, "/iq": {}, "/ar-iq": {}, "/is": {}, "/it": {}, "/je": {}, "/jm": {}, "/jo": {}, "/ar-jo": {}, "/jp": {}, "/ke": {}, "/kg": {}, "/kh": {}, "/ki": {}, "/km": {}, "/kn": {}, "/kr": {}, "/kv": {}, "/kw": {}, "/ar-kw": {}, "/ky": {}, "/kz": {}, "/la": {}, "/lb": {}, "/ar-lb": {}, "/lc": {}, "/li": {}, "/lk": {}, "/ls": {}, "/lt": {}, "/lu": {}, "/lv": {}, "/ma": {}, "/mc": {}, "/md": {}, "/me": {}, "/mg": {}, "/mh": {}, "/mk": {}, "/ml": {}, "/mn": {}, "/mo": {}, "/mp": {}, "/mq": {}, "/mr": {}, "/ms": {}, "/mt": {}, "/mu": {}, "/mv": {}, "/mw": {}, "/mx": {}, "/my": {}, "/mz": {}, "/na": {}, "/nc": {}, "/ne": {}, "/nf": {}, "/ng": {}, "/ni": {}, "/nl": {}, "/no": {}, "/np": {}, "/nr": {}, "/nu": {}, "/nz": {}, "/om": {}, "/ar-om": {}, "/pa": {}, "/pe": {}, "/pf": {}, "/pg": {}, "/ph": {}, "/pk": {}, "/pl": {}, "/pm": {}, "/pn": {}, "/pr": {}, "/pt": {}, "/pw": {}, "/py": {}, "/qa": {}, "/ar-qa": {}, "/re": {}, "/ro": {}, "/rs": {}, "/ru": {}, "/rw": {}, "/sa": {}, "/ar-sa": {}, "/sb": {}, "/sc": {}, "/se": {}, "/sg": {}, "/sh": {}, "/si": {}, "/sk": {}, "/sl": {}, "/sm": {}, "/sn": {}, "/sr": {}, "/st": {}, "/sv": {}, "/sz": {}, "/tc": {}, "/td": {}, "/tg": {}, "/th": {}, "/tj": {}, "/tk": {}, "/tl": {}, "/tn": {}, "/to": {}, "/tr": {}, "/tt": {}, "/tv": {}, "/tw": {}, "/tz": {}, "/ua": {}, "/ug": {}, "/uy": {}, "/uz": {}, "/va": {}, "/vc": {}, "/ve": {}, "/vg": {}, "/vi": {}, "/vn": {}, "/vu": {}, "/wf": {}, "/xc": {}, "/ye": {}, "/za": {}, "/zm": {}, "/zw": {}}
@@ -143,10 +145,10 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		}
 	}
 
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
-	}
+	// p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	// if p == "" {
+	// 	return c.parseCategories(ctx, resp, yield)
+	// }
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yieldWrap)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
@@ -155,89 +157,177 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
 }
 
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	ioutil.WriteFile("C:\\NewGIT_SVN\\Project_VoilaCrawler\\VoilaCrawler\\Output.html", respBody, 0644)
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.thereformation.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+	})
 	if err != nil {
 		c.logger.Error(err)
-		return err
+		return nil, err
 	}
-	s := []string{}
-	sel := dom.Find(`.primary-nav.primary-nav--small-screen>li`)
-	fmt.Println(len(sel.Nodes))
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	type categorylists struct {
+		URL   string
+		Label string
+	}
+
+	var viewData []categorylists
+
+	sel := dom.Find(`.primary-nav`).Find(`li`)
+
 	for j := range sel.Nodes {
 		subnode := sel.Eq(j)
-		s = append(s, "https://www.thereformation.com/menus/"+subnode.AttrOr("data-primary-nav-content", ""))
+		if subnode.AttrOr("data-primary-nav-content", "") == "" {
+			continue
+		}
+		viewData = append(viewData,
+			categorylists{URL: "https://www.thereformation.com/menus/" + subnode.AttrOr("data-primary-nav-content", ""),
+				Label: subnode.Find(`a`).Text()})
 	}
 
-	for i, catUrl := range s {
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
 
-		req, err := http.NewRequest(http.MethodGet, catUrl, nil)
-		req.Header.Add("accept", "*/*")
-		req.Header.Add("referer", "https://www.thereformation.com/")
-		req.Header.Add("accept-language", "en-US,en;q=0.9")
-		req.Header.Add("x-requested-with", "XMLHttpRequest")
+		for _, catUrl := range viewData {
 
-		catreq, err := c.httpClient.Do(ctx, req)
-		if err != nil {
-			panic(err)
-		}
-		defer catreq.Body.Close()
+			req, err := http.NewRequest(http.MethodGet, catUrl.URL, nil)
+			req.Header.Add("accept", "*/*")
+			req.Header.Add("referer", "https://www.thereformation.com/")
+			req.Header.Add("accept-language", "en-US,en;q=0.9")
+			req.Header.Add("x-requested-with", "XMLHttpRequest")
 
-		catBody, err := ioutil.ReadAll(catreq.Body)
-		if err != nil {
-			c.logger.Error(err)
-			return err
-		}
-
-		ioutil.WriteFile("C:\\NewGIT_SVN\\Project_VoilaCrawler\\VoilaCrawler\\Output"+strconv.Format(i)+".html", catBody, 0644)
-
-		dom, err := goquery.NewDocumentFromReader(bytes.NewReader(catBody))
-		if err != nil {
-			c.logger.Error(err)
-			return err
-		}
-
-		cateName := "Category"
-
-		//nnctx := context.WithValue(ctx, "Category", cateName)
-		fmt.Println(`cateName `, cateName)
-
-		sel := dom.Find(`.taxonomy-content-block__menu-link`)
-		for j := range sel.Nodes {
-			subnode := sel.Eq(j)
-
-			href := subnode.AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-
-			_, err := url.Parse(href)
+			catreq, err := c.httpClient.Do(ctx, req)
 			if err != nil {
-				c.logger.Error("parse url %s failed", href)
-				continue
+				panic(err)
+			}
+			defer catreq.Body.Close()
+
+			catBody, err := ioutil.ReadAll(catreq.Body)
+			if err != nil {
+				c.logger.Error(err)
+				return err
 			}
 
-			subCateName := subnode.Text()
-			fmt.Println(subCateName)
-			// nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-			// req, _ := http.NewRequest(http.MethodGet, href, nil)
-			// if err := yield(nnnctx, req); err != nil {
-			// 	return err
-			// }
-		}
-	}
+			dom, err := goquery.NewDocumentFromReader(bytes.NewReader(catBody))
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
 
-	return nil
+			sel := dom.Find(`.taxonomy-content-block`)
+			if len(sel.Nodes) > 0 {
+				sublnk := sel.Find(`.taxonomy-content-block__container>ul>li`)
+				for j := range sublnk.Nodes {
+					subnode := sublnk.Eq(j)
+					subCateName := subnode.Find(`a`).Text()
+
+					href := subnode.Find(`a`).AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+
+					canonicalhref, err := c.CanonicalUrl(href)
+					if err != nil {
+						continue
+					}
+
+					u, err := url.Parse(canonicalhref)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{catUrl.Label, subCateName}, canonicalhref); err != nil {
+							return err
+						}
+					}
+				}
+			}
+
+			selother := dom.Find(`.collection-taxonomy-content-block`)
+			if len(selother.Nodes) > 0 {
+				sublnk := selother.Find(`.collection-taxonomy-content-block__container>ul>li`)
+				for j := range sublnk.Nodes {
+					subnode := sublnk.Eq(j)
+					subCateName := subnode.Find(`a`).Text()
+
+					href := subnode.Find(`a`).AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+
+					canonicalhref, err := c.CanonicalUrl(href)
+					if err != nil {
+						continue
+					}
+
+					u, err := url.Parse(canonicalhref)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{catUrl.Label, subCateName}, canonicalhref); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
+
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
+
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
+				}
+				cateMap[path] = cate
+				if lastCate != nil {
+					lastCate.Children = append(lastCate.Children, cate)
+				}
+				lastCate = cate
+
+				if i == 0 {
+					cates = append(cates, cate)
+				}
+			}
+		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	return cates, nil
 }
 
 // nextIndex used to get sharingData from context
@@ -266,10 +356,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	sel := doc.Find(`.product-summary__name`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		if href, _ := node.Find(`a`).Attr("href"); href != "" {
-
-			//c.logger.Debugf(href)
-
+		if href, _ := node.Find(`a`).First().Attr("href"); href != "" {
 			req, err := http.NewRequest(http.MethodGet, href, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -365,6 +452,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 
 	sel = doc.Find(`.pdp-breadcrumbs__link`)
@@ -372,56 +460,75 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		node := sel.Eq(i)
 		breadcrumb := strings.TrimSpace(node.Text())
 
-		if i == 0 {
+		if i == len(sel.Nodes)-1 {
+			continue
+		}
+
+		if i == 1 {
 			item.Category = breadcrumb
-		} else if i == 1 {
-			item.SubCategory = breadcrumb
 		} else if i == 2 {
-			item.SubCategory2 = breadcrumb
-		} else if i == 3 {
-			item.SubCategory3 = breadcrumb
-		} else if i == 4 {
-			item.SubCategory4 = breadcrumb
+			item.SubCategory = breadcrumb
 		}
 	}
 
 	var medias []*media.Media
 
 	sel = doc.Find(`.pdp__mobile-images`).Find(`img`)
-
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 		image_url := strings.TrimSpace(node.AttrOr("data-src", ""))
 		if image_url == "" {
 			continue
 		}
+		if strings.Contains(image_url, `video`) {
+			continue
+		}
+
 		itemImg, _ := anypb.New(&media.Media_Image{
 			OriginalUrl: image_url,
 			LargeUrl:    image_url,
-			MediumUrl:   image_url,
-			SmallUrl:    image_url,
+			MediumUrl:   strings.ReplaceAll(image_url, ":520/v1/", ":400/v1/"),
+			SmallUrl:    strings.ReplaceAll(image_url, ":520/v1/", ":200/v1/") + "?",
 		})
 		medias = append(medias, &media.Media{
 			Detail:    itemImg,
 			IsDefault: i == 0,
 		})
+	}
 
+	sel1 := doc.Find(`.pdp-thumbs__primary-container`).Find(`video`)
+	for j := range sel1.Nodes {
+		videonode := sel1.Eq(j)
+		videcover := videonode.AttrOr(`poster`, ``)
+
+		videos := videonode.Find(`source`)
+		for v := range videos.Nodes {
+			node := videos.Eq(v)
+			videourl := node.AttrOr(`src`, ``)
+
+			medias = append(medias, pbMedia.NewVideoMedia(
+				"",
+				"",
+				videourl,
+				0, 0, 0, videcover, "",
+				len(videos.Nodes) == 0))
+		}
 	}
 	item.Medias = medias
 
 	current, _ := strconv.ParseFloat(doc.Find(`.product-prices`).Find(`.product-prices__price`).AttrOr("data-product-sell-price", ""))
 	msrp, _ := strconv.ParseFloat(doc.Find(`.product-prices`).Find(`.product-prices__price`).AttrOr("data-product-sell-price", ""))
 	discount := 0.0
-	// if msrp > current {
-	// 	discount = ((msrp - current) / msrp) * 100
-	// }
+	if msrp > current {
+		discount = ((msrp - current) / msrp) * 100
+	}
 
 	sel = doc.Find(`.pdp-size-options__size-button`)
 
 	for i := range sel.Nodes {
 		node := sel.Eq(i).Find(`input`)
 		sku := pbItem.Sku{
-			SourceId: strings.TrimSpace(node.AttrOr("value", "")),
+			SourceId: fmt.Sprintf("%s-%s", strings.TrimSpace(node.AttrOr("value", "")), color),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(current * 100),
@@ -437,12 +544,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		if strings.Contains(node.AttrOr("data-pdp-size-button", ""), `"purchasability":"available",`) {
 			sku.Stock.StockStatus = pbItem.Stock_InStock
+			item.Stock.StockStatus = pbItem.Stock_InStock
 		}
 
 		if color != "" {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    doc.Find(`meta[itemprop="sku"]`).AttrOr("content", ""),
+				Id:    fmt.Sprintf("%s-%d", doc.Find(`meta[itemprop="sku"]`).AttrOr("content", ""), i),
 				Name:  color,
 				Value: color,
 			})
@@ -465,10 +573,14 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.thereformation.com/",
+		//"https://www.thereformation.com/",
+		//"https://www.thereformation.com/categories/bodysuits",
 		//"https://www.thereformation.com/categories/heeled-sandals",
 		//"https://www.thereformation.com/products/carina-lace-up-mid-heel-sandal?color=Strawberry&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNjA4NzQwODA0M2MyZGMyMGM3NWRkMjVh",
 		//"https://www.thereformation.com/products/assunta-strappy-block-heel-mule?color=Almond&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNWE2YWRmZDJmOTJlYTExNmNmMDRlOWM0",
+		//"https://www.thereformation.com/products/kaleigh-top?color=Black&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNjA1Mjg1NjM4OTg2YTIwMTUyYjI1OTEx",
+		//"https://www.thereformation.com/products/cynthia-shadow-checked-high-rise-straight-long-jeans?color=Seine+Checkerboard&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNWE2YWRmZDNmOTJlYTExNmNmMDRlOWQz",
+		"https://www.thereformation.com/products/cynthia-high-relaxed-jean?via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNWE2YWRmZDNmOTJlYTExNmNmMDRlOWQz&color=Tahoe",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -487,5 +599,6 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
+	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
