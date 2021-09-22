@@ -93,70 +93,70 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log, ht
 		return errors.New("Checker.Product: nil")
 	}
 	if item.GetSource().GetId() == "" {
-		return errors.New("Checker.Product: invalid source id")
+		return fmt.Errorf("Checker.Product: invalid source id, URL=%s", item.GetSource().GetCrawlUrl())
 	}
 	if item.GetSource().GetCrawlUrl() == "" {
 		return errors.New("Checker.Product: invalid crawl url")
 	}
 	if item.GetSource().GetCanonicalUrl() == "" {
-		return errors.New("Checker.Product: invalid canonical url")
+		return fmt.Errorf("Checker.Product: invalid canonical url, URL=%s", item.GetSource().GetCrawlUrl())
 	}
 	if item.BrandName == "" {
-		return errors.New("Checker.Product: invalid brand")
+		return fmt.Errorf("Checker.Product: invalid brand, URL=%s", item.GetSource().GetCrawlUrl())
 	}
 	if item.Title == "" {
-		return errors.New("Checker.Product: invalid title")
+		return fmt.Errorf("Checker.Product: invalid title, URL=%s", item.GetSource().GetCrawlUrl())
 	}
 	if item.Description == "" {
-		return errors.New("Checker.Product: invalid description")
+		return fmt.Errorf("Checker.Product: invalid description, URL=%s", item.GetSource().GetCrawlUrl())
 	}
 
 	if item.Category == "" {
 		logger.Warnf("Checker.Product: no category found")
 		if item.SubCategory != "" {
-			return errors.New("Checker.Product: category is empty but subCategory is not")
+			return fmt.Errorf("Checker.Product: category is empty but subCategory is not, URL=%s", item.GetSource().GetCrawlUrl())
 		}
 	}
 
 	mediaChecker := func(m *media.Media) error {
 		if m == nil {
-			return errors.New("Checker.Product: invalid media")
+			return fmt.Errorf("Checker.Product: invalid media, URL=%s", item.GetSource().GetCrawlUrl())
 		}
 
 		switch m.GetDetail().GetTypeUrl() {
 		case protoutil.GetTypeUrl(&media.Media_Image{}):
 			var img media.Media_Image
 			if err := proto.Unmarshal(m.GetDetail().GetValue(), &img); err != nil {
-				return errors.New("Checker.Product: unmarshal image media failed")
+				return fmt.Errorf("Checker.Product: unmarshal image media failed, URL=%s", item.GetSource().GetCrawlUrl())
 			}
 			if img.GetOriginalUrl() == "" {
-				return errors.New("Checker.Product: invalid image original url")
+				return fmt.Errorf("Checker.Product: invalid image original url, URL=%s", item.GetSource().GetCrawlUrl())
 			}
 			if img.GetLargeUrl() == "" {
-				return errors.New("Checker.Product: invalid image large url")
+				return fmt.Errorf("Checker.Product: invalid image large url, URL=%s", item.GetSource().GetCrawlUrl())
 			} else if err := checkImage(ctx, logger, img.GetLargeUrl(), imgSizeLarge, httpClient, item); err != nil {
-				return err
+				return fmt.Errorf("%s, URL=%s", err, item.GetSource().GetCrawlUrl())
 			}
 			if img.GetMediumUrl() == "" {
-				return errors.New("Checker.Product: invalid image medium url")
+				return fmt.Errorf("Checker.Product: invalid image medium url, URL=%s", item.GetSource().GetCrawlUrl())
 			} else if err := checkImage(ctx, logger, img.GetMediumUrl(), imgSizeMedium, httpClient, item); err != nil {
-				return err
+				return fmt.Errorf("%s, URL=%s", err, item.GetSource().GetCrawlUrl())
 			}
 			if img.GetSmallUrl() == "" {
-				return errors.New("Checker.Product: invalid image small url")
+				return fmt.Errorf("Checker.Product: invalid image small url, URL=%s", item.GetSource().GetCrawlUrl())
 			} else if err := checkImage(ctx, logger, img.GetSmallUrl(), imgSizeSmall, httpClient, item); err != nil {
-				return err
+				return fmt.Errorf("%s, URL=%s", err, item.GetSource().GetCrawlUrl())
 			}
 			if img.GetSmallUrl() == img.GetLargeUrl() {
-				return errors.New("Checker.Product: SmallUrl should in width >=500, MediumUrl should in width >=600, LargeUrl should in width >=800")
+				return fmt.Errorf("Checker.Product: SmallUrl should in width >=500, MediumUrl should in width >=600, LargeUrl should in width >=800, URL=%s", item.GetSource().GetCrawlUrl())
 			}
 		case protoutil.GetTypeUrl(&media.Media_Video{}):
 			var video media.Media_Video
 			if err := proto.Unmarshal(m.GetDetail().GetValue(), &video); err != nil {
-				return errors.New("Checker.Product: unmarshal video media failed")
+				return fmt.Errorf("Checker.Product: unmarshal video media failed, URL=%s", item.GetSource().GetCrawlUrl())
 			}
 			if video.GetOriginalUrl() == "" {
-				return errors.New("Checker.Product: invalid video OriginalUrl")
+				return fmt.Errorf("Checker.Product: invalid video OriginalUrl, URL=%s", item.GetSource().GetCrawlUrl())
 			}
 			if video.GetCover().GetOriginalUrl() == "" {
 				logger.Warnf("Checker.Product: no cover found for video")
@@ -172,12 +172,12 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log, ht
 			return e
 		}
 		if i == 0 && !m.IsDefault {
-			return fmt.Errorf("Checker.Product: the first media for item should be the default media")
+			return fmt.Errorf("Checker.Product: the first media for item should be the default media, URL=%s", item.GetSource().GetCrawlUrl())
 		}
 	}
 
 	if item.GetStock().GetStockStatus() == pbItem.Stock_InStock && len(item.SkuItems) == 0 {
-		return errors.New("Checker.Product: no valid item found")
+		return fmt.Errorf("Checker.Product: no valid item found, URL=%s", item.GetSource().GetCrawlUrl())
 	}
 
 	var (
@@ -188,18 +188,18 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log, ht
 	)
 	for _, sku := range item.SkuItems {
 		if sku == nil {
-			return errors.New("Checker.Product: no sku found")
+			return fmt.Errorf("Checker.Product: no sku found, URL=%s", item.GetSource().GetCrawlUrl())
 		}
 		if sku.SourceId == "" {
-			return errors.New("Checker.Product: invalid sku SourceId")
+			return fmt.Errorf("Checker.Product: invalid sku SourceId, URL=%s", item.GetSource().GetCrawlUrl())
 		}
 		if _, ok := skuIds[sku.SourceId]; ok {
-			return fmt.Errorf("Checker.Product: sku id %s already exists", sku.SourceId)
+			return fmt.Errorf("Checker.Product: sku id %s already exists, URL=%s", sku.SourceId, item.GetSource().GetCrawlUrl())
 		}
 		skuIds[sku.SourceId] = struct{}{}
 
 		if len(sku.Specs) == 0 {
-			return fmt.Errorf("Checker.Product: no sku spec found for sku %s", sku.SourceId)
+			return fmt.Errorf("Checker.Product: no sku spec found for sku %s, URL=%s", sku.SourceId, item.GetSource().GetCrawlUrl())
 		}
 
 		specIds := map[string]struct{}{}
@@ -207,28 +207,28 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log, ht
 		for _, spec := range sku.Specs {
 			if _, ok := pbItem.SkuSpecType_name[int32(spec.GetType())]; !ok ||
 				spec.GetType() == pbItem.SkuSpecType_SkuSpecUnknown {
-				return fmt.Errorf("Checker.Product: invalid spec type for sku %v", sku.SourceId)
+				return fmt.Errorf("Checker.Product: invalid spec type for sku %v, URL=%s", sku.SourceId, item.GetSource().GetCrawlUrl())
 			}
 			if _, ok := specTypeFilter[spec.GetType()]; ok {
-				return fmt.Errorf("Checker.Product: sku spec %s has been exists", spec.GetType())
+				return fmt.Errorf("Checker.Product: sku spec %s has been exists, URL=%s", spec.GetType(), item.GetSource().GetCrawlUrl())
 			}
 			specTypeFilter[spec.GetType()] = struct{}{}
 
 			if spec.GetId() == "" {
-				return fmt.Errorf("Checker.Product: invalid sku spec id, if not spec id found, use spec name or value")
+				return fmt.Errorf("Checker.Product: invalid sku spec id, if not spec id found, use spec name or value, URL=%s", item.GetSource().GetCrawlUrl())
 			}
 			if spec.GetId() == sku.SourceId {
-				return fmt.Errorf("Checker.Product: sku id can not be the id of sku spec")
+				return fmt.Errorf("Checker.Product: sku id can not be the id of sku spec, URL=%s", item.GetSource().GetCrawlUrl())
 			}
 			if _, ok := specIds[spec.GetId()]; ok {
-				return fmt.Errorf("Checker.Product: sku spec id %v has been used, if no sku source id found, you can use sku's spec ids to generate a unique id", spec.GetId())
+				return fmt.Errorf("Checker.Product: sku spec id %v has been used, if no sku source id found, you can use sku's spec ids to generate a unique id, URL=%s", spec.GetId(), item.GetSource().GetCrawlUrl())
 			}
 			specIds[spec.GetId()] = struct{}{}
 			if spec.GetName() == "" {
-				return fmt.Errorf("Checker.Product: invalid sku spec name, if not name found, use spec value")
+				return fmt.Errorf("Checker.Product: invalid sku spec name, if not name found, use spec value, URL=%s", item.GetSource().GetCrawlUrl())
 			}
 			if spec.GetValue() == "" {
-				return fmt.Errorf("Checker.Product: invalid sku spec value, if not value found, use spec name")
+				return fmt.Errorf("Checker.Product: invalid sku spec value, if not value found, use spec name, URL=%s", item.GetSource().GetCrawlUrl())
 			}
 		}
 
@@ -240,7 +240,7 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log, ht
 			isSkuMediasFound = true
 			for i, m := range sku.Medias {
 				if i == 0 && !m.IsDefault {
-					return fmt.Errorf("Checker.Product: the first media for sku %s should be the default media", sku.SourceId)
+					return fmt.Errorf("Checker.Product: the first media for sku %s should be the default media, URL=%s", sku.SourceId, item.GetSource().GetCrawlUrl())
 				}
 				if e := mediaChecker(m); e != nil {
 					return e
@@ -250,36 +250,36 @@ func checkProduct(ctx context.Context, item *pbItem.Product, logger glog.Log, ht
 
 		// Currently only supports USD
 		if sku.GetPrice().GetCurrency() != regulation.Currency_USD {
-			return fmt.Errorf("Checker.Product: invalid price currency for sku %s", sku.SourceId)
+			return fmt.Errorf("Checker.Product: invalid price currency for sku %s, URL=%s", sku.SourceId, item.GetSource().GetCrawlUrl())
 		}
 		if sku.GetPrice().GetCurrent() <= 0 {
-			return fmt.Errorf("Checker.Product: invalid current price for sku %s", sku.SourceId)
+			return fmt.Errorf("Checker.Product: invalid current price for sku %s, URL=%s", sku.SourceId, item.GetSource().GetCrawlUrl())
 		}
 		if sku.GetPrice().GetMsrp() <= 0 {
-			return fmt.Errorf("Checker.Product: invalid msrp price for sku %s, if not found, use current price", sku.SourceId)
+			return fmt.Errorf("Checker.Product: invalid msrp price for sku %s, if not found, use current price, URL=%s", sku.SourceId, item.GetSource().GetCrawlUrl())
 		}
 		if sku.GetPrice().GetDiscount() < 0 {
-			return fmt.Errorf("Checker.Product: invalid discount price for sku %s", sku.SourceId)
+			return fmt.Errorf("Checker.Product: invalid discount price for sku %s, URL=%s", sku.SourceId, item.GetSource().GetCrawlUrl())
 		}
 		if sku.GetPrice().GetDiscount1() < 0 {
-			return fmt.Errorf("Checker.Product: invalid discount1 price for sku %s", sku.SourceId)
+			return fmt.Errorf("Checker.Product: invalid discount1 price for sku %s, URL=%s", sku.SourceId, item.GetSource().GetCrawlUrl())
 		}
 		if sku.GetStock().GetStockStatus() == pbItem.Stock_OutOfStock && sku.GetStock().GetStockCount() > 0 {
-			return fmt.Errorf("Checker.Product: invalid discount1 price for sku %s", sku.SourceId)
+			return fmt.Errorf("Checker.Product: invalid discount1 price for sku %s, URL=%s", sku.SourceId, item.GetSource().GetCrawlUrl())
 		}
 		isStatsFound = isStatsFound || sku.GetStats() != nil
 	}
 	if !isMediasToAllSku {
 		if isSkuMediasFound {
-			return errors.New("Checker.Pointer: medias must be set for each sku")
+			return fmt.Errorf("Checker.Pointer: medias must be set for each sku, URL=%s", item.GetSource().GetCrawlUrl())
 		}
 		if len(item.Medias) == 0 {
-			return errors.New("Checker.Pointer: no medias found")
+			return fmt.Errorf("Checker.Pointer: no medias found, URL=%s", item.GetSource().GetCrawlUrl())
 		}
 	}
 
 	if item.GetStock().GetStockStatus() == pbItem.Stock_StockStatusUnknown {
-		logger.Errorf("Checker.Product: item Stock status is not set, if can found, you can use sku's StockStatus")
+		logger.Errorf("Checker.Product: item Stock status is not set, if can found, you can use sku's StockStatus, URL=%s", item.GetSource().GetCrawlUrl())
 	}
 	if !isStatsFound {
 		logger.Warnf("Checker.Product: not stats found")
@@ -384,7 +384,7 @@ getImgFlag:
 			logger.Debugf("retry %s count=%d", imgUrl, retryCount)
 			goto getImgFlag
 		}
-		return fmt.Errorf("Checker.Product.Media: get url=%s status code != 200! ", imgUrl)
+		return fmt.Errorf("Checker.Product.Media: get url=%s status code != 200!status code=%d", imgUrl, imgResp.StatusCode)
 	}
 	img, _, err = image.Decode(imgResp.Body)
 	if err != nil {

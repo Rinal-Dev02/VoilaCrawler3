@@ -70,8 +70,8 @@ jobs:
 
           # Test parse category url
           echo "EXEC=> ./releases/com.${FOLDER_NAME}.bin test --target ${LAST_CATEGORY_URL}"
-          PARSE_CATEGORY_OUTPUT_ERROR_LINE="$(./releases/com.${FOLDER_NAME}.bin test --debug --pretty --target ${LAST_CATEGORY_URL} | grep -E 'ERROR' -B 5 | tr -d '\r\n' | tr -d '\n')"
-          if [[ ${PARSE_CATEGORY_OUTPUT_ERROR_LINE} =~ ERROR ]]; then
+          PARSE_CATEGORY_OUTPUT_ERROR_LINE="$(./releases/com.${FOLDER_NAME}.bin test --debug --pretty --target ${LAST_CATEGORY_URL} | grep -E 'ERROR|panic' | tr -d '\r\n')"
+          if [[ ${PARSE_CATEGORY_OUTPUT_ERROR_LINE} =~ ERROR ]] || [[ ${PARSE_CATEGORY_OUTPUT_ERROR_LINE} =~ panic ]]; then
           # Send a comment about GetCategoryProducts error
           echo "Send a comment about GetCategoryProducts error"
           curl \
