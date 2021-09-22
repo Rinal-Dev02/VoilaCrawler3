@@ -461,7 +461,7 @@ type ProductDataJson struct {
 			AvailableDc string `json:"available_dc"`
 			Sku         string `json:"sku"`
 		} `json:"allAvailableProducts"`
-		StarRating float64 `json:"starRating"`
+		//StarRating float64 `json:"starRating"`
 		// AttributesHTML string `json:"attributesHtml"`
 		// PromotionsHTML string `json:"promotionsHtml"`
 		// FinalSaleHTML  string `json:"finalSaleHtml"`
