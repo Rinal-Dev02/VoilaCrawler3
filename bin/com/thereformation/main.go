@@ -57,12 +57,9 @@ func (c *_Crawler) Version() int32 {
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
-	//options.LoginRequired = false
 	options.EnableSessionInit = true
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
-	options.MustCookies = append(options.MustCookies,
-		&http.Cookie{Name: "ckm-ctx-sf", Value: `%2F`, Path: "/"},
-	)
+
 	return options
 }
 
@@ -83,9 +80,8 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
-		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 var countriesPrefix = map[string]struct{}{"/ad": {}, "/ae": {}, "/ar-ae": {}, "/af": {}, "/ag": {}, "/ai": {}, "/al": {}, "/am": {}, "/an": {}, "/ao": {}, "/aq": {}, "/ar": {}, "/at": {}, "/au": {}, "/aw": {}, "/az": {}, "/ba": {}, "/bb": {}, "/bd": {}, "/be": {}, "/bf": {}, "/bg": {}, "/bh": {}, "/ar-bh": {}, "/bi": {}, "/bj": {}, "/bm": {}, "/bn": {}, "/bo": {}, "/br": {}, "/bs": {}, "/bt": {}, "/bv": {}, "/bw": {}, "/by": {}, "/bz": {}, "/ca": {}, "/cc": {}, "/cf": {}, "/cg": {}, "/ch": {}, "/ci": {}, "/ck": {}, "/cl": {}, "/cm": {}, "/cn": {}, "/co": {}, "/cr": {}, "/cv": {}, "/cx": {}, "/cy": {}, "/cz": {}, "/de": {}, "/dj": {}, "/dk": {}, "/dm": {}, "/do": {}, "/dz": {}, "/ec": {}, "/ee": {}, "/eg": {}, "/ar-eg": {}, "/eh": {}, "/es": {}, "/et": {}, "/fi": {}, "/fj": {}, "/fk": {}, "/fm": {}, "/fo": {}, "/fr": {}, "/ga": {}, "/uk": {}, "/gd": {}, "/ge": {}, "/gf": {}, "/gg": {}, "/gh": {}, "/gi": {}, "/gl": {}, "/gm": {}, "/gn": {}, "/gp": {}, "/gq": {}, "/gr": {}, "/gt": {}, "/gu": {}, "/gw": {}, "/gy": {}, "/hk": {}, "/hn": {}, "/hr": {}, "/ht": {}, "/hu": {}, "/ic": {}, "/id": {}, "/ie": {}, "/il": {}, "/in": {}, "/io": {}, "/iq": {}, "/ar-iq": {}, "/is": {}, "/it": {}, "/je": {}, "/jm": {}, "/jo": {}, "/ar-jo": {}, "/jp": {}, "/ke": {}, "/kg": {}, "/kh": {}, "/ki": {}, "/km": {}, "/kn": {}, "/kr": {}, "/kv": {}, "/kw": {}, "/ar-kw": {}, "/ky": {}, "/kz": {}, "/la": {}, "/lb": {}, "/ar-lb": {}, "/lc": {}, "/li": {}, "/lk": {}, "/ls": {}, "/lt": {}, "/lu": {}, "/lv": {}, "/ma": {}, "/mc": {}, "/md": {}, "/me": {}, "/mg": {}, "/mh": {}, "/mk": {}, "/ml": {}, "/mn": {}, "/mo": {}, "/mp": {}, "/mq": {}, "/mr": {}, "/ms": {}, "/mt": {}, "/mu": {}, "/mv": {}, "/mw": {}, "/mx": {}, "/my": {}, "/mz": {}, "/na": {}, "/nc": {}, "/ne": {}, "/nf": {}, "/ng": {}, "/ni": {}, "/nl": {}, "/no": {}, "/np": {}, "/nr": {}, "/nu": {}, "/nz": {}, "/om": {}, "/ar-om": {}, "/pa": {}, "/pe": {}, "/pf": {}, "/pg": {}, "/ph": {}, "/pk": {}, "/pl": {}, "/pm": {}, "/pn": {}, "/pr": {}, "/pt": {}, "/pw": {}, "/py": {}, "/qa": {}, "/ar-qa": {}, "/re": {}, "/ro": {}, "/rs": {}, "/ru": {}, "/rw": {}, "/sa": {}, "/ar-sa": {}, "/sb": {}, "/sc": {}, "/se": {}, "/sg": {}, "/sh": {}, "/si": {}, "/sk": {}, "/sl": {}, "/sm": {}, "/sn": {}, "/sr": {}, "/st": {}, "/sv": {}, "/sz": {}, "/tc": {}, "/td": {}, "/tg": {}, "/th": {}, "/tj": {}, "/tk": {}, "/tl": {}, "/tn": {}, "/to": {}, "/tr": {}, "/tt": {}, "/tv": {}, "/tw": {}, "/tz": {}, "/ua": {}, "/ug": {}, "/uy": {}, "/uz": {}, "/va": {}, "/vc": {}, "/ve": {}, "/vg": {}, "/vi": {}, "/vn": {}, "/vu": {}, "/wf": {}, "/xc": {}, "/ye": {}, "/za": {}, "/zm": {}, "/zw": {}}
@@ -145,16 +141,12 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		}
 	}
 
-	// p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-	// if p == "" {
-	// 	return c.parseCategories(ctx, resp, yield)
-	// }
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yieldWrap)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yieldWrap)
 	}
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	return crawler.ErrUnsupportedPath
 }
 
 func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
@@ -357,6 +349,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
 		if href, _ := node.Find(`a`).First().Attr("href"); href != "" {
+
 			req, err := http.NewRequest(http.MethodGet, href, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -392,15 +385,15 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	return yield(nctx, req)
 }
 
-func TrimSpaceNewlineInString(s []byte) []byte {
+func TrimSpaceNewlineInString(s string) string {
 	re := regexp.MustCompile(`\n`)
-	resp := re.ReplaceAll(s, []byte(" "))
-	resp = bytes.ReplaceAll(resp, []byte("\\n"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("\r"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("\t"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("&lt;"), []byte("<"))
-	resp = bytes.ReplaceAll(resp, []byte("&gt;"), []byte(">"))
+	resp := re.ReplaceAllString(s, " ")
+	resp = strings.ReplaceAll(resp, "\\n", " ")
+	resp = strings.ReplaceAll(resp, "\r", " ")
+	resp = strings.ReplaceAll(resp, "\t", " ")
 
+	re = regexp.MustCompile(`\s+`)
+	resp = re.ReplaceAllString(resp, " ")
 	return resp
 }
 
@@ -429,7 +422,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
 	}
 
-	color := strings.ReplaceAll(strings.TrimSpace(doc.Find(`.pdp-color-options__label`).Text()), "Color: ", "")
 	desc := ""
 
 	sel := doc.Find(`.data-accordion__content`)
@@ -446,8 +438,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 		},
-		Title:       doc.Find(`.pdp__name`).Text(),
-		Description: desc,
+		Title:       TrimSpaceNewlineInString(doc.Find(`.pdp__name`).Text()),
+		Description: TrimSpaceNewlineInString(desc),
 		BrandName:   "Reformation",
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
@@ -468,101 +460,130 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			item.Category = breadcrumb
 		} else if i == 2 {
 			item.SubCategory = breadcrumb
+		} else if i == 3 {
+			item.SubCategory2 = breadcrumb
+		} else if i == 4 {
+			item.SubCategory4 = breadcrumb
 		}
 	}
 
-	var medias []*media.Media
-
-	sel = doc.Find(`.pdp__mobile-images`).Find(`img`)
+	dom := doc
+	selColor := doc.Find(`.pdp-color-options__color-group>li`)
 	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		image_url := strings.TrimSpace(node.AttrOr("data-src", ""))
-		if image_url == "" {
-			continue
-		}
-		if strings.Contains(image_url, `video`) {
-			continue
-		}
+		nodeColor := selColor.Eq(i)
 
-		itemImg, _ := anypb.New(&media.Media_Image{
-			OriginalUrl: image_url,
-			LargeUrl:    image_url,
-			MediumUrl:   strings.ReplaceAll(image_url, ":520/v1/", ":400/v1/"),
-			SmallUrl:    strings.ReplaceAll(image_url, ":520/v1/", ":200/v1/") + "?",
-		})
-		medias = append(medias, &media.Media{
-			Detail:    itemImg,
-			IsDefault: i == 0,
-		})
-	}
+		color := TrimSpaceNewlineInString(nodeColor.Text())
 
-	sel1 := doc.Find(`.pdp-thumbs__primary-container`).Find(`video`)
-	for j := range sel1.Nodes {
-		videonode := sel1.Eq(j)
-		videcover := videonode.AttrOr(`poster`, ``)
+		if subClass := nodeColor.AttrOr(`class`, ``); strings.Contains(subClass, `--selected`) {
+			dom = doc
+		} else {
+			// new request
+			prodUrl := "https://www.thereformation.com" + nodeColor.Find(`a`).AttrOr(`href`, ``)
 
-		videos := videonode.Find(`source`)
-		for v := range videos.Nodes {
-			node := videos.Eq(v)
-			videourl := node.AttrOr(`src`, ``)
+			respBodyJs, err := c.variationRequest(ctx, prodUrl, resp.Request.URL.String())
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
 
-			medias = append(medias, pbMedia.NewVideoMedia(
-				"",
-				"",
-				videourl,
-				0, 0, 0, videcover, "",
-				len(videos.Nodes) == 0))
-		}
-	}
-	item.Medias = medias
-
-	current, _ := strconv.ParseFloat(doc.Find(`.product-prices`).Find(`.product-prices__price`).AttrOr("data-product-sell-price", ""))
-	msrp, _ := strconv.ParseFloat(doc.Find(`.product-prices`).Find(`.product-prices__price`).AttrOr("data-product-sell-price", ""))
-	discount := 0.0
-	if msrp > current {
-		discount = ((msrp - current) / msrp) * 100
-	}
-
-	sel = doc.Find(`.pdp-size-options__size-button`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i).Find(`input`)
-		sku := pbItem.Sku{
-			SourceId: fmt.Sprintf("%s-%s", strings.TrimSpace(node.AttrOr("value", "")), color),
-			Price: &pbItem.Price{
-				Currency: regulation.Currency_USD,
-				Current:  int32(current * 100),
-				Msrp:     int32(msrp * 100),
-				Discount: int32(discount),
-			},
-
-			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
-		}
-		// if i == 0 {
-		// 	sku.Medias = medias
-		// }
-
-		if strings.Contains(node.AttrOr("data-pdp-size-button", ""), `"purchasability":"available",`) {
-			sku.Stock.StockStatus = pbItem.Stock_InStock
-			item.Stock.StockStatus = pbItem.Stock_InStock
+			dom, err = goquery.NewDocumentFromReader(bytes.NewReader(respBodyJs))
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
 		}
 
-		if color != "" {
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    fmt.Sprintf("%s-%d", doc.Find(`meta[itemprop="sku"]`).AttrOr("content", ""), i),
-				Name:  color,
-				Value: color,
+		var medias []*media.Media
+
+		sel = dom.Find(`.pdp__mobile-images`).Find(`img`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			image_url := strings.TrimSpace(node.AttrOr("data-src", ""))
+
+			if image_url == "" || strings.Contains(image_url, `video`) {
+				continue
+			}
+
+			itemImg, _ := anypb.New(&media.Media_Image{
+				OriginalUrl: image_url,
+				LargeUrl:    image_url,
+				MediumUrl:   strings.ReplaceAll(image_url, ":520/v1/", ":400/v1/"),
+				SmallUrl:    strings.ReplaceAll(image_url, ":520/v1/", ":200/v1/") + "?",
+			})
+			medias = append(medias, &media.Media{
+				Detail:    itemImg,
+				IsDefault: i == 0,
 			})
 		}
 
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    node.AttrOr("value", ""),
-			Name:  strings.TrimSpace(sel.Eq(i).Text()),
-			Value: strings.TrimSpace(sel.Eq(i).Text()),
-		})
-		item.SkuItems = append(item.SkuItems, &sku)
+		sel1 := dom.Find(`.pdp-thumbs__primary-container`).Find(`video`)
+		for j := range sel1.Nodes {
+			videonode := sel1.Eq(j)
+			videcover := videonode.AttrOr(`poster`, ``)
+
+			videos := videonode.Find(`source`)
+			for v := range videos.Nodes {
+				node := videos.Eq(v)
+				videourl := node.AttrOr(`src`, ``)
+
+				medias = append(medias, pbMedia.NewVideoMedia(
+					"",
+					"",
+					videourl,
+					0, 0, 0, videcover, "",
+					len(medias) == 0))
+			}
+		}
+		item.Medias = append(item.Medias, medias...)
+
+		current, _ := strconv.ParseFloat(dom.Find(`.product-prices`).Find(`.product-prices__price`).AttrOr("data-product-sell-price", ""))
+		msrp, _ := strconv.ParseFloat(dom.Find(`.product-prices`).Find(`.product-prices__price`).AttrOr("data-product-sell-price", ""))
+		discount := 0.0
+		if msrp > current {
+			discount = ((msrp - current) / msrp) * 100
+		}
+
+		sel = dom.Find(`.pdp-size-options__size-button`)
+
+		for i := range sel.Nodes {
+			node := sel.Eq(i).Find(`input`)
+			sku := pbItem.Sku{
+				SourceId: fmt.Sprintf("%s-%s", strings.TrimSpace(node.AttrOr("value", "")), color),
+				Price: &pbItem.Price{
+					Currency: regulation.Currency_USD,
+					Current:  int32(current * 100),
+					Msrp:     int32(msrp * 100),
+					Discount: int32(discount),
+				},
+				Medias: medias,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			}
+
+			if strings.Contains(node.AttrOr("data-pdp-size-button", ""), `"purchasability":"available",`) {
+				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
+			}
+
+			if color != "" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
+					Id:    color,
+					Name:  color,
+					Value: color,
+				})
+			}
+
+			sizeValue := strings.TrimSpace(sel.Eq(i).Text())
+			if sizeValue != "" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					Id:    sizeValue,
+					Name:  sizeValue,
+					Value: sizeValue,
+				})
+			}
+			item.SkuItems = append(item.SkuItems, &sku)
+		}
 	}
 
 	if err = yield(ctx, &item); err != nil {
@@ -571,16 +592,47 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
+func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) ([]byte, error) {
+
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	opts := c.CrawlOptions(req.URL)
+	req.Header.Set("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+	req.Header.Set("accept", "*/*")
+	req.Header.Set("x-requested-with", "XMLHttpRequest")
+	req.Header.Set("referer", referer)
+
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    false,
+		EnableSessionInit: false,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return ioutil.ReadAll(resp.Body)
+}
+
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.thereformation.com/",
 		//"https://www.thereformation.com/categories/bodysuits",
-		//"https://www.thereformation.com/categories/heeled-sandals",
+		//"https://www.thereformation.com/categories/new",
 		//"https://www.thereformation.com/products/carina-lace-up-mid-heel-sandal?color=Strawberry&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNjA4NzQwODA0M2MyZGMyMGM3NWRkMjVh",
 		//"https://www.thereformation.com/products/assunta-strappy-block-heel-mule?color=Almond&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNWE2YWRmZDJmOTJlYTExNmNmMDRlOWM0",
 		//"https://www.thereformation.com/products/kaleigh-top?color=Black&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNjA1Mjg1NjM4OTg2YTIwMTUyYjI1OTEx",
 		//"https://www.thereformation.com/products/cynthia-shadow-checked-high-rise-straight-long-jeans?color=Seine+Checkerboard&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNWE2YWRmZDNmOTJlYTExNmNmMDRlOWQz",
-		"https://www.thereformation.com/products/cynthia-high-relaxed-jean?via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNWE2YWRmZDNmOTJlYTExNmNmMDRlOWQz&color=Tahoe",
+		//"https://www.thereformation.com/products/cynthia-high-relaxed-jean?via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNWE2YWRmZDNmOTJlYTExNmNmMDRlOWQz&color=Tahoe",
+		"https://www.thereformation.com/products/samuel-dress",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
@@ -599,6 +651,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	os.Setenv("VOILA_PROXY_URL", "http://52.207.171.114:30216")
 	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
