@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -38,11 +39,11 @@ type _Crawler struct {
 // New returns an object of interface crawler.Crawler.
 // this is the entry of the spider plugin. the plugin manager will call this func to init the plugin.
 // view pkg/crawler/spec.go to know more about the interface `Crawler`
-func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
+func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^/en/categories([/A-Za-z0-9_-]+)$`),
+		categoryPathMatcher: regexp.MustCompile(`^/en/([/A-Za-z0-9_-]+)$`),
 		productPathMatcher:  regexp.MustCompile(`^/en/categories([/A-Za-z0-9_-]+).html$`),
 		logger:              logger.New("_Crawler"),
 	}
@@ -51,7 +52,7 @@ func New(client http.Client, logger glog.Log) (crawler.Crawler, error) {
 
 // ID
 func (c *_Crawler) ID() string {
-	return "2d710c1e01e640878d69a808d7e4348c"
+	return "dd89e9f996d94c419e1326af1a148abd"
 }
 
 // Version
@@ -68,14 +69,9 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	opts := &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
-		EnableSessionInit: true,
+		EnableSessionInit: false,
 		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
 	}
-
-	// opts.MustCookies = append(opts.MustCookies,
-	// 	&http.Cookie{Name: "GlobalE_Data", Value: `{"countryISO":"US","cultureCode":"en-US","currencyCode":"USD","apiVersion":"2.1.4"}`, Path: "/"},
-	// 	//&http.Cookie{Name: "_dy_geo", Value: "US.NA.US_DC.US_DC_Washington", Path: "/"},
-	// )
 
 	return opts
 }
@@ -89,16 +85,22 @@ func (c *_Crawler) AllowedDomains() []string {
 }
 
 // CanonicalUrl
+
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	u, err := url.Parse(rawurl)
 	if err != nil {
 		return "", err
 	}
+	if u.Scheme == "" {
+		u.Scheme = "https"
+	}
+	if u.Host == "" {
+		u.Host = "www.maje.com"
+	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
-		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 // Parse is the entry to run the spider.
@@ -119,17 +121,17 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	}
 
 	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-	if p == "/en/homepage" {
-		return c.parseCategories(ctx, resp, yield)
+	if p == "" {
+		return crawler.ErrUnsupportedPath
 	}
 
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(p) {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	return crawler.ErrUnsupportedPath
 }
 
 // nextIndex used to get the index from the shared data.
@@ -138,74 +140,126 @@ func nextIndex(ctx context.Context) int {
 	return int(strconv.MustParseInt(ctx.Value("item.index")))
 }
 
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://us.maje.com/en/homepage", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+	})
 	if err != nil {
 		c.logger.Error(err)
-		return err
+		return nil, err
 	}
 
-	sel := dom.Find(`.menuMainMaje>ul>li`)
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
 
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a>span`).First().Text())
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
 
-		if cateName == "" {
-			continue
+		sel := dom.Find(`.listMenu.main-listMenu>li`)
+
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+
+			cateName := strings.TrimSpace(node.Find(`a>span`).First().Text())
+
+			if cateName == "" {
+				continue
+			}
+
+			subSel := node.Find(`.titleMain.clearfix>li`)
+
+			for k := range subSel.Nodes {
+				subNode2 := subSel.Eq(k)
+
+				subcat2 := strings.TrimSpace(subNode2.Find(`.subMain-title`).First().Text())
+				if subcat2 == "" {
+					continue
+				}
+
+				subNode2list := subNode2.Find(`.subMenu-level2>li`)
+				for j := range subNode2list.Nodes {
+					subNode3 := subNode2list.Eq(j)
+					subcat3 := strings.TrimSpace(subNode3.Find(`a>span`).First().Text())
+
+					href := subNode3.Find(`a`).AttrOr("href", "")
+					if href == "" || subcat3 == "" {
+						continue
+					}
+
+					canonicalhref, err := c.CanonicalUrl(href)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					u, err := url.Parse(canonicalhref)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{cateName, subcat2, subcat3}, canonicalhref); err != nil {
+							return err
+						}
+					}
+				}
+
+			}
+
 		}
 
-		nctx := context.WithValue(ctx, "Category", cateName)
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
 
-		subSel := node.Find(`.subMain .titleMain.clearfix>li`)
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
 
-		for k := range subSel.Nodes {
-			subNode2 := subSel.Eq(k)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
 
-			subcat2 := strings.TrimSpace(subNode2.Find(`.subMain-title`).First().Text())
-
-			nnctx := context.WithValue(nctx, "SubCategory", subcat2)
-			subNode2list := subNode2.Find(`.subMenu-level2 .column`)
-			for j := range subNode2list.Nodes {
-				subNode := subNode2list.Eq(j)
-				subcat3 := strings.TrimSpace(subNode.Find(`a>span`).First().Text())
-				if subcat3 == "" {
-					continue
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
 				}
-
-				href := subNode.Find(`a`).AttrOr("href", "")
-				if href == "" {
-					continue
+				cateMap[path] = cate
+				if lastCate != nil {
+					lastCate.Children = append(lastCate.Children, cate)
 				}
+				lastCate = cate
 
-				u, err := url.Parse(href)
-				if err != nil {
-					c.logger.Error("parse url %s failed", href)
-					continue
-				}
-
-				subCateName := strings.TrimSpace(subNode.Text())
-
-				if c.categoryPathMatcher.MatchString(u.Path) {
-					nnnctx := context.WithValue(nnctx, "SubCategory2", subCateName)
-					req, _ := http.NewRequest(http.MethodGet, href, nil)
-					if err := yield(nnnctx, req); err != nil {
-						return err
-					}
+				if i == 0 {
+					cates = append(cates, cate)
 				}
 			}
 		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
 	}
-	return nil
+	return cates, nil
 }
 
 // parseCategoryProducts parse api url from web page url
@@ -249,7 +303,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if nextUrl == "" {
 		return nil
 	}
-
+	nextUrl = strings.ReplaceAll(nextUrl, `&sz=24`, `&sz=96`)
 	totalCount, _ := strconv.ParsePrice(doc.Find(`.count`).Text())
 
 	if lastIndex >= (int)(totalCount) {
@@ -261,20 +315,17 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	return yield(nctx, req)
 }
 
-func TrimSpaceNewlineInString(s []byte) []byte {
+func TrimSpaceNewlineInString(s string) string {
 	re := regexp.MustCompile(`\n`)
-	resp := re.ReplaceAll(s, []byte(" "))
-	resp = bytes.ReplaceAll(resp, []byte("\\n"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("\r"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("\t"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("&lt;"), []byte("<"))
-	resp = bytes.ReplaceAll(resp, []byte("&gt;"), []byte(">"))
-	resp = bytes.ReplaceAll(resp, []byte("  "), []byte(""))
+	resp := re.ReplaceAllString(s, " ")
+	resp = strings.ReplaceAll(resp, "\\n", " ")
+	resp = strings.ReplaceAll(resp, "\r", " ")
+	resp = strings.ReplaceAll(resp, "\t", " ")
+	re = regexp.MustCompile(`\s+`)
+	resp = re.ReplaceAllString(resp, " ")
+	resp = strings.TrimSpace(resp)
 	return resp
 }
-
-// used to trim html labels in description
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
 
 // parseProduct
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -299,10 +350,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if brand == "" {
 		brand = "Maje"
 	}
+	pid := doc.Find(`#pid`).AttrOr("value", "")
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:           doc.Find(`#pid`).AttrOr("value", ""),
+			Id:           pid,
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 			GroupId:      doc.Find(`meta[property="product:age_group"]`).AttrOr(`content`, ``),
@@ -317,7 +369,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	// desc
 	description := (doc.Find(`.wrapper-tabs`).Text())
-	item.Description = string(TrimSpaceNewlineInString([]byte(description)))
+	item.Description = TrimSpaceNewlineInString(description)
 
 	if strings.Contains(doc.Find(`meta[property="product:availability"]`).AttrOr(`content`, ``), "instock") {
 		item.Stock.StockStatus = pbItem.Stock_InStock
@@ -335,73 +387,114 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		discount = math.Ceil((msrp - originalPrice) / msrp * 100)
 	}
 
-	//images
-	sel := doc.Find(`.product-primary-image`).Find(`picture`)
-	for j := range sel.Nodes {
-		node := sel.Eq(j)
-		imgurl := strings.Split(node.Find(`img`).AttrOr(`data-src`, ``), "?")[0]
+	dom := doc
+	selColor := doc.Find(`.swatches.Color>li`)
+	for i := range selColor.Nodes {
+		nodeColor := selColor.Eq(i)
 
-		item.Medias = append(item.Medias, pbMedia.NewImageMedia(
-			strconv.Format(j),
-			imgurl,
-			imgurl+"?sw=1000&q=80",
-			imgurl+"?sw=800&q=80",
-			imgurl+"?sw=500&q=80",
-			"", j == 0))
-	}
+		cid := strings.Split(nodeColor.Find(`a`).AttrOr("data-variationparameter", ""), "=")[1]
 
-	// Color
-	cid := ""
-	var colorSelected *pbItem.SkuSpecOption
-	sel = doc.Find(`.swatches.Color`).Find(`li`)
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		if strings.Contains(node.AttrOr(`class`, ``), `selected`) {
-			cid = strings.Split(node.Find(`a`).AttrOr("data-variationparameter", ""), "=")[1]
-			colorSelected = &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    cid,
-				Name:  node.Find(`a`).AttrOr("title", ""),
-				Value: node.Find(`a`).AttrOr("title", ""),
-				//Icon:  rawSku.Hoverimage,
+		variationName := TrimSpaceNewlineInString(nodeColor.Find(`a`).AttrOr("title", ""))
+		variationurl := nodeColor.Find(`a`).AttrOr("href", "")
+		if variationName == "" {
+			continue
+		}
+
+		if subClass := nodeColor.AttrOr(`class`, ``); strings.Contains(subClass, `selected`) {
+			dom = doc
+		} else {
+			// new request
+			respBodyJs, err := c.variationRequest(ctx, variationurl, resp.Request.URL.String())
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+
+			dom, err = goquery.NewDocumentFromReader(bytes.NewReader(respBodyJs))
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+
+			msrp, _ = strconv.ParsePrice(dom.Find(`.productPrices`).Find(`.price-standard`).Text())
+			originalPrice, _ = strconv.ParsePrice(dom.Find(`.productPrices`).Find(`.price-sales`).Text())
+			discount = 0.0
+			if msrp == 0 {
+				msrp = originalPrice
+			}
+			if msrp > originalPrice {
+				discount = math.Ceil((msrp - originalPrice) / msrp * 100)
 			}
 		}
-	}
 
-	sel = doc.Find(`.swatches.size`).Find(`li`)
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-
-		sid := strings.Split(node.Find(`a`).AttrOr("data-variationparameter", ""), "=")[1]
-
-		sku := pbItem.Sku{
-			SourceId: fmt.Sprintf("%s-%s", cid, sid),
-			Price: &pbItem.Price{
-				Currency: regulation.Currency_USD,
-				Current:  int32(originalPrice),
-				Msrp:     int32(msrp),
-				Discount: int32(discount),
-			},
-			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+		var medias []*pbMedia.Media
+		//images
+		sel := dom.Find(`.product-primary-image`).Find(`picture`)
+		for j := range sel.Nodes {
+			node := sel.Eq(j)
+			imgurl := strings.Split(node.Find(`img`).AttrOr(`data-src`, ``), "?")[0]
+			medias = append(medias, pbMedia.NewImageMedia(
+				strconv.Format(j),
+				imgurl,
+				imgurl+"?sw=1000&q=80",
+				imgurl+"?sw=800&q=80",
+				imgurl+"?sw=500&q=80",
+				"", j == 0))
 		}
 
-		if strings.Contains(node.AttrOr("class", ""), "unselectable") {
-			sku.Stock.StockStatus = pbItem.Stock_OutOfStock
+		sel1 := dom.Find(`.swatches.size`).Find(`li`)
+		for i := range sel1.Nodes {
+			node1 := sel1.Eq(i)
+
+			sid := strings.Split(node1.Find(`a`).AttrOr("data-variationparameter", ""), "=")[1]
+
+			sku := pbItem.Sku{
+				SourceId: fmt.Sprintf("%s-%s-%s", pid, cid, sid),
+				//SourceId: sid,
+				Price: &pbItem.Price{
+					Currency: regulation.Currency_USD,
+					Current:  int32(originalPrice * 100),
+					Msrp:     int32(msrp * 100),
+					Discount: int32(discount),
+				},
+				Medias: medias,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+			}
+
+			if strings.Contains(node1.AttrOr("class", ""), "unselectable") {
+				sku.Stock.StockStatus = pbItem.Stock_OutOfStock
+			}
+
+			if variationName != "" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
+					Id:    cid,
+					Name:  variationName,
+					Value: variationName,
+				})
+			}
+
+			sizeName := TrimSpaceNewlineInString(node1.Find(`.defaultSize`).Text())
+			if sizeName != "" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					Id:    sid,
+					Name:  sizeName,
+					Value: sizeName,
+				})
+			}
+
+			if len(sku.Specs) == 0 {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
+					Id:    "-",
+					Name:  "-",
+					Value: "-",
+				})
+			}
+
+			item.SkuItems = append(item.SkuItems, &sku)
 		}
-
-		if colorSelected != nil {
-			sku.Specs = append(sku.Specs, colorSelected)
-		}
-
-		// size
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    sid,
-			Name:  strings.TrimSpace(node.Find(`.defaultSize`).Text()),
-			Value: strings.TrimSpace(node.Find(`.defaultSize`).Text()),
-		})
-
-		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
 	// yield item result
@@ -413,14 +506,47 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
+func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) ([]byte, error) {
+
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	opts := c.CrawlOptions(req.URL)
+	req.Header.Set("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+	req.Header.Set("accept", "text/html, */*; q=0.01")
+	req.Header.Set("x-requested-with", "XMLHttpRequest")
+	req.Header.Set("referer", referer)
+
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    false,
+		EnableSessionInit: false,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return ioutil.ReadAll(resp.Body)
+}
+
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://us.maje.com/en/homepage",
-		//"https://www.maje.com/us/2000441987.html?dwvar_2000441987_color=01",
 		//"https://us.maje.com/en/categories/view-all-bags/",
-		//"https://us.maje.com/en/categories/dresses/221rythonela/MFPRO01861.html?dwvar_MFPRO01861_color=L012",
-		"https://us.maje.com/en/categories/medium-bags/220abag/MFASA00329.html?dwvar_MFASA00329_color=2517",
+		//"https://us.maje.com/en/categories/dresses/121raveny/MFPRO02032.html?dwvar_MFPRO02032_color=2517",
+		//"https://us.maje.com/en/categories/dresses/121rinala/MFPRO01961.html?dwvar_MFPRO01961_color=P007",
+		//"https://us.maje.com/en/categories/coats-and-jackets/120gaban/MFPOU00470.html?dwvar_MFPOU00470_color=B020",
+		//"https://us.maje.com/en/categories/sweaters-and-cardigans/121mistou/MFPCA00212.html?dwvar_MFPCA00212_color=0066",
+		//"https://us.maje.com/en/categories/t-shirts/220tolant/MFPTS00294.html?dwvar_MFPTS00294_color=2517",
+		"https://us.maje.com/en/categories/tops-and-shirts/221leatoni/MFPTO00500.html?dwvar_MFPTO00500_color=2517",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
@@ -445,5 +571,5 @@ func (c *_Crawler) CheckTestResponse(ctx context.Context, resp *http.Response) e
 
 // main func is the entry of golang program. this will not be used by plugin, just for local spider test.
 func main() {
-	cli.NewApp(New).Run(os.Args)
+	cli.NewApp(&_Crawler{}).Run(os.Args)
 }
