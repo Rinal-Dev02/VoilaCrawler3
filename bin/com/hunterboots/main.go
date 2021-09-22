@@ -75,10 +75,9 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
 		EnableSessionInit: false,
-		Reliability:       proxy.ProxyReliability_ReliabilityHigh,
+		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
 		MustHeader:        crawler.NewCrawlOptions().MustHeader,
 	}
-	opts.MustHeader.Add(`cookie`, `_gcl_au=1.1.137093935.1631353411; _ga=GA1.2.1041971002.1631353411; _gid=GA1.2.1527387527.1631353411; crl8.fpcuid=bffc118b-0710-43a9-8975-7bd67660e98b; _fbp=fb.1.1631353411515.1650021108; _hjid=7fc4e30a-9ae6-4432-b8a5-b15f71aad11a; _hjFirstSeen=1; _hjAbsoluteSessionInProgress=1; _scid=a7b99f23-7b83-4073-9313-9d1a20d96b00; _sctr=1|1631298600000; _aeaid=f35895fa-38fc-4b76-9cb4-cda73beb766f; aeatstartmessage=true; skip_geocode=1; ABTasty=uid=2arpqzx3mfm027g5&fst=1631353410907&pst=-1&cst=1631353410907&ns=1&pvt=8&pvis=8&th=650924.0.8.8.1.1.1631353411261.1631355829306.1; ABTastySession=mrasn=&sen=23&lp=https%3A%2F%2Fwww.hunterboots.com%2Fus%2Fen_us%2F; _hjIncludedInPageviewSample=1; _hjIncludedInSessionSample=0; ometria=2_cid=ekzfTrkCqFrAHmCe&nses=1&osts=1631353412&sid=2344ee93NzOmJ8fcewcT&npv=6&tids=&slt=1631355830; stc113516=tsa:1631353413266.659767092.0619063.18146429130529595.:20210911105350|env:1|20211120094333|20210911105350|6|1028364:20220911102350|uid:1631353413264.1517807210.5045915.113516.711914970.:20220911102350|srchist:1028364:1:20211120094333:20220911102350`)
 
 	return opts
 }
@@ -204,7 +203,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					}
 
 					href := subNode.Find(`a`).First().AttrOr("href", "")
-					if href == "" {
+					if href == "" || strings.Contains(href, `/discover/`) || strings.ToLower(subcat1) == "offers & discounts" {
 						continue
 					}
 
@@ -224,7 +223,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 				}
 				if len(subNode2list.Nodes) == 0 {
 					href := subNode2.Find(`.navigation-category__link`).First().AttrOr("href", "")
-					if href == "" {
+					if href == "" || strings.Contains(href, `/discover/`) {
 						continue
 					}
 
@@ -283,84 +282,6 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 		return nil, err
 	}
 	return cates, nil
-}
-
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
-	if err != nil {
-		c.logger.Error(err)
-		return err
-	}
-
-	sel := dom.Find(`.navigation__grid-container>.navigation__sections>li`)
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		cateName := strings.TrimSpace(node.Find(`a h2`).First().Text())
-		if cateName == "" {
-			continue
-		}
-
-		//nctx := context.WithValue(ctx, "Category", cateName)
-		fmt.Println(`Cat Name:`, cateName)
-
-		subSel := node.Find(`.navigation-column>.navigation-linkblock`)
-
-		for k := range subSel.Nodes {
-			subNode2 := subSel.Eq(k)
-			subcat := strings.TrimSpace(subNode2.Find(`.navigation-category__link h3`).Text())
-
-			subNode2list := subNode2.Find(`ul>li`)
-			for j := range subNode2list.Nodes {
-				subNode := subNode2list.Eq(j)
-				subcatname := strings.TrimSpace(subNode.Find(`.image-with-description__title`).First().Text())
-
-				if subcatname == "" {
-					subcatname = strings.TrimSpace(subNode.Find(`a`).First().Text())
-				}
-
-				href := subNode.Find(`a`).First().AttrOr("href", "")
-				fullurl := fmt.Sprintf("%s://%s%s", resp.Request.URL.Scheme, resp.Request.URL.Host, href)
-				if href == "" {
-					continue
-				}
-
-				finalsubCatName := ""
-				if subcat != "" {
-					finalsubCatName = subcat + " >> " + subcatname
-				} else {
-					finalsubCatName = subcatname
-				}
-
-				fmt.Println(`SubCategory:`, finalsubCatName)
-				fmt.Println(`href:`, fullurl)
-
-				// u, err := url.Parse(href)
-				// if err != nil {
-				// 	c.logger.Error("parse url %s failed", href)
-				// 	continue
-				// }
-
-				// if c.categoryPathMatcher.MatchString(u.Path) {
-				// 	nnctx := context.WithValue(nctx, "SubCategory", finalsubCatName)
-				// 	req, _ := http.NewRequest(http.MethodGet, fullurl, nil)
-				// 	if err := yield(nnctx, req); err != nil {
-				// 		return err
-				// 	}
-				// }
-
-			}
-		}
-	}
-	return nil
 }
 
 type categoryProductsResponse struct {
@@ -429,7 +350,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		if err != nil {
 			continue
 		}
-		//fmt.Println(lastIndex, " ", rawurl)
+
 		req, err := http.NewRequest(http.MethodGet, rawurl, nil)
 		if err != nil {
 			c.logger.Errorf("load http request of url %s failed, error=%s", rawurl, err)
@@ -535,12 +456,7 @@ type parseProductResponse struct {
 			TaxIsInclusive bool   `json:"taxIsInclusive"`
 		} `json:"pricing"`
 	} `json:"siblings"`
-	Icons struct {
-		Feature []struct {
-			Image       string `json:"image"`
-			Description string `json:"description"`
-		} `json:"feature"`
-	} `json:"icons"`
+
 	ProductDetails struct {
 		Specification []struct {
 			Label string `json:"label"`
@@ -550,12 +466,6 @@ type parseProductResponse struct {
 		Description string `json:"description"`
 		Features    string `json:"features"`
 	} `json:"productDetails"`
-	Meta struct {
-		Title         string `json:"title"`
-		Description   string `json:"description"`
-		PageReference string `json:"pageReference"`
-		CanonicalURL  string `json:"canonicalUrl"`
-	} `json:"meta"`
 }
 type parseProductVariationResponse []struct {
 	Ean13       string `json:"ean13"`
@@ -794,7 +704,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 
-		if viewDataDetail.ColorName == "" && rawSku.Size == "" {
+		if len(sku.Specs) == 0 {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
 				Id:    "-",
@@ -858,7 +768,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				continue
 			}
 			nextProductUrl, _ := c.CanonicalUrl(strings.ReplaceAll(colorSizeOption.URL, `\/`, `/`))
-			fmt.Println(colorSizeOption.ColorName, " ", nextProductUrl)
+
 			if req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil); err != nil {
 				return err
 			} else if err = yield(nctx, req); err != nil {
