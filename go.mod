@@ -5,7 +5,6 @@ go 1.16
 require (
 	cloud.google.com/go v0.95.0 // indirect
 	github.com/PuerkitoBio/goquery v1.7.1
-	github.com/andybalholm/brotli v1.0.3
 	github.com/andybalholm/cascadia v1.3.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/gammazero/deque v0.1.0

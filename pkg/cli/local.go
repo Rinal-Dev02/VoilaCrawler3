@@ -127,7 +127,7 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 			Action: func(c *cli.Context) error {
 				name := c.String("name")
 				if name == "" {
-					return cli.NewExitError("invalid method name", 1)
+					return cli.Exit("invalid method name", 1)
 				}
 				if !func() bool {
 					for _, n := range supportedMethodNames {
@@ -137,7 +137,7 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 					}
 					return false
 				}() {
-					return cli.NewExitError("invalid method name", 1)
+					return cli.Exit("invalid method name", 1)
 				}
 				param := c.String("param")
 
@@ -150,27 +150,32 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 
 				proxyAddr := c.String("proxy-addr")
 				if proxyAddr == "" {
-					return cli.NewExitError("proxy address not specified", 1)
+					return cli.Exit("proxy address not specified", 1)
+				}
+				pighubClient, err := proxy.NewPbProxyManagerClient(app.ctx, proxyAddr)
+				if err != nil {
+					logger.Error(err)
+					return cli.Exit(err, 1)
 				}
 
 				jar := cookiejar.New()
-				client, err := proxy.NewProxyClient(proxyAddr, jar, logger)
+				client, err := proxy.NewProxyClient(pighubClient, jar, logger)
 				if err != nil {
 					logger.Error(err)
-					return cli.NewExitError(err, 1)
+					return cli.Exit(err, 1)
 				}
 
 				val, err := newer.New(c, client, logger)
 				if err != nil {
 					logger.Error(err)
-					return cli.NewExitError(err, 1)
+					return cli.Exit(err, 1)
 				}
 
 				node := reflect.ValueOf(val)
 				caller := node.MethodByName(name)
 				errType := caller.Type().Out(1)
 				if !errType.Implements(reflect.TypeOf((*error)(nil)).Elem()) {
-					return cli.NewExitError(fmt.Sprintf("last output argument of method %s must be implement error interface", name), 1)
+					return cli.Exit(fmt.Sprintf("last output argument of method %s must be implement error interface", name), 1)
 				}
 				var (
 					inArgCount  = caller.Type().NumIn()
@@ -178,7 +183,7 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 					inputArgs   []reflect.Value
 				)
 				if inArgCount > 2 || outArgCount != 2 {
-					return cli.NewExitError("method define errors, method must define not more than 2 input args, with only two out args", 1)
+					return cli.Exit("method define errors, method must define not more than 2 input args, with only two out args", 1)
 				}
 				switch inArgCount {
 				case 0:
@@ -194,7 +199,7 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 
 				vals := caller.Call(inputArgs)
 				if !vals[1].IsNil() {
-					return cli.NewExitError(vals[1].Interface(), 1)
+					return cli.Exit(vals[1].Interface(), 1)
 				}
 
 				switch val := vals[0].Interface().(type) {
@@ -248,31 +253,36 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 			)
 			if e := c.String("include-path"); e != "" {
 				if includePathReg, err = regexp.Compile(e); err != nil {
-					return cli.NewExitError(fmt.Sprintf("invalid include-path regular expression, error=%s", err), 1)
+					return cli.Exit(fmt.Sprintf("invalid include-path regular expression, error=%s", err), 1)
 				}
 			}
 			if e := c.String("exclude-path"); e != "" {
 				if excludePathReg, err = regexp.Compile(e); err != nil {
-					return cli.NewExitError(fmt.Sprintf("invalid exclude-path regular expression, error=%s", err), 1)
+					return cli.Exit(fmt.Sprintf("invalid exclude-path regular expression, error=%s", err), 1)
 				}
 			}
 
+			disableProxy := c.Bool("disable-proxy")
 			proxyAddr := c.String("proxy-addr")
 			if proxyAddr == "" {
 				return errors.New("proxy address not specified")
 			}
-			disableProxy := c.Bool("disable-proxy")
-
-			jar := cookiejar.New()
-			client, err := proxy.NewProxyClient(proxyAddr, jar, logger)
+			pighubClient, err := proxy.NewPbProxyManagerClient(app.ctx, proxyAddr)
 			if err != nil {
 				logger.Error(err)
-				return cli.NewExitError(err, 1)
+				return cli.Exit(err, 1)
+			}
+
+			jar := cookiejar.New()
+			client, err := proxy.NewProxyClient(pighubClient, jar, logger)
+			if err != nil {
+				logger.Error(err)
+				return cli.Exit(err, 1)
 			}
 			cw, err := newer.New(c, client, logger)
 			if err != nil {
 				logger.Error(err)
-				return cli.NewExitError(err, 1)
+				return cli.Exit(err, 1)
 			}
 
 			node := cw.(crawler.Crawler)
@@ -287,7 +297,7 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 			for _, rawurl := range c.StringSlice("target") {
 				req, err := http.NewRequestWithContext(typCtx, http.MethodGet, rawurl, nil)
 				if err != nil {
-					return cli.NewExitError(err, 1)
+					return cli.Exit(err, 1)
 				}
 
 				reqQueue.PushBack(req)

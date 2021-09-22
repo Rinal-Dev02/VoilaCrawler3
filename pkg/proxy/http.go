@@ -1,18 +1,14 @@
 package proxy
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	rhttp "net/http"
 	"net/url"
-	"strings"
 	"time"
 
-	"github.com/andybalholm/brotli"
 	ctxutil "github.com/voiladev/VoilaCrawler/pkg/context"
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
@@ -20,27 +16,40 @@ import (
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	"github.com/voiladev/go-framework/glog"
 	"github.com/voiladev/go-framework/randutil"
-	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/grpc"
 )
 
-type Options struct {
-	ProxyAddr string
+func NewPbProxyManagerClient(ctx context.Context, proxyAddr string) (pbProxy.ProxyManagerClient, error) {
+	if proxyAddr == "" {
+		return nil, errors.New("proxy address not specified")
+	}
+	conn, err := grpc.DialContext(
+		ctx,
+		proxyAddr,
+		grpc.WithInsecure(),
+		grpc.WithBlock(),
+		grpc.WithBackoffMaxDelay(time.Second),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)),
+		grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(100*1024*1024)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return pbProxy.NewProxyManagerClient(conn), nil
 }
 
 // proxyClient
 type proxyClient struct {
-	jar             http.CookieJar
-	httpClient      *rhttp.Client
-	httpProxyClient *rhttp.Client
-	options         Options
-	logger          glog.Log
+	pighubClient pbProxy.ProxyManagerClient
+	jar          http.CookieJar
+	logger       glog.Log
 }
 
 // NewProxyClient returns a http client which support native http.Client and
 // supports Proxy Backconnect proxy, Crawling API.
-func NewProxyClient(proxyAddr string, cookieJar http.CookieJar, logger glog.Log) (http.Client, error) {
-	if _, err := url.Parse(proxyAddr); err != nil {
-		return nil, errors.New("invalid proxy http address")
+func NewProxyClient(pighubClient pbProxy.ProxyManagerClient, cookieJar http.CookieJar, logger glog.Log) (http.Client, error) {
+	if pighubClient == nil {
+		return nil, errors.New("invalid pighubClient")
 	}
 	if cookieJar == nil {
 		return nil, errors.New("invalid cookiejar")
@@ -48,15 +57,11 @@ func NewProxyClient(proxyAddr string, cookieJar http.CookieJar, logger glog.Log)
 	if logger == nil {
 		return nil, errors.New("invaild logger")
 	}
-	client := proxyClient{
-		jar:        cookieJar,
-		httpClient: &rhttp.Client{},
-		options: Options{
-			ProxyAddr: proxyAddr,
-		},
-		logger: logger,
-	}
-	return &client, nil
+	return &proxyClient{
+		pighubClient: pighubClient,
+		jar:          cookieJar,
+		logger:       logger,
+	}, nil
 }
 
 func (c *proxyClient) Jar() http.CookieJar {
@@ -92,7 +97,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		}
 	}
 
-	req := pbProxy.Request{
+	req := &pbProxy.Request{
 		Method:  r.Method,
 		Url:     r.URL.String(),
 		Body:    body,
@@ -128,37 +133,16 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		req.Headers[key] = &pbHttp.ListValue{Values: vals}
 	}
 
-	data, _ := protojson.Marshal(&req)
-	proxyReq, err := http.NewRequest(http.MethodPost, c.options.ProxyAddr, bytes.NewReader(data))
-	if err != nil {
-		c.logger.Debug(err)
-		return nil, err
-	}
-	proxyReq = proxyReq.WithContext(ctx)
-
-	proxyResp, err := c.httpClient.Do(proxyReq)
+	proxyResp, err := c.pighubClient.DoRequest(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	defer proxyResp.Body.Close()
-
 	c.logger.Infof("%s %s %d", r.Method, r.URL, proxyResp.StatusCode)
-
 	if proxyResp.StatusCode != 200 {
 		return nil, fmt.Errorf("do http request failed with status %d %s", proxyResp.StatusCode, proxyResp.Status)
 	}
-
-	startTime := time.Now()
-	var proxyRespBody pbProxy.Response
-	if respBody, err := io.ReadAll(proxyResp.Body); err != nil {
-		return nil, err
-	} else if err := protojson.Unmarshal(respBody, &proxyRespBody); err != nil {
-		return nil, err
-	}
-	c.logger.Debugf("read response body cost %s", time.Now().Sub(startTime))
-
-	if proxyRespBody.GetStatusCode() == -1 {
-		return nil, errors.New(proxyRespBody.Status)
+	if proxyResp.GetRequest() == nil {
+		proxyResp.Request = req
 	}
 
 	var buildResponse func(res *pbProxy.Response, isSub bool) (*rhttp.Response, error)
@@ -178,39 +162,12 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			resp.Header[k] = lv.Values
 		}
 		if !isSub && len(res.Body) > 0 {
-			// try to uncompress ziped data
-			if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
-				if reader, err := gzip.NewReader(bytes.NewReader(res.Body)); err == nil {
-					if data, err := io.ReadAll(reader); err == nil {
-						resp.Body = http.NewReader(data)
-						resp.Header.Del("Content-Encoding")
-						resp.Header.Del("Content-Length")
-						resp.ContentLength = -1
-						resp.Uncompressed = true
-					} else {
-						c.logger.Errorf("decode failed, error=%s", err)
-					}
-				} else {
-					resp.ContentLength = int64(len(res.Body))
-					resp.Body = http.NewReader(res.GetBody())
-				}
-			} else if strings.EqualFold(resp.Header.Get("Content-Encoding"), "br") {
-				reader := brotli.NewReader(bytes.NewReader(res.Body))
-				if data, err := io.ReadAll(reader); err == nil {
-					resp.Body = http.NewReader(data)
-					resp.Header.Del("Content-Encoding")
-					resp.Header.Del("Content-Length")
-					resp.ContentLength = -1
-					resp.Uncompressed = true
-				} else {
-					resp.ContentLength = int64(len(res.Body))
-					resp.Body = http.NewReader(res.GetBody())
-				}
-			} else {
-				resp.ContentLength = int64(len(res.Body))
-				resp.Uncompressed = true
-				resp.Body = http.NewReader(res.GetBody())
-			}
+			// body data uncompress by httpproxy
+			resp.Header.Del("Content-Encoding")
+			resp.Header.Del("Content-Length")
+			resp.ContentLength = int64(len(res.Body))
+			resp.Uncompressed = true
+			resp.Body = http.NewReader(res.GetBody())
 		}
 
 		if res.Request != nil {
@@ -231,7 +188,7 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 		}
 		return &resp, nil
 	}
-	if resp, err := buildResponse(&proxyRespBody, false); err != nil {
+	if resp, err := buildResponse(proxyResp, false); err != nil {
 		return nil, err
 	} else {
 		return http.NewResponse(resp)
