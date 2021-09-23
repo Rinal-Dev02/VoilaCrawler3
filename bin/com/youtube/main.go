@@ -122,7 +122,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	if c.videoPathReg.MatchString(resp.RawUrl().Path) {
 		return c.parseVideo(ctx, resp, yield)
-	} else if c.channelPathReg.MatchString(resp.RawUrl().Path) {
+	} else if c.channelPathReg.MatchString(resp.RawUrl().Path) || c.usernamePathReg.MatchString(resp.RawUrl().Path) {
 		return c.parseChannel(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedTarget
