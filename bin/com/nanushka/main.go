@@ -474,7 +474,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	lastIndex := nextIndex(ctx)
 	for _, itemIds := range viewData.ProductGroup.ProductGroups[viewDataNew.Query.ProductGroupSlug].VariantIds {
 
-		href, err := c.CanonicalUrl(viewData.Variant.Variants[itemIds].Slug)
+		href, err := c.CanonicalUrl("/products/" + viewData.Variant.Variants[itemIds].Slug)
 		if href == "" || err != nil {
 			continue
 		}
@@ -513,6 +513,29 @@ type VariationDetail struct {
 	} `json:"props"`
 }
 
+type VariationDetailNew struct {
+	Props struct {
+		PageProps struct {
+			VariantPageDetails struct {
+				PagePhotosData []struct {
+					Src       string  `json:"src"`
+					Width     int     `json:"width"`
+					Height    int     `json:"height"`
+					XToYRatio float64 `json:"xToYRatio"`
+				} `json:"pagePhotosData"`
+				Description      string        `json:"description"`
+				ShortDescription string        `json:"shortDescription"`
+				MetaTitle        string        `json:"metaTitle"`
+				MetaKeywords     string        `json:"metaKeywords"`
+				MetaDescription  string        `json:"metaDescription"`
+				Materials        []interface{} `json:"materials"`
+				CareOptions      []string      `json:"careOptions"`
+			} `json:"variantPageDetails"`
+		} `json:"pageProps"`
+		NSsg bool `json:"__N_SSG"`
+	} `json:"props"`
+}
+
 // used to trim html labels in description
 var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
 
@@ -535,6 +558,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	var viewDataVariation VariationDetail
 	if err := json.Unmarshal([]byte(doc.Find(`#__NEXT_DATA__`).Text()), &viewDataVariation); err != nil {
+		c.logger.Errorf("unmarshal product variation detail data fialed, error=%s", err)
+		return err
+	}
+
+	var viewDataVariationType VariationDetailNew
+	if err := json.Unmarshal([]byte(doc.Find(`#__NEXT_DATA__`).Text()), &viewDataVariationType); err != nil {
 		c.logger.Errorf("unmarshal product variation detail data fialed, error=%s", err)
 		return err
 	}
@@ -585,7 +614,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	item.Description = viewDataVariation.Props.PageProps.VariantPageDetails.Description + " " + strings.Join(viewDataVariation.Props.PageProps.VariantPageDetails.CareOptions, `, `)
 	//item.Description = string(TrimSpaceNewlineInString([]byte(description)))
 
-	if viewData.Variant.Variants[prodId].Availability {
+	if !viewData.Variant.Variants[prodId].IsOutOfStock {
 		item.Stock.StockStatus = pbItem.Stock_InStock
 	}
 
@@ -603,7 +632,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	//images
-
 	for j, img := range viewDataVariation.Props.PageProps.VariantPageDetails.PagePhotoSrcSets {
 
 		imgurl := "https://monotikcdn.com/1920x1920/in/1/webp/" + img
@@ -615,10 +643,29 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item.Medias = append(item.Medias, pbMedia.NewImageMedia(
 			strconv.Format(j),
 			imgurl,
-			strings.ReplaceAll(imgurl, string(matched[0]), "/1920x1920/"),
-			imgurl,
-			imgurl,
+			strings.ReplaceAll(imgurl, string(matched[0]), "/1280x1280/"),
+			strings.ReplaceAll(imgurl, string(matched[0]), "/1024x1024/"),
+			strings.ReplaceAll(imgurl, string(matched[0]), "/720x720/"),
 			"", j == 0))
+	}
+
+	if len(viewDataVariation.Props.PageProps.VariantPageDetails.PagePhotoSrcSets) == 0 {
+		for j, img := range viewDataVariationType.Props.PageProps.VariantPageDetails.PagePhotosData {
+
+			imgurl := "https://monotikcdn.com/1920x1920/in/1/webp/" + img.Src
+			if img.Src == "" {
+				continue
+			}
+			matched = imgExtractReg.FindSubmatch([]byte(imgurl))
+
+			item.Medias = append(item.Medias, pbMedia.NewImageMedia(
+				strconv.Format(j),
+				imgurl,
+				strings.ReplaceAll(imgurl, string(matched[0]), "/1280x1280/"),
+				strings.ReplaceAll(imgurl, string(matched[0]), "/1024x1024/"),
+				strings.ReplaceAll(imgurl, string(matched[0]), "/720x720/"),
+				"", j == 0))
+		}
 	}
 
 	// Color
@@ -626,7 +673,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if viewData.Variant.Variants[prodId].RealColor.Name != "" {
 		colorSelected = &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecColor,
-			Id:    viewData.Variant.Variants[prodId].RealColor.Name,
+			Id:    strconv.Format(viewData.Variant.Variants[prodId].RealColor.ID),
 			Name:  viewData.Variant.Variants[prodId].RealColor.Name,
 			Value: viewData.Variant.Variants[prodId].RealColor.Name,
 			Icon:  viewData.Variant.Variants[prodId].RealColor.SwatchImageSrc,
@@ -636,14 +683,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	for _, rawSku := range viewData.Variant.Variants[prodId].Sizes {
 
 		sku := pbItem.Sku{
-			SourceId: strconv.Format(prodId),
+			SourceId: strconv.Format(rawSku.ID),
+			//SourceId: strconv.Format(prodId),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(originalPrice),
-				Msrp:     int32(msrp),
+				Current:  int32(originalPrice * 100),
+				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
-			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			Medias: item.Medias,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
 		if rawSku.Available {
@@ -659,7 +708,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if rawSku.Name != "" {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    rawSku.Name,
+				Id:    strconv.Format(rawSku.SizeID),
 				Name:  rawSku.Name,
 				Value: rawSku.Name,
 			})
@@ -674,9 +723,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 
-		for _, spec := range sku.Specs {
-			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
-		}
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
 
@@ -686,8 +732,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			SourceId: strconv.Format(prodId),
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
-				Current:  int32(originalPrice),
-				Msrp:     int32(msrp),
+				Current:  int32(originalPrice * 100),
+				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
 			Medias: item.Medias,
@@ -728,14 +774,17 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if ctx.Value("groupId") == nil {
 		nctx := context.WithValue(ctx, "groupId", item.GetSource().GetId())
 		for _, colorSizeOption := range viewData.Variant.Variants[prodId].SiblingVariants {
+
 			if colorSizeOption == prodId {
 				continue
 			}
 			nextProductUrl := fmt.Sprintf("https://www.nanushka.com/products/%s", viewData.Variant.Variants[colorSizeOption].Slug)
-			fmt.Println(nextProductUrl)
-			if req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil); err != nil {
+
+			req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil)
+			if err != nil {
 				return err
-			} else if err = yield(nctx, req); err != nil {
+			}
+			if err = yield(nctx, req); err != nil {
 				return err
 			}
 		}
@@ -779,10 +828,11 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://www.nanushka.com",
 		//"https://www.nanushka.com/shop/women-dresses",
-
+		"https://www.nanushka.com/shop/symbol",
 		//"https://www.nanushka.com/products/10846-wisemoon-vegan-leather-bag-mole",
 		//"https://www.nanushka.com/products/9429-jasper-straight-leg-jeans-apricot",
-		"https://www.nanushka.com/products/12613-raisa-hooded-wool-and-silk-blend-sweater-rust-gray",
+		//"https://www.nanushka.com/products/12613-raisa-hooded-wool-and-silk-blend-sweater-rust-gray",
+		//"https://www.nanushka.com/products/10648-jiro-printed-cotton-voile-pants-blurred-tie-dye",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
