@@ -25,7 +25,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'\n\033com.chameleon.security.authB\023ServiceMessageProtoP\001Z\034chameleon/security/auth;auth',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n-chameleon/security/auth/service_message.proto\x12\x17\x63hameleon.security.auth\x1a\x1fgoogle/protobuf/timestamp.proto\x1a&chameleon/security/identity/data.proto\x1a\"chameleon/security/auth/auth.proto\x1a#chameleon/security/auth/token.proto\x1a(chameleon/security/auth/credential.proto\"\'\n\x19GetApplicationInfoRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\xcc\x01\n\x1aGetApplicationInfoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12K\n\x04info\x18\x03 \x03(\x0b\x32=.chameleon.security.auth.GetApplicationInfoResponse.InfoEntry\x12\x1a\n\x12isSecurityCritical\x18\x04 \x01(\x08\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"a\n\x12GetUserInfoRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12?\n\x05\x66ield\x18\x03 \x01(\x0e\x32\x30.chameleon.security.identity.UserUniqueFieldType\"\x85\x01\n\x13GetUserInfoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06\x61vatar\x18\x05 \x01(\t\x12\x11\n\tfirstName\x18\x06 \x01(\t\x12\x10\n\x08lastName\x18\x07 \x01(\t\x12\x0e\n\x06locale\x18\t \x01(\t\x12\x0f\n\x07\x63hannel\x18\n \x01(\t\"\xfc\x01\n\x0fRegisterRequest\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\r\n\x05\x65mail\x18\x03 \x01(\t\x12\r\n\x05roles\x18\t \x03(\t\x12\x10\n\x08password\x18\x0b \x01(\t\x12\x17\n\x0fprotocolVersion\x18\x0f \x01(\t\x12\x13\n\x0b\x63hannelCode\x18\x1a \x01(\t\x12\x0e\n\x06locale\x18\x1b \x01(\t\x12@\n\x04info\x18\x1f \x03(\x0b\x32\x32.chameleon.security.auth.RegisterRequest.InfoEntry\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x12\n\x10RegisterResponse\"\x8b\x02\n\x10\x41uthorizeRequest\x12/\n\x04type\x18\x01 \x01(\x0e\x32!.chameleon.security.auth.AuthType\x12\x36\n\x03\x61pp\x18\x02 \x01(\x0b\x32).chameleon.security.auth.AuthorizeAppData\x12\x38\n\x04user\x18\x03 \x01(\x0b\x32*.chameleon.security.auth.AuthorizeUserData\x12\r\n\x05roles\x18\x04 \x03(\t\x12\x12\n\nttlSeconds\x18\x05 \x01(\x03\x12\x31\n\x05\x61gent\x18\x0f \x01(\x0b\x32\".chameleon.security.auth.UserAgent\"t\n\x10\x41uthorizeAppData\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06secret\x18\x02 \x01(\t\x12\x13\n\x0bredirectURI\x18\x03 \x01(\t\x12\x19\n\x11\x61uthorizationCode\x18\x04 \x01(\t\x12\x14\n\x0crefreshToken\x18\x05 \x01(\t\"_\n\x11\x41uthorizeUserData\x12\r\n\x05token\x18\x01 \x01(\t\x12;\n\ncredential\x18\x02 \x01(\x0b\x32\'.chameleon.security.auth.UserCredential\"\x82\x02\n\x11\x41uthorizeResponse\x12\x31\n\x05\x65rror\x18\x01 \x01(\x0e\x32\".chameleon.security.auth.AuthError\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x35\n\x04\x64\x61ta\x18\x03 \x01(\x0b\x32\'.chameleon.security.auth.AuthorizedData\x12\x35\n\x04user\x18\x04 \x01(\x0b\x32\'.chameleon.security.auth.AuthorizedUser\x12;\n\x03\x61pp\x18\x05 \x01(\x0b\x32..chameleon.security.auth.AuthorizedApplication\"\x9a\x01\n\x0e\x41uthorizedData\x12\x15\n\rauthorizeCode\x18\x01 \x01(\t\x12\x13\n\x0b\x61\x63\x63\x65ssToken\x18\x02 \x01(\t\x12\x14\n\x0crefreshToken\x18\x03 \x01(\t\x12\x1a\n\x12\x61\x63\x63\x65ssTokenExpires\x18\x04 \x01(\x03\x12\x1b\n\x13refreshTokenExpires\x18\x05 \x01(\x03\x12\r\n\x05roles\x18\x06 \x03(\t\"\x1c\n\x0e\x41uthorizedUser\x12\n\n\x02id\x18\x01 \x01(\t\"b\n\x15\x41uthorizedApplication\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0bredirectURI\x18\x03 \x01(\t\x12\x1a\n\x12isSecurityCritical\x18\x04 \x01(\x08\"+\n\x1aValidateAccessTokenRequest\x12\r\n\x05token\x18\x01 \x01(\t\"c\n\x1bValidateAccessTokenResposne\x12\x33\n\x08identity\x18\x01 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12\x0f\n\x07\x65xpires\x18\x02 \x01(\x03\"i\n\x18PermitApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\x12.\n\nexpireTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"9\n\x18RevokeApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\"g\n\x16\x44\x65nyApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\x12.\n\nexpireTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"i\n\x16\x41uthorizeAccessRequest\x12:\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32,.chameleon.security.auth.AuthorizeAccessData\x12\x13\n\x0bimpersonate\x18\x02 \x01(\x08\"\x9c\x02\n\x17\x41uthorizeAccessResponse\x12\x35\n\tsignature\x18\x01 \x01(\x0b\x32\".chameleon.security.auth.Signature\x12\x39\n\x0b\x61\x63\x63\x65ssToken\x18\x02 \x01(\x0b\x32$.chameleon.security.auth.AccessToken\x12\x43\n\x10impersonateToken\x18\x03 \x01(\x0b\x32).chameleon.security.auth.ImpersonateToken\x12\x33\n\x08identity\x18\x04 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12\x15\n\rimpersonation\x18\x05 \x01(\tBR\n\x1b\x63om.chameleon.security.authB\x13ServiceMessageProtoP\x01Z\x1c\x63hameleon/security/auth;authb\x06proto3'
+  serialized_pb=b'\n-chameleon/security/auth/service_message.proto\x12\x17\x63hameleon.security.auth\x1a\x1fgoogle/protobuf/timestamp.proto\x1a&chameleon/security/identity/data.proto\x1a\"chameleon/security/auth/auth.proto\x1a#chameleon/security/auth/token.proto\x1a(chameleon/security/auth/credential.proto\"\'\n\x19GetApplicationInfoRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\xcc\x01\n\x1aGetApplicationInfoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12K\n\x04info\x18\x03 \x03(\x0b\x32=.chameleon.security.auth.GetApplicationInfoResponse.InfoEntry\x12\x1a\n\x12isSecurityCritical\x18\x04 \x01(\x08\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"a\n\x12GetUserInfoRequest\x12\n\n\x02id\x18\x01 \x01(\t\x12?\n\x05\x66ield\x18\x03 \x01(\x0e\x32\x30.chameleon.security.identity.UserUniqueFieldType\"\x85\x01\n\x13GetUserInfoResponse\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0e\n\x06\x61vatar\x18\x05 \x01(\t\x12\x11\n\tfirstName\x18\x06 \x01(\t\x12\x10\n\x08lastName\x18\x07 \x01(\t\x12\x0e\n\x06locale\x18\t \x01(\t\x12\x0f\n\x07\x63hannel\x18\n \x01(\t\"\xfc\x01\n\x0fRegisterRequest\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\r\n\x05\x65mail\x18\x03 \x01(\t\x12\r\n\x05roles\x18\t \x03(\t\x12\x10\n\x08password\x18\x0b \x01(\t\x12\x17\n\x0fprotocolVersion\x18\x0f \x01(\t\x12\x13\n\x0b\x63hannelCode\x18\x1a \x01(\t\x12\x0e\n\x06locale\x18\x1b \x01(\t\x12@\n\x04info\x18\x1f \x03(\x0b\x32\x32.chameleon.security.auth.RegisterRequest.InfoEntry\x1a+\n\tInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x12\n\x10RegisterResponse\"\x8b\x02\n\x10\x41uthorizeRequest\x12/\n\x04type\x18\x01 \x01(\x0e\x32!.chameleon.security.auth.AuthType\x12\x36\n\x03\x61pp\x18\x02 \x01(\x0b\x32).chameleon.security.auth.AuthorizeAppData\x12\x38\n\x04user\x18\x03 \x01(\x0b\x32*.chameleon.security.auth.AuthorizeUserData\x12\r\n\x05roles\x18\x04 \x03(\t\x12\x12\n\nttlSeconds\x18\x05 \x01(\x03\x12\x31\n\x05\x61gent\x18\x0f \x01(\x0b\x32\".chameleon.security.auth.UserAgent\"t\n\x10\x41uthorizeAppData\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0e\n\x06secret\x18\x02 \x01(\t\x12\x13\n\x0bredirectURI\x18\x03 \x01(\t\x12\x19\n\x11\x61uthorizationCode\x18\x04 \x01(\t\x12\x14\n\x0crefreshToken\x18\x05 \x01(\t\"_\n\x11\x41uthorizeUserData\x12\r\n\x05token\x18\x01 \x01(\t\x12;\n\ncredential\x18\x02 \x01(\x0b\x32\'.chameleon.security.auth.UserCredential\"\x82\x02\n\x11\x41uthorizeResponse\x12\x31\n\x05\x65rror\x18\x01 \x01(\x0e\x32\".chameleon.security.auth.AuthError\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x35\n\x04\x64\x61ta\x18\x03 \x01(\x0b\x32\'.chameleon.security.auth.AuthorizedData\x12\x35\n\x04user\x18\x04 \x01(\x0b\x32\'.chameleon.security.auth.AuthorizedUser\x12;\n\x03\x61pp\x18\x05 \x01(\x0b\x32..chameleon.security.auth.AuthorizedApplication\"\x9a\x01\n\x0e\x41uthorizedData\x12\x15\n\rauthorizeCode\x18\x01 \x01(\t\x12\x13\n\x0b\x61\x63\x63\x65ssToken\x18\x02 \x01(\t\x12\x14\n\x0crefreshToken\x18\x03 \x01(\t\x12\x1a\n\x12\x61\x63\x63\x65ssTokenExpires\x18\x04 \x01(\x03\x12\x1b\n\x13refreshTokenExpires\x18\x05 \x01(\x03\x12\r\n\x05roles\x18\x06 \x03(\t\"\x1c\n\x0e\x41uthorizedUser\x12\n\n\x02id\x18\x01 \x01(\t\"b\n\x15\x41uthorizedApplication\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0bredirectURI\x18\x03 \x01(\t\x12\x1a\n\x12isSecurityCritical\x18\x04 \x01(\x08\"+\n\x1aValidateAccessTokenRequest\x12\r\n\x05token\x18\x01 \x01(\t\"c\n\x1bValidateAccessTokenResposne\x12\x33\n\x08identity\x18\x01 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12\x0f\n\x07\x65xpires\x18\x02 \x01(\x03\"i\n\x18PermitApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\x12.\n\nexpireTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"9\n\x18RevokeApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\"g\n\x16\x44\x65nyApplicationRequest\x12\x0e\n\x06userID\x18\x01 \x01(\t\x12\r\n\x05\x61ppID\x18\x02 \x01(\t\x12.\n\nexpireTime\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"i\n\x16\x41uthorizeAccessRequest\x12:\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32,.chameleon.security.auth.AuthorizeAccessData\x12\x13\n\x0bimpersonate\x18\x02 \x01(\x08\"\x9c\x02\n\x17\x41uthorizeAccessResponse\x12\x35\n\tsignature\x18\x01 \x01(\x0b\x32\".chameleon.security.auth.Signature\x12\x39\n\x0b\x61\x63\x63\x65ssToken\x18\x02 \x01(\x0b\x32$.chameleon.security.auth.AccessToken\x12\x43\n\x10impersonateToken\x18\x03 \x01(\x0b\x32).chameleon.security.auth.ImpersonateToken\x12\x33\n\x08identity\x18\x04 \x01(\x0b\x32!.chameleon.security.auth.Identity\x12\x15\n\rimpersonation\x18\x05 \x01(\t\"\x1e\n\rVerifyRequest\x12\r\n\x05token\x18\x01 \x01(\tBR\n\x1b\x63om.chameleon.security.authB\x13ServiceMessageProtoP\x01Z\x1c\x63hameleon/security/auth;authb\x06proto3'
   ,
   dependencies=[google_dot_protobuf_dot_timestamp__pb2.DESCRIPTOR,chameleon_dot_security_dot_identity_dot_data__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_auth__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_token__pb2.DESCRIPTOR,chameleon_dot_security_dot_auth_dot_credential__pb2.DESCRIPTOR,])
 
@@ -1090,6 +1090,38 @@ _AUTHORIZEACCESSRESPONSE = _descriptor.Descriptor(
   serialized_end=2862,
 )
 
+
+_VERIFYREQUEST = _descriptor.Descriptor(
+  name='VerifyRequest',
+  full_name='chameleon.security.auth.VerifyRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='token', full_name='chameleon.security.auth.VerifyRequest.token', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=2864,
+  serialized_end=2894,
+)
+
 _GETAPPLICATIONINFORESPONSE_INFOENTRY.containing_type = _GETAPPLICATIONINFORESPONSE
 _GETAPPLICATIONINFORESPONSE.fields_by_name['info'].message_type = _GETAPPLICATIONINFORESPONSE_INFOENTRY
 _GETUSERINFOREQUEST.fields_by_name['field'].enum_type = chameleon_dot_security_dot_identity_dot_data__pb2._USERUNIQUEFIELDTYPE
@@ -1132,6 +1164,7 @@ DESCRIPTOR.message_types_by_name['RevokeApplicationRequest'] = _REVOKEAPPLICATIO
 DESCRIPTOR.message_types_by_name['DenyApplicationRequest'] = _DENYAPPLICATIONREQUEST
 DESCRIPTOR.message_types_by_name['AuthorizeAccessRequest'] = _AUTHORIZEACCESSREQUEST
 DESCRIPTOR.message_types_by_name['AuthorizeAccessResponse'] = _AUTHORIZEACCESSRESPONSE
+DESCRIPTOR.message_types_by_name['VerifyRequest'] = _VERIFYREQUEST
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 GetApplicationInfoRequest = _reflection.GeneratedProtocolMessageType('GetApplicationInfoRequest', (_message.Message,), {
@@ -1289,6 +1322,13 @@ AuthorizeAccessResponse = _reflection.GeneratedProtocolMessageType('AuthorizeAcc
   # @@protoc_insertion_point(class_scope:chameleon.security.auth.AuthorizeAccessResponse)
   })
 _sym_db.RegisterMessage(AuthorizeAccessResponse)
+
+VerifyRequest = _reflection.GeneratedProtocolMessageType('VerifyRequest', (_message.Message,), {
+  'DESCRIPTOR' : _VERIFYREQUEST,
+  '__module__' : 'chameleon.security.auth.service_message_pb2'
+  # @@protoc_insertion_point(class_scope:chameleon.security.auth.VerifyRequest)
+  })
+_sym_db.RegisterMessage(VerifyRequest)
 
 
 DESCRIPTOR._options = None

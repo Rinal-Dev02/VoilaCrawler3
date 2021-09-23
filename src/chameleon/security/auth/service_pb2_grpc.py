@@ -62,6 +62,11 @@ class AuthorizerStub(object):
                 request_serializer=chameleon_dot_security_dot_auth_dot_service__message__pb2.DenyApplicationRequest.SerializeToString,
                 response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
                 )
+        self.Verify = channel.unary_unary(
+                '/chameleon.security.auth.Authorizer/Verify',
+                request_serializer=chameleon_dot_security_dot_auth_dot_service__message__pb2.VerifyRequest.SerializeToString,
+                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                )
 
 
 class AuthorizerServicer(object):
@@ -138,6 +143,13 @@ class AuthorizerServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def Verify(self, request, context):
+        """邮箱验证
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_AuthorizerServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -184,6 +196,11 @@ def add_AuthorizerServicer_to_server(servicer, server):
             'DenyApplication': grpc.unary_unary_rpc_method_handler(
                     servicer.DenyApplication,
                     request_deserializer=chameleon_dot_security_dot_auth_dot_service__message__pb2.DenyApplicationRequest.FromString,
+                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+            ),
+            'Verify': grpc.unary_unary_rpc_method_handler(
+                    servicer.Verify,
+                    request_deserializer=chameleon_dot_security_dot_auth_dot_service__message__pb2.VerifyRequest.FromString,
                     response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
             ),
     }
@@ -346,6 +363,23 @@ class Authorizer(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/chameleon.security.auth.Authorizer/DenyApplication',
             chameleon_dot_security_dot_auth_dot_service__message__pb2.DenyApplicationRequest.SerializeToString,
+            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Verify(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/chameleon.security.auth.Authorizer/Verify',
+            chameleon_dot_security_dot_auth_dot_service__message__pb2.VerifyRequest.SerializeToString,
             google_dot_protobuf_dot_empty__pb2.Empty.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

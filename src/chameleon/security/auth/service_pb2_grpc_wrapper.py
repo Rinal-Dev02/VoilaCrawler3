@@ -98,6 +98,14 @@ class AuthorizerServicer(_AuthorizerServicer):
                 return self.interceptor(request, context, methodDesc, self.servicer.DenyApplication)
             return self.servicer.DenyApplication(request, context)
 	
+        def Verify(self, request, context):
+            if self.interceptor:
+                methodDesc = self.desc.methods.get("Verify")
+                if not methodDesc:
+                    raise RuntimeError("Method [Verify] description not found")
+                return self.interceptor(request, context, methodDesc, self.servicer.Verify)
+            return self.servicer.Verify(request, context)
+	
 
     @classmethod
     def addToServer(cls, servicer, server, *args, **kwargs):
@@ -188,6 +196,14 @@ class AuthorizerStub(object):
                 raise RuntimeError("Method [DenyApplication] description not found")
             return self.____interceptor(self.____stub.DenyApplication, methodDesc, request, timeout, metadata, credentials)
         return self.____stub.DenyApplication(request, timeout, metadata, credentials)
+	
+    def Verify(self, request, timeout=None, metadata=None, credentials=None):
+        if self.____interceptor:
+            methodDesc = self.____desc.methods.get("Verify")
+            if not methodDesc:
+                raise RuntimeError("Method [Verify] description not found")
+            return self.____interceptor(self.____stub.Verify, methodDesc, request, timeout, metadata, credentials)
+        return self.____stub.Verify(request, timeout, metadata, credentials)
 	
 
 
