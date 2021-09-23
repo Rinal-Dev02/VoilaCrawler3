@@ -206,7 +206,7 @@ func serveCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 	}
 }
 
-func (app *App) newGrpcServer(c *cli.Context) func(fx.Lifecycle, glog.Log) (*grpc.Server, error) {
+func (app *App) newGrpcServer(c *cli.Context) func(fx.Lifecycle, glog.Log) (*grpc.Server, grpc.ServiceRegistrar, error) {
 	port := c.Int("port")
 	if port == 0 {
 		port = getOnePort()
@@ -214,7 +214,7 @@ func (app *App) newGrpcServer(c *cli.Context) func(fx.Lifecycle, glog.Log) (*grp
 	app.servePort = port
 	addr := fmt.Sprintf("%s:%d", c.String("host"), port)
 
-	return func(lc fx.Lifecycle, logger glog.Log) (*grpc.Server, error) {
+	return func(lc fx.Lifecycle, logger glog.Log) (*grpc.Server, grpc.ServiceRegistrar, error) {
 		var interceptor *grpcutil.ServerInterceptor
 		if c.Bool("disable-access-control") {
 			interceptor = grpcutil.NewServerInterceptor(
@@ -250,7 +250,7 @@ func (app *App) newGrpcServer(c *cli.Context) func(fx.Lifecycle, glog.Log) (*grp
 				return nil
 			},
 		})
-		return server, nil
+		return server, grpc.ServiceRegistrar(server), nil
 	}
 }
 
