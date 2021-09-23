@@ -472,7 +472,16 @@ type productStructure struct {
 					IsInStock     bool   `json:"isInStock"`
 					Sku           string `json:"sku"`
 				} `json:"sizes"`
-
+				Dimensions []struct {
+					Label    string `json:"label"`
+					Products []struct {
+						ID       string `json:"id"`
+						Link     string `json:"link"`
+						Label    string `json:"label"`
+						Selected bool   `json:"selected"`
+					} `json:"products"`
+					ActiveDimensionLabel string `json:"activeDimensionLabel"`
+				} `json:"dimensions"`
 				SwatchItems []struct {
 					ID         string `json:"id"`
 					URL        string `json:"url"`
@@ -548,8 +557,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 		}
 
-		for _, node := range prod.Data.Breadcrumbs {
-			item.Category = node.Title + ", "
+		for i, breadcrumb := range prod.Data.Breadcrumbs {
+
+			if i == 0 {
+				item.Category = breadcrumb.Title
+			} else if i == 1 {
+				item.SubCategory = breadcrumb.Title
+			} else if i == 2 {
+				item.SubCategory2 = breadcrumb.Title
+			} else if i == 3 {
+				item.SubCategory3 = breadcrumb.Title
+			} else if i == 4 {
+				item.SubCategory4 = breadcrumb.Title
+			}
 
 		}
 		var medias []*pbMedia.Media
@@ -573,18 +593,18 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		for _, rawcolor := range prod.Data.SwatchItems {
 			if rawcolor.IsSelected {
-
+				imgicon, _ := c.CanonicalUrl(rawcolor.Image)
 				colorSelected = &pbItem.SkuSpecOption{
 					Type:  pbItem.SkuSpecType_SkuSpecColor,
-					Id:    rawcolor.ID,
+					Id:    rawcolor.Label,
 					Name:  rawcolor.Label,
 					Value: rawcolor.Label,
-					Icon:  rawcolor.Image,
+					Icon:  imgicon,
 				}
 			}
 		}
 
-		for i, rawsku := range prod.Data.Sizes {
+		for _, rawsku := range prod.Data.Sizes {
 
 			current, _ := strconv.ParsePrice(prod.Data.Price.Current.Value)
 			msrp, _ := strconv.ParsePrice(prod.Data.Price.Old.Value)
@@ -597,11 +617,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			sku := pbItem.Sku{
-				SourceId: fmt.Sprintf("%s-%d", rawsku.Sku, i),
+				SourceId: prod.Data.ID,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
-					Current:  int32(current),
-					Msrp:     int32(msrp),
+					Current:  int32(current * 100),
+					Msrp:     int32(msrp * 100),
 					Discount: int32(discount),
 				},
 
@@ -618,14 +638,44 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			sizeName := rawsku.Label
 			if sizeName == "" {
-				sizeName = "One Size"
+				sizeName = "-"
 			}
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
-				Id:    fmt.Sprintf("%s-s-%d", rawsku.Sku, i),
+				Id:    sizeName,
 				Name:  sizeName,
 				Value: sizeName,
 			})
+
+			for _, dim := range prod.Data.Dimensions {
+
+				if dim.Label == "Style" {
+					sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+						Type:  pbItem.SkuSpecType_SkuSpecStyle,
+						Id:    dim.ActiveDimensionLabel,
+						Name:  dim.ActiveDimensionLabel,
+						Value: dim.ActiveDimensionLabel,
+					})
+				} else if dim.Label == "Fit" {
+					sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+						Type:  pbItem.SkuSpecType_SkuSpecFit,
+						Id:    dim.ActiveDimensionLabel,
+						Name:  dim.ActiveDimensionLabel,
+						Value: dim.ActiveDimensionLabel,
+					})
+				} else if dim.Label == "Coat length" || strings.ToLower(dim.Label) == "length" {
+					sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+						Type:  pbItem.SkuSpecType_SkuSpecLength,
+						Id:    dim.ActiveDimensionLabel,
+						Name:  dim.ActiveDimensionLabel,
+						Value: dim.ActiveDimensionLabel,
+					})
+				}
+			}
+
+			for _, spec := range sku.Specs {
+				sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+			}
 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
@@ -644,10 +694,48 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 
 				nextProductUrl, _ := c.CanonicalUrl(colorSizeOption.URL)
-				if req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil); err != nil {
+				req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil)
+				if err != nil {
 					return err
-				} else if err = yield(nctx, req); err != nil {
+				}
+				if err = yield(nctx, req); err != nil {
 					return err
+				}
+			}
+
+			// for color variants
+			for _, colorSizeOption := range prod.Data.SwatchItems {
+
+				if colorSizeOption.ID == prod.ID {
+					continue
+				}
+
+				nextProductUrl, _ := c.CanonicalUrl(colorSizeOption.URL)
+				req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil)
+				if err != nil {
+					return err
+				}
+				if err = yield(nctx, req); err != nil {
+					return err
+				}
+			}
+
+			// for Dimention variants
+			for _, colorSizeOption := range prod.Data.Dimensions {
+
+				for _, dimentionOption := range colorSizeOption.Products {
+					if dimentionOption.ID == prod.ID {
+						continue
+					}
+
+					nextProductUrl, _ := c.CanonicalUrl(dimentionOption.Link)
+					req, err := http.NewRequest(http.MethodGet, nextProductUrl, nil)
+					if err != nil {
+						return err
+					}
+					if err = yield(nctx, req); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -659,7 +747,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://us.burberry.com/",
-		//"https://us.burberry.com/womens-coats/",
+		"https://us.burberry.com/mens-bags/",
+		//"https://us.burberry.com/camouflage-print-leather-olympia-belt-bag-p80428901",
+		//"https://us.burberry.com/the-mid-length-chelsea-heritage-trench-coat-p80279941",
+		//"https://us.burberry.com/the-long-chelsea-heritage-trench-coat-p40733791",
+		//"https://us.burberry.com/vintage-check-suedeleather-sneakers-p80310981",
 		//"https://us.burberry.com/womens-trench-coats/",
 		//"https://us.burberry.com/womens-coats-jackets/",
 		//"https://us.burberry.com/girl/",
@@ -671,7 +763,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://us.burberry.com/my-burberry-blush-eau-de-parfum-90ml-p40493291",
 		//"https://us.burberry.com/bold-lash-mascara-chestnut-brown-no02-p39544251",
 		//"https://us.burberry.com/the-long-chelsea-heritage-trench-coat-p40733791",
-		"https://us.burberry.com/the-long-chelsea-heritage-trench-coat-p80279981",
+		//"https://us.burberry.com/the-long-chelsea-heritage-trench-coat-p80279981",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
