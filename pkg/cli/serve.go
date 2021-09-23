@@ -49,7 +49,18 @@ func serveCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 			Usage: "crawlet server grpc address",
 		},
 	}
-	flags = append(flags, extraFlags...)
+	for _, ef := range extraFlags {
+		if !func() bool {
+			for _, f := range flags {
+				if f.Names()[0] == ef.Names()[0] {
+					return true
+				}
+			}
+			return false
+		}() {
+			flags = append(flags, ef)
+		}
+	}
 	flags = append(flags, &cli.BoolFlag{
 		Name:    "debug",
 		Usage:   "Enable debug",
