@@ -162,7 +162,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					subcat3 := rawcatdata.Link.Title
 
 					href, err := c.CanonicalUrl(rawcatdata.Link.Href)
-					if rawcatdata.Link.Href == "" || subcat3 == "" || err != nil {
+					if rawcatdata.Link.Href == "" || subcat3 == "" || strings.ToLower(subcat2) == "discover" || err != nil {
 						continue
 					}
 
@@ -300,8 +300,12 @@ type categoryProductStructure struct {
 	Db struct {
 		ProductCards map[string]struct {
 			//Num80025371 struct {
-			ID  string `json:"id"`
-			URL string `json:"url"`
+			ID     string `json:"id"`
+			URL    string `json:"url"`
+			Colors []struct {
+				ID  string `json:"id"`
+				URL string `json:"url"`
+			} `json:"colors"`
 			//} `json:"80025371"`
 		} `json:"productCards"`
 
@@ -329,6 +333,10 @@ type categoryProductStructure struct {
 				ID  string `json:"id"`
 				URL string `json:"url"`
 				//} `json:"80025371"`
+				Colors []struct {
+					ID  string `json:"id"`
+					URL string `json:"url"`
+				} `json:"colors"`
 			} `json:"productCards"`
 		} `json:"entities"`
 		Result     []string    `json:"result"`
@@ -371,22 +379,48 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	for _, rawcat := range r {
 
-		href, err := c.CanonicalUrl(rawcat.URL)
-		if href == "" || rawcat.URL == "" || err != nil {
-			continue
-		}
+		if len(rawcat.Colors) == 0 {
 
-		req, err := http.NewRequest(http.MethodGet, href, nil)
-		if err != nil {
-			c.logger.Error(err)
-			continue
-		}
+			href, err := c.CanonicalUrl(rawcat.URL)
+			if href == "" || rawcat.URL == "" || err != nil {
+				continue
+			}
 
-		nctx := context.WithValue(ctx, "item.index", lastIndex)
-		lastIndex += 1
+			//fmt.Println(lastIndex, " - ", href)
+			req, err := http.NewRequest(http.MethodGet, href, nil)
+			if err != nil {
+				c.logger.Error(err)
+				continue
+			}
 
-		if err := yield(nctx, req); err != nil {
-			return err
+			nctx := context.WithValue(ctx, "item.index", lastIndex)
+			lastIndex += 1
+
+			if err := yield(nctx, req); err != nil {
+				return err
+			}
+
+		} else {
+			for _, rawcatColor := range rawcat.Colors {
+				href, err := c.CanonicalUrl(rawcatColor.URL)
+				if href == "" || rawcatColor.URL == "" || err != nil {
+					continue
+				}
+
+				//fmt.Println(lastIndex, " - ", href)
+				req, err := http.NewRequest(http.MethodGet, href, nil)
+				if err != nil {
+					c.logger.Error(err)
+					continue
+				}
+
+				nctx := context.WithValue(ctx, "item.index", lastIndex)
+				lastIndex += 1
+
+				if err := yield(nctx, req); err != nil {
+					return err
+				}
+			}
 		}
 	}
 
