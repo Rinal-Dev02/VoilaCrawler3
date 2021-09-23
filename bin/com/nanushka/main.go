@@ -54,7 +54,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 
 // ID
 func (c *_Crawler) ID() string {
-	return "2d710c1e01e640878d69a808d7e4348c"
+	return "f80c2ea354d83df17997427b48841623"
 }
 
 // Version
@@ -586,10 +586,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
-	canUrl, _ := c.CanonicalUrl(doc.Find(`link[rel="canonical"]`).AttrOr("href", ""))
+	canUrl := doc.Find(`link[rel="canonical"]`).AttrOr("href", "")
 	if canUrl == "" {
-		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+		canUrl = resp.Request.URL.String()
 	}
+	canUrl, _ = c.CanonicalUrl(canUrl)
 
 	matched = prodIdREgx.FindSubmatch([]byte(resp.Request.URL.Path))
 	prodId := (int)(strconv.MustParseInt(string(matched[1])))
@@ -675,7 +676,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Type:  pbItem.SkuSpecType_SkuSpecColor,
 			Id:    strconv.Format(viewData.Variant.Variants[prodId].RealColor.ID),
 			Name:  viewData.Variant.Variants[prodId].RealColor.Name,
-			Value: viewData.Variant.Variants[prodId].RealColor.Name,
+			Value: strconv.Format(viewData.Variant.Variants[prodId].RealColor.ID),
 			Icon:  viewData.Variant.Variants[prodId].RealColor.SwatchImageSrc,
 		}
 	}
@@ -710,7 +711,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Type:  pbItem.SkuSpecType_SkuSpecSize,
 				Id:    strconv.Format(rawSku.SizeID),
 				Name:  rawSku.Name,
-				Value: rawSku.Name,
+				Value: strconv.Format(rawSku.SizeID),
 			})
 		}
 
