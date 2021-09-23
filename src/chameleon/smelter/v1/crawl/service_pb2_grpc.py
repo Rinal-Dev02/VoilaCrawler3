@@ -358,6 +358,7 @@ class CrawlerManagerServicer(object):
 
     def GetCrawlers(self, request, context):
         """Crawlers
+        option (google.api.http).get = "/smelter/v1/crawl/crawlers";
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -365,6 +366,7 @@ class CrawlerManagerServicer(object):
 
     def GetCrawler(self, request, context):
         """GetCrawler 
+        option (google.api.http).get = "/smelter/v1/crawl/crawlers/{siteId}";
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -372,6 +374,7 @@ class CrawlerManagerServicer(object):
 
     def GetCrawlerOptions(self, request, context):
         """GetCrawlerOptions
+        option (google.api.http).get = "/smelter/v1/crawl/crawlers/{siteId}/crawler_options";
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -379,6 +382,7 @@ class CrawlerManagerServicer(object):
 
     def GetCanonicalUrl(self, request, context):
         """GetCanonicalUrl
+        option (google.api.http).get = "/smelter/v1/crawl/crawlers/{siteId}/canonical_url";
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -398,6 +402,10 @@ class CrawlerManagerServicer(object):
 
     def RemoteCall(self, request, context):
         """RemoteCall
+        option (google.api.http) = {
+        post: "/smelter/v1/crawl/call"
+        body: "*"
+        };
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
