@@ -25,7 +25,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z chameleon/smelter/v1/crawl;crawl',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n0chameleon/smelter/v1/crawl/service_message.proto\x12\x1a\x63hameleon.smelter.v1.crawl\x1a\x19google/protobuf/any.proto\x1a\x1d\x63hameleon/api/http/data.proto\x1a\x1f\x63hameleon/api/search/data.proto\x1a%chameleon/smelter/v1/crawl/data.proto\x1a+chameleon/smelter/v1/crawl/proxy/data.proto\"\"\n\x0fVersionResponse\x12\x0f\n\x07version\x18\x01 \x01(\x05\"$\n\x15\x43rawlerOptionsRequest\x12\x0b\n\x03url\x18\x01 \x01(\t\"\x92\x01\n\x16\x43rawlerOptionsResponse\x12\x38\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32*.chameleon.smelter.v1.crawl.CrawlerOptions\x12>\n\x0bremoteCalls\x18\x06 \x03(\x0b\x32).chameleon.smelter.v1.crawl.CrawlerMethod\"&\n\x16\x41llowedDomainsResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x03(\t\"\"\n\x13\x43\x61nonicalUrlRequest\x12\x0b\n\x03url\x18\x01 \x01(\t\"p\n\x14\x43\x61nonicalUrlResponse\x12\x43\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x35.chameleon.smelter.v1.crawl.CanonicalUrlResponse.Data\x1a\x13\n\x04\x44\x61ta\x12\x0b\n\x03url\x18\x01 \x01(\t\"\x82\x01\n\x0cParseRequest\x12\x34\n\x07request\x18\x01 \x01(\x0b\x32#.chameleon.smelter.v1.crawl.Request\x12<\n\x08response\x18\x02 \x01(\x0b\x32*.chameleon.smelter.v1.crawl.proxy.Response\"^\n\x0b\x43\x61llRequest\x12\x0e\n\x06siteId\x18\x01 \x01(\t\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\x11\n\ttracingId\x18\x03 \x01(\t\x12\x0e\n\x06method\x18\x04 \x01(\t\x12\r\n\x05input\x18\x05 \x01(\t\">\n\x0c\x43\x61llResponse\x12.\n\x04\x64\x61ta\x18\x02 \x03(\x0b\x32 .chameleon.smelter.v1.crawl.Item\"\x14\n\x12GetCrawlersRequest\"\xd9\x02\n\x13GetCrawlersResponse\x12G\n\x04\x64\x61ta\x18\x02 \x03(\x0b\x32\x39.chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry\x1a\x8d\x01\n\x0c\x43rawlerGroup\x12\x0e\n\x06siteId\x18\x01 \x01(\t\x12\x35\n\x08\x63rawlers\x18\x02 \x03(\x0b\x32#.chameleon.smelter.v1.crawl.Crawler\x12\x36\n\x06status\x18\x03 \x03(\x0b\x32&.chameleon.smelter.v1.crawl.NodeStatus\x1ai\n\tDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12K\n\x05value\x18\x02 \x01(\x0b\x32<.chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup:\x02\x38\x01\"#\n\x11GetCrawlerRequest\x12\x0e\n\x06siteId\x18\x01 \x01(\t\"\x7f\n\x12GetCrawlerResponse\x12\x31\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32#.chameleon.smelter.v1.crawl.Crawler\x12\x36\n\x06status\x18\x02 \x03(\x0b\x32&.chameleon.smelter.v1.crawl.NodeStatus\"7\n\x18GetCrawlerOptionsRequest\x12\x0e\n\x06siteId\x18\x01 \x01(\t\x12\x0b\n\x03url\x18\x02 \x01(\t\"\x95\x01\n\x19GetCrawlerOptionsResponse\x12\x38\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32*.chameleon.smelter.v1.crawl.CrawlerOptions\x12>\n\x0bremoteCalls\x18\x02 \x03(\x0b\x32).chameleon.smelter.v1.crawl.CrawlerMethod\"5\n\x16GetCanonicalUrlRequest\x12\x0e\n\x06siteId\x18\x01 \x01(\t\x12\x0b\n\x03url\x18\x02 \x01(\t\"v\n\x17GetCanonicalUrlResponse\x12\x46\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x38.chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.Data\x1a\x13\n\x04\x44\x61ta\x12\x0b\n\x03url\x18\x01 \x01(\t\"c\n\x0e\x44oParseRequest\x12\x34\n\x07request\x18\x01 \x01(\x0b\x32#.chameleon.smelter.v1.crawl.Request\x12\x1b\n\x13\x65nableBlockForItems\x18\x06 \x01(\x08\"]\n\x0f\x44oParseResponse\x12\"\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32\x14.google.protobuf.Any\x12\x11\n\titemCount\x18\x0b \x01(\x05\x12\x13\n\x0bsubReqCount\x18\x0c \x01(\x05\"\xba\x01\n\x11RemoteCallRequest\x12\x0e\n\x06siteId\x18\x01 \x01(\t\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\x11\n\ttracingId\x18\x03 \x01(\t\x12\x0e\n\x06method\x18\x04 \x01(\t\x12\r\n\x05input\x18\x05 \x01(\t\x12\x16\n\x0e\x65nablePipeline\x18\x06 \x01(\x08\x12<\n\x07options\x18\x0b \x01(\x0b\x32+.chameleon.smelter.v1.crawl.Request.Options\"D\n\x12RemoteCallResponse\x12.\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32 .chameleon.smelter.v1.crawl.Item\"\xcb\x01\n\x0e\x43onnectRequest\x1a\x82\x01\n\x04Ping\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\x12\n\n\x02id\x18\x06 \x01(\t\x12\x0e\n\x06siteId\x18\x07 \x01(\t\x12\x0f\n\x07version\x18\x08 \x01(\x05\x12\x16\n\x0e\x61llowedDomains\x18\t \x03(\t\x12\x0f\n\x07serveIP\x18\x0e \x01(\t\x12\x11\n\tservePort\x18\x0f \x01(\x05\x1a\x34\n\tHeartbeat\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\x12\x14\n\x0cnetworkDelay\x18\x04 \x01(\x03\"]\n\x0f\x43onnectResponse\x1aJ\n\x04Pong\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\x12\x14\n\x0cnetworkDelay\x18\x04 \x01(\x03\x12\x19\n\x11heartbeatInterval\x18\x0b \x01(\x03\"\x81\x03\n\x0c\x46\x65tchRequest\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\x0e\n\x06siteId\x18\x03 \x01(\t\x12\x0f\n\x07storeId\x18\x04 \x01(\t\x12\x0e\n\x06method\x18\x0c \x01(\t\x12\x0b\n\x03url\x18\r \x01(\t\x12R\n\rcustomHeaders\x18\x0e \x03(\x0b\x32;.chameleon.smelter.v1.crawl.FetchRequest.CustomHeadersEntry\x12\x31\n\rcustomCookies\x18\x0f \x03(\x0b\x32\x1a.chameleon.api.http.Cookie\x12\x0c\n\x04\x62ody\x18\x14 \x01(\t\x12<\n\x07options\x18\x33 \x01(\x0b\x32+.chameleon.smelter.v1.crawl.Request.Options\x12\x1b\n\x13\x65nableBlockForItems\x18\x65 \x01(\x08\x1a\x34\n\x12\x43ustomHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"?\n\rFetchResponse\x12.\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32 .chameleon.smelter.v1.crawl.Item\"\x1f\n\x11GetRequestRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\xd9\x02\n\x12GetRequestResponse\x12\x41\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x33.chameleon.smelter.v1.crawl.GetRequestResponse.Data\x1a\xb1\x01\n\x04\x44\x61ta\x12\x34\n\x07request\x18\x02 \x01(\x0b\x32#.chameleon.smelter.v1.crawl.Request\x12\x12\n\nretryCount\x18\x03 \x01(\x05\x12L\n\x06status\x18\x04 \x01(\x0e\x32<.chameleon.smelter.v1.crawl.GetRequestResponse.RequestStatus\x12\x11\n\tisSucceed\x18\x05 \x01(\x08\"L\n\rRequestStatus\x12\x11\n\rStatusUnknown\x10\x00\x12\n\n\x06Queued\x10\x01\x12\r\n\tInprocess\x10\x02\x12\r\n\tProcessed\x10\x03\"\xa9\x01\n\x15GetCrawlerLogsRequest\x12\r\n\x05limit\x18\x01 \x01(\x05\x12\x0e\n\x06\x63ursor\x18\x02 \x01(\t\x12\x0e\n\x06siteId\x18\x06 \x01(\t\x12\r\n\x05jobId\x18\x07 \x01(\t\x12\x11\n\tstartTime\x18\x08 \x01(\t\x12\x0f\n\x07\x65ndTime\x18\t \x01(\t\x12.\n\x05order\x18\x0f \x01(\x0e\x32\x1f.chameleon.api.search.SortOrder\"\xba\x01\n\x16GetCrawlerLogsResponse\x12Q\n\npagination\x18\x01 \x01(\x0b\x32=.chameleon.smelter.v1.crawl.GetCrawlerLogsResponse.Pagination\x12/\n\x04\x64\x61ta\x18\x02 \x03(\x0b\x32!.chameleon.smelter.v1.crawl.Error\x1a\x1c\n\nPagination\x12\x0e\n\x06\x63ursor\x18\x01 \x01(\tB\"Z chameleon/smelter/v1/crawl;crawlb\x06proto3'
+  serialized_pb=b'\n0chameleon/smelter/v1/crawl/service_message.proto\x12\x1a\x63hameleon.smelter.v1.crawl\x1a\x19google/protobuf/any.proto\x1a\x1d\x63hameleon/api/http/data.proto\x1a\x1f\x63hameleon/api/search/data.proto\x1a%chameleon/smelter/v1/crawl/data.proto\x1a+chameleon/smelter/v1/crawl/proxy/data.proto\"\"\n\x0fVersionResponse\x12\x0f\n\x07version\x18\x01 \x01(\x05\"$\n\x15\x43rawlerOptionsRequest\x12\x0b\n\x03url\x18\x01 \x01(\t\"\x92\x01\n\x16\x43rawlerOptionsResponse\x12\x38\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32*.chameleon.smelter.v1.crawl.CrawlerOptions\x12>\n\x0bremoteCalls\x18\x06 \x03(\x0b\x32).chameleon.smelter.v1.crawl.CrawlerMethod\"&\n\x16\x41llowedDomainsResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x03(\t\"\"\n\x13\x43\x61nonicalUrlRequest\x12\x0b\n\x03url\x18\x01 \x01(\t\"p\n\x14\x43\x61nonicalUrlResponse\x12\x43\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x35.chameleon.smelter.v1.crawl.CanonicalUrlResponse.Data\x1a\x13\n\x04\x44\x61ta\x12\x0b\n\x03url\x18\x01 \x01(\t\"\x82\x01\n\x0cParseRequest\x12\x34\n\x07request\x18\x01 \x01(\x0b\x32#.chameleon.smelter.v1.crawl.Request\x12<\n\x08response\x18\x02 \x01(\x0b\x32*.chameleon.smelter.v1.crawl.proxy.Response\"^\n\x0b\x43\x61llRequest\x12\x0e\n\x06siteId\x18\x01 \x01(\t\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\x11\n\ttracingId\x18\x03 \x01(\t\x12\x0e\n\x06method\x18\x04 \x01(\t\x12\r\n\x05input\x18\x05 \x01(\t\">\n\x0c\x43\x61llResponse\x12.\n\x04\x64\x61ta\x18\x02 \x03(\x0b\x32 .chameleon.smelter.v1.crawl.Item\"\x14\n\x12GetCrawlersRequest\"\xd9\x02\n\x13GetCrawlersResponse\x12G\n\x04\x64\x61ta\x18\x02 \x03(\x0b\x32\x39.chameleon.smelter.v1.crawl.GetCrawlersResponse.DataEntry\x1a\x8d\x01\n\x0c\x43rawlerGroup\x12\x0e\n\x06siteId\x18\x01 \x01(\t\x12\x35\n\x08\x63rawlers\x18\x02 \x03(\x0b\x32#.chameleon.smelter.v1.crawl.Crawler\x12\x36\n\x06status\x18\x03 \x03(\x0b\x32&.chameleon.smelter.v1.crawl.NodeStatus\x1ai\n\tDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12K\n\x05value\x18\x02 \x01(\x0b\x32<.chameleon.smelter.v1.crawl.GetCrawlersResponse.CrawlerGroup:\x02\x38\x01\"#\n\x11GetCrawlerRequest\x12\x0e\n\x06siteId\x18\x01 \x01(\t\"\x7f\n\x12GetCrawlerResponse\x12\x31\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32#.chameleon.smelter.v1.crawl.Crawler\x12\x36\n\x06status\x18\x02 \x03(\x0b\x32&.chameleon.smelter.v1.crawl.NodeStatus\"7\n\x18GetCrawlerOptionsRequest\x12\x0e\n\x06siteId\x18\x01 \x01(\t\x12\x0b\n\x03url\x18\x02 \x01(\t\"\x95\x01\n\x19GetCrawlerOptionsResponse\x12\x38\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32*.chameleon.smelter.v1.crawl.CrawlerOptions\x12>\n\x0bremoteCalls\x18\x02 \x03(\x0b\x32).chameleon.smelter.v1.crawl.CrawlerMethod\"5\n\x16GetCanonicalUrlRequest\x12\x0e\n\x06siteId\x18\x01 \x01(\t\x12\x0b\n\x03url\x18\x02 \x01(\t\"v\n\x17GetCanonicalUrlResponse\x12\x46\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x38.chameleon.smelter.v1.crawl.GetCanonicalUrlResponse.Data\x1a\x13\n\x04\x44\x61ta\x12\x0b\n\x03url\x18\x01 \x01(\t\"y\n\x0e\x44oParseRequest\x12\x34\n\x07request\x18\x01 \x01(\x0b\x32#.chameleon.smelter.v1.crawl.Request\x12\x1b\n\x13\x65nableBlockForItems\x18\x06 \x01(\x08\x12\x14\n\x0cwithRequests\x18\x07 \x01(\x08\"]\n\x0f\x44oParseResponse\x12\"\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32\x14.google.protobuf.Any\x12\x11\n\titemCount\x18\x0b \x01(\x05\x12\x13\n\x0bsubReqCount\x18\x0c \x01(\x05\"\xba\x01\n\x11RemoteCallRequest\x12\x0e\n\x06siteId\x18\x01 \x01(\t\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\x11\n\ttracingId\x18\x03 \x01(\t\x12\x0e\n\x06method\x18\x04 \x01(\t\x12\r\n\x05input\x18\x05 \x01(\t\x12\x16\n\x0e\x65nablePipeline\x18\x06 \x01(\x08\x12<\n\x07options\x18\x0b \x01(\x0b\x32+.chameleon.smelter.v1.crawl.Request.Options\"D\n\x12RemoteCallResponse\x12.\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32 .chameleon.smelter.v1.crawl.Item\"\xcb\x01\n\x0e\x43onnectRequest\x1a\x82\x01\n\x04Ping\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\x12\n\n\x02id\x18\x06 \x01(\t\x12\x0e\n\x06siteId\x18\x07 \x01(\t\x12\x0f\n\x07version\x18\x08 \x01(\x05\x12\x16\n\x0e\x61llowedDomains\x18\t \x03(\t\x12\x0f\n\x07serveIP\x18\x0e \x01(\t\x12\x11\n\tservePort\x18\x0f \x01(\x05\x1a\x34\n\tHeartbeat\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\x12\x14\n\x0cnetworkDelay\x18\x04 \x01(\x03\"]\n\x0f\x43onnectResponse\x1aJ\n\x04Pong\x12\x11\n\ttimestamp\x18\x01 \x01(\x03\x12\x14\n\x0cnetworkDelay\x18\x04 \x01(\x03\x12\x19\n\x11heartbeatInterval\x18\x0b \x01(\x03\"\x97\x03\n\x0c\x46\x65tchRequest\x12\r\n\x05jobId\x18\x02 \x01(\t\x12\x0e\n\x06siteId\x18\x03 \x01(\t\x12\x0f\n\x07storeId\x18\x04 \x01(\t\x12\x0e\n\x06method\x18\x0c \x01(\t\x12\x0b\n\x03url\x18\r \x01(\t\x12R\n\rcustomHeaders\x18\x0e \x03(\x0b\x32;.chameleon.smelter.v1.crawl.FetchRequest.CustomHeadersEntry\x12\x31\n\rcustomCookies\x18\x0f \x03(\x0b\x32\x1a.chameleon.api.http.Cookie\x12\x0c\n\x04\x62ody\x18\x14 \x01(\t\x12<\n\x07options\x18\x33 \x01(\x0b\x32+.chameleon.smelter.v1.crawl.Request.Options\x12\x1b\n\x13\x65nableBlockForItems\x18\x65 \x01(\x08\x12\x14\n\x0cwithRequests\x18\x66 \x01(\x08\x1a\x34\n\x12\x43ustomHeadersEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"?\n\rFetchResponse\x12.\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32 .chameleon.smelter.v1.crawl.Item\"\x1f\n\x11GetRequestRequest\x12\n\n\x02id\x18\x01 \x01(\t\"\xd9\x02\n\x12GetRequestResponse\x12\x41\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x33.chameleon.smelter.v1.crawl.GetRequestResponse.Data\x1a\xb1\x01\n\x04\x44\x61ta\x12\x34\n\x07request\x18\x02 \x01(\x0b\x32#.chameleon.smelter.v1.crawl.Request\x12\x12\n\nretryCount\x18\x03 \x01(\x05\x12L\n\x06status\x18\x04 \x01(\x0e\x32<.chameleon.smelter.v1.crawl.GetRequestResponse.RequestStatus\x12\x11\n\tisSucceed\x18\x05 \x01(\x08\"L\n\rRequestStatus\x12\x11\n\rStatusUnknown\x10\x00\x12\n\n\x06Queued\x10\x01\x12\r\n\tInprocess\x10\x02\x12\r\n\tProcessed\x10\x03\"\xa9\x01\n\x15GetCrawlerLogsRequest\x12\r\n\x05limit\x18\x01 \x01(\x05\x12\x0e\n\x06\x63ursor\x18\x02 \x01(\t\x12\x0e\n\x06siteId\x18\x06 \x01(\t\x12\r\n\x05jobId\x18\x07 \x01(\t\x12\x11\n\tstartTime\x18\x08 \x01(\t\x12\x0f\n\x07\x65ndTime\x18\t \x01(\t\x12.\n\x05order\x18\x0f \x01(\x0e\x32\x1f.chameleon.api.search.SortOrder\"\xba\x01\n\x16GetCrawlerLogsResponse\x12Q\n\npagination\x18\x01 \x01(\x0b\x32=.chameleon.smelter.v1.crawl.GetCrawlerLogsResponse.Pagination\x12/\n\x04\x64\x61ta\x18\x02 \x03(\x0b\x32!.chameleon.smelter.v1.crawl.Error\x1a\x1c\n\nPagination\x12\x0e\n\x06\x63ursor\x18\x01 \x01(\tB\"Z chameleon/smelter/v1/crawl;crawlb\x06proto3'
   ,
   dependencies=[google_dot_protobuf_dot_any__pb2.DESCRIPTOR,chameleon_dot_api_dot_http_dot_data__pb2.DESCRIPTOR,chameleon_dot_api_dot_search_dot_data__pb2.DESCRIPTOR,chameleon_dot_smelter_dot_v1_dot_crawl_dot_data__pb2.DESCRIPTOR,chameleon_dot_smelter_dot_v1_dot_crawl_dot_proxy_dot_data__pb2.DESCRIPTOR,])
 
@@ -61,8 +61,8 @@ _GETREQUESTRESPONSE_REQUESTSTATUS = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=3393,
-  serialized_end=3469,
+  serialized_start=3437,
+  serialized_end=3513,
 )
 _sym_db.RegisterEnumDescriptor(_GETREQUESTRESPONSE_REQUESTSTATUS)
 
@@ -841,6 +841,13 @@ _DOPARSEREQUEST = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='withRequests', full_name='chameleon.smelter.v1.crawl.DoParseRequest.withRequests', index=2,
+      number=7, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -854,7 +861,7 @@ _DOPARSEREQUEST = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=1881,
-  serialized_end=1980,
+  serialized_end=2002,
 )
 
 
@@ -899,8 +906,8 @@ _DOPARSERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1982,
-  serialized_end=2075,
+  serialized_start=2004,
+  serialized_end=2097,
 )
 
 
@@ -973,8 +980,8 @@ _REMOTECALLREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2078,
-  serialized_end=2264,
+  serialized_start=2100,
+  serialized_end=2286,
 )
 
 
@@ -1005,8 +1012,8 @@ _REMOTECALLRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2266,
-  serialized_end=2334,
+  serialized_start=2288,
+  serialized_end=2356,
 )
 
 
@@ -1079,8 +1086,8 @@ _CONNECTREQUEST_PING = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2356,
-  serialized_end=2486,
+  serialized_start=2378,
+  serialized_end=2508,
 )
 
 _CONNECTREQUEST_HEARTBEAT = _descriptor.Descriptor(
@@ -1117,8 +1124,8 @@ _CONNECTREQUEST_HEARTBEAT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2488,
-  serialized_end=2540,
+  serialized_start=2510,
+  serialized_end=2562,
 )
 
 _CONNECTREQUEST = _descriptor.Descriptor(
@@ -1141,8 +1148,8 @@ _CONNECTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2337,
-  serialized_end=2540,
+  serialized_start=2359,
+  serialized_end=2562,
 )
 
 
@@ -1187,8 +1194,8 @@ _CONNECTRESPONSE_PONG = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2561,
-  serialized_end=2635,
+  serialized_start=2583,
+  serialized_end=2657,
 )
 
 _CONNECTRESPONSE = _descriptor.Descriptor(
@@ -1211,8 +1218,8 @@ _CONNECTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2542,
-  serialized_end=2635,
+  serialized_start=2564,
+  serialized_end=2657,
 )
 
 
@@ -1250,8 +1257,8 @@ _FETCHREQUEST_CUSTOMHEADERSENTRY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2971,
-  serialized_end=3023,
+  serialized_start=3015,
+  serialized_end=3067,
 )
 
 _FETCHREQUEST = _descriptor.Descriptor(
@@ -1332,6 +1339,13 @@ _FETCHREQUEST = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='withRequests', full_name='chameleon.smelter.v1.crawl.FetchRequest.withRequests', index=10,
+      number=102, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
   ],
   extensions=[
   ],
@@ -1344,8 +1358,8 @@ _FETCHREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2638,
-  serialized_end=3023,
+  serialized_start=2660,
+  serialized_end=3067,
 )
 
 
@@ -1376,8 +1390,8 @@ _FETCHRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3025,
-  serialized_end=3088,
+  serialized_start=3069,
+  serialized_end=3132,
 )
 
 
@@ -1408,8 +1422,8 @@ _GETREQUESTREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3090,
-  serialized_end=3121,
+  serialized_start=3134,
+  serialized_end=3165,
 )
 
 
@@ -1461,8 +1475,8 @@ _GETREQUESTRESPONSE_DATA = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3214,
-  serialized_end=3391,
+  serialized_start=3258,
+  serialized_end=3435,
 )
 
 _GETREQUESTRESPONSE = _descriptor.Descriptor(
@@ -1493,8 +1507,8 @@ _GETREQUESTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3124,
-  serialized_end=3469,
+  serialized_start=3168,
+  serialized_end=3513,
 )
 
 
@@ -1567,8 +1581,8 @@ _GETCRAWLERLOGSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3472,
-  serialized_end=3641,
+  serialized_start=3516,
+  serialized_end=3685,
 )
 
 
@@ -1599,8 +1613,8 @@ _GETCRAWLERLOGSRESPONSE_PAGINATION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3802,
-  serialized_end=3830,
+  serialized_start=3846,
+  serialized_end=3874,
 )
 
 _GETCRAWLERLOGSRESPONSE = _descriptor.Descriptor(
@@ -1637,8 +1651,8 @@ _GETCRAWLERLOGSRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3644,
-  serialized_end=3830,
+  serialized_start=3688,
+  serialized_end=3874,
 )
 
 _CRAWLEROPTIONSRESPONSE.fields_by_name['data'].message_type = chameleon_dot_smelter_dot_v1_dot_crawl_dot_data__pb2._CRAWLEROPTIONS
