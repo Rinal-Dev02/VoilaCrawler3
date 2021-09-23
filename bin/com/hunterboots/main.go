@@ -326,7 +326,11 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 		rootURL := "https://www.hunterboots.com/us/en_us/api/catalog/products/" + pid + "/us/EUPG01/en_US/?page[number]=1&page[size]=24"
 
-		respBodyC, _ := c.variationRequest(ctx, rootURL, resp.Request.URL.String())
+		respBodyC, err := c.variationRequest(ctx, rootURL, resp.Request.URL.String())
+		if err != nil {
+			c.logger.Errorf("request %s error=%s", rootURL, err)
+			return err
+		}
 
 		if err := json.Unmarshal(respBodyC, &viewData); err != nil {
 			c.logger.Errorf("unmarshal data fetched from %s failed, error=%s", resp.Request.URL, err)
@@ -558,7 +562,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	rootURL := "https://www.hunterboots.com/us/en_us/api/product/skus/EUPG01/" + viewDataProduct.Sku
 
-	respBodyV, _ := c.variationRequest(ctx, rootURL, resp.Request.URL.String())
+	respBodyV, err := c.variationRequest(ctx, rootURL, resp.Request.URL.String())
+	if err != nil {
+		c.logger.Errorf("request %s error=%s", rootURL, err)
+		return err
+	}
 
 	var viewDataVariation parseProductVariationResponse
 
@@ -796,13 +804,11 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 	})
 	if err != nil {
 		c.logger.Error(err)
-		//return nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
-
-	return respBody, err
+	return ioutil.ReadAll(resp.Body)
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
