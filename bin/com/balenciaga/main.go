@@ -44,8 +44,8 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(/en-us([/A-Za-z0-9_-]+)(.*)$)|(/on/demandware\.store([/A-Za-z0-9_-]+))$`),
-		productPathMatcher:  regexp.MustCompile(`^/en-us([/A-Za-z0-9_-]+).html$`),
+		categoryPathMatcher: regexp.MustCompile(`^/en-us/(women|men|search)(/[A-Za-z0-9_-]+){0,3}$`),
+		productPathMatcher:  regexp.MustCompile(`^/en-us/([A-Za-z0-9_.-]+).html$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -466,14 +466,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		var colorSelected *pbItem.SkuSpecOption
 
 		cid = node.Find(`input`).AttrOr(`data-attr-value`, "")
-		icon := strings.ReplaceAll(strings.ReplaceAll(node.Find(`.c-swatches__itemimage`).AttrOr(`style`, ""), "background-image: url(", ""), ")", "")
+		icon := node.Find(`.c-swatches__itemimage`).AttrOr(`style`, "")
+		if strings.Contains(icon, "background-color") {
+			icon = ""
+		} else {
+			icon = strings.ReplaceAll(strings.ReplaceAll(icon, "background-image: url(", ""), ")", "")
+		}
 		colorName = node.Find(`.c-swatches__itemimage`).AttrOr(`data-display-value`, "")
 		if colorName != "" {
 			colorSelected = &pbItem.SkuSpecOption{
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
 				Id:    cid,
 				Name:  colorName,
-				Value: colorName,
+				Value: cid,
 				Icon:  icon,
 			}
 		}
@@ -552,7 +557,11 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			var viewData parseVariationStructure
 
 			variationURL := node.Find(`input`).AttrOr(`data-attr-href`, "")
-			varResponse := c.VariationRequest(ctx, variationURL)
+			varResponse, err := c.VariationRequest(ctx, variationURL)
+			if err != nil {
+				c.logger.Errorf("request %s failed, err=%s", variationURL, err)
+				return err
+			}
 			if err := json.Unmarshal(varResponse, &viewData); err != nil {
 				c.logger.Errorf("extract product list %s failed", variationURL)
 			}
@@ -635,7 +644,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
-func (c *_Crawler) VariationRequest(ctx context.Context, rootUrl string) (reqs []byte) {
+func (c *_Crawler) VariationRequest(ctx context.Context, rootUrl string) ([]byte, error) {
 
 	req, _ := http.NewRequest(http.MethodGet, rootUrl, nil)
 	opts := c.CrawlOptions(req.URL)
@@ -657,12 +666,11 @@ func (c *_Crawler) VariationRequest(ctx context.Context, rootUrl string) (reqs [
 	})
 	if err != nil {
 		c.logger.Error(err)
-		//return nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
-	return respBody
+	return ioutil.ReadAll(resp.Body)
 }
 
 // NewTestRequest returns the custom test request which is used to monitor wheather the website struct is changed.
