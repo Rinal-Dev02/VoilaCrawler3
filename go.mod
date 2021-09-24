@@ -10,7 +10,6 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
 	github.com/gammazero/deque v0.1.0
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.2
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/gosimple/slug v1.9.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.6.0 // indirect
@@ -28,7 +27,6 @@ require (
 	go.uber.org/zap v1.19.1 // indirect
 	golang.org/x/image v0.0.0-20210628002857-a66eb6448b8d
 	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf
-	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/sys v0.0.0-20210923061019-b8560ed6a9b7 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/api v0.57.0
