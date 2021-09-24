@@ -84,9 +84,8 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
-		return u.String(), nil
 	}
-	return rawurl, nil
+	return u.String(), nil
 }
 
 var countriesPrefix = map[string]struct{}{"/ad": {}, "/ae": {}, "/ar-ae": {}, "/af": {}, "/ag": {}, "/ai": {}, "/al": {}, "/am": {}, "/an": {}, "/ao": {}, "/aq": {}, "/ar": {}, "/at": {}, "/au": {}, "/aw": {}, "/az": {}, "/ba": {}, "/bb": {}, "/bd": {}, "/be": {}, "/bf": {}, "/bg": {}, "/bh": {}, "/ar-bh": {}, "/bi": {}, "/bj": {}, "/bm": {}, "/bn": {}, "/bo": {}, "/br": {}, "/bs": {}, "/bt": {}, "/bv": {}, "/bw": {}, "/by": {}, "/bz": {}, "/ca": {}, "/cc": {}, "/cf": {}, "/cg": {}, "/ch": {}, "/ci": {}, "/ck": {}, "/cl": {}, "/cm": {}, "/cn": {}, "/co": {}, "/cr": {}, "/cv": {}, "/cx": {}, "/cy": {}, "/cz": {}, "/de": {}, "/dj": {}, "/dk": {}, "/dm": {}, "/do": {}, "/dz": {}, "/ec": {}, "/ee": {}, "/eg": {}, "/ar-eg": {}, "/eh": {}, "/es": {}, "/et": {}, "/fi": {}, "/fj": {}, "/fk": {}, "/fm": {}, "/fo": {}, "/fr": {}, "/ga": {}, "/uk": {}, "/gd": {}, "/ge": {}, "/gf": {}, "/gg": {}, "/gh": {}, "/gi": {}, "/gl": {}, "/gm": {}, "/gn": {}, "/gp": {}, "/gq": {}, "/gr": {}, "/gt": {}, "/gu": {}, "/gw": {}, "/gy": {}, "/hk": {}, "/hn": {}, "/hr": {}, "/ht": {}, "/hu": {}, "/ic": {}, "/id": {}, "/ie": {}, "/il": {}, "/in": {}, "/io": {}, "/iq": {}, "/ar-iq": {}, "/is": {}, "/it": {}, "/je": {}, "/jm": {}, "/jo": {}, "/ar-jo": {}, "/jp": {}, "/ke": {}, "/kg": {}, "/kh": {}, "/ki": {}, "/km": {}, "/kn": {}, "/kr": {}, "/kv": {}, "/kw": {}, "/ar-kw": {}, "/ky": {}, "/kz": {}, "/la": {}, "/lb": {}, "/ar-lb": {}, "/lc": {}, "/li": {}, "/lk": {}, "/ls": {}, "/lt": {}, "/lu": {}, "/lv": {}, "/ma": {}, "/mc": {}, "/md": {}, "/me": {}, "/mg": {}, "/mh": {}, "/mk": {}, "/ml": {}, "/mn": {}, "/mo": {}, "/mp": {}, "/mq": {}, "/mr": {}, "/ms": {}, "/mt": {}, "/mu": {}, "/mv": {}, "/mw": {}, "/mx": {}, "/my": {}, "/mz": {}, "/na": {}, "/nc": {}, "/ne": {}, "/nf": {}, "/ng": {}, "/ni": {}, "/nl": {}, "/no": {}, "/np": {}, "/nr": {}, "/nu": {}, "/nz": {}, "/om": {}, "/ar-om": {}, "/pa": {}, "/pe": {}, "/pf": {}, "/pg": {}, "/ph": {}, "/pk": {}, "/pl": {}, "/pm": {}, "/pn": {}, "/pr": {}, "/pt": {}, "/pw": {}, "/py": {}, "/qa": {}, "/ar-qa": {}, "/re": {}, "/ro": {}, "/rs": {}, "/ru": {}, "/rw": {}, "/sa": {}, "/ar-sa": {}, "/sb": {}, "/sc": {}, "/se": {}, "/sg": {}, "/sh": {}, "/si": {}, "/sk": {}, "/sl": {}, "/sm": {}, "/sn": {}, "/sr": {}, "/st": {}, "/sv": {}, "/sz": {}, "/tc": {}, "/td": {}, "/tg": {}, "/th": {}, "/tj": {}, "/tk": {}, "/tl": {}, "/tn": {}, "/to": {}, "/tr": {}, "/tt": {}, "/tv": {}, "/tw": {}, "/tz": {}, "/ua": {}, "/ug": {}, "/uy": {}, "/uz": {}, "/va": {}, "/vc": {}, "/ve": {}, "/vg": {}, "/vi": {}, "/vn": {}, "/vu": {}, "/wf": {}, "/xc": {}, "/ye": {}, "/za": {}, "/zm": {}, "/zw": {}}
@@ -206,90 +205,6 @@ type categoryStructure struct {
 					Slug string `json:"slug"`
 				} `json:"header"`
 			} `json:"pageData"`
-			Page struct {
-				ID          string `json:"_id"`
-				ContentType struct {
-					ID string `json:"_id"`
-				} `json:"_contentType"`
-				Locale                string `json:"_locale"`
-				Name                  string `json:"name"`
-				Title                 string `json:"title"`
-				Slug                  string `json:"slug"`
-				EnablePageTranslation bool   `json:"enablePageTranslation"`
-				Metatags              struct {
-					ID          string `json:"_id"`
-					ContentType struct {
-						ID string `json:"_id"`
-					} `json:"_contentType"`
-					Locale           string `json:"_locale"`
-					Name             string `json:"name"`
-					DescriptionTitle string `json:"descriptionTitle"`
-					Description      string `json:"description"`
-					AplicationName   string `json:"aplicationName"`
-				} `json:"metatags"`
-				Schema struct {
-					ID          string `json:"_id"`
-					ContentType struct {
-						ID string `json:"_id"`
-					} `json:"_contentType"`
-					Locale string `json:"_locale"`
-					Name   string `json:"name"`
-					Schema struct {
-						URL          string   `json:"url"`
-						Logo         string   `json:"logo"`
-						Name         string   `json:"name"`
-						Type         string   `json:"@type"`
-						SameAs       []string `json:"sameAs"`
-						Context      string   `json:"@context"`
-						Founders     string   `json:"founders"`
-						FoundingDate string   `json:"foundingDate"`
-					} `json:"schema"`
-				} `json:"schema"`
-				Components []struct {
-					Data struct {
-						Components []struct {
-							Data struct {
-								Components []interface{} `json:"components"`
-							} `json:"data"`
-							Name            string        `json:"name"`
-							Type            string        `json:"type"`
-							Contexts        []interface{} `json:"contexts"`
-							Behaviours      []interface{} `json:"behaviours"`
-							ReferenceID     string        `json:"referenceId"`
-							TrackingName    string        `json:"trackingName"`
-							CSSByBreakpoint []struct {
-								CSS        []interface{} `json:"css"`
-								CSSHover   []interface{} `json:"cssHover"`
-								CSSActive  []interface{} `json:"cssActive"`
-								Breakpoint struct {
-									MinWidth    int    `json:"minWidth"`
-									Orientation string `json:"orientation"`
-								} `json:"breakpoint"`
-								CSSDisabled []interface{} `json:"cssDisabled"`
-							} `json:"cssByBreakpoint"`
-						} `json:"components"`
-					} `json:"data"`
-					Name            string        `json:"name"`
-					Type            string        `json:"type"`
-					Contexts        []interface{} `json:"contexts"`
-					Behaviours      []interface{} `json:"behaviours"`
-					ReferenceID     string        `json:"referenceId"`
-					TrackingName    string        `json:"trackingName"`
-					CSSByBreakpoint []struct {
-						CSS        []interface{} `json:"css"`
-						CSSHover   []interface{} `json:"cssHover"`
-						CSSActive  []interface{} `json:"cssActive"`
-						Breakpoint struct {
-							MinWidth    int    `json:"minWidth"`
-							Orientation string `json:"orientation"`
-						} `json:"breakpoint"`
-						CSSDisabled []interface{} `json:"cssDisabled"`
-					} `json:"cssByBreakpoint"`
-					HTMLID    string        `json:"htmlId,omitempty"`
-					Labels    []interface{} `json:"labels,omitempty"`
-					ClassName string        `json:"className,omitempty"`
-				} `json:"components"`
-			} `json:"page"`
 		} `json:"pageProps"`
 	} `json:"props"`
 }
@@ -341,7 +256,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			if catname == "" {
 				continue
 			}
-			if catname == "About" {
+			if catname == "About" || catname == "Style Edit" {
 				continue
 			}
 
@@ -355,7 +270,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 						continue
 					}
 
-					if subcat3 == "Mejuri Icons" || subcat3 == "Shop Insta" || subcat3 == "Discover the Icons" || subcat3 == "Gift Cards" {
+					if subcat3 == "Mejuri Icons" || subcat3 == "Shop Insta" || subcat3 == "Discover the Icons" || subcat3 == "Gift Cards" || subcat3 == "Goop X Mejuri" {
 						continue
 					}
 
@@ -375,7 +290,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 						continue
 					}
 
-					if c.categoryPathMatcher.MatchString(u.Path) {
+					if !c.productPathMatcher.MatchString(u.Path) && c.categoryPathMatcher.MatchString(u.Path) {
 						if err := yield([]string{rawCat.Text, subcat2, subcat3}, canonicalurl); err != nil {
 							return err
 						}
@@ -474,9 +389,14 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	var materialFilter []string
 	if c.categorySearchAPIPathMatcher.MatchString(resp.Request.URL.Path) {
 		categoryURL := "https://mejuri.com/api/v1/taxon/collections-by-categories/USD/type"
-		varResponse := c.VariationRequest(ctx, categoryURL)
+		varResponse, err := c.variationRequest(ctx, categoryURL, resp.Request.URL.String())
+		if err != nil {
+			c.logger.Errorf("extract product list %s failed", categoryURL)
+			return err
+		}
 		if err := json.Unmarshal(varResponse, &viewData); err != nil {
 			c.logger.Errorf("extract product list %s failed", categoryURL)
+			return err
 		}
 
 		u := *resp.Request.URL
@@ -514,7 +434,6 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			if contains(materialFilter, prod.MaterialName) {
 
 				if href, _ := c.CanonicalUrl(prod.Slug); href != "" {
-
 					req, err := http.NewRequest(http.MethodGet, href, nil)
 					if err != nil {
 						c.logger.Error(err)
@@ -557,18 +476,6 @@ type parseProductResponse struct {
 	MetaKeywords    string `json:"meta_keywords"`
 	DisplayName     string `json:"display_name"`
 	PriceRange      struct {
-		Aud struct {
-			Min string `json:"min"`
-			Max string `json:"max"`
-		} `json:"AUD"`
-		Cad struct {
-			Min string `json:"min"`
-			Max string `json:"max"`
-		} `json:"CAD"`
-		Gbp struct {
-			Min string `json:"min"`
-			Max string `json:"max"`
-		} `json:"GBP"`
 		Usd struct {
 			Min string `json:"min"`
 			Max string `json:"max"`
@@ -587,16 +494,11 @@ type parseProductResponse struct {
 		Description string `json:"description"`
 		IconURL     string `json:"icon_url"`
 	} `json:"material_descriptions"`
-	Sample              bool        `json:"sample"`
-	TravelCase          bool        `json:"travel_case"`
-	EngagementRing      bool        `json:"engagement_ring"`
-	WeddingBand         bool        `json:"wedding_band"`
-	EngagementRingType  interface{} `json:"engagement_ring_type"`
-	WeddingBandType     interface{} `json:"wedding_band_type"`
-	MensWeddingBandType interface{} `json:"mens_wedding_band_type"`
-	MarkedSoldOut       bool        `json:"marked_sold_out"`
-	Available           bool        `json:"available"`
-	Images              []struct {
+	Sample         bool `json:"sample"`
+	TravelCase     bool `json:"travel_case"`
+	EngagementRing bool `json:"engagement_ring"`
+	Available      bool `json:"available"`
+	Images         []struct {
 		Position   int         `json:"position"`
 		Alt        interface{} `json:"alt"`
 		Attachment struct {
@@ -615,15 +517,8 @@ type parseProductResponse struct {
 			IconFullURL string `json:"icon_full_url"`
 		} `json:"material_category"`
 	} `json:"material_group_products"`
-	NoRetail           bool   `json:"no_retail"`
-	NoWaitlist         bool   `json:"no_waitlist"`
-	NoFairPricing      bool   `json:"no_fair_pricing"`
-	DigitalGiftcard    bool   `json:"digital_giftcard"`
-	PhysicalGiftcard   bool   `json:"physical_giftcard"`
-	DisplayRetailPrice int    `json:"display_retail_price"`
-	CostPrice          string `json:"cost_price"`
-	Material           string `json:"material"`
-	Master             struct {
+	Material string `json:"material"`
+	Master   struct {
 		ID  int    `json:"id"`
 		Sku string `json:"sku"`
 	} `json:"master"`
@@ -652,11 +547,23 @@ type parseProductResponse struct {
 	} `json:"option_types"`
 }
 
-var (
-	detailReg = regexp.MustCompile(`({.*})`)
-)
+type parseRatingResponse struct {
+	Status struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	} `json:"status"`
+	Response struct {
+		Bottomline struct {
+			TotalReview         int     `json:"total_review"`
+			AverageScore        float64 `json:"average_score"`
+			TotalOrganicReviews int     `json:"total_organic_reviews"`
+			OrganicAverageScore int     `json:"organic_average_score"`
+		} `json:"bottomline"`
+	} `json:"response"`
+}
 
 var (
+	detailReg      = regexp.MustCompile(`({.*})`)
 	imgWidthTplReg = regexp.MustCompile(`,+w_\d+`)
 )
 
@@ -681,28 +588,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	if !c.productApiPathMatcher.MatchString(resp.Request.URL.Path) {
 
 		produrl := strings.ReplaceAll(resp.Request.URL.String(), "/shop/", "/api/v2/")
-		req, err := http.NewRequest(http.MethodGet, produrl, nil)
-		if err != nil {
-			c.logger.Error(err)
-			return err
-		}
-		req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
-		req.Header.Set("content-type", "application/json;charset=utf-8")
-		req.Header.Set("referer", resp.Request.URL.String())
 
-		respNew, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-			EnableProxy: true,
-			Reliability: opts.Reliability,
-		})
-
+		respBody, err = c.variationRequest(ctx, produrl, resp.Request.URL.String())
 		if err != nil {
-			c.logger.Error(err)
-			return err
-		}
-
-		respBody, err = ioutil.ReadAll(respNew.Body)
-		respNew.Body.Close()
-		if err != nil {
+			c.logger.Errorf("extract product %s failed", produrl)
 			return err
 		}
 	}
@@ -713,9 +602,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return fmt.Errorf("extract produt json from page %s content failed", resp.Request.URL)
 	}
 
-	var (
-		viewData parseProductResponse
-	)
+	var viewData parseProductResponse
 
 	if err := json.Unmarshal(respBody, &viewData); err != nil {
 		c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
@@ -739,11 +626,30 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	review, _ := strconv.ParseInt(strings.Split(strings.TrimSpace(doc.Find(`.yotpo-sum-reviews`).Text()), " ")[0])
 	rating, _ := strconv.ParseFloat(strconv.Format(strings.ReplaceAll(doc.Find(`.yotpo-stars`).Text(), " star rating", "")))
 
+	if review == 0 && rating == 0 {
+		var viewReviewData parseRatingResponse
+
+		produrl := `https://api.yotpo.com/v1/widget/EolV1WOLJ2UcFKuPJlrtxAIQCCoiDU7c8YqoW2pm/products/` + strconv.Format(viewData.ID) + `/reviews.json?widget=bottomline`
+
+		respReviewBody, err := c.variationRequest(ctx, produrl, resp.Request.URL.String())
+		if err != nil {
+			c.logger.Errorf("extract product review %s failed", produrl)
+			return err
+		}
+		if err := json.Unmarshal(respReviewBody, &viewReviewData); err != nil {
+			c.logger.Errorf("unmarshal product review data fialed, error=%s", err)
+			return err
+		}
+
+		review, _ = strconv.ParseInt(viewReviewData.Response.Bottomline.TotalReview)
+		rating, _ = strconv.ParseFloat(viewReviewData.Response.Bottomline.AverageScore)
+	}
+
 	for pi, prodslug := range materialgrpproducts {
 
 		if pi > 0 && prodslug != "" {
 
-			produrl := resp.Request.URL.Scheme + "://" + resp.Request.URL.Host + "/api/v2/products/" + prodslug
+			produrl, _ := c.CanonicalUrl("/api/v2/products/" + prodslug)
 
 			req, err := http.NewRequest(http.MethodGet, produrl, nil)
 			if err != nil {
@@ -769,13 +675,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			if err != nil {
 				return err
 			}
+
 			if err := json.Unmarshal(respBody, &viewData); err != nil {
 				c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 				return err
 			}
-		} else if prodslug == "" {
-			continue
 		}
+		// else if prodslug == "" {
+		// 	//continue
+		// }
 
 		color := viewData.MaterialName
 		desc := viewData.Description + " " + viewData.Details
@@ -909,6 +817,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			if viewData.Available {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
 			}
 
 			if color != "" {
@@ -938,13 +847,15 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
-func (c *_Crawler) VariationRequest(ctx context.Context, rootUrl string) (reqs []byte) {
+func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) ([]byte, error) {
 
-	req, _ := http.NewRequest(http.MethodGet, rootUrl, nil)
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
 	opts := c.CrawlOptions(req.URL)
 	req.Header.Set("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
-	req.Header.Set("accept", "application/json")
+	req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
+	req.Header.Set("content-type", "application/json;charset=utf-8")
 	req.Header.Set("x-requested-with", "XMLHttpRequest")
+	req.Header.Set("referer", referer)
 
 	for _, c := range opts.MustCookies {
 		req.AddCookie(c)
@@ -960,12 +871,12 @@ func (c *_Crawler) VariationRequest(ctx context.Context, rootUrl string) (reqs [
 	})
 	if err != nil {
 		c.logger.Error(err)
-		//return nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	respBody, err := ioutil.ReadAll(resp.Body)
-	return respBody
+	return ioutil.ReadAll(resp.Body)
+
 }
 
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
@@ -982,7 +893,10 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://mejuri.com/shop/t/type/single-earrings",
 		//"https://mejuri.com/shop/products/single-opal-u-hoop",
 		//"https://mejuri.com/shop/products/tiny-diamond-stud",
-		"https://mejuri.com/shop/t/type?fbm=14k%20White%20Gold",
+		//"https://mejuri.com/shop/t/type?fbm=14k%20White%20Gold",
+		//"https://mejuri.com/shop/products/diamond-necklace-white-gold",
+		"https://mejuri.com/shop/products/golden-crew-sweatshirt",
+		//"https://mejuri.com/shop/t/type",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
