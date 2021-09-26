@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"github.com/voiladev/VoilaCrawler/pkg/crawler"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
+	pbMedia "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/media"
 	"github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/api/regulation"
 	pbItem "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/item"
 	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
@@ -31,7 +33,7 @@ type _Crawler struct {
 	logger              glog.Log
 }
 
-func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
+func (*_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:          client,
 		categoryPathMatcher: regexp.MustCompile(`^/categories([/A-Za-z0-9_-]+)$`),
@@ -43,7 +45,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 
 // ID
 func (c *_Crawler) ID() string {
-	return "4ba4a5266f264cf2802fa822903c7664"
+	return "96855de2aeeea88e6d306fa399b256dc"
 }
 
 // Version
@@ -55,12 +57,9 @@ func (c *_Crawler) Version() int32 {
 func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	options := crawler.NewCrawlOptions()
 	options.EnableHeadless = false
-	//options.LoginRequired = false
 	options.EnableSessionInit = true
 	options.Reliability = pbProxy.ProxyReliability_ReliabilityMedium
-	options.MustCookies = append(options.MustCookies,
-		&http.Cookie{Name: "ckm-ctx-sf", Value: `%2F`, Path: "/"},
-	)
+
 	return options
 }
 
@@ -81,7 +80,6 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	}
 	if c.productPathMatcher.MatchString(u.Path) {
 		u.RawQuery = ""
-		return u.String(), nil
 	}
 	return u.String(), nil
 }
@@ -143,101 +141,185 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		}
 	}
 
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-	if p == "" {
-		return c.parseCategories(ctx, resp, yield)
-	}
 	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseProduct(ctx, resp, yieldWrap)
 	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
 		return c.parseCategoryProducts(ctx, resp, yieldWrap)
 	}
-	return fmt.Errorf("unsupported url %s", resp.Request.URL.String())
+	return crawler.ErrUnsupportedPath
 }
 
-func (c *_Crawler) parseCategories(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
-	if c == nil || yield == nil {
-		return nil
-	}
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-	ioutil.WriteFile("C:\\NewGIT_SVN\\Project_VoilaCrawler\\VoilaCrawler\\Output.html", respBody, 0644)
-
-	dom, err := goquery.NewDocumentFromReader(bytes.NewReader(respBody))
+func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
+	req, _ := http.NewRequest(http.MethodGet, "https://www.thereformation.com/", nil)
+	opts := c.CrawlOptions(req.URL)
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    opts.EnableHeadless,
+		EnableSessionInit: opts.EnableSessionInit,
+		Reliability:       opts.Reliability,
+	})
 	if err != nil {
 		c.logger.Error(err)
-		return err
+		return nil, err
 	}
-	s := []string{}
-	sel := dom.Find(`.primary-nav.primary-nav--small-screen>li`)
-	fmt.Println(len(sel.Nodes))
+
+	dom, err := resp.Selector()
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	type categorylists struct {
+		URL   string
+		Label string
+	}
+
+	var viewData []categorylists
+
+	sel := dom.Find(`.primary-nav`).Find(`li`)
+
 	for j := range sel.Nodes {
 		subnode := sel.Eq(j)
-		s = append(s, "https://www.thereformation.com/menus/"+subnode.AttrOr("data-primary-nav-content", ""))
+		if subnode.AttrOr("data-primary-nav-content", "") == "" {
+			continue
+		}
+		viewData = append(viewData,
+			categorylists{URL: "https://www.thereformation.com/menus/" + subnode.AttrOr("data-primary-nav-content", ""),
+				Label: subnode.Find(`a`).Text()})
 	}
 
-	for i, catUrl := range s {
+	var (
+		cates   []*pbItem.Category
+		cateMap = map[string]*pbItem.Category{}
+	)
+	if err := func(yield func(names []string, url string) error) error {
 
-		req, err := http.NewRequest(http.MethodGet, catUrl, nil)
-		req.Header.Add("accept", "*/*")
-		req.Header.Add("referer", "https://www.thereformation.com/")
-		req.Header.Add("accept-language", "en-US,en;q=0.9")
-		req.Header.Add("x-requested-with", "XMLHttpRequest")
+		for _, catUrl := range viewData {
 
-		catreq, err := c.httpClient.Do(ctx, req)
-		if err != nil {
-			panic(err)
-		}
-		defer catreq.Body.Close()
+			req, err := http.NewRequest(http.MethodGet, catUrl.URL, nil)
+			req.Header.Add("accept", "*/*")
+			req.Header.Add("referer", "https://www.thereformation.com/")
+			req.Header.Add("accept-language", "en-US,en;q=0.9")
+			req.Header.Add("x-requested-with", "XMLHttpRequest")
 
-		catBody, err := ioutil.ReadAll(catreq.Body)
-		if err != nil {
-			c.logger.Error(err)
-			return err
-		}
-
-		ioutil.WriteFile("C:\\NewGIT_SVN\\Project_VoilaCrawler\\VoilaCrawler\\Output"+strconv.Format(i)+".html", catBody, 0644)
-
-		dom, err := goquery.NewDocumentFromReader(bytes.NewReader(catBody))
-		if err != nil {
-			c.logger.Error(err)
-			return err
-		}
-
-		cateName := "Category"
-
-		//nnctx := context.WithValue(ctx, "Category", cateName)
-		fmt.Println(`cateName `, cateName)
-
-		sel := dom.Find(`.taxonomy-content-block__menu-link`)
-		for j := range sel.Nodes {
-			subnode := sel.Eq(j)
-
-			href := subnode.AttrOr("href", "")
-			if href == "" {
-				continue
-			}
-
-			_, err := url.Parse(href)
+			catreq, err := c.httpClient.Do(ctx, req)
 			if err != nil {
-				c.logger.Error("parse url %s failed", href)
-				continue
+				panic(err)
+			}
+			defer catreq.Body.Close()
+
+			catBody, err := ioutil.ReadAll(catreq.Body)
+			if err != nil {
+				c.logger.Error(err)
+				return err
 			}
 
-			subCateName := subnode.Text()
-			fmt.Println(subCateName)
-			// nnnctx := context.WithValue(nnctx, "SubCategory", subCateName)
-			// req, _ := http.NewRequest(http.MethodGet, href, nil)
-			// if err := yield(nnnctx, req); err != nil {
-			// 	return err
-			// }
-		}
-	}
+			dom, err := goquery.NewDocumentFromReader(bytes.NewReader(catBody))
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
 
-	return nil
+			sel := dom.Find(`.taxonomy-content-block`)
+			if len(sel.Nodes) > 0 {
+				sublnk := sel.Find(`.taxonomy-content-block__container>ul>li`)
+				for j := range sublnk.Nodes {
+					subnode := sublnk.Eq(j)
+					subCateName := subnode.Find(`a`).Text()
+
+					href := subnode.Find(`a`).AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+
+					canonicalhref, err := c.CanonicalUrl(href)
+					if err != nil {
+						continue
+					}
+
+					u, err := url.Parse(canonicalhref)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{catUrl.Label, subCateName}, canonicalhref); err != nil {
+							return err
+						}
+					}
+				}
+			}
+
+			selother := dom.Find(`.collection-taxonomy-content-block`)
+			if len(selother.Nodes) > 0 {
+				sublnk := selother.Find(`.collection-taxonomy-content-block__container>ul>li`)
+				for j := range sublnk.Nodes {
+					subnode := sublnk.Eq(j)
+					subCateName := subnode.Find(`a`).Text()
+
+					href := subnode.Find(`a`).AttrOr("href", "")
+					if href == "" {
+						continue
+					}
+
+					canonicalhref, err := c.CanonicalUrl(href)
+					if err != nil {
+						continue
+					}
+
+					u, err := url.Parse(canonicalhref)
+					if err != nil {
+						c.logger.Error("parse url %s failed", href)
+						continue
+					}
+
+					if c.categoryPathMatcher.MatchString(u.Path) {
+						if err := yield([]string{catUrl.Label, subCateName}, canonicalhref); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}(func(names []string, url string) error {
+		if len(names) == 0 {
+			return errors.New("no valid category name found")
+		}
+
+		var (
+			lastCate *pbItem.Category
+			path     string
+		)
+		for i, name := range names {
+			path = strings.Join([]string{path, name}, "-")
+
+			name = strings.Title(strings.ToLower(name))
+			if cate, _ := cateMap[path]; cate != nil {
+				lastCate = cate
+				continue
+			} else {
+				cate = &pbItem.Category{
+					Name: name,
+				}
+				cateMap[path] = cate
+				if lastCate != nil {
+					lastCate.Children = append(lastCate.Children, cate)
+				}
+				lastCate = cate
+
+				if i == 0 {
+					cates = append(cates, cate)
+				}
+			}
+		}
+		lastCate.Url = url
+		return nil
+	}); err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	return cates, nil
 }
 
 // nextIndex used to get sharingData from context
@@ -266,9 +348,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	sel := doc.Find(`.product-summary__name`)
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		if href, _ := node.Find(`a`).Attr("href"); href != "" {
-
-			//c.logger.Debugf(href)
+		if href, _ := node.Find(`a`).First().Attr("href"); href != "" {
 
 			req, err := http.NewRequest(http.MethodGet, href, nil)
 			if err != nil {
@@ -305,20 +385,23 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	return yield(nctx, req)
 }
 
-func TrimSpaceNewlineInString(s []byte) []byte {
+func TrimSpaceNewlineInString(s string) string {
 	re := regexp.MustCompile(`\n`)
-	resp := re.ReplaceAll(s, []byte(" "))
-	resp = bytes.ReplaceAll(resp, []byte("\\n"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("\r"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("\t"), []byte(""))
-	resp = bytes.ReplaceAll(resp, []byte("&lt;"), []byte("<"))
-	resp = bytes.ReplaceAll(resp, []byte("&gt;"), []byte(">"))
+	resp := re.ReplaceAllString(s, " ")
+	resp = strings.ReplaceAll(resp, "\\n", " ")
+	resp = strings.ReplaceAll(resp, "\r", " ")
+	resp = strings.ReplaceAll(resp, "\t", " ")
 
-	return resp
+	re = regexp.MustCompile(`\s+`)
+	resp = re.ReplaceAllString(resp, " ")
+	return strings.TrimSpace(resp)
 }
 
 // used to trim html labels in description
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+var (
+	htmlTrimRegp = regexp.MustCompile(`(</?[^>]+>)|(&#[A-Za-z0-9]+;)`)
+	imgReg       = regexp.MustCompile(`_\d+(_\d+_)\d+_\d+(:\d+)?/v1`)
+)
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -342,7 +425,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
 	}
 
-	color := strings.ReplaceAll(strings.TrimSpace(doc.Find(`.pdp-color-options__label`).Text()), "Color: ", "")
 	desc := ""
 
 	sel := doc.Find(`.data-accordion__content`)
@@ -353,18 +435,29 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		desc = desc + htmlTrimRegp.ReplaceAllString(sel.Eq(i).Text(), "")
 	}
 
+	title := doc.Find(`.pdp__name>h1[itemprop="name"]`).Text()
+	if title == "" {
+		title = doc.Find(`meta[property='og:title']`).AttrOr("content", "")
+	}
+
+	pid := doc.Find(`input[name="product_id"]`).AttrOr("value", "")
+	if pid == "" {
+		pid = doc.Find(`meta[itemprop="mpn"]`).AttrOr("content", "")
+	}
+
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:           doc.Find(`meta[itemprop="sku"]`).AttrOr("content", ""),
+			Id:           pid,
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 		},
-		Title:       doc.Find(`.pdp__name`).Text(),
-		Description: desc,
+		Title:       TrimSpaceNewlineInString(title),
+		Description: TrimSpaceNewlineInString(desc),
 		BrandName:   "Reformation",
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
+		Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 	}
 
 	sel = doc.Find(`.pdp-breadcrumbs__link`)
@@ -372,89 +465,145 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		node := sel.Eq(i)
 		breadcrumb := strings.TrimSpace(node.Text())
 
-		if i == 0 {
+		if i == len(sel.Nodes)-1 {
+			continue
+		}
+
+		if i == 1 {
 			item.Category = breadcrumb
-		} else if i == 1 {
-			item.SubCategory = breadcrumb
 		} else if i == 2 {
-			item.SubCategory2 = breadcrumb
+			item.SubCategory = breadcrumb
 		} else if i == 3 {
-			item.SubCategory3 = breadcrumb
+			item.SubCategory2 = breadcrumb
 		} else if i == 4 {
 			item.SubCategory4 = breadcrumb
 		}
 	}
 
-	var medias []*media.Media
+	dom := doc
+	selColor := doc.Find(`.pdp-color-options__color-group>li`)
+	for i := range selColor.Nodes {
+		nodeColor := selColor.Eq(i)
 
-	sel = doc.Find(`.pdp__mobile-images`).Find(`img`)
+		color := TrimSpaceNewlineInString(nodeColor.Text())
 
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		image_url := strings.TrimSpace(node.AttrOr("data-src", ""))
-		if image_url == "" {
-			continue
-		}
-		itemImg, _ := anypb.New(&media.Media_Image{
-			OriginalUrl: image_url,
-			LargeUrl:    image_url,
-			MediumUrl:   image_url,
-			SmallUrl:    image_url,
-		})
-		medias = append(medias, &media.Media{
-			Detail:    itemImg,
-			IsDefault: i == 0,
-		})
+		if subClass := nodeColor.AttrOr(`class`, ``); strings.Contains(subClass, `--selected`) {
+			dom = doc
+		} else {
+			// new request
+			prodUrl := "https://www.thereformation.com" + nodeColor.Find(`a`).AttrOr(`href`, ``)
 
-	}
-	item.Medias = medias
+			respBodyJs, err := c.variationRequest(ctx, prodUrl, resp.Request.URL.String())
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
 
-	current, _ := strconv.ParseFloat(doc.Find(`.product-prices`).Find(`.product-prices__price`).AttrOr("data-product-sell-price", ""))
-	msrp, _ := strconv.ParseFloat(doc.Find(`.product-prices`).Find(`.product-prices__price`).AttrOr("data-product-sell-price", ""))
-	discount := 0.0
-	// if msrp > current {
-	// 	discount = ((msrp - current) / msrp) * 100
-	// }
-
-	sel = doc.Find(`.pdp-size-options__size-button`)
-
-	for i := range sel.Nodes {
-		node := sel.Eq(i).Find(`input`)
-		sku := pbItem.Sku{
-			SourceId: strings.TrimSpace(node.AttrOr("value", "")),
-			Price: &pbItem.Price{
-				Currency: regulation.Currency_USD,
-				Current:  int32(current * 100),
-				Msrp:     int32(msrp * 100),
-				Discount: int32(discount),
-			},
-
-			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
-		}
-		// if i == 0 {
-		// 	sku.Medias = medias
-		// }
-
-		if strings.Contains(node.AttrOr("data-pdp-size-button", ""), `"purchasability":"available",`) {
-			sku.Stock.StockStatus = pbItem.Stock_InStock
+			dom, err = goquery.NewDocumentFromReader(bytes.NewReader(respBodyJs))
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
 		}
 
-		if color != "" {
-			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
-				Id:    doc.Find(`meta[itemprop="sku"]`).AttrOr("content", ""),
-				Name:  color,
-				Value: color,
+		var medias []*media.Media
+
+		sel = dom.Find(`.pdp__mobile-images`).Find(`img`)
+		for i := range sel.Nodes {
+			node := sel.Eq(i)
+			image_url := strings.TrimSpace(node.AttrOr("data-src", ""))
+
+			if image_url == "" || strings.Contains(image_url, `video`) {
+				continue
+			}
+			img := media.Media_Image{
+				Id:          strconv.Format(len(medias)),
+				OriginalUrl: image_url,
+				LargeUrl:    image_url,
+				MediumUrl:   image_url,
+				SmallUrl:    image_url,
+			}
+			imgSubMatch := imgReg.FindSubmatch([]byte(image_url))
+			if len(imgSubMatch) >= 2 {
+				img.MediumUrl = strings.ReplaceAll(image_url, string(imgSubMatch[1]), "_600_")
+				img.SmallUrl = strings.ReplaceAll(image_url, string(imgSubMatch[1]), "_500_")
+			}
+
+			itemImg, _ := anypb.New(&img)
+			medias = append(medias, &media.Media{
+				Detail:    itemImg,
+				IsDefault: len(medias) == 0,
 			})
 		}
 
-		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    node.AttrOr("value", ""),
-			Name:  strings.TrimSpace(sel.Eq(i).Text()),
-			Value: strings.TrimSpace(sel.Eq(i).Text()),
-		})
-		item.SkuItems = append(item.SkuItems, &sku)
+		sel1 := dom.Find(`.pdp-thumbs__primary-container`).Find(`video`)
+		for j := range sel1.Nodes {
+			videonode := sel1.Eq(j)
+			videcover := videonode.AttrOr(`poster`, ``)
+
+			videos := videonode.Find(`source`)
+			for v := range videos.Nodes {
+				node := videos.Eq(v)
+				videourl := node.AttrOr(`src`, ``)
+
+				medias = append(medias, pbMedia.NewVideoMedia(
+					strconv.Format(len(medias)),
+					"",
+					videourl,
+					0, 0, 0, videcover, "",
+					len(medias) == 0))
+			}
+		}
+		item.Medias = append(item.Medias, medias...)
+
+		current, _ := strconv.ParseFloat(dom.Find(`.product-prices`).Find(`.product-prices__price`).AttrOr("data-product-sell-price", ""))
+		msrp, _ := strconv.ParseFloat(dom.Find(`.product-prices`).Find(`.product-prices__price`).AttrOr("data-product-sell-price", ""))
+		discount := 0.0
+		if msrp > current {
+			discount = ((msrp - current) / msrp) * 100
+		}
+
+		sel = dom.Find(`.pdp-size-options__size-button`)
+
+		for i := range sel.Nodes {
+			node := sel.Eq(i).Find(`input`)
+			sku := pbItem.Sku{
+				SourceId: strings.TrimSpace(node.AttrOr("value", "")),
+				Price: &pbItem.Price{
+					Currency: regulation.Currency_USD,
+					Current:  int32(current * 100),
+					Msrp:     int32(msrp * 100),
+					Discount: int32(discount),
+				},
+				Medias: medias,
+				Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
+			}
+
+			if strings.Contains(node.AttrOr("data-pdp-size-button", ""), `"purchasability":"available",`) {
+				sku.Stock.StockStatus = pbItem.Stock_InStock
+				item.Stock.StockStatus = pbItem.Stock_InStock
+			}
+
+			if color != "" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecColor,
+					Id:    color,
+					Name:  color,
+					Value: color,
+				})
+			}
+
+			sizeValue := strings.TrimSpace(sel.Eq(i).Text())
+			if sizeValue != "" {
+				sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
+					Type:  pbItem.SkuSpecType_SkuSpecSize,
+					Id:    sizeValue,
+					Name:  sizeValue,
+					Value: sizeValue,
+				})
+			}
+			item.SkuItems = append(item.SkuItems, &sku)
+		}
 	}
 
 	if err = yield(ctx, &item); err != nil {
@@ -463,12 +612,47 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
+func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) ([]byte, error) {
+
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	opts := c.CrawlOptions(req.URL)
+	req.Header.Set("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+	req.Header.Set("accept", "*/*")
+	req.Header.Set("x-requested-with", "XMLHttpRequest")
+	req.Header.Set("referer", referer)
+
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    false,
+		EnableSessionInit: false,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return ioutil.ReadAll(resp.Body)
+}
+
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
-		"https://www.thereformation.com/",
-		//"https://www.thereformation.com/categories/heeled-sandals",
+		//"https://www.thereformation.com/",
+		//"https://www.thereformation.com/categories/bodysuits",
+		//"https://www.thereformation.com/categories/new",
 		//"https://www.thereformation.com/products/carina-lace-up-mid-heel-sandal?color=Strawberry&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNjA4NzQwODA0M2MyZGMyMGM3NWRkMjVh",
 		//"https://www.thereformation.com/products/assunta-strappy-block-heel-mule?color=Almond&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNWE2YWRmZDJmOTJlYTExNmNmMDRlOWM0",
+		//"https://www.thereformation.com/products/kaleigh-top?color=Black&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNjA1Mjg1NjM4OTg2YTIwMTUyYjI1OTEx",
+		//"https://www.thereformation.com/products/cynthia-shadow-checked-high-rise-straight-long-jeans?color=Seine+Checkerboard&via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNWE2YWRmZDNmOTJlYTExNmNmMDRlOWQz",
+		//"https://www.thereformation.com/products/cynthia-high-relaxed-jean?via=Z2lkOi8vcmVmb3JtYXRpb24td2VibGluYy9Xb3JrYXJlYTo6Q2F0YWxvZzo6Q2F0ZWdvcnkvNWE2YWRmZDNmOTJlYTExNmNmMDRlOWQz&color=Tahoe",
+		"https://www.thereformation.com/products/samuel-dress",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
