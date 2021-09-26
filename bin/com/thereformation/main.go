@@ -394,11 +394,14 @@ func TrimSpaceNewlineInString(s string) string {
 
 	re = regexp.MustCompile(`\s+`)
 	resp = re.ReplaceAllString(resp, " ")
-	return resp
+	return strings.TrimSpace(resp)
 }
 
 // used to trim html labels in description
-var htmlTrimRegp = regexp.MustCompile(`</?[^>]+>`)
+var (
+	htmlTrimRegp = regexp.MustCompile(`(</?[^>]+>)|(&#[A-Za-z0-9]+;)`)
+	imgReg       = regexp.MustCompile(`_\d+(_\d+_)\d+_\d+(:\d+)?/v1`)
+)
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -432,13 +435,23 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		desc = desc + htmlTrimRegp.ReplaceAllString(sel.Eq(i).Text(), "")
 	}
 
+	title := doc.Find(`.pdp__name>h1[itemprop="name"]`).Text()
+	if title == "" {
+		title = doc.Find(`meta[property='og:title']`).AttrOr("content", "")
+	}
+
+	pid := doc.Find(`input[name="product_id"]`).AttrOr("value", "")
+	if pid == "" {
+		pid = doc.Find(`meta[itemprop="mpn"]`).AttrOr("content", "")
+	}
+
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:           doc.Find(`meta[itemprop="sku"]`).AttrOr("content", ""),
+			Id:           pid,
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 		},
-		Title:       TrimSpaceNewlineInString(doc.Find(`.pdp__name`).Text()),
+		Title:       TrimSpaceNewlineInString(title),
 		Description: TrimSpaceNewlineInString(desc),
 		BrandName:   "Reformation",
 		Price: &pbItem.Price{
@@ -469,7 +482,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	dom := doc
 	selColor := doc.Find(`.pdp-color-options__color-group>li`)
-	for i := range sel.Nodes {
+	for i := range selColor.Nodes {
 		nodeColor := selColor.Eq(i)
 
 		color := TrimSpaceNewlineInString(nodeColor.Text())
@@ -503,16 +516,23 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			if image_url == "" || strings.Contains(image_url, `video`) {
 				continue
 			}
-
-			itemImg, _ := anypb.New(&media.Media_Image{
+			img := media.Media_Image{
+				Id:          strconv.Format(len(medias)),
 				OriginalUrl: image_url,
 				LargeUrl:    image_url,
-				MediumUrl:   strings.ReplaceAll(image_url, ":520/v1/", ":400/v1/"),
-				SmallUrl:    strings.ReplaceAll(image_url, ":520/v1/", ":200/v1/") + "?",
-			})
+				MediumUrl:   image_url,
+				SmallUrl:    image_url,
+			}
+			imgSubMatch := imgReg.FindSubmatch([]byte(image_url))
+			if len(imgSubMatch) >= 2 {
+				img.MediumUrl = strings.ReplaceAll(image_url, string(imgSubMatch[1]), "_600_")
+				img.SmallUrl = strings.ReplaceAll(image_url, string(imgSubMatch[1]), "_500_")
+			}
+
+			itemImg, _ := anypb.New(&img)
 			medias = append(medias, &media.Media{
 				Detail:    itemImg,
-				IsDefault: i == 0,
+				IsDefault: len(medias) == 0,
 			})
 		}
 
@@ -527,7 +547,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				videourl := node.AttrOr(`src`, ``)
 
 				medias = append(medias, pbMedia.NewVideoMedia(
-					"",
+					strconv.Format(len(medias)),
 					"",
 					videourl,
 					0, 0, 0, videcover, "",
@@ -548,7 +568,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		for i := range sel.Nodes {
 			node := sel.Eq(i).Find(`input`)
 			sku := pbItem.Sku{
-				SourceId: fmt.Sprintf("%s-%s", strings.TrimSpace(node.AttrOr("value", "")), color),
+				SourceId: strings.TrimSpace(node.AttrOr("value", "")),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(current * 100),
