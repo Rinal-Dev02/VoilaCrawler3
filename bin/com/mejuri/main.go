@@ -727,7 +727,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 			medias = append(medias, &media.Media{
 				Detail:    itemImg,
-				IsDefault: img.Position == 0,
+				IsDefault: len(medias) == 0,
 			})
 		}
 
@@ -738,7 +738,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				"",
 				video.URL,
 				0, 0, 0, video.ThumbnailPath, "",
-				len(viewData.Images) == 0))
+				len(medias) == 0))
 		}
 
 		item.Medias = medias
@@ -903,7 +903,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://mejuri.com/shop/products/diamond-necklace-white-gold",
 		//"https://mejuri.com/shop/products/golden-crew-sweatshirt",
 		//"https://mejuri.com/shop/t/type",
-		"https://www.mejuri.com/collections/charlotte-family",
+		//"https://www.mejuri.com/collections/charlotte-family",
+		"https://mejuri.com/shop/products/cable-chain-tag-necklace",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
