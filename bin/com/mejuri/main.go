@@ -254,7 +254,7 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 			if catname == "" {
 				continue
 			}
-			if catname == "About" || catname == "Style Edit" {
+			if catname == "About" || catname == "Style Edit" || strings.ToLower(catname) == "our commitment" {
 				continue
 			}
 
@@ -404,9 +404,17 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	lastIndex := nextIndex(ctx)
 	sel := doc.Find(`.product-name`)
+	if len(sel.Nodes) == 0 {
+		sel = doc.Find(`a[data-h="product-card-link"]`)
+	}
 	for i := range sel.Nodes {
 		node := sel.Eq(i)
-		if href, _ := node.Find("a").Attr("href"); href != "" {
+		href, _ := node.Find("a").Attr("href")
+		if href == "" {
+			href, _ = node.Attr("href")
+		}
+
+		if href != "" {
 			parseurl, err := c.CanonicalUrl(href)
 			if parseurl == "" || err != nil {
 				continue
@@ -894,7 +902,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://mejuri.com/shop/t/type?fbm=14k%20White%20Gold",
 		//"https://mejuri.com/shop/products/diamond-necklace-white-gold",
 		//"https://mejuri.com/shop/products/golden-crew-sweatshirt",
-		"https://mejuri.com/shop/t/type",
+		//"https://mejuri.com/shop/t/type",
+		"https://www.mejuri.com/collections/charlotte-family",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
