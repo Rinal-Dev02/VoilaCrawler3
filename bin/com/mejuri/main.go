@@ -38,7 +38,7 @@ type _Crawler struct {
 func (*_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:                   client,
-		categorySearchAPIPathMatcher: regexp.MustCompile(`^/shop/t/type$`),
+		categorySearchAPIPathMatcher: regexp.MustCompile(`^/shop/t/type([/A-Za-z0-9_-]+)$`),
 		categoryPathMatcher:          regexp.MustCompile(`^/([/A-Za-z_-]+)$`),
 		productPathMatcher:           regexp.MustCompile(`^/shop/products([/A-Za-z0-9_-]+)$`),
 		productApiPathMatcher:        regexp.MustCompile(`^/api/v2/products([/A-Za-z0-9_-]+)$`),
@@ -149,11 +149,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 	if p == "" {
 		return crawler.ErrUnsupportedPath
 	}
-	if c.productPathMatcher.MatchString(resp.Request.URL.Path) {
+	if c.productPathMatcher.MatchString(p) || c.productApiPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yieldWrap)
-	} else if c.productApiPathMatcher.MatchString(resp.Request.URL.Path) {
-		return c.parseProduct(ctx, resp, yieldWrap)
-	} else if c.categoryPathMatcher.MatchString(resp.Request.URL.Path) {
+	} else if c.categoryPathMatcher.MatchString(p) {
 		return c.parseCategoryProducts(ctx, resp, yieldWrap)
 	}
 	return crawler.ErrUnsupportedPath
@@ -433,7 +431,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 			if contains(materialFilter, prod.MaterialName) {
 
-				if href, _ := c.CanonicalUrl(prod.Slug); href != "" {
+				if href, _ := c.CanonicalUrl("/shop/products/" + prod.Slug); href != "" {
 					req, err := http.NewRequest(http.MethodGet, href, nil)
 					if err != nil {
 						c.logger.Error(err)
@@ -895,8 +893,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://mejuri.com/shop/products/tiny-diamond-stud",
 		//"https://mejuri.com/shop/t/type?fbm=14k%20White%20Gold",
 		//"https://mejuri.com/shop/products/diamond-necklace-white-gold",
-		"https://mejuri.com/shop/products/golden-crew-sweatshirt",
-		//"https://mejuri.com/shop/t/type",
+		//"https://mejuri.com/shop/products/golden-crew-sweatshirt",
+		"https://mejuri.com/shop/t/type",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
