@@ -43,8 +43,8 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^(/([/A-Za-z0-9_-]+)/br/v=1/\d+.htm)|(/products)$`),
-		productPathMatcher:  regexp.MustCompile(`^/([/A-Za-z0-9_-]+)/vp/v=1/\d+.htm$`),
+		categoryPathMatcher: regexp.MustCompile(`^/(([a-z0-9-]+)/br/v=1/\d+.htm)|(products)/?$`),
+		productPathMatcher:  regexp.MustCompile(`^/([a-z0-9-]+)/vp/v=1/\d+.htm/?$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -52,7 +52,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 
 // ID
 func (c *_Crawler) ID() string {
-	return "5d472ca532ab4db798d0b6cfabc753c0"
+	return "2c49852d57792610c9ebb2fcb8905fa0"
 }
 
 // Version
@@ -74,6 +74,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
 		MustCookies: []*http.Cookie{
 			{Name: "llc", Value: "US-EN-USD", Path: "/"},
+			{Name: "lc-main", Value: "en", Path: "/"},
 		},
 		MustHeader: crawler.NewCrawlOptions().MustHeader,
 	}
@@ -124,7 +125,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
+	p := resp.RawUrl().Path
 	if p == "" {
 		return crawler.ErrUnsupportedPath
 	}
@@ -475,7 +476,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 	canUrl, _ := c.CanonicalUrl(doc.Find(`link[rel="canonical"]`).AttrOr("href", ""))
 	if canUrl == "" {
-		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+		canUrl, _ = c.CanonicalUrl(resp.RawUrl().String())
 	}
 
 	desc := htmlTrimRegp.ReplaceAllString(viewData.Product.LongDescription+" "+viewData.Product.SizeAndFitDetail.SizeAndFitDescription, " ")
@@ -483,7 +484,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	item := pbItem.Product{
 		Source: &pbItem.Source{
 			Id:           strconv.Format(viewData.Product.Sin),
-			CrawlUrl:     resp.Request.URL.String(),
+			CrawlUrl:     resp.RawUrl().String(),
 			CanonicalUrl: canUrl,
 		},
 		Title:       viewData.Product.ShortDescription,
@@ -519,6 +520,10 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		msrp := 0.0
 		discount := 0.0
 		for _, rawprice := range rawsku.Prices {
+			if rawprice.CurrencyCode != "USD" {
+				c.logger.Errorf("Product %s location error, not USD is %s", resp.RawUrl().String(), rawprice.CurrencyCode)
+				return fmt.Errorf("Product %s location error, not USD is %s. ", resp.RawUrl().String(), rawprice.CurrencyCode)
+			}
 			current, _ = strconv.ParsePrice(rawprice.SaleAmount)
 			msrp, _ = strconv.ParsePrice(rawprice.RetailAmount)
 			break
@@ -550,7 +555,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Type:  pbItem.SkuSpecType_SkuSpecColor,
 			Id:    rawsku.Color.Code,
 			Name:  rawsku.Color.Label,
-			Value: rawsku.Color.Label,
+			Value: rawsku.Color.Code,
 			Icon:  rawsku.SwatchImage.URL,
 		}
 
@@ -582,7 +587,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					Type:  pbItem.SkuSpecType_SkuSpecSize,
 					Id:    rawsize.Size.Code,
 					Name:  rawsize.Size.Label,
-					Value: rawsize.Size.Label,
+					Value: rawsize.Size.Code,
 				})
 			}
 
