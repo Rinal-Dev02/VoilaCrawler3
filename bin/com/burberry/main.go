@@ -95,7 +95,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	if c.productPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yield)
-	} else if c.categoryPathMatcher.MatchString(p) {
+	} else if c.categoryPathMatcher.MatchString(p) || p == "/web-api/pages/products" {
 		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
@@ -296,9 +296,49 @@ func TrimSpaceNewlineInString(s string) string {
 	return resp
 }
 
+type separateProductCards map[string]struct {
+	Content struct {
+		Title        string `json:"title"`
+		DefaultTitle string `json:"defaultTitle"`
+		Description  string `json:"description"`
+		Label        string `json:"label"`
+	} `json:"content"`
+	//Num80025371 struct {
+	ID  string `json:"id"`
+	URL string `json:"url"`
+	//} `json:"80025371"`
+	Colors []struct {
+		ID  string `json:"id"`
+		URL string `json:"url"`
+	} `json:"colors"`
+}
+
 type categoryProductStructure struct {
 	Db struct {
+		ProductShelves map[string]struct {
+			//Cat5960038 struct {
+			Content struct {
+				Title string `json:"title"`
+			} `json:"content"`
+			Products     []string `json:"products"`
+			ProductCount int      `json:"productCount"`
+			ProductsURL  string   `json:"productsUrl"`
+			IsExpanded   bool     `json:"isExpanded"`
+			IsSingleRow  bool     `json:"isSingleRow"`
+			Key          string   `json:"key"`
+			Cells        []string `json:"cells"`
+			CategoryID   string   `json:"categoryId"`
+			//} `json:"cat5960038"`
+
+		} `json:"productShelves"`
+
 		ProductCards map[string]struct {
+			Content struct {
+				Title        string `json:"title"`
+				DefaultTitle string `json:"defaultTitle"`
+				Description  string `json:"description"`
+				Label        string `json:"label"`
+			} `json:"content"`
 			//Num80025371 struct {
 			ID     string `json:"id"`
 			URL    string `json:"url"`
@@ -322,13 +362,41 @@ type categoryProductStructure struct {
 				Language string `json:"language"`
 			} `json:"queryParams"`
 			PresaleRedirectURL string `json:"presaleRedirectUrl"`
+			Data               struct {
+				Shelves  []string   `json:"shelves"`
+				Facets   []string   `json:"facets"`
+				Products [][]string `json:"products"`
+				PageType string     `json:"pageType"`
+			} `json:"data"`
 			//} `json:"/womens-coats/"`
 		} `json:"pages"`
 	} `json:"db"`
 
 	Data struct {
 		Entities struct {
+			ProductShelves map[string]struct {
+				//Cat5960038 struct {
+				Content struct {
+					Title string `json:"title"`
+				} `json:"content"`
+				Products     []string `json:"products"`
+				ProductCount int      `json:"productCount"`
+				ProductsURL  string   `json:"productsUrl"`
+				IsExpanded   bool     `json:"isExpanded"`
+				IsSingleRow  bool     `json:"isSingleRow"`
+				Key          string   `json:"key"`
+				Cells        []string `json:"cells"`
+				CategoryID   string   `json:"categoryId"`
+				//} `json:"cat5960038"`
+
+			} `json:"productShelves"`
 			ProductCards map[string]struct {
+				Content struct {
+					Title        string `json:"title"`
+					DefaultTitle string `json:"defaultTitle"`
+					Description  string `json:"description"`
+					Label        string `json:"label"`
+				} `json:"content"`
 				//Num80025371 struct {
 				ID  string `json:"id"`
 				URL string `json:"url"`
@@ -338,6 +406,28 @@ type categoryProductStructure struct {
 					URL string `json:"url"`
 				} `json:"colors"`
 			} `json:"productCards"`
+
+			Pages map[string]struct {
+				//WomensCoats struct {
+				ID             string `json:"id"`
+				NavigationID   string `json:"navigationId"`
+				CuratedProduct string `json:"curatedProduct"`
+				ProductCount   int    `json:"productCount"`
+				ProductsURL    string `json:"productsUrl"`
+				URL            string `json:"url"`
+				QueryParams    struct {
+					Country  string `json:"country"`
+					Language string `json:"language"`
+				} `json:"queryParams"`
+				PresaleRedirectURL string `json:"presaleRedirectUrl"`
+				Data               struct {
+					Shelves  []string   `json:"shelves"`
+					Facets   []string   `json:"facets"`
+					Products [][]string `json:"products"`
+					PageType string     `json:"pageType"`
+				} `json:"data"`
+				//} `json:"/womens-coats/"`
+			} `json:"pages"`
 		} `json:"entities"`
 		Result     []string    `json:"result"`
 		ResponseID interface{} `json:"responseId"`
@@ -372,56 +462,78 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 	}
 
-	r := viewData.Db.ProductCards
+	t := viewData.Db
 	if len(viewData.Db.ProductCards) == 0 {
-		r = viewData.Data.Entities.ProductCards
+		t = viewData.Data.Entities
 	}
 
-	for _, rawcat := range r {
+	var poductDetailList separateProductCards
+	var productLists []string
+	poductDetailList = t.ProductCards
 
-		if len(rawcat.Colors) == 0 {
+	if len(t.Pages) == 0 && len(viewData.Data.Entities.ProductCards) > 0 {
+		productLists = append(productLists, viewData.Data.Result...)
+	}
 
-			href, err := c.CanonicalUrl(rawcat.URL)
-			if href == "" || rawcat.URL == "" || err != nil {
-				continue
+	for _, pages := range t.Pages {
+		if len(pages.Data.Products) > 0 {
+			for _, pageProductlist := range pages.Data.Products {
+				productLists = append(productLists, pageProductlist...)
 			}
+		}
 
-			//fmt.Println(lastIndex, " - ", href)
-			req, err := http.NewRequest(http.MethodGet, href, nil)
-			if err != nil {
-				c.logger.Error(err)
-				continue
-			}
+		// multiple category pages
+		if len(pages.Data.Shelves) > 0 {
 
-			nctx := context.WithValue(ctx, "item.index", lastIndex)
-			lastIndex += 1
+			for _, dataShelves := range pages.Data.Shelves {
+				productLists = append(productLists, t.ProductShelves[dataShelves].Products...)
 
-			if err := yield(nctx, req); err != nil {
-				return err
-			}
+				if t.ProductShelves[dataShelves].ProductCount > len(t.ProductShelves[dataShelves].Products) {
+					offset := strconv.Format(len(t.ProductShelves[dataShelves].Products))
+					limit := strconv.Format(t.ProductShelves[dataShelves].ProductCount - len(t.ProductShelves[dataShelves].Products))
 
-		} else {
-			for _, rawcatColor := range rawcat.Colors {
-				href, err := c.CanonicalUrl(rawcatColor.URL)
-				if href == "" || rawcatColor.URL == "" || err != nil {
-					continue
-				}
+					otherProducts := `https://us.burberry.com/web-api/pages/products?offset=` + offset + `&limit=` + limit + `&categoryId=` + t.ProductShelves[dataShelves].CategoryID + `&order_by=&pagePath=` + t.ProductShelves[dataShelves].ProductsURL + `&country=US&language=en`
 
-				//fmt.Println(lastIndex, " - ", href)
-				req, err := http.NewRequest(http.MethodGet, href, nil)
-				if err != nil {
-					c.logger.Error(err)
-					continue
-				}
-
-				nctx := context.WithValue(ctx, "item.index", lastIndex)
-				lastIndex += 1
-
-				if err := yield(nctx, req); err != nil {
-					return err
+					respBodyV, err := c.variationRequest(ctx, otherProducts, resp.Request.URL.String())
+					if err != nil {
+						return err
+					}
+					var viewDataNew categoryProductStructure
+					if err := json.Unmarshal(respBodyV, &viewDataNew); err != nil {
+						//c.logger.Errorf("unmarshal review data fetched from %s failed, error=%s", resp.Request.URL, err)
+						//return err
+					}
+					productLists = append(productLists, viewDataNew.Data.Result...)
+					for key, val := range viewDataNew.Data.Entities.ProductCards {
+						poductDetailList[key] = val
+					}
 				}
 			}
 		}
+	}
+
+	for _, rawcat := range productLists {
+
+		pURL := poductDetailList[rawcat].URL
+
+		href, err := c.CanonicalUrl(pURL)
+		if href == "" || pURL == "" || err != nil {
+			continue
+		}
+
+		req, err := http.NewRequest(http.MethodGet, href, nil)
+		if err != nil {
+			c.logger.Error(err)
+			continue
+		}
+
+		nctx := context.WithValue(ctx, "item.index", lastIndex)
+		lastIndex += 1
+
+		if err := yield(nctx, req); err != nil {
+			return err
+		}
+
 	}
 
 	nextUrl := ""
@@ -431,6 +543,10 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 			return nil
 		}
 		nextUrl = `https://us.burberry.com/web-api/pages/products?location=/` + raw.NavigationID + `&offset=` + strconv.Format(lastIndex) + `&limit=1000&order_by=&pagePath=` + raw.ProductsURL + `&country=US&language=en`
+	}
+
+	if nextUrl == "" {
+		return nil
 	}
 	if len(viewData.Db.Pages) == 0 && len(viewData.Data.Entities.ProductCards) == 100 {
 
@@ -651,7 +767,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 
 			sku := pbItem.Sku{
-				SourceId: prod.Data.ID,
+				SourceId: rawsku.Sku,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(current * 100),
@@ -707,9 +823,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				}
 			}
 
-			for _, spec := range sku.Specs {
-				sku.SourceId += fmt.Sprintf("-%s", spec.Id)
-			}
+			// for _, spec := range sku.Specs {
+			// 	sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+			// }
 
 			item.SkuItems = append(item.SkuItems, &sku)
 		}
@@ -778,10 +894,40 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
+func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) ([]byte, error) {
+
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	opts := c.CrawlOptions(req.URL)
+	req.Header.Set("accept-language", "en-GB,en-US;q=0.9,en;q=0.8")
+	req.Header.Set("accept", "*/*")
+	req.Header.Set("referer", referer)
+
+	for _, c := range opts.MustCookies {
+		req.AddCookie(c)
+	}
+	for k := range opts.MustHeader {
+		req.Header.Set(k, opts.MustHeader.Get(k))
+	}
+	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
+		EnableProxy:       true,
+		EnableHeadless:    false,
+		EnableSessionInit: false,
+		Reliability:       opts.Reliability,
+	})
+	if err != nil {
+		c.logger.Error(err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return ioutil.ReadAll(resp.Body)
+}
+
 func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 	for _, u := range []string{
 		//"https://us.burberry.com/",
-		"https://us.burberry.com/mens-bags/",
+		//"https://us.burberry.com/mens-coats/",
+		//"https://us.burberry.com/mens-bags/",
 		//"https://us.burberry.com/camouflage-print-leather-olympia-belt-bag-p80428901",
 		//"https://us.burberry.com/the-mid-length-chelsea-heritage-trench-coat-p80279941",
 		//"https://us.burberry.com/the-long-chelsea-heritage-trench-coat-p40733791",
@@ -798,6 +944,7 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://us.burberry.com/bold-lash-mascara-chestnut-brown-no02-p39544251",
 		//"https://us.burberry.com/the-long-chelsea-heritage-trench-coat-p40733791",
 		//"https://us.burberry.com/the-long-chelsea-heritage-trench-coat-p80279981",
+		"https://us.burberry.com/cotton-gabardine-trench-coat-p80011621",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
