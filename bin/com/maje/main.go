@@ -357,7 +357,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Id:           pid,
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
-			GroupId:      doc.Find(`meta[property="product:age_group"]`).AttrOr(`content`, ``),
+			//GroupId:      doc.Find(`meta[property="product:age_group"]`).AttrOr(`content`, ``),
 		},
 		BrandName: brand,
 		Title:     doc.Find(`.productSubname`).Text(),
@@ -429,17 +429,31 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		var medias []*pbMedia.Media
 		//images
-		sel := dom.Find(`.product-primary-image`).Find(`picture`)
+		//sel := dom.Find(`.product-primary-image`).Find(`picture`)
+		sel := dom.Find(`.img-container`)
 		for j := range sel.Nodes {
 			node := sel.Eq(j)
 			imgurl := strings.Split(node.Find(`img`).AttrOr(`data-src`, ``), "?")[0]
-			medias = append(medias, pbMedia.NewImageMedia(
-				strconv.Format(j),
-				imgurl,
-				imgurl+"?sw=1000&q=80",
-				imgurl+"?sw=800&q=80",
-				imgurl+"?sw=500&q=80",
-				"", j == 0))
+			if subClass := node.AttrOr(`class`, ``); !strings.Contains(subClass, `video-images`) {
+				medias = append(medias, pbMedia.NewImageMedia(
+					strconv.Format(j),
+					imgurl,
+					imgurl+"?sw=1000&q=80",
+					imgurl+"?sw=800&q=80",
+					imgurl+"?sw=500&q=80",
+					"", j == 0))
+			} else {
+				videoURL := node.AttrOr(`data-videourl`, ``)
+				if videoURL != "" {
+					medias = append(medias, pbMedia.NewVideoMedia(
+						strconv.Format(j),
+						"",
+						videoURL,
+						0, 0, 0, imgurl, "",
+						j == 0))
+				}
+			}
+
 		}
 
 		sel1 := dom.Find(`.swatches.size`).Find(`li`)
@@ -470,7 +484,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					Type:  pbItem.SkuSpecType_SkuSpecColor,
 					Id:    cid,
 					Name:  variationName,
-					Value: variationName,
+					Value: cid,
 				})
 			}
 
@@ -480,7 +494,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					Type:  pbItem.SkuSpecType_SkuSpecSize,
 					Id:    sid,
 					Name:  sizeName,
-					Value: sizeName,
+					Value: sid,
 				})
 			}
 
