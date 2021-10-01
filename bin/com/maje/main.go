@@ -141,7 +141,7 @@ func nextIndex(ctx context.Context) int {
 }
 
 func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error) {
-	req, _ := http.NewRequest(http.MethodGet, "https://us.maje.com/en/homepage", nil)
+	req, _ := http.NewRequest(http.MethodGet, "https://us.maje.com/", nil)
 	opts := c.CrawlOptions(req.URL)
 	resp, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 		EnableProxy:       true,
