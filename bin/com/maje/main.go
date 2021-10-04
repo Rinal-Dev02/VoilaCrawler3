@@ -461,7 +461,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			sid := strings.Split(node1.Find(`a`).AttrOr("data-variationparameter", ""), "=")[1]
 
-			variationSizeurl := node1.Find(`a`).AttrOr("href", "")
+			variationSizeurl := node1.Find(`a`).AttrOr("href", "") + "&format=ajax"
 			if variationSizeurl == "" {
 				continue
 			}
