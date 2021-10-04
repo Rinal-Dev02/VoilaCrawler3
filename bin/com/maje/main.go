@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"math"
 	"net/url"
@@ -403,7 +402,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		if subClass := nodeColor.AttrOr(`class`, ``); strings.Contains(subClass, `selected`) {
 			dom = doc
 		} else {
-			// new request
+
 			respBodyJs, err := c.variationRequest(ctx, variationurl, resp.Request.URL.String())
 			if err != nil {
 				c.logger.Error(err)
@@ -462,8 +461,27 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			sid := strings.Split(node1.Find(`a`).AttrOr("data-variationparameter", ""), "=")[1]
 
+			variationSizeurl := node1.Find(`a`).AttrOr("href", "")
+			if variationSizeurl == "" {
+				continue
+			}
+
+			respBodyJs, err := c.variationRequest(ctx, variationSizeurl, resp.Request.URL.String())
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+
+			domS, err := goquery.NewDocumentFromReader(bytes.NewReader(respBodyJs))
+			if err != nil {
+				c.logger.Error(err)
+				return err
+			}
+
+			skuSpecID := domS.Find(`meta[itemprop="productID"]`).AttrOr(`content`, ``)
+
 			sku := pbItem.Sku{
-				SourceId: fmt.Sprintf("%s-%s-%s", pid, cid, sid),
+				SourceId: skuSpecID,
 				//SourceId: sid,
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
