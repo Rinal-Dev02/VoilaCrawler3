@@ -478,7 +478,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				return err
 			}
 
-			skuSpecID := domS.Find(`meta[itemprop="productID"]`).AttrOr(`content`, ``)
+			skuSpecID := domS.Find(`#pid`).AttrOr(`value`, ``)
 
 			sku := pbItem.Sku{
 				SourceId: skuSpecID,
@@ -578,7 +578,8 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://us.maje.com/en/categories/coats-and-jackets/120gaban/MFPOU00470.html?dwvar_MFPOU00470_color=B020",
 		//"https://us.maje.com/en/categories/sweaters-and-cardigans/121mistou/MFPCA00212.html?dwvar_MFPCA00212_color=0066",
 		//"https://us.maje.com/en/categories/t-shirts/220tolant/MFPTS00294.html?dwvar_MFPTS00294_color=2517",
-		"https://us.maje.com/en/categories/tops-and-shirts/221leatoni/MFPTO00500.html?dwvar_MFPTO00500_color=2517",
+		//"https://us.maje.com/en/categories/tops-and-shirts/221leatoni/MFPTO00500.html?dwvar_MFPTO00500_color=2517",
+		"https://us.maje.com/en/categories/sweaters-and-cardigans/221myshirt/MFPCA00186.html",
 	} {
 		req, err := http.NewRequest(http.MethodGet, u, nil)
 		if err != nil {
