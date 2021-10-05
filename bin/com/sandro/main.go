@@ -521,8 +521,8 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 			pidNew := docV.Find(`input[name="pid"]`).AttrOr("value", "")
 
-			msrp, _ := strconv.ParsePrice(docV.Find(`.product-price`).Find(`.price-standard`).Text())
-			originalPrice, _ := strconv.ParsePrice(docV.Find(`.product-price`).Find(`.price-sales`).Text())
+			msrp, _ := strconv.ParsePrice(strings.ReplaceAll(docV.Find(`.product-price`).Find(`.price-standard`).Text(), `,`, ``))
+			originalPrice, _ := strconv.ParsePrice(strings.ReplaceAll(docV.Find(`.product-price`).Find(`.price-sales`).Text(), `,`, ``))
 			discount = 0.0
 			if msrp == 0 {
 				msrp = originalPrice
