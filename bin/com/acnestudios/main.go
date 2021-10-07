@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -70,7 +69,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 	opts := &crawler.CrawlOptions{
 		EnableHeadless: false,
 		// use js api to init session for the first request of the crawl
-		EnableSessionInit: true,
+		EnableSessionInit: false,
 		Reliability:       proxy.ProxyReliability_ReliabilityDefault,
 	}
 
@@ -216,7 +215,6 @@ func (c *_Crawler) GetCategories(ctx context.Context) ([]*pbItem.Category, error
 					}
 				}
 			}
-
 		}
 
 		return nil
@@ -308,6 +306,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		node := sel.Eq(i)
 
 		href := node.AttrOr("href", "")
+
 		if href == "" {
 			c.logger.Warnf("no href found")
 			continue
@@ -320,6 +319,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		}
 		nctx := context.WithValue(ctx, "item.index", lastIndex)
 		lastIndex += 1
+
 		if err := yield(nctx, req); err != nil {
 			return err
 		}
@@ -336,6 +336,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	if len(sel.Nodes) < int(size) {
 		return nil
 	}
+
 	cgid := dom.Find(`.page.page-search-show`).AttrOr("data-querystring", "")
 	if cgid == "" {
 		cgid = resp.RawUrl().Query().Get("cgid")
@@ -351,6 +352,7 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 	// set pagination
 	u, _ := url.Parse(nextUrl)
 	vals := u.Query()
+	//vals.Set("start", "0")
 	vals.Set("start", strconv.Format(pageStart))
 	vals.Set("sz", "96")
 	u.RawQuery = vals.Encode()
@@ -407,10 +409,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Id:           pid,
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
-			// GroupId:      doc.Find(`meta[property="product:age_group"]`).AttrOr(`content`, ``),
 		},
 		BrandName: "Acnestudios",
-		Title:     strings.TrimSpace(doc.Find(`meta[property="og:title"]`).AttrOr(`content`, ``)),
+		Title:     strings.TrimSpace(doc.Find(`h1.cell--span-6---small-down `).Text()),
 		Price: &pbItem.Price{
 			Currency: regulation.Currency_USD,
 		},
@@ -457,25 +458,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		discount = int32(((msrp - originalPrice) / msrp) * 100)
 	}
 
-	//more_images
-	sel = doc.Find(`.pdp-gallery__image`)
-	for j := range sel.Nodes {
-		node := sel.Eq(j)
-		imgurl := node.Find(`img`).AttrOr(`data-src`, ``)
-		if imgurl == "" {
-			continue
-		} else if !strings.HasPrefix(imgurl, "http") {
-			imgurl = "https://www.acnestudios.com" + imgurl
-		}
-		item.Medias = append(item.Medias, pbMedia.NewImageMedia(
-			strconv.Format(j),
-			imgurl,
-			imgReg.ReplaceAllString(imgurl, `/1120x/`),
-			imgReg.ReplaceAllString(imgurl, `/560x/`),
-			imgReg.ReplaceAllString(imgurl, `/560x/`),
-			"", j == 0))
-	}
-
 	//data-attr="color"
 	var colorSelected *pbItem.SkuSpecOption
 	cid := ""
@@ -493,32 +475,58 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Type:  pbItem.SkuSpecType_SkuSpecColor,
 				Id:    cid,
 				Name:  colorName,
-				Value: colorName,
+				Value: cid,
 				//Icon:
 			}
 		}
 	}
 
+	//more_images
+	var media []*pbMedia.Media
+	sel = doc.Find(`.pdp-gallery__image`)
+	for j := range sel.Nodes {
+		node := sel.Eq(j)
+		imgurl := node.Find(`img`).AttrOr(`data-src`, ``)
+		if imgurl == "" {
+			continue
+		} else if !strings.HasPrefix(imgurl, "http") {
+			imgurl = "https://www.acnestudios.com" + imgurl
+		}
+		media = append(media, pbMedia.NewImageMedia(
+			strconv.Format(j),
+			imgurl,
+			imgReg.ReplaceAllString(imgurl, `/1120x/`),
+			imgReg.ReplaceAllString(imgurl, `/1120x/`),
+			imgReg.ReplaceAllString(imgurl, `/560x/`),
+			"", j == 0))
+	}
+
 	//Size swatches size
 	sel1 := doc.Find(`.size-variations`).First().Find(`a`)
+
 	for i := range sel1.Nodes {
 
 		node := sel1.Eq(i)
 		Size := strings.TrimSpace(node.AttrOr("data-value", ""))
+
+		s := strings.Split(node.AttrOr("data-variation-url", ""), `_size=`)
+		s = strings.Split(s[len(s)-1], `&`)
+		skuID := pid + s[0]
 
 		if Size == "" {
 			continue
 		}
 
 		sku := pbItem.Sku{
-			SourceId: pid,
+			SourceId: skuID,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(originalPrice * 100),
 				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
-			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+			Medias: media,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
 		}
 
 		if strings.Contains(node.AttrOr("class", ""), "disabled") {
@@ -537,9 +545,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			Value: Size,
 		})
 
-		for _, spec := range sku.Specs {
-			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
-		}
+		// for _, spec := range sku.Specs {
+		// 	sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+		// }
 
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
@@ -553,20 +561,23 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 				Msrp:     int32(msrp * 100),
 				Discount: int32(discount),
 			},
-			Stock: &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
+			Medias: media,
+			Stock:  &pbItem.Stock{StockStatus: pbItem.Stock_InStock},
 		}
 
 		if strings.Contains(doc.AttrOr("class", ""), "disabled") {
 			sku.Stock.StockStatus = pbItem.Stock_OutOfStock
+		} else {
+			item.Stock.StockStatus = pbItem.Stock_InStock
 		}
 
 		if colorSelected != nil {
 			sku.Specs = append(sku.Specs, colorSelected)
 		}
 
-		if bytes.Contains(respBody, []byte(`<div class="text-mask">One size</div>`)) {
+		if bytes.Contains(respBody, []byte(`>One size`)) {
 			sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
-				Type:  pbItem.SkuSpecType_SkuSpecColor,
+				Type:  pbItem.SkuSpecType_SkuSpecSize,
 				Id:    "One size",
 				Name:  "One size",
 				Value: "One size",
@@ -582,9 +593,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			})
 		}
 
-		for _, spec := range sku.Specs {
-			sku.SourceId += fmt.Sprintf("-%s", spec.Id)
-		}
+		// for _, spec := range sku.Specs {
+		// 	sku.SourceId += fmt.Sprintf("-%s", spec.Id)
+		// }
 
 		item.SkuItems = append(item.SkuItems, &sku)
 	}
@@ -596,32 +607,34 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	}
 
 	// found other color
-	sel = doc.Find(`div[data-attr="color"]`).Find(`a`)
-	for i := range sel.Nodes {
-		node := sel.Eq(i)
-		color := strings.TrimSpace(node.AttrOr(`data-attr-label`, ""))
-		c.logger.Debugf("found color %s %t", color, color == colorName)
-		if color == "" || color == colorName {
-			continue
-		}
-		href := strings.TrimSpace(node.AttrOr(`href`, ""))
-		if href == "" {
-			continue
-		}
 
-		canonicalUrl, err := c.CanonicalUrl(href)
-		if err != nil {
-			continue
-		}
-		//u = productID.ReplaceAllString(resp.Request.URL.Path, pid)
+	if ctx.Value("groupId") == nil {
+		sel = doc.Find(`div[data-attr="color"]`).Find(`a`)
 
-		req, err := http.NewRequest(http.MethodGet, canonicalUrl, nil)
-		if err != nil {
-			c.logger.Error(err)
-			continue
-		}
-		if err := yield(ctx, req); err != nil {
-			return err
+		for i := range sel.Nodes {
+			nctx := context.WithValue(ctx, "groupId", item.GetSource().GetId())
+			node := sel.Eq(i)
+
+			if subClass := node.AttrOr(`class`, ``); !strings.Contains(subClass, `selected`) {
+
+				u := node.AttrOr(`href`, "")
+				if u == "" {
+					continue
+				}
+
+				href, err := c.CanonicalUrl(u)
+				if err != nil {
+					continue
+				}
+
+				if req, err := http.NewRequest(http.MethodGet, href, nil); err != nil {
+					c.logger.Error(err)
+					continue
+				} else if err := yield(nctx, req); err != nil {
+					c.logger.Error(err)
+					return err
+				}
+			}
 		}
 	}
 	return nil
@@ -634,14 +647,15 @@ func (c *_Crawler) NewTestRequest(ctx context.Context) (reqs []*http.Request) {
 		//"https://www.acnestudios.com/us/en/woman/suit-jackets/",
 		//"https://www.acnestudios.com/us/en/woman/outerwear/",
 		//"https://www.acnestudios.com/us/en/woman/new-arrivals/",
-		//"https://www.acnestudios.com/us/en/woman/hats/",
+		//"https://www.acnestudios.com/us/en/man/new-arrivals/",
+		//"https://www.acnestudios.com/us/en/man/outerwear/",
+		//"https://www.acnestudios.com/us/en/man/hats/",
 		//"https://www.acnestudios.com/us/en/checked-suit-jacket-brown-orange/AH0159-BOD.html",
 		//"https://www.acnestudios.com/us/en/belted-trench-coat-walnut-brown/A90364-BZH.html",
 		//"https://www.acnestudios.com/us/en/acne-paper-book-17/EN0050-000.html",
 		//"https://www.acnestudios.com/us/en/woman/fw21-show-collection/",
-		//"https://www.acnestudios.com/us/en/woman/new-arrivals/",
-		//"https://www.acnestudios.com/us/en/musubi-mini/A10093-900000.html",
-		"https://www.acnestudios.com/us/en/musubi-mini/A10093-ACO.html?cgid=woman-bags",
+		"https://www.acnestudios.com/us/en/musubi-mini/A10093-640000.html",
+		//"https://www.acnestudios.com/us/en/v-neck-cardigan-navy-grey/B60144-AQ5.html",
 	} {
 		req, _ := http.NewRequest(http.MethodGet, u, nil)
 		reqs = append(reqs, req)
