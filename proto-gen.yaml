@@ -46,8 +46,10 @@ spec:
       targets:
       - type: go
         output_path: pkg/protoc-gen-go/
+        with_grpc: true
       - type: python
         output_path: src/
+        with_grpc: true
     - path: ""
       name: chameleon.api.event
       version: "1.0"

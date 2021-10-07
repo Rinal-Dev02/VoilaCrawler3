@@ -14,6 +14,7 @@ import (
 	"github.com/voiladev/VoilaCrawler/pkg/net/http"
 	"github.com/voiladev/VoilaCrawler/pkg/net/http/cookiejar"
 	pbCrawl "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl"
+	pbProxy "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/proxy"
 	pbSession "github.com/voiladev/VoilaCrawler/pkg/protoc-gen-go/chameleon/smelter/v1/crawl/session"
 	"github.com/voiladev/VoilaCrawler/pkg/proxy"
 	"github.com/voiladev/go-framework/glog"
@@ -37,7 +38,7 @@ func serveCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 		},
 		&cli.StringFlag{
 			Name:    "proxy-addr",
-			Usage:   "proxy server address",
+			Usage:   "pighub proxy server address",
 			EnvVars: []string{"VOILA_PROXY_URL"},
 		},
 		&cli.StringFlag{
@@ -96,21 +97,17 @@ func serveCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 					if sessionAddr == "" {
 						logger.Warnf("served with local session manager")
 						return cookiejar.New(), nil
-					} else {
-						conn, err := grpc.DialContext(app.ctx, sessionAddr, grpc.WithInsecure(), grpc.WithBlock())
-						if err != nil {
-							return nil, err
-						}
-						return cookiejar.NewRemoteJar(pbSession.NewSessionManagerClient(conn), logger)
 					}
-				}),
-				fx.Provide(func(jar http.CookieJar, logger glog.Log) (http.Client, error) {
-					proxyAddr := c.String("proxy-addr")
-					if proxyAddr == "" {
-						return nil, errors.New("proxy address not specified")
+					conn, err := grpc.DialContext(app.ctx, sessionAddr, grpc.WithInsecure(), grpc.WithBlock())
+					if err != nil {
+						return nil, err
 					}
-					return proxy.NewProxyClient(proxyAddr, jar, logger)
+					return cookiejar.NewRemoteJar(pbSession.NewSessionManagerClient(conn), logger)
 				}),
+				fx.Provide(func() (pbProxy.ProxyManagerClient, error) {
+					return proxy.NewPbProxyManagerClient(app.ctx, c.String("proxy-addr"))
+				}),
+				fx.Provide(proxy.NewProxyClient),
 				fx.Provide(newer.New),
 
 				// Register services
@@ -196,7 +193,7 @@ func serveCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 
 			depInj := fx.New(options...)
 			if err := depInj.Start(app.ctx); err != nil {
-				return cli.NewExitError(err, 1)
+				return cli.Exit(err, 1)
 			}
 
 			<-app.ctx.Done()
