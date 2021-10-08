@@ -653,6 +653,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		}
 	}
 
+	for _, skuItem := range item.SkuItems {
+		if skuItem.GetStock().GetStockStatus() == pbItem.Stock_InStock {
+			item.Stock.StockStatus = pbItem.Stock_InStock
+			break
+		}
+	}
+
 	// yield item result
 	if err = yield(ctx, &item); err != nil {
 		c.logger.Errorf("yield sub request failed, error=%s", err)
