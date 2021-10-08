@@ -23,7 +23,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto3',
   serialized_options=b'Z$chameleon/smelter/v1/crawl/item;item',
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n-chameleon/smelter/v1/crawl/item/product.proto\x12\x1f\x63hameleon.smelter.v1.crawl.item\x1a#chameleon/api/regulation/data.proto\x1a\x1e\x63hameleon/api/media/data.proto\" \n\x04Site\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\"\xfc\x01\n\x08\x43\x61tegory\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0b\n\x03url\x18\x04 \x01(\t\x12K\n\textraInfo\x18\x06 \x03(\x0b\x32\x38.chameleon.smelter.v1.crawl.item.Category.ExtraInfoEntry\x12\r\n\x05\x64\x65pth\x18\n \x01(\x05\x12;\n\x08\x63hildren\x18\x0c \x03(\x0b\x32).chameleon.smelter.v1.crawl.item.Category\x1a\x30\n\x0e\x45xtraInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"s\n\x06Source\x12\n\n\x02id\x18\x02 \x01(\t\x12\x10\n\x08\x63rawlUrl\x18\x04 \x01(\t\x12\x14\n\x0c\x63\x61nonicalUrl\x18\x06 \x01(\t\x12\x14\n\x0cglobalUniqId\x18\x07 \x01(\t\x12\x0f\n\x07groupId\x18\x08 \x01(\t\x12\x0e\n\x06locale\x18\x0b \x01(\t\"j\n\x05Stats\x12\x0e\n\x06rating\x18\x01 \x01(\x02\x12\x15\n\rfavoriteCount\x18\x02 \x01(\x05\x12\x11\n\tsellCount\x18\x05 \x01(\x05\x12\x13\n\x0breviewCount\x18\x06 \x01(\x05\x12\x12\n\nonlineTime\x18\x0b \x01(\t\"\xa8\x01\n\x05Stock\x12G\n\x0bstockStatus\x18\x01 \x01(\x0e\x32\x32.chameleon.smelter.v1.crawl.item.Stock.StockStatus\x12\x12\n\nstockCount\x18\x02 \x01(\x05\"B\n\x0bStockStatus\x12\x16\n\x12StockStatusUnknown\x10\x00\x12\x0b\n\x07InStock\x10\x01\x12\x0e\n\nOutOfStock\x10\n\"\xae\x01\n\x05Price\x12\x34\n\x08\x63urrency\x18\x01 \x01(\x0e\x32\".chameleon.api.regulation.Currency\x12\x0f\n\x07\x63urrent\x18\x02 \x01(\x05\x12\x0c\n\x04msrp\x18\x03 \x01(\x05\x12\x10\n\x08\x64iscount\x18\x06 \x01(\x05\x12\x14\n\x0c\x64iscountDesc\x18\x07 \x01(\t\x12\x11\n\tdiscount1\x18\t \x01(\x05\x12\x15\n\rdiscount1Desc\x18\n \x01(\t\"\x91\x01\n\rSkuSpecOption\x12\n\n\x02id\x18\x01 \x01(\t\x12:\n\x04type\x18\x02 \x01(\x0e\x32,.chameleon.smelter.v1.crawl.item.SkuSpecType\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\r\n\x05value\x18\x04 \x01(\t\x12\x0c\n\x04icon\x18\x07 \x01(\t\x12\r\n\x05index\x18\x0b \x01(\x05\"\xda\x02\n\x03Sku\x12\x10\n\x08sourceId\x18\x01 \x01(\t\x12=\n\x05specs\x18\x03 \x03(\x0b\x32..chameleon.smelter.v1.crawl.item.SkuSpecOption\x12\r\n\x05title\x18\x06 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\x12*\n\x06medias\x18\x1f \x03(\x0b\x32\x1a.chameleon.api.media.Media\x12\x35\n\x05price\x18  \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Price\x12\x35\n\x05stock\x18! \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Stock\x12\x35\n\x05stats\x18\x33 \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Stats\x12\r\n\x05index\x18\x34 \x01(\x05\"\xb1\x05\n\x07Product\x12\x33\n\x04site\x18\x02 \x01(\x0b\x32%.chameleon.smelter.v1.crawl.item.Site\x12\x37\n\x06source\x18\x03 \x01(\x0b\x32\'.chameleon.smelter.v1.crawl.item.Source\x12\x11\n\tbrandName\x18\x04 \x01(\t\x12\r\n\x05title\x18\x05 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x06 \x01(\t\x12\x11\n\tcrowdType\x18\x0b \x01(\t\x12\x10\n\x08\x63\x61tegory\x18\x0c \x01(\t\x12\x13\n\x0bsubCategory\x18\r \x01(\t\x12\x14\n\x0csubCategory2\x18\x0e \x01(\t\x12\x14\n\x0csubCategory3\x18\x0f \x01(\t\x12\x14\n\x0csubCategory4\x18\x10 \x01(\t\x12*\n\x06medias\x18\x1f \x03(\x0b\x32\x1a.chameleon.api.media.Media\x12\x35\n\x05price\x18  \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Price\x12\x35\n\x05stock\x18! \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Stock\x12\x36\n\x08skuItems\x18* \x03(\x0b\x32$.chameleon.smelter.v1.crawl.item.Sku\x12\x35\n\x05stats\x18\x33 \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Stats\x12J\n\textraInfo\x18\x65 \x03(\x0b\x32\x37.chameleon.smelter.v1.crawl.item.Product.ExtraInfoEntry\x1a\x30\n\x0e\x45xtraInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x10\n\x0eProductPreview\"\x9c\x0b\n\tPromoCode\x12\x37\n\x06source\x18\x02 \x01(\x0b\x32\'.chameleon.smelter.v1.crawl.item.Source\x12\x10\n\x08retailer\x18\x03 \x01(\t\x12\x46\n\x04type\x18\x04 \x01(\x0e\x32\x38.chameleon.smelter.v1.crawl.item.PromoCode.PromoCodeType\x12\r\n\x05title\x18\x05 \x01(\t\x12\x0c\n\x04\x63ode\x18\x06 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\x12G\n\tcondition\x18\x08 \x01(\x0b\x32\x34.chameleon.smelter.v1.crawl.item.PromoCode.Condition\x12\x45\n\x08\x64iscount\x18\x0b \x01(\x0b\x32\x33.chameleon.smelter.v1.crawl.item.PromoCode.Discount\x12\x14\n\x0cisApplyToAll\x18\r \x01(\x08\x12L\n\x0c\x61pplyTargets\x18\x0e \x03(\x0b\x32\x36.chameleon.smelter.v1.crawl.item.PromoCode.ApplyTarget\x12\x10\n\x08startUtc\x18\x13 \x01(\x03\x12\x12\n\nexpiresUtc\x18\x14 \x01(\x03\x12\r\n\x05index\x18[ \x01(\x05\x12L\n\textraInfo\x18\x63 \x03(\x0b\x32\x39.chameleon.smelter.v1.crawl.item.PromoCode.ExtraInfoEntry\x1a\x43\n\x08\x44iscount\x12\r\n\x05value\x18\x01 \x01(\x05\x12\x13\n\x0brawDiscount\x18\x02 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x03 \x01(\t\x1an\n\x0b\x41pplyTarget\x12\x42\n\x04type\x18\x01 \x01(\x0e\x32\x34.chameleon.smelter.v1.crawl.item.PromoCode.ApplyType\x12\x0b\n\x03url\x18\x02 \x01(\t\x12\x0e\n\x06rawUrl\x18\x03 \x01(\t\x1a\xc7\x03\n\tCondition\x12\x14\n\x0crawCondition\x18\x02 \x01(\t\x1a\x66\n\nOrderPrice\x12\x34\n\x08\x63urrency\x18\x01 \x01(\x0e\x32\".chameleon.api.regulation.Currency\x12\x10\n\x08minPrice\x18\x02 \x01(\x05\x12\x10\n\x08maxPrice\x18\x03 \x01(\x05\x1a\xe4\x01\n\x08\x43ustomer\x12X\n\x04type\x18\x01 \x03(\x0e\x32J.chameleon.smelter.v1.crawl.item.PromoCode.Condition.Customer.CustomerType\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\"i\n\x0c\x43ustomerType\x12\x0f\n\x0b\x41nyCustomer\x10\x00\x12\x0f\n\x0bNewCustomer\x10\x01\x12\x0f\n\x0bOldCustomer\x10\x02\x12\x13\n\x0fStudentCustomer\x10\x06\x12\x11\n\rOtherCustomer\x10\n\x1a\x1e\n\x08\x43\x61tegory\x12\x12\n\ncategories\x18\x01 \x03(\t\x1a\x35\n\x05Refer\x12\x15\n\rafterRegister\x18\x01 \x01(\x08\x12\x15\n\rafterPurchase\x18\x02 \x01(\x08\x1a\x30\n\x0e\x45xtraInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"G\n\rPromoCodeType\x12\x13\n\x0f\x43odeTypeUnknown\x10\x00\x12\x0f\n\x0bProductCode\x10\x01\x12\x10\n\x0c\x44\x65liveryCode\x10\x02\"Y\n\tApplyType\x12\x10\n\x0c\x41pplyUnknown\x10\x00\x12\x13\n\x0f\x41pplyToCategory\x10\x01\x12\x15\n\x11\x41pplyToCategories\x10\x02\x12\x0e\n\nApplyToAll\x10\x03\"\xa9\x03\n\tOpenGraph\x1a\x36\n\x04Site\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x10\n\x08homepage\x18\x03 \x01(\t\x12\x0e\n\x06\x64omain\x18\x04 \x01(\t\x1aL\n\x05Price\x12\x34\n\x08\x63urrency\x18\x01 \x01(\x0e\x32\".chameleon.api.regulation.Currency\x12\r\n\x05value\x18\x02 \x01(\x05\x1a\x95\x02\n\x07Product\x12=\n\x04site\x18\x01 \x01(\x0b\x32/.chameleon.smelter.v1.crawl.item.OpenGraph.Site\x12\n\n\x02id\x18\x02 \x01(\t\x12\r\n\x05title\x18\x03 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x05 \x01(\t\x12\x11\n\tbrandName\x18\x06 \x01(\t\x12\x0b\n\x03url\x18\x07 \x01(\t\x12*\n\x06medias\x18\t \x03(\x0b\x32\x1a.chameleon.api.media.Media\x12?\n\x05price\x18\n \x01(\x0b\x32\x30.chameleon.smelter.v1.crawl.item.OpenGraph.Price\x12\x0e\n\x06locale\x18\x10 \x01(\t*\xa0\x01\n\x0bSkuSpecType\x12\x12\n\x0eSkuSpecUnknown\x10\x00\x12\x0f\n\x0bSkuSpecSize\x10\x01\x12\x10\n\x0cSkuSpecColor\x10\x02\x12\x13\n\x0fSkuSpecMaterial\x10\x0b\x12\x10\n\x0cSkuSpecWidth\x10\x0c\x12\x10\n\x0cSkuSpecStyle\x10\r\x12\x0e\n\nSkuSpecFit\x10\x0e\x12\x11\n\rSkuSpecLength\x10\x0f\x42&Z$chameleon/smelter/v1/crawl/item;itemb\x06proto3'
+  serialized_pb=b'\n-chameleon/smelter/v1/crawl/item/product.proto\x12\x1f\x63hameleon.smelter.v1.crawl.item\x1a#chameleon/api/regulation/data.proto\x1a\x1e\x63hameleon/api/media/data.proto\" \n\x04Site\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\"\xfc\x01\n\x08\x43\x61tegory\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x0b\n\x03url\x18\x04 \x01(\t\x12K\n\textraInfo\x18\x06 \x03(\x0b\x32\x38.chameleon.smelter.v1.crawl.item.Category.ExtraInfoEntry\x12\r\n\x05\x64\x65pth\x18\n \x01(\x05\x12;\n\x08\x63hildren\x18\x0c \x03(\x0b\x32).chameleon.smelter.v1.crawl.item.Category\x1a\x30\n\x0e\x45xtraInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"s\n\x06Source\x12\n\n\x02id\x18\x02 \x01(\t\x12\x10\n\x08\x63rawlUrl\x18\x04 \x01(\t\x12\x14\n\x0c\x63\x61nonicalUrl\x18\x06 \x01(\t\x12\x14\n\x0cglobalUniqId\x18\x07 \x01(\t\x12\x0f\n\x07groupId\x18\x08 \x01(\t\x12\x0e\n\x06locale\x18\x0b \x01(\t\"j\n\x05Stats\x12\x0e\n\x06rating\x18\x01 \x01(\x02\x12\x15\n\rfavoriteCount\x18\x02 \x01(\x05\x12\x11\n\tsellCount\x18\x05 \x01(\x05\x12\x13\n\x0breviewCount\x18\x06 \x01(\x05\x12\x12\n\nonlineTime\x18\x0b \x01(\t\"\xa8\x01\n\x05Stock\x12G\n\x0bstockStatus\x18\x01 \x01(\x0e\x32\x32.chameleon.smelter.v1.crawl.item.Stock.StockStatus\x12\x12\n\nstockCount\x18\x02 \x01(\x05\"B\n\x0bStockStatus\x12\x16\n\x12StockStatusUnknown\x10\x00\x12\x0b\n\x07InStock\x10\x01\x12\x0e\n\nOutOfStock\x10\n\"\xae\x01\n\x05Price\x12\x34\n\x08\x63urrency\x18\x01 \x01(\x0e\x32\".chameleon.api.regulation.Currency\x12\x0f\n\x07\x63urrent\x18\x02 \x01(\x05\x12\x0c\n\x04msrp\x18\x03 \x01(\x05\x12\x10\n\x08\x64iscount\x18\x06 \x01(\x05\x12\x14\n\x0c\x64iscountDesc\x18\x07 \x01(\t\x12\x11\n\tdiscount1\x18\t \x01(\x05\x12\x15\n\rdiscount1Desc\x18\n \x01(\t\"\x91\x01\n\rSkuSpecOption\x12\n\n\x02id\x18\x01 \x01(\t\x12:\n\x04type\x18\x02 \x01(\x0e\x32,.chameleon.smelter.v1.crawl.item.SkuSpecType\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\r\n\x05value\x18\x04 \x01(\t\x12\x0c\n\x04icon\x18\x07 \x01(\t\x12\r\n\x05index\x18\x0b \x01(\x05\"\xda\x02\n\x03Sku\x12\x10\n\x08sourceId\x18\x01 \x01(\t\x12=\n\x05specs\x18\x03 \x03(\x0b\x32..chameleon.smelter.v1.crawl.item.SkuSpecOption\x12\r\n\x05title\x18\x06 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\x12*\n\x06medias\x18\x1f \x03(\x0b\x32\x1a.chameleon.api.media.Media\x12\x35\n\x05price\x18  \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Price\x12\x35\n\x05stock\x18! \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Stock\x12\x35\n\x05stats\x18\x33 \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Stats\x12\r\n\x05index\x18\x34 \x01(\x05\"\xc3\x05\n\x07Product\x12\x33\n\x04site\x18\x02 \x01(\x0b\x32%.chameleon.smelter.v1.crawl.item.Site\x12\x37\n\x06source\x18\x03 \x01(\x0b\x32\'.chameleon.smelter.v1.crawl.item.Source\x12\x11\n\tbrandName\x18\x04 \x01(\t\x12\r\n\x05title\x18\x05 \x01(\t\x12\x10\n\x08subTitle\x18\x07 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x06 \x01(\t\x12\x11\n\tcrowdType\x18\x0b \x01(\t\x12\x10\n\x08\x63\x61tegory\x18\x0c \x01(\t\x12\x13\n\x0bsubCategory\x18\r \x01(\t\x12\x14\n\x0csubCategory2\x18\x0e \x01(\t\x12\x14\n\x0csubCategory3\x18\x0f \x01(\t\x12\x14\n\x0csubCategory4\x18\x10 \x01(\t\x12*\n\x06medias\x18\x1f \x03(\x0b\x32\x1a.chameleon.api.media.Media\x12\x35\n\x05price\x18  \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Price\x12\x35\n\x05stock\x18! \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Stock\x12\x36\n\x08skuItems\x18* \x03(\x0b\x32$.chameleon.smelter.v1.crawl.item.Sku\x12\x35\n\x05stats\x18\x33 \x01(\x0b\x32&.chameleon.smelter.v1.crawl.item.Stats\x12J\n\textraInfo\x18\x65 \x03(\x0b\x32\x37.chameleon.smelter.v1.crawl.item.Product.ExtraInfoEntry\x1a\x30\n\x0e\x45xtraInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x10\n\x0eProductPreview\"\x9c\x0b\n\tPromoCode\x12\x37\n\x06source\x18\x02 \x01(\x0b\x32\'.chameleon.smelter.v1.crawl.item.Source\x12\x10\n\x08retailer\x18\x03 \x01(\t\x12\x46\n\x04type\x18\x04 \x01(\x0e\x32\x38.chameleon.smelter.v1.crawl.item.PromoCode.PromoCodeType\x12\r\n\x05title\x18\x05 \x01(\t\x12\x0c\n\x04\x63ode\x18\x06 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\x12G\n\tcondition\x18\x08 \x01(\x0b\x32\x34.chameleon.smelter.v1.crawl.item.PromoCode.Condition\x12\x45\n\x08\x64iscount\x18\x0b \x01(\x0b\x32\x33.chameleon.smelter.v1.crawl.item.PromoCode.Discount\x12\x14\n\x0cisApplyToAll\x18\r \x01(\x08\x12L\n\x0c\x61pplyTargets\x18\x0e \x03(\x0b\x32\x36.chameleon.smelter.v1.crawl.item.PromoCode.ApplyTarget\x12\x10\n\x08startUtc\x18\x13 \x01(\x03\x12\x12\n\nexpiresUtc\x18\x14 \x01(\x03\x12\r\n\x05index\x18[ \x01(\x05\x12L\n\textraInfo\x18\x63 \x03(\x0b\x32\x39.chameleon.smelter.v1.crawl.item.PromoCode.ExtraInfoEntry\x1a\x43\n\x08\x44iscount\x12\r\n\x05value\x18\x01 \x01(\x05\x12\x13\n\x0brawDiscount\x18\x02 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x03 \x01(\t\x1an\n\x0b\x41pplyTarget\x12\x42\n\x04type\x18\x01 \x01(\x0e\x32\x34.chameleon.smelter.v1.crawl.item.PromoCode.ApplyType\x12\x0b\n\x03url\x18\x02 \x01(\t\x12\x0e\n\x06rawUrl\x18\x03 \x01(\t\x1a\xc7\x03\n\tCondition\x12\x14\n\x0crawCondition\x18\x02 \x01(\t\x1a\x66\n\nOrderPrice\x12\x34\n\x08\x63urrency\x18\x01 \x01(\x0e\x32\".chameleon.api.regulation.Currency\x12\x10\n\x08minPrice\x18\x02 \x01(\x05\x12\x10\n\x08maxPrice\x18\x03 \x01(\x05\x1a\xe4\x01\n\x08\x43ustomer\x12X\n\x04type\x18\x01 \x03(\x0e\x32J.chameleon.smelter.v1.crawl.item.PromoCode.Condition.Customer.CustomerType\x12\x13\n\x0b\x64\x65scription\x18\x02 \x01(\t\"i\n\x0c\x43ustomerType\x12\x0f\n\x0b\x41nyCustomer\x10\x00\x12\x0f\n\x0bNewCustomer\x10\x01\x12\x0f\n\x0bOldCustomer\x10\x02\x12\x13\n\x0fStudentCustomer\x10\x06\x12\x11\n\rOtherCustomer\x10\n\x1a\x1e\n\x08\x43\x61tegory\x12\x12\n\ncategories\x18\x01 \x03(\t\x1a\x35\n\x05Refer\x12\x15\n\rafterRegister\x18\x01 \x01(\x08\x12\x15\n\rafterPurchase\x18\x02 \x01(\x08\x1a\x30\n\x0e\x45xtraInfoEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"G\n\rPromoCodeType\x12\x13\n\x0f\x43odeTypeUnknown\x10\x00\x12\x0f\n\x0bProductCode\x10\x01\x12\x10\n\x0c\x44\x65liveryCode\x10\x02\"Y\n\tApplyType\x12\x10\n\x0c\x41pplyUnknown\x10\x00\x12\x13\n\x0f\x41pplyToCategory\x10\x01\x12\x15\n\x11\x41pplyToCategories\x10\x02\x12\x0e\n\nApplyToAll\x10\x03\"\xbb\x03\n\tOpenGraph\x1a\x36\n\x04Site\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x10\n\x08homepage\x18\x03 \x01(\t\x12\x0e\n\x06\x64omain\x18\x04 \x01(\t\x1aL\n\x05Price\x12\x34\n\x08\x63urrency\x18\x01 \x01(\x0e\x32\".chameleon.api.regulation.Currency\x12\r\n\x05value\x18\x02 \x01(\x05\x1a\xa7\x02\n\x07Product\x12=\n\x04site\x18\x01 \x01(\x0b\x32/.chameleon.smelter.v1.crawl.item.OpenGraph.Site\x12\n\n\x02id\x18\x02 \x01(\t\x12\r\n\x05title\x18\x03 \x01(\t\x12\x10\n\x08subTitle\x18\x04 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x05 \x01(\t\x12\x11\n\tbrandName\x18\x06 \x01(\t\x12\x0b\n\x03url\x18\x07 \x01(\t\x12*\n\x06medias\x18\t \x03(\x0b\x32\x1a.chameleon.api.media.Media\x12?\n\x05price\x18\n \x01(\x0b\x32\x30.chameleon.smelter.v1.crawl.item.OpenGraph.Price\x12\x0e\n\x06locale\x18\x10 \x01(\t*\xa0\x01\n\x0bSkuSpecType\x12\x12\n\x0eSkuSpecUnknown\x10\x00\x12\x0f\n\x0bSkuSpecSize\x10\x01\x12\x10\n\x0cSkuSpecColor\x10\x02\x12\x13\n\x0fSkuSpecMaterial\x10\x0b\x12\x10\n\x0cSkuSpecWidth\x10\x0c\x12\x10\n\x0cSkuSpecStyle\x10\r\x12\x0e\n\nSkuSpecFit\x10\x0e\x12\x11\n\rSkuSpecLength\x10\x0f\x42&Z$chameleon/smelter/v1/crawl/item;itemb\x06proto3'
   ,
   dependencies=[chameleon_dot_api_dot_regulation_dot_data__pb2.DESCRIPTOR,chameleon_dot_api_dot_media_dot_data__pb2.DESCRIPTOR,])
 
@@ -77,8 +77,8 @@ _SKUSPECTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=4088,
-  serialized_end=4248,
+  serialized_start=4124,
+  serialized_end=4284,
 )
 _sym_db.RegisterEnumDescriptor(_SKUSPECTYPE)
 
@@ -158,8 +158,8 @@ _PROMOCODE_CONDITION_CUSTOMER_CUSTOMERTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=3251,
-  serialized_end=3356,
+  serialized_start=3269,
+  serialized_end=3374,
 )
 _sym_db.RegisterEnumDescriptor(_PROMOCODE_CONDITION_CUSTOMER_CUSTOMERTYPE)
 
@@ -188,8 +188,8 @@ _PROMOCODE_PROMOCODETYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=3495,
-  serialized_end=3566,
+  serialized_start=3513,
+  serialized_end=3584,
 )
 _sym_db.RegisterEnumDescriptor(_PROMOCODE_PROMOCODETYPE)
 
@@ -223,8 +223,8 @@ _PROMOCODE_APPLYTYPE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=3568,
-  serialized_end=3657,
+  serialized_start=3586,
+  serialized_end=3675,
 )
 _sym_db.RegisterEnumDescriptor(_PROMOCODE_APPLYTYPE)
 
@@ -844,91 +844,98 @@ _PRODUCT = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='description', full_name='chameleon.smelter.v1.crawl.item.Product.description', index=4,
+      name='subTitle', full_name='chameleon.smelter.v1.crawl.item.Product.subTitle', index=4,
+      number=7, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='description', full_name='chameleon.smelter.v1.crawl.item.Product.description', index=5,
       number=6, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='crowdType', full_name='chameleon.smelter.v1.crawl.item.Product.crowdType', index=5,
+      name='crowdType', full_name='chameleon.smelter.v1.crawl.item.Product.crowdType', index=6,
       number=11, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='category', full_name='chameleon.smelter.v1.crawl.item.Product.category', index=6,
+      name='category', full_name='chameleon.smelter.v1.crawl.item.Product.category', index=7,
       number=12, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='subCategory', full_name='chameleon.smelter.v1.crawl.item.Product.subCategory', index=7,
+      name='subCategory', full_name='chameleon.smelter.v1.crawl.item.Product.subCategory', index=8,
       number=13, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='subCategory2', full_name='chameleon.smelter.v1.crawl.item.Product.subCategory2', index=8,
+      name='subCategory2', full_name='chameleon.smelter.v1.crawl.item.Product.subCategory2', index=9,
       number=14, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='subCategory3', full_name='chameleon.smelter.v1.crawl.item.Product.subCategory3', index=9,
+      name='subCategory3', full_name='chameleon.smelter.v1.crawl.item.Product.subCategory3', index=10,
       number=15, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='subCategory4', full_name='chameleon.smelter.v1.crawl.item.Product.subCategory4', index=10,
+      name='subCategory4', full_name='chameleon.smelter.v1.crawl.item.Product.subCategory4', index=11,
       number=16, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='medias', full_name='chameleon.smelter.v1.crawl.item.Product.medias', index=11,
+      name='medias', full_name='chameleon.smelter.v1.crawl.item.Product.medias', index=12,
       number=31, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='price', full_name='chameleon.smelter.v1.crawl.item.Product.price', index=12,
+      name='price', full_name='chameleon.smelter.v1.crawl.item.Product.price', index=13,
       number=32, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='stock', full_name='chameleon.smelter.v1.crawl.item.Product.stock', index=13,
+      name='stock', full_name='chameleon.smelter.v1.crawl.item.Product.stock', index=14,
       number=33, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='skuItems', full_name='chameleon.smelter.v1.crawl.item.Product.skuItems', index=14,
+      name='skuItems', full_name='chameleon.smelter.v1.crawl.item.Product.skuItems', index=15,
       number=42, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='stats', full_name='chameleon.smelter.v1.crawl.item.Product.stats', index=15,
+      name='stats', full_name='chameleon.smelter.v1.crawl.item.Product.stats', index=16,
       number=51, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='extraInfo', full_name='chameleon.smelter.v1.crawl.item.Product.extraInfo', index=16,
+      name='extraInfo', full_name='chameleon.smelter.v1.crawl.item.Product.extraInfo', index=17,
       number=101, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
@@ -947,7 +954,7 @@ _PRODUCT = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=1511,
-  serialized_end=2200,
+  serialized_end=2218,
 )
 
 
@@ -971,8 +978,8 @@ _PRODUCTPREVIEW = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2202,
-  serialized_end=2218,
+  serialized_start=2220,
+  serialized_end=2236,
 )
 
 
@@ -1017,8 +1024,8 @@ _PROMOCODE_DISCOUNT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2806,
-  serialized_end=2873,
+  serialized_start=2824,
+  serialized_end=2891,
 )
 
 _PROMOCODE_APPLYTARGET = _descriptor.Descriptor(
@@ -1062,8 +1069,8 @@ _PROMOCODE_APPLYTARGET = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2875,
-  serialized_end=2985,
+  serialized_start=2893,
+  serialized_end=3003,
 )
 
 _PROMOCODE_CONDITION_ORDERPRICE = _descriptor.Descriptor(
@@ -1107,8 +1114,8 @@ _PROMOCODE_CONDITION_ORDERPRICE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3023,
-  serialized_end=3125,
+  serialized_start=3041,
+  serialized_end=3143,
 )
 
 _PROMOCODE_CONDITION_CUSTOMER = _descriptor.Descriptor(
@@ -1146,8 +1153,8 @@ _PROMOCODE_CONDITION_CUSTOMER = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3128,
-  serialized_end=3356,
+  serialized_start=3146,
+  serialized_end=3374,
 )
 
 _PROMOCODE_CONDITION_CATEGORY = _descriptor.Descriptor(
@@ -1177,8 +1184,8 @@ _PROMOCODE_CONDITION_CATEGORY = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3358,
-  serialized_end=3388,
+  serialized_start=3376,
+  serialized_end=3406,
 )
 
 _PROMOCODE_CONDITION_REFER = _descriptor.Descriptor(
@@ -1215,8 +1222,8 @@ _PROMOCODE_CONDITION_REFER = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3390,
-  serialized_end=3443,
+  serialized_start=3408,
+  serialized_end=3461,
 )
 
 _PROMOCODE_CONDITION = _descriptor.Descriptor(
@@ -1246,8 +1253,8 @@ _PROMOCODE_CONDITION = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2988,
-  serialized_end=3443,
+  serialized_start=3006,
+  serialized_end=3461,
 )
 
 _PROMOCODE_EXTRAINFOENTRY = _descriptor.Descriptor(
@@ -1408,8 +1415,8 @@ _PROMOCODE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2221,
-  serialized_end=3657,
+  serialized_start=2239,
+  serialized_end=3675,
 )
 
 
@@ -1454,8 +1461,8 @@ _OPENGRAPH_SITE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3673,
-  serialized_end=3727,
+  serialized_start=3691,
+  serialized_end=3745,
 )
 
 _OPENGRAPH_PRICE = _descriptor.Descriptor(
@@ -1492,8 +1499,8 @@ _OPENGRAPH_PRICE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3729,
-  serialized_end=3805,
+  serialized_start=3747,
+  serialized_end=3823,
 )
 
 _OPENGRAPH_PRODUCT = _descriptor.Descriptor(
@@ -1526,42 +1533,49 @@ _OPENGRAPH_PRODUCT = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='description', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.description', index=3,
+      name='subTitle', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.subTitle', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=b"".decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='description', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.description', index=4,
       number=5, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='brandName', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.brandName', index=4,
+      name='brandName', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.brandName', index=5,
       number=6, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='url', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.url', index=5,
+      name='url', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.url', index=6,
       number=7, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='medias', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.medias', index=6,
+      name='medias', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.medias', index=7,
       number=9, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='price', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.price', index=7,
+      name='price', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.price', index=8,
       number=10, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='locale', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.locale', index=8,
+      name='locale', full_name='chameleon.smelter.v1.crawl.item.OpenGraph.Product.locale', index=9,
       number=16, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=b"".decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
@@ -1579,8 +1593,8 @@ _OPENGRAPH_PRODUCT = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3808,
-  serialized_end=4085,
+  serialized_start=3826,
+  serialized_end=4121,
 )
 
 _OPENGRAPH = _descriptor.Descriptor(
@@ -1603,8 +1617,8 @@ _OPENGRAPH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3660,
-  serialized_end=4085,
+  serialized_start=3678,
+  serialized_end=4121,
 )
 
 _CATEGORY_EXTRAINFOENTRY.containing_type = _CATEGORY
