@@ -3,7 +3,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/urfave/cli/v2"
@@ -66,19 +65,17 @@ func (_ *_Crawler) New(cli *cmd.Context, client http.Client, logger glog.Log) (c
 	}
 	err := func() error {
 		crawletAddr := cli.String("crawlet-addr")
-		if crawletAddr == "" {
-			return errors.New("invalid crawlet address")
+		if crawletAddr != "" {
+			conn, err := grpc.DialContext(cli.Context, crawletAddr,
+				grpc.WithInsecure(),
+				grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)),
+				grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(100*1024*1024)),
+			)
+			if err != nil {
+				return err
+			}
+			c.crawlerClient = pbCrawl.NewCrawlerManagerClient(conn)
 		}
-		conn, err := grpc.DialContext(cli.Context, crawletAddr,
-			grpc.WithInsecure(),
-			grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(100*1024*1024)),
-			grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(100*1024*1024)),
-		)
-		if err != nil {
-			return err
-		}
-		c.crawlerClient = pbCrawl.NewCrawlerManagerClient(conn)
-
 		return nil
 	}()
 	if err != nil {
@@ -126,94 +123,95 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	// convert to our own crawler
-	for allowedDomain, siteId := range util.ConversionMap {
-		if matched, _ := filepath.Match(allowedDomain, resp.Request.URL.Hostname()); matched {
-			// build request
-			// convert http.Request to pbCrawl.Command_Request and forward
-			subreq := pbCrawl.Request{
-				TracingId: context.GetString(ctx, context.TracingIdKey),
-				JobId:     context.GetString(ctx, context.JobIdKey),
-				ReqId:     context.GetString(ctx, context.ReqIdKey),
-				SiteId:    siteId,
-				Url:       resp.Request.URL.String(),
-				Method:    resp.Request.Method,
-				Options: &pbCrawl.Request_Options{
-					MaxItemCount:        1,
-					MaxTtlPerRequest:    60,
+	if c.crawlerClient != nil {
+		// convert to our own crawler
+		for allowedDomain, siteId := range util.ConversionMap {
+			if matched, _ := filepath.Match(allowedDomain, resp.Request.URL.Hostname()); matched {
+				// build request
+				// convert http.Request to pbCrawl.Command_Request and forward
+				subreq := pbCrawl.Request{
+					TracingId: context.GetString(ctx, context.TracingIdKey),
+					JobId:     context.GetString(ctx, context.JobIdKey),
+					ReqId:     context.GetString(ctx, context.ReqIdKey),
+					SiteId:    siteId,
+					Url:       resp.Request.URL.String(),
+					Method:    resp.Request.Method,
+					Options: &pbCrawl.Request_Options{
+						MaxItemCount:        1,
+						MaxTtlPerRequest:    60,
+						EnableBlockForItems: true,
+					},
+				}
+
+				if subreq.CustomHeaders == nil {
+					subreq.CustomHeaders = make(map[string]string)
+				}
+				if subreq.SharingData == nil {
+					subreq.SharingData = map[string]string{}
+				}
+				if resp.Request.Body != nil {
+					defer resp.Request.Body.Close()
+					if data, err := io.ReadAll(resp.Request.Body); err != nil {
+						return err
+					} else {
+						subreq.Body = fmt.Sprintf("%s", data)
+					}
+				}
+				for k := range resp.Request.Header {
+					subreq.CustomHeaders[k] = resp.Request.Header.Get(k)
+				}
+
+				for k, v := range ctxutil.RetrieveAllValues(ctx) {
+					key, ok := k.(string)
+					if !ok {
+						continue
+					}
+					val := strconv.Format(v)
+
+					subreq.SharingData[key] = val
+				}
+				c.logger.Infof("fetch from crawler")
+
+				// do parse
+				doParseResp, err := c.crawlerClient.DoParse(ctx, &pbCrawl.DoParseRequest{
+					Request:             &subreq,
 					EnableBlockForItems: true,
-				},
-			}
-
-			if subreq.CustomHeaders == nil {
-				subreq.CustomHeaders = make(map[string]string)
-			}
-			if subreq.SharingData == nil {
-				subreq.SharingData = map[string]string{}
-			}
-			if resp.Request.Body != nil {
-				defer resp.Request.Body.Close()
-				if data, err := io.ReadAll(resp.Request.Body); err != nil {
-					return err
-				} else {
-					subreq.Body = fmt.Sprintf("%s", data)
-				}
-			}
-			for k := range resp.Request.Header {
-				subreq.CustomHeaders[k] = resp.Request.Header.Get(k)
-			}
-
-			for k, v := range ctxutil.RetrieveAllValues(ctx) {
-				key, ok := k.(string)
-				if !ok {
-					continue
-				}
-				val := strconv.Format(v)
-
-				subreq.SharingData[key] = val
-			}
-			c.logger.Infof("fetch from crawler")
-
-			// do parse
-			doParseResp, err := c.crawlerClient.DoParse(ctx, &pbCrawl.DoParseRequest{
-				Request:             &subreq,
-				EnableBlockForItems: true,
-			})
-			if err != nil {
-				c.logger.Error(err)
-				return err
-			}
-			//c.logger.Debugf("%+v", doParseResp)
-
-			for _, doParseRespDataItem := range doParseResp.GetData() {
-				if doParseRespDataItem.GetTypeUrl() != protoutil.GetTypeUrl(&pbCrawl.Item{}) {
-					// ignore other type
-					continue
-				}
-				var item pbCrawl.Item
-				if err := proto.Unmarshal(doParseRespDataItem.GetValue(), &item); err != nil {
-					c.logger.Errorf("unmarshal item failed, error=%s", err)
-					continue
-				}
-				if item.GetData().GetTypeUrl() != protoutil.GetTypeUrl(&pbItem.Product{}) {
-					// ignore other type
-					continue
-				}
-				var product pbItem.Product
-				if err := proto.Unmarshal(item.GetData().GetValue(), &product); err != nil {
-					c.logger.Errorf("unmarshal item failed, error=%s", err)
-					continue
-				}
-				if err := yield(ctx, util.UnmarshalToOpenGraphProduct(&product)); err != nil {
+				})
+				if err != nil {
+					c.logger.Error(err)
 					return err
 				}
+				//c.logger.Debugf("%+v", doParseResp)
+
+				for _, doParseRespDataItem := range doParseResp.GetData() {
+					if doParseRespDataItem.GetTypeUrl() != protoutil.GetTypeUrl(&pbCrawl.Item{}) {
+						// ignore other type
+						continue
+					}
+					var item pbCrawl.Item
+					if err := proto.Unmarshal(doParseRespDataItem.GetValue(), &item); err != nil {
+						c.logger.Errorf("unmarshal item failed, error=%s", err)
+						continue
+					}
+					if item.GetData().GetTypeUrl() != protoutil.GetTypeUrl(&pbItem.Product{}) {
+						// ignore other type
+						continue
+					}
+					var product pbItem.Product
+					if err := proto.Unmarshal(item.GetData().GetValue(), &product); err != nil {
+						c.logger.Errorf("unmarshal item failed, error=%s", err)
+						continue
+					}
+					if err := yield(ctx, util.UnmarshalToOpenGraphProduct(&product)); err != nil {
+						return err
+					}
+				}
+				return nil
 			}
-			return nil
 		}
 	}
 
-	rawurl := resp.Request.URL.String()
-
+	rawurl := resp.RawUrl().String()
 	var (
 		diffbotProd  *pbItem.OpenGraph_Product
 		diffbotErr   error
