@@ -883,7 +883,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 					if err != nil {
 						return err
 					}
-					if err = yield(nctx, req); err != nil {
+					if err = yield(ctx, req); err != nil {
 						return err
 					}
 				}
