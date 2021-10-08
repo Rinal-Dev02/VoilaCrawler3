@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -52,7 +53,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 
 // ID
 func (c *_Crawler) ID() string {
-	return "d777aaa29d7e4d5183c6b3ac38d66cde"
+	return "df6481aca27a9e84ae1e27eceeda1bd3"
 }
 
 // Version
@@ -406,7 +407,6 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	// build product data
 	item := pbItem.Product{
 		Source: &pbItem.Source{
-			Id:           pid,
 			CrawlUrl:     resp.Request.URL.String(),
 			CanonicalUrl: canUrl,
 		},
@@ -507,18 +507,34 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	for i := range sel1.Nodes {
 
 		node := sel1.Eq(i)
-		Size := strings.TrimSpace(node.AttrOr("data-value", ""))
-
-		s := strings.Split(node.AttrOr("data-variation-url", ""), `_size=`)
-		s = strings.Split(s[len(s)-1], `&`)
-		skuID := pid + s[0]
-
-		if Size == "" {
+		size := strings.TrimSpace(node.AttrOr("data-value", ""))
+		if size == "" {
+			size = node.Text()
+		}
+		if size == "" {
 			continue
 		}
 
+		sizeVariationUrl := strings.ReplaceAll(node.AttrOr("data-variation-url", ""), "amp;", "")
+		sizeVariationU, err := url.Parse(sizeVariationUrl)
+		if err != nil {
+			c.logger.Warnf("url.Parse sizeVariationUrl=%s error=%s", sizeVariationUrl, err)
+			continue
+		}
+		var (
+			skuId, sizeId string
+		)
+		if realPid := sizeVariationU.Query().Get("pid"); realPid != "" {
+			pid = realPid
+		}
+		if sizeId = sizeVariationU.Query().Get(fmt.Sprintf("dwvar_%s_size", pid)); sizeId == "" {
+			sizeId = size
+		}
+
+		skuId = pid + sizeId
+
 		sku := pbItem.Sku{
-			SourceId: skuID,
+			SourceId: skuId,
 			Price: &pbItem.Price{
 				Currency: regulation.Currency_USD,
 				Current:  int32(originalPrice * 100),
@@ -540,9 +556,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		// size
 		sku.Specs = append(sku.Specs, &pbItem.SkuSpecOption{
 			Type:  pbItem.SkuSpecType_SkuSpecSize,
-			Id:    Size,
-			Name:  Size,
-			Value: Size,
+			Id:    sizeId,
+			Name:  size,
+			Value: sizeId,
 		})
 
 		// for _, spec := range sku.Specs {
@@ -598,6 +614,16 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		// }
 
 		item.SkuItems = append(item.SkuItems, &sku)
+	}
+
+	// product id
+	item.Source.Id = pid
+	// product stock status
+	for _, skuItem := range item.SkuItems {
+		if skuItem.GetStock().GetStockStatus() == pbItem.Stock_InStock {
+			item.Stock.StockStatus = pbItem.Stock_InStock
+			break
+		}
 	}
 
 	// yield item result
