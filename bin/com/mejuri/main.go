@@ -38,7 +38,7 @@ type _Crawler struct {
 func (*_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
 	c := _Crawler{
 		httpClient:                   client,
-		categorySearchAPIPathMatcher: regexp.MustCompile(`^/shop/t/type([/A-Za-z0-9_-]+)$`),
+		categorySearchAPIPathMatcher: regexp.MustCompile(`^/shop/t/([/A-Za-z0-9_-]+)$`),
 		categoryPathMatcher:          regexp.MustCompile(`^/([/A-Za-z_-]+)$`),
 		productPathMatcher:           regexp.MustCompile(`^/shop/products([/A-Za-z0-9_-]+)$`),
 		productApiPathMatcher:        regexp.MustCompile(`^/api/v2/products([/A-Za-z0-9_-]+)$`),
@@ -49,7 +49,7 @@ func (*_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (crawl
 
 // ID
 func (c *_Crawler) ID() string {
-	return "3c608f04da5f4bc6927b473ebcebd17d"
+	return "cdd3d26d97e1fae1e1f1d358f83b3114"
 }
 
 // Version
@@ -68,7 +68,7 @@ func (c *_Crawler) CrawlOptions(u *url.URL) *crawler.CrawlOptions {
 }
 
 func (c *_Crawler) AllowedDomains() []string {
-	return []string{"*.mejuri.com"}
+	return []string{"mejuri.com", "*.mejuri.com"}
 }
 
 func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
@@ -88,61 +88,9 @@ func (c *_Crawler) CanonicalUrl(rawurl string) (string, error) {
 	return u.String(), nil
 }
 
-var countriesPrefix = map[string]struct{}{"/ad": {}, "/ae": {}, "/ar-ae": {}, "/af": {}, "/ag": {}, "/ai": {}, "/al": {}, "/am": {}, "/an": {}, "/ao": {}, "/aq": {}, "/ar": {}, "/at": {}, "/au": {}, "/aw": {}, "/az": {}, "/ba": {}, "/bb": {}, "/bd": {}, "/be": {}, "/bf": {}, "/bg": {}, "/bh": {}, "/ar-bh": {}, "/bi": {}, "/bj": {}, "/bm": {}, "/bn": {}, "/bo": {}, "/br": {}, "/bs": {}, "/bt": {}, "/bv": {}, "/bw": {}, "/by": {}, "/bz": {}, "/ca": {}, "/cc": {}, "/cf": {}, "/cg": {}, "/ch": {}, "/ci": {}, "/ck": {}, "/cl": {}, "/cm": {}, "/cn": {}, "/co": {}, "/cr": {}, "/cv": {}, "/cx": {}, "/cy": {}, "/cz": {}, "/de": {}, "/dj": {}, "/dk": {}, "/dm": {}, "/do": {}, "/dz": {}, "/ec": {}, "/ee": {}, "/eg": {}, "/ar-eg": {}, "/eh": {}, "/es": {}, "/et": {}, "/fi": {}, "/fj": {}, "/fk": {}, "/fm": {}, "/fo": {}, "/fr": {}, "/ga": {}, "/uk": {}, "/gd": {}, "/ge": {}, "/gf": {}, "/gg": {}, "/gh": {}, "/gi": {}, "/gl": {}, "/gm": {}, "/gn": {}, "/gp": {}, "/gq": {}, "/gr": {}, "/gt": {}, "/gu": {}, "/gw": {}, "/gy": {}, "/hk": {}, "/hn": {}, "/hr": {}, "/ht": {}, "/hu": {}, "/ic": {}, "/id": {}, "/ie": {}, "/il": {}, "/in": {}, "/io": {}, "/iq": {}, "/ar-iq": {}, "/is": {}, "/it": {}, "/je": {}, "/jm": {}, "/jo": {}, "/ar-jo": {}, "/jp": {}, "/ke": {}, "/kg": {}, "/kh": {}, "/ki": {}, "/km": {}, "/kn": {}, "/kr": {}, "/kv": {}, "/kw": {}, "/ar-kw": {}, "/ky": {}, "/kz": {}, "/la": {}, "/lb": {}, "/ar-lb": {}, "/lc": {}, "/li": {}, "/lk": {}, "/ls": {}, "/lt": {}, "/lu": {}, "/lv": {}, "/ma": {}, "/mc": {}, "/md": {}, "/me": {}, "/mg": {}, "/mh": {}, "/mk": {}, "/ml": {}, "/mn": {}, "/mo": {}, "/mp": {}, "/mq": {}, "/mr": {}, "/ms": {}, "/mt": {}, "/mu": {}, "/mv": {}, "/mw": {}, "/mx": {}, "/my": {}, "/mz": {}, "/na": {}, "/nc": {}, "/ne": {}, "/nf": {}, "/ng": {}, "/ni": {}, "/nl": {}, "/no": {}, "/np": {}, "/nr": {}, "/nu": {}, "/nz": {}, "/om": {}, "/ar-om": {}, "/pa": {}, "/pe": {}, "/pf": {}, "/pg": {}, "/ph": {}, "/pk": {}, "/pl": {}, "/pm": {}, "/pn": {}, "/pr": {}, "/pt": {}, "/pw": {}, "/py": {}, "/qa": {}, "/ar-qa": {}, "/re": {}, "/ro": {}, "/rs": {}, "/ru": {}, "/rw": {}, "/sa": {}, "/ar-sa": {}, "/sb": {}, "/sc": {}, "/se": {}, "/sg": {}, "/sh": {}, "/si": {}, "/sk": {}, "/sl": {}, "/sm": {}, "/sn": {}, "/sr": {}, "/st": {}, "/sv": {}, "/sz": {}, "/tc": {}, "/td": {}, "/tg": {}, "/th": {}, "/tj": {}, "/tk": {}, "/tl": {}, "/tn": {}, "/to": {}, "/tr": {}, "/tt": {}, "/tv": {}, "/tw": {}, "/tz": {}, "/ua": {}, "/ug": {}, "/uy": {}, "/uz": {}, "/va": {}, "/vc": {}, "/ve": {}, "/vg": {}, "/vi": {}, "/vn": {}, "/vu": {}, "/wf": {}, "/xc": {}, "/ye": {}, "/za": {}, "/zm": {}, "/zw": {}}
-
-func getPathFirstSection(p string) string {
-	return "/" + strings.SplitN(strings.TrimPrefix(p, "/"), "/", 2)[0]
-}
-
 func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
 		return nil
-	}
-
-	prefix := getPathFirstSection(resp.Request.URL.Path)
-	if _, ok := countriesPrefix[prefix]; ok {
-		req := resp.Request
-		req.URL.Path = strings.TrimPrefix(req.URL.Path, prefix)
-
-		opts := c.CrawlOptions(req.URL)
-		for k := range opts.MustHeader {
-			req.Header.Set(k, opts.MustHeader.Get(k))
-		}
-		for _, c := range opts.MustCookies {
-			if strings.HasPrefix(req.URL.Path, c.Path) || c.Path == "" {
-				val := fmt.Sprintf("%s=%s", c.Name, c.Value)
-				if c := req.Header.Get("Cookie"); c != "" {
-					req.Header.Set("Cookie", c+"; "+val)
-				} else {
-					req.Header.Set("Cookie", val)
-				}
-			}
-		}
-		c.logger.Infof("Access %s", req.URL.String())
-		if res, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
-			EnableProxy:       true,
-			EnableHeadless:    opts.EnableHeadless,
-			EnableSessionInit: opts.EnableSessionInit,
-			DisableCookieJar:  opts.DisableCookieJar,
-			Reliability:       opts.Reliability,
-		}); err != nil {
-			return err
-		} else {
-			resp = res
-		}
-	}
-
-	yieldWrap := func(ctx context.Context, val interface{}) error {
-		switch v := val.(type) {
-		case *http.Request:
-			prefix := getPathFirstSection(v.URL.Path)
-			if _, ok := countriesPrefix[prefix]; ok {
-				v.URL.Path = strings.TrimPrefix(v.URL.Path, prefix)
-			}
-			return yield(ctx, v)
-		default:
-			return yield(ctx, val)
-		}
 	}
 
 	p := strings.TrimSuffix(resp.RawUrl().Path, "/")
@@ -150,9 +98,9 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return crawler.ErrUnsupportedPath
 	}
 	if c.productPathMatcher.MatchString(p) || c.productApiPathMatcher.MatchString(p) {
-		return c.parseProduct(ctx, resp, yieldWrap)
+		return c.parseProduct(ctx, resp, yield)
 	} else if c.categoryPathMatcher.MatchString(p) {
-		return c.parseCategoryProducts(ctx, resp, yieldWrap)
+		return c.parseCategoryProducts(ctx, resp, yield)
 	}
 	return crawler.ErrUnsupportedPath
 }
@@ -366,6 +314,60 @@ type parseProductListStructure []struct {
 	} `json:"products"`
 }
 
+type parseSessionResp struct {
+	Current struct {
+		Country     string      `json:"country"`
+		Csrf        string      `json:"csrf"`
+		GaCookie    string      `json:"ga_cookie"`
+		SessionID   string      `json:"session_id"`
+		TestsConfig []string    `json:"tests_config"`
+		Pos         interface{} `json:"pos"`
+		Order       struct {
+			Number string `json:"number"`
+			State  string `json:"state"`
+			Token  string `json:"token"`
+		} `json:"order"`
+		Region struct {
+			Name                string   `json:"name"`
+			AvailableCurrencies []string `json:"available_currencies"`
+		} `json:"region"`
+		ExternalCheckout bool `json:"external_checkout"`
+	} `json:"current"`
+}
+
+func setSessionCtx(ctx context.Context, session *parseSessionResp) context.Context {
+	orderNumber := "M114315860ZX"
+	spreeOrderToken := "9pIuUXRb0NATvSKC5BkmPg1632395340843"
+	if session != nil {
+		if session.Current.Order.Number != "" {
+			orderNumber = session.Current.Order.Number
+		}
+		if session.Current.Order.Token != "" {
+			spreeOrderToken = session.Current.Order.Token
+		}
+	}
+	ctx = context.WithValue(ctx, "session.orderNumber", orderNumber)
+	ctx = context.WithValue(ctx, "session.spreeOrderToken", spreeOrderToken)
+	return ctx
+}
+
+func getSessionFromCtx(ctx context.Context) *parseSessionResp {
+	var resp parseSessionResp
+	if orderNumber := ctx.Value("session.orderNumber"); orderNumber != nil {
+		resp.Current.Order.Number = orderNumber.(string)
+	}
+	if resp.Current.Order.Number == "" {
+		resp.Current.Order.Number = "M114315860ZX"
+	}
+	if spreeOrderToken := ctx.Value("session.spreeOrderToken"); spreeOrderToken != nil {
+		resp.Current.Order.Token = spreeOrderToken.(string)
+	}
+	if resp.Current.Order.Token == "" {
+		resp.Current.Order.Token = "9pIuUXRb0NATvSKC5BkmPg1632395340843"
+	}
+	return &resp
+}
+
 // parseCategoryProducts parse api url from web page url
 func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
 	if c == nil || yield == nil {
@@ -385,9 +387,9 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 
 	var viewData parseProductListStructure
 	var materialFilter []string
-	if c.categorySearchAPIPathMatcher.MatchString(resp.Request.URL.Path) {
-		categoryURL := "https://mejuri.com/api/v1/taxon/collections-by-categories/USD/type"
-		varResponse, err := c.variationRequest(ctx, categoryURL, resp.Request.URL.String())
+	if p := resp.RawUrl().Path; c.categorySearchAPIPathMatcher.MatchString(p) {
+		categoryURL := "https://mejuri.com/api/v1/taxon/collections-by-categories/USD" + strings.TrimPrefix(p, "/shop/t")
+		varResponse, err := c.variationRequest(ctx, categoryURL, resp.Request.URL.String(), nil)
 		if err != nil {
 			c.logger.Errorf("extract product list %s failed", categoryURL)
 			return err
@@ -401,6 +403,19 @@ func (c *_Crawler) parseCategoryProducts(ctx context.Context, resp *http.Respons
 		vals := u.Query()
 		materialFilter = strings.Split(vals.Get("fbm"), `,`)
 	}
+
+	// init session
+	var sessionData parseSessionResp
+	sessionResponse, err := c.variationRequest(ctx, "https://mejuri.com/session_current", resp.Request.URL.String(), nil)
+	if err != nil {
+		c.logger.Errorf("init session failed")
+		return err
+	}
+	if err := json.Unmarshal(sessionResponse, &sessionData); err != nil {
+		c.logger.Errorf("json.Unmarshal session failed, err=%s", err)
+		return err
+	}
+	ctx = setSessionCtx(ctx, &sessionData)
 
 	lastIndex := nextIndex(ctx)
 	sel := doc.Find(`.product-name`)
@@ -568,9 +583,21 @@ type parseRatingResponse struct {
 	} `json:"response"`
 }
 
+type parseStockResponse struct {
+	Online struct {
+		Backorderable  bool   `json:"backorderable"`
+		StockCount     int    `json:"stock_count"`
+		ShipDate       string `json:"ship_date"`
+		ReserveWording string `json:"reserve_wording"`
+	} `json:"online"`
+}
+
 var (
 	detailReg      = regexp.MustCompile(`({.*})`)
 	imgWidthTplReg = regexp.MustCompile(`,+w_\d+`)
+	stockApi       = func(variantId int, orderNumber string) string {
+		return fmt.Sprintf("https://mejuri.com/api/v2/variants/%d/stock?order_number=%s", variantId, orderNumber)
+	}
 )
 
 func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield func(context.Context, interface{}) error) error {
@@ -590,12 +617,12 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	opts := c.CrawlOptions(resp.Request.URL)
-	if !c.productApiPathMatcher.MatchString(resp.Request.URL.Path) {
+	opts := c.CrawlOptions(resp.RawUrl())
+	if !c.productApiPathMatcher.MatchString(resp.RawUrl().Path) {
 
-		produrl := strings.ReplaceAll(resp.Request.URL.String(), "/shop/", "/api/v2/")
+		produrl := strings.ReplaceAll(resp.RawUrl().String(), "/shop/", "/api/v2/")
 
-		respBody, err = c.variationRequest(ctx, produrl, resp.Request.URL.String())
+		respBody, err = c.variationRequest(ctx, produrl, resp.RawUrl().String(), nil)
 		if err != nil {
 			c.logger.Errorf("extract product %s failed", produrl)
 			return err
@@ -615,18 +642,19 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		return err
 	}
 
-	var materialgrpproducts = make([]string, len(viewData.MaterialGroupProducts)+1)
-	for i, proditem := range viewData.MaterialGroupProducts {
-		if proditem.ID == viewData.ID {
-			materialgrpproducts[0] = proditem.Slug
-		} else {
-			materialgrpproducts[i+1] = proditem.Slug
+	materialGrpProducts := make([]string, 0, len(viewData.MaterialGroupProducts))
+	materialGrpProducts = append(materialGrpProducts, viewData.Slug)
+	for _, prodItem := range viewData.MaterialGroupProducts {
+		if prodItem.ID == viewData.ID {
+			continue
 		}
+		materialGrpProducts = append(materialGrpProducts, prodItem.Slug)
 	}
 
-	canUrl, _ := c.CanonicalUrl(doc.Find(`link[rel="canonical"]`).AttrOr("href", ""))
+	crawlUrl := resp.RawUrl().String()
+	canUrl := doc.Find(`link[rel="canonical"]`).AttrOr("href", "")
 	if canUrl == "" {
-		canUrl, _ = c.CanonicalUrl(resp.Request.URL.String())
+		canUrl, _ = c.CanonicalUrl(resp.RawUrl().String())
 	}
 
 	review, _ := strconv.ParseInt(strings.Split(strings.TrimSpace(doc.Find(`.yotpo-sum-reviews`).Text()), " ")[0])
@@ -637,7 +665,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 		produrl := `https://api.yotpo.com/v1/widget/EolV1WOLJ2UcFKuPJlrtxAIQCCoiDU7c8YqoW2pm/products/` + strconv.Format(viewData.ID) + `/reviews.json?widget=bottomline`
 
-		respReviewBody, err := c.variationRequest(ctx, produrl, resp.Request.URL.String())
+		respReviewBody, err := c.variationRequest(ctx, produrl, resp.Request.URL.String(), nil)
 		if err != nil {
 			c.logger.Errorf("extract product review %s failed", produrl)
 			return err
@@ -651,12 +679,9 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		rating, _ = strconv.ParseFloat(viewReviewData.Response.Bottomline.AverageScore)
 	}
 
-	for pi, prodslug := range materialgrpproducts {
-
+	for pi, prodslug := range materialGrpProducts {
 		if pi > 0 && prodslug != "" {
-
 			produrl, _ := c.CanonicalUrl("/api/v2/products/" + prodslug)
-
 			req, err := http.NewRequest(http.MethodGet, produrl, nil)
 			if err != nil {
 				c.logger.Error(err)
@@ -664,7 +689,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			}
 			req.Header.Set("Accept", "application/json, text/javascript, */*; q=0.01")
 			req.Header.Set("content-type", "application/json;charset=utf-8")
-			req.Header.Set("referer", canUrl)
+			req.Header.Set("referer", crawlUrl)
 
 			respNew, err := c.httpClient.DoWithOptions(ctx, req, http.Options{
 				EnableProxy: true,
@@ -681,15 +706,13 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 			if err != nil {
 				return err
 			}
-
+			crawlUrl = strings.ReplaceAll(crawlUrl, viewData.Slug, prodslug)
+			canUrl = strings.ReplaceAll(canUrl, viewData.Slug, prodslug)
 			if err := json.Unmarshal(respBody, &viewData); err != nil {
 				c.logger.Errorf("unmarshal product detail data fialed, error=%s", err)
 				return err
 			}
 		}
-		// else if prodslug == "" {
-		// 	//continue
-		// }
 
 		color := viewData.MaterialName
 		desc := viewData.Description + " " + viewData.Details
@@ -700,7 +723,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		item := pbItem.Product{
 			Source: &pbItem.Source{
 				Id:           strconv.Format(viewData.ID),
-				CrawlUrl:     resp.Request.URL.String(),
+				CrawlUrl:     crawlUrl,
 				CanonicalUrl: canUrl,
 			},
 			Title:       viewData.Name,
@@ -774,9 +797,35 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 					Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 				}
-				if viewData.Available {
+				for _, price := range variation.Prices {
+					if strings.ToUpper(strings.TrimSpace(price.Currency)) == "USD" && price.Amount != "" {
+						amount, _ := strconv.ParseFloat(price.Amount)
+						amount = amount * 100
+						sku.Price.Msrp = int32(amount)
+						sku.Price.Current = int32(amount)
+						sku.Price.Discount = 0
+						break
+					}
+				}
+
+				// stock
+				var stockData parseStockResponse
+				sessionData := getSessionFromCtx(ctx)
+				stockRespBody, err := c.variationRequest(ctx, stockApi(variation.ID, sessionData.Current.Order.Number), crawlUrl, map[string]string{
+					"x-spree-order-token": sessionData.Current.Order.Token,
+				})
+				if err != nil {
+					c.logger.Errorf("get sku %s stock error=%s", variation.ID, err)
+					return err
+				}
+				if err := json.Unmarshal(stockRespBody, &stockData); err != nil {
+					c.logger.Errorf("unmarshal sku %s stock data failed, error=%s", variation.ID, err)
+					return err
+				}
+				if stockData.Online.StockCount > 0 {
 					sku.Stock.StockStatus = pbItem.Stock_InStock
 					item.Stock.StockStatus = pbItem.Stock_InStock
+					sku.Stock.StockCount = int32(stockData.Online.StockCount)
 				}
 
 				if color != "" {
@@ -811,7 +860,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 		} else {
 
 			sku := pbItem.Sku{
-				SourceId: strconv.Format(viewData.ID),
+				SourceId: strconv.Format(viewData.Master.ID),
 				Price: &pbItem.Price{
 					Currency: regulation.Currency_USD,
 					Current:  int32(current * 100),
@@ -821,9 +870,24 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 
 				Stock: &pbItem.Stock{StockStatus: pbItem.Stock_OutOfStock},
 			}
-			if viewData.Available {
+			// stock
+			var stockData parseStockResponse
+			sessionData := getSessionFromCtx(ctx)
+			stockRespBody, err := c.variationRequest(ctx, stockApi(viewData.Master.ID, sessionData.Current.Order.Number), crawlUrl, map[string]string{
+				"x-spree-order-token": sessionData.Current.Order.Token,
+			})
+			if err != nil {
+				c.logger.Errorf("get sku %s stock error=%s", viewData.Master.ID, err)
+				return err
+			}
+			if err := json.Unmarshal(stockRespBody, &stockData); err != nil {
+				c.logger.Errorf("unmarshal sku %s stock data failed, error=%s", viewData.Master.ID, err)
+				return err
+			}
+			if stockData.Online.StockCount > 0 {
 				sku.Stock.StockStatus = pbItem.Stock_InStock
 				item.Stock.StockStatus = pbItem.Stock_InStock
+				sku.Stock.StockCount = int32(stockData.Online.StockCount)
 			}
 
 			if color != "" {
@@ -853,7 +917,7 @@ func (c *_Crawler) parseProduct(ctx context.Context, resp *http.Response, yield 
 	return nil
 }
 
-func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string) ([]byte, error) {
+func (c *_Crawler) variationRequest(ctx context.Context, url string, referer string, exHeader map[string]string) ([]byte, error) {
 
 	req, _ := http.NewRequest(http.MethodGet, url, nil)
 	opts := c.CrawlOptions(req.URL)
@@ -862,6 +926,11 @@ func (c *_Crawler) variationRequest(ctx context.Context, url string, referer str
 	req.Header.Set("content-type", "application/json;charset=utf-8")
 	req.Header.Set("x-requested-with", "XMLHttpRequest")
 	req.Header.Set("referer", referer)
+	if exHeader != nil {
+		for s, s2 := range exHeader {
+			req.Header.Set(s, s2)
+		}
+	}
 
 	for _, c := range opts.MustCookies {
 		req.AddCookie(c)
