@@ -42,8 +42,8 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 	c := _Crawler{
 		httpClient: client,
 		// this regular used to match category page url path
-		categoryPathMatcher: regexp.MustCompile(`^/en/([/A-Za-z0-9_-]+)$`),
-		productPathMatcher:  regexp.MustCompile(`^/en/categories([/A-Za-z0-9_-]+).html$`),
+		categoryPathMatcher: regexp.MustCompile(`^/en(/[A-Za-z0-9_-]+){1,2}/?$`),
+		productPathMatcher:  regexp.MustCompile(`^/en/(categories|[a-z-]+)(/[A-Za-z0-9_-]+){2,4}.html$`),
 		logger:              logger.New("_Crawler"),
 	}
 	return &c, nil
@@ -51,7 +51,7 @@ func (_ *_Crawler) New(_ *cli.Context, client http.Client, logger glog.Log) (cra
 
 // ID
 func (c *_Crawler) ID() string {
-	return "dd89e9f996d94c419e1326af1a148abd"
+	return "7fe6bd58dd0b074375510f20e8fb2f4b"
 }
 
 // Version
@@ -119,10 +119,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 		return nil
 	}
 
-	p := strings.TrimSuffix(resp.Request.URL.Path, "/")
-	if p == "" {
-		return crawler.ErrUnsupportedPath
-	}
+	p := resp.RawUrl().Path
 
 	if c.productPathMatcher.MatchString(p) {
 		return c.parseProduct(ctx, resp, yield)
