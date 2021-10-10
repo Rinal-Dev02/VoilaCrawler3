@@ -53,6 +53,14 @@ type CrawlOptions struct {
 	// ProxyReliability
 	Reliability proxy.ProxyReliability
 
+	// ProxyFilter tags used to filter proxies which match the tags
+	// optional tags:
+	//   country=us
+	//   platform=aws|gce
+	//   type=datacenter
+	// if no tags speclfied, any of the above will be used
+	ProxyFilter map[string]string
+
 	// SkipDoRequest if this option is enabled, the dispatcher will directly call Parse without do http request
 	SkipDoRequest bool
 }

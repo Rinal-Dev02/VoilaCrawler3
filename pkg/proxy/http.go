@@ -109,10 +109,11 @@ func (c *proxyClient) DoWithOptions(ctx context.Context, r *http.Request, opts h
 			EnableSessionInit: opts.EnableSessionInit,
 			KeepSession:       opts.KeepSession,
 			DisableCookieJar:  opts.DisableCookieJar,
-			MaxTtlPerRequest:  5 * 60, // 5mins
+			MaxTtlPerRequest:  3 * 60, // 3mins
 			DisableRedirect:   opts.DisableRedirect,
 			RequestFilterKeys: opts.RequestFilterKeys,
 			JsWaitDuration:    opts.JsWaitDuration,
+			Tags:              opts.Tags,
 		},
 	}
 	// set ttl per request according to deadline

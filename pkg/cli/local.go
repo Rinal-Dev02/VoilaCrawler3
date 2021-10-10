@@ -423,6 +423,7 @@ func localCommand(ctx context.Context, app *App, newer crawler.NewCrawler, extra
 							DisableCookieJar:  opts.DisableCookieJar,
 							DisableRedirect:   opts.DisableRedirect,
 							Reliability:       opts.Reliability,
+							Tags:              opts.ProxyFilter,
 						}
 						if c.IsSet("enable-headless") {
 							httpOpts.EnableHeadless = c.Bool("enable-headless")

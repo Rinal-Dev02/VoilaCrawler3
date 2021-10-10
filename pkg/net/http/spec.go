@@ -53,6 +53,9 @@ type Options struct {
 
 	// RequestFilterKeys use to filter the response from multi request of the same url(for headless cached request)
 	RequestFilterKeys []string
+
+	// Tags proxy filter by tags
+	Tags map[string]string
 }
 
 type Client interface {
