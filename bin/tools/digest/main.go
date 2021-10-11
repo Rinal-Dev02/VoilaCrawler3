@@ -49,6 +49,7 @@ type _Crawler struct {
 	logger                  glog.Log
 
 	crawlerClient pbCrawl.CrawlerManagerClient
+	conversionMap map[string]string
 }
 
 func (_ *_Crawler) New(cli *cmd.Context, client http.Client, logger glog.Log) (crawler.Crawler, error) {
@@ -75,6 +76,17 @@ func (_ *_Crawler) New(cli *cmd.Context, client http.Client, logger glog.Log) (c
 				return err
 			}
 			c.crawlerClient = pbCrawl.NewCrawlerManagerClient(conn)
+		}
+		conversionSites := cli.String("conver-site")
+		if conversionSites != "" {
+			c.conversionMap = make(map[string]string)
+			for _, conversionSite := range strings.Split(conversionSites, ",") {
+				conversionSiteInfo := strings.Split(conversionSite, ":")
+				if len(conversionSiteInfo) != 2 {
+					return fmt.Errorf("conversionSite %s format error", conversionSite)
+				}
+				c.conversionMap[strings.TrimSpace(conversionSiteInfo[0])] = strings.TrimSpace(conversionSiteInfo[1])
+			}
 		}
 		return nil
 	}()
@@ -125,7 +137,7 @@ func (c *_Crawler) Parse(ctx context.Context, resp *http.Response, yield func(co
 
 	if c.crawlerClient != nil {
 		// convert to our own crawler
-		for allowedDomain, siteId := range util.ConversionMap {
+		for allowedDomain, siteId := range c.conversionMap {
 			if matched, _ := filepath.Match(allowedDomain, resp.Request.URL.Hostname()); matched {
 				// build request
 				// convert http.Request to pbCrawl.Command_Request and forward
@@ -512,5 +524,6 @@ func main() {
 		&_Crawler{},
 		&cli.StringFlag{Name: "diffbot-token", Usage: "diffbot api token"},
 		&cli.StringFlag{Name: "crawlet-addr", Usage: "crawlet server address"},
+		&cli.StringFlag{Name: "conver-site", Usage: "conver to self crawl service, example 'domain1:id1,domain2:id2...'"},
 	).Run(os.Args)
 }

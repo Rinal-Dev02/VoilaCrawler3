@@ -6,12 +6,6 @@ import (
 	"strings"
 )
 
-var (
-	ConversionMap = map[string]string{
-		"*.sephora.com": "b91cac7f1f123f59da130d53d8f71d50",
-	}
-)
-
 func UnmarshalToOpenGraphProduct(src interface{}) *pbItem.OpenGraph_Product {
 	var item pbItem.OpenGraph_Product
 	switch srcValue := src.(type) {
