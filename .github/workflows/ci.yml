@@ -1,0 +1,52 @@
+name: Image
+
+on:
+  push:
+    branches:
+    - main
+    paths:
+    - '**.go'
+    - 'go.mod'
+    tags: v*-release
+    
+jobs:
+  release:
+    runs-on: self-hosted
+    steps:
+    - uses: actions/checkout@v2
+      
+    - name: Set up Go
+      uses: actions/setup-go@v2
+      with:
+        go-version: 1.16
+  
+    - name: Granting private modules access
+      run: git config --global url."https://${{ secrets.GO_MOD_TOKEN }}:x-oauth-basic@github.com/".insteadOf "https://github.com/"
+
+    - name: Build
+      run: make all
+      
+    - name: Build image
+      run: docker build . --file Dockerfile --tag image
+
+    - name: Log into registry
+      run: echo "${{ secrets.GO_MOD_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Push image
+      run: |
+        IMAGE_ID=ghcr.io/${{ github.repository }}
+        # Change all uppercase to lowercase
+        IMAGE_ID=$(echo $IMAGE_ID | tr '[A-Z]' '[a-z]')
+        # Strip git ref prefix from version
+        VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+        # Strip "v" prefix from tag name
+        [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+        [[ "${{ github.ref }}" == "refs/heads/"* ]] && VERSION=$(echo "${{ github.sha }}" | cut -c 1-12)
+        # Use Docker `latest` tag convention
+        [ "$VERSION" == "main" ] && VERSION=latest
+        echo IMAGE_ID=$IMAGE_ID
+        echo VERSION=$VERSION
+        docker tag image $IMAGE_ID:$VERSION
+        docker push $IMAGE_ID:$VERSION
+    
+        curl "https://open.larksuite.com/open-apis/bot/v2/hook/0b4eaf9c-33ec-48fc-9716-27f256705e6d" -H "Content-Type:application/json" -d "{ \"msg_type\": \"interactive\", \"card\": { \"config\": { \"wide_screen_mode\": false, \"enable_forward\": true }, \"header\": { \"title\": { \"content\": \"Github Action\", \"tag\": \"plain_text\" } }, \"elements\": [ { \"tag\": \"markdown\", \"content\": \"--------------\n**Repo**\n$GITHUB_REPOSITORY\n\n**Author**\n${{ github.event.commits[0].author.name }}\n\n**Commit**\n${{ github.event.commits[0].message }}\n\n**Docker Image**\n$IMAGE_ID:$VERSION\" }, { \"actions\": [ { \"tag\": \"button\", \"text\": { \"tag\": \"lark_md\", \"content\": \"View Build Logs\", \"lines\": 1 }, \"url\": \"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\", \"type\": \"primary\", \"value\": {} } ], \"tag\": \"action\", \"layout\": \"bisected\" }, { \"tag\": \"note\", \"elements\": [ { \"tag\": \"plain_text\", \"content\": \"$(date)\" } ] } ] } }"
